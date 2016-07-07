@@ -2524,10 +2524,10 @@ function addContent(content) {
       toc;
 
   if (ga) {
-    console.log('Sending to GA');
+    console.log("Sending to GA\n" + aDOMNext.pathname);
     ga('send', 'pageview', aDOMNext.pathname);
   } else {
-    console.log("BAd GA?");
+    console.log("Bad GA?");
   }
   
   // for javascript files
