@@ -2523,8 +2523,13 @@ function addContent(content) {
   var cls = content.className,
       toc;
 
-  if (ga) ga('send', 'pageview', aDOMNext.pathname);
-      
+  if (ga) {
+    console.log('Sending to GA');
+    ga('send', 'pageview', aDOMNext.pathname);
+  } else {
+    console.log("BAd GA?");
+  }
+  
   // for javascript files
   if ( typeof hljs !== 'undefined' &&
       hljs.highlightBlock instanceof Function ) {
