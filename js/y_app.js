@@ -2525,7 +2525,6 @@ function addContent(content) {
       toc;
 
   if (ga instanceof Function) ga('send', 'pageview', aDOMNext.pathname);
-  else console.log('Bad ga');
 
   // for javascript files
   if ( typeof hljs !== 'undefined' &&
