@@ -2524,7 +2524,8 @@ function addContent(content) {
   var cls = content.className,
       toc;
 
-  if (ga) ga('send', 'pageview', aDOMNext.pathname);
+  if (ga instanceof Function) ga('send', 'pageview', aDOMNext.pathname);
+  else console.log('Bad ga');
 
   // for javascript files
   if ( typeof hljs !== 'undefined' &&
