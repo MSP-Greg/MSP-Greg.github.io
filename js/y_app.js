@@ -1,4 +1,16 @@
 ; 'use strict';
+
+var ga;
+
+if ( /github\.io/i.test(location.hostname) ) {
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga( 'create', 'UA-79746991-1', 'auto', { anonymizeIp: true } );
+}
+
 /* This is an immediate function that wraps everything.  It initializes all of
  * the app constants and variables, and hooks window.onDOMContentLoaded to
  * {eDOMContent}. Inside of it the Panes module is defined, also an immediate
@@ -12,17 +24,6 @@
  * @js_module_new App
  */
 (function(_t2Info, undefined) {
-
-var ga;
-
-if ( /github\.io/i.test(location.hostname) ) {
-  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
-  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
-  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
-  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
-
-  ga( 'create', 'UA-79746991-1', 'auto', { anonymizeIp: true } );
-}
 
 //{ Constants
 
@@ -2524,7 +2525,7 @@ function addContent(content) {
       toc;
 
   if (ga) ga('send', 'pageview', aDOMNext.pathname);
-  
+
   // for javascript files
   if ( typeof hljs !== 'undefined' &&
       hljs.highlightBlock instanceof Function ) {
