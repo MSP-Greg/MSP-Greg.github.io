@@ -58,7 +58,7 @@ var CB_CONTENT   = 0,
     CB_POP_STATE = 4;
 
 /* #### Valid List search characters */
-var RE_LIST_SEARCH = /[a-z0-9!%&\*\+\-\/<=>\?\[\]\^_\|\~]/i;
+var RE_LIST_SEARCH = /[a-z0-9$!%&\*\+\-\/<=>\?\[\]\^_\|\~]/i;
 
 /* #### Pane Button ids */
 var HDR_PANE_BTNS  = ['list_loc', 'list_vis', 'toc_loc', 'toc_vis'];
@@ -490,9 +490,9 @@ function paneClk(e) {
     this.clickedLI = eLI;
     this.clickedA = eA;
     clickedBy = ( isList ? CB_LIST : CB_TOC );
-    if (eA.hash)
+    if (eA.hash !== '')
       gotoDoc(eA.pathname + '#' + decodeURIComponent(eA.hash.replace(/%-/, '%25-')).slice(1));
-    else
+    else if ( !/\/#$/.test(eA.href) )
       gotoDoc(eA.href);
     cancel = true;
   }
@@ -678,21 +678,26 @@ function paneShow(me) {
  * @param key [String] string of the key pressed
  */
 function list_KeyPress(key) {
-  var qs,
-      eA,
-      keyU = key.toUpperCase(),
-      keyD = key.toLowerCase();
+  var eA,
+      re,
+      result;
 
   // return if class, only list nested list
   if (oList.type === LIST_CLASS) return;
 
-  if (keyU === keyD)
-    qs = 'a[href*="#' + encodeStr(key) + '"]';
-  else
-    qs = 'a[href*="#' + keyU + '"], a[href*="#' + keyD + '"]';
-  if ( eA = oList.items.querySelector(qs) )
-    oList.nav.scrollTop = getPrntByIO(eA, HTMLLIElement).offsetTop;
+  txt = key.replace(/([\?*+^|\.\$\[\]\(\)\{\}])/g, "\\$1");
 
+  if (oList.type === LIST_METHOD) {
+    re = new RegExp('^[\.#]?' + txt, 'i');
+  } else {
+    re = new RegExp('^' + txt, 'i');
+  }
+  result = oList.searchInfo.find( function (o) { return re.test(o.text); } );
+  
+  if (result) {
+    eA = result.a
+    oList.nav.scrollTop = getPrntByIO(eA, HTMLLIElement).offsetTop;
+  }
 }
 
 /* xhr callback function when a new List document is ready, called by
@@ -1136,9 +1141,8 @@ function listSearchCreate(list, re) {
     
     replText = txt.replace(re, "<em>$1</em>");
     
-    
     inHTML = a.innerHTML;
-    replRe = new RegExp('^' + txt.replace(/([\*\+\|\^\.\[\]+?])/g, "\\$1"));
+    replRe = new RegExp('^' + txt.replace(/([\*\+\|\^\.\[\]+?$])/g, "\\$1"));
     inHTML = inHTML.replace(replRe, replText);
     inHTML = inHTML.replace(replRe, replText);
     a.innerHTML = inHTML;
@@ -1988,6 +1992,8 @@ function gotoHash() {
       prnt,
       elOffTop;
 
+  if (!el) return;
+      
   if (el.tagName === 'SECTION' && el.firstElementChild.tagName === 'H3')
     el = el.firstElementChild;
 
@@ -2532,7 +2538,7 @@ function addContent(content) {
 //    var nl = content.querySelectorAll('pre.code.javascript, pre.code.cpp');
     var nl = content.querySelectorAll('pre.code');
     for (var i = 0, el; el = nl[i]; i++) {
-      if (!el.classList.contains('ruby'))
+      if ( !(el.classList.contains('ruby') || el.classList.contains('example') )  )
         hljs.highlightBlock(el);
     }
   }
@@ -2841,13 +2847,19 @@ function clkContent(e) {
     break;
   case 'inheritanceTree':
     // top of page 'Inherits:'
+    var ul = tgt.previousElementSibling,
+        single = ul.previousElementSibling;
     prnt = tgt.parentElement;
-    if (prnt.className === 'showAll') {
-      prnt.className = '';
-      tgt.textContent = 'show all';
-    } else {
-      prnt.className = 'showAll';
+    if (tgt.textContent === 'show all') {
+      ul.style.display = 'block';
+      single.style.display = 'none';
       tgt.textContent = 'hide';
+      prnt.classList.add('box_c');
+    } else {
+      ul.style.display = 'none';
+      single.style.display = 'block';
+      tgt.textContent = 'show all';
+      prnt.classList.remove('box_c');
     }
     cancel = true;
     break;
