@@ -166,7 +166,7 @@ var CN_DOCKED   = 'd',         // Used with nav & toc div elements (the panes)
     CN_CLOSED   = 'yl_closed'; // Used on list li elements that have buttons
 
 /* #### Size Metrics - oList & oToc */
-var LIST_MIN = 17.0   , // List pane min width      em
+var LIST_MIN = 18.0   , // List pane min width      em
     LIST_MAX = 40.0   , // List pane max width      em
     LIST_HDR =  5.4000, // List pane header height  em
      TOC_MIN = 17.0   , // as above, but oToc
