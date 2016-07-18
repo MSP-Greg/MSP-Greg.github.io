@@ -365,7 +365,7 @@ function _HookEvents() {
     _id('list_sizer').addEventListener('mousedown',  oList.resizeMD, false);
     _id('toc_sizer' ).addEventListener('mousedown',   oToc.resizeMD, false);
 
-    if (isTouch) {
+  if (isTouch) {
     _id('list_sizer').addEventListener('touchstart', oList.resizeTS, false);
     _id('toc_sizer' ).addEventListener('touchstart',  oToc.resizeTS, false);
   }
@@ -693,7 +693,7 @@ function list_KeyPress(key) {
     re = new RegExp('^' + txt, 'i');
   }
   result = oList.searchInfo.find( function (o) { return re.test(o.text); } );
-  
+
   if (result) {
     eA = result.a
     oList.nav.scrollTop = getPrntByIO(eA, HTMLLIElement).offsetTop;
@@ -830,7 +830,7 @@ function list_ShowClicked(aDOM) {
     paneUL = ( t = _id('list_search_items') ) ? t : oList.items;
     qs = 'a[href="' + pathFull + '"]';
     eA = paneUL.querySelector(qs);
-    if (eA === null) {
+    if (!eA) {
       qs = 'a[href="' + pathName + '"]';
       eA = paneUL.querySelector(qs);
     }
@@ -998,11 +998,12 @@ function listLoadDone() {
 
   if (isFirstLoad) {
     oList.s.visibility = '';
+    clickedBy = CB_POP_STATE;
+    clickedTop = (oToc.hdrHeight + 3.0 * H_CLS * px30em / 30) - fwHdrHgt;
     if (aDOMNext.hash) {
-      clickedBy = CB_POP_STATE;
-      clickedTop = (oToc.hdrHeight + H_CLS * px30em / 10) - fwHdrHgt;
       gotoHash();
-    }
+    } else if (oList.d.vis)
+      oList.showClicked(aDOMNext);
     isFirstLoad = false;
   } else if (oList.d.vis) list_ShowClicked(aDOMCur);
 
@@ -1138,9 +1139,9 @@ function listSearchCreate(list, re) {
     txt = txt.replace(/&/g, '&amp;');
     txt = txt.replace(/</g, '&lt;');
     txt = txt.replace(/>/g, '&gt;');
-    
+
     replText = txt.replace(re, "<em>$1</em>");
-    
+
     inHTML = a.innerHTML;
     replRe = new RegExp('^' + txt.replace(/([\*\+\|\^\.\[\]+?$])/g, "\\$1"));
     inHTML = inHTML.replace(replRe, replText);
@@ -1248,7 +1249,7 @@ function listSearchExec(text) {
       re = new RegExp('(' + txt + ')', 'ig');
     }
   }
-  
+
   if (dbgSearchLoad) {
     tS = fmtTL(performance.now() - tSt, oList.itemsSearch);
     console.log('Search   exec    ' + tS + ' ' + text);
@@ -1993,7 +1994,7 @@ function gotoHash() {
       elOffTop;
 
   if (!el) return;
-      
+
   if (el.tagName === 'SECTION' && el.firstElementChild.tagName === 'H3')
     el = el.firstElementChild;
 
@@ -2041,8 +2042,8 @@ function gotoHash() {
   aDOMCur.href = aDOMNext.href;
   hash = aDOMCur.pathname + hash;
   if (isWinHistory && (clickedBy !== CB_POP_STATE) ) {
-    
-    window.history.pushState({name: title, url: hash}, 
+
+    window.history.pushState({name: title, url: hash},
         title, hash.replace(/%-/, '%25-') );
   }
 }
@@ -2468,7 +2469,7 @@ function sourceShowHide(content, showCode) {
       sToggle[i].textContent = tc;
     }
   }
- 
+
   if (top !== 0.0) {
     top = eContent.scrollTop + Math.round(eShow.getBoundingClientRect().top) - top;
     eContent.scrollTop = top;
@@ -2641,8 +2642,8 @@ function addSummaryToggle(content) {
       cnFull    = fullVis ? 'summary full' : 'summary full ' + CN_HIDDEN,
       cnCompact = fullVis ? 'summary compact ' + CN_HIDDEN : 'summary compact' ,
       tEl,
-      eA  = document.createElement('a'), 
-      eUL = document.createElement('ul'), 
+      eA  = document.createElement('a'),
+      eUL = document.createElement('ul'),
       eLI = document.createElement('li'),
       eDT = document.createElement('dt'),
       t;
@@ -2677,12 +2678,12 @@ function addSummaryToggle(content) {
     ulFull.className = cnFull;
     ulFull.parentElement.insertBefore(ulCompact, ulFull);
   }
-  
+
   // now create constants compact list
   dlFull = content.querySelector('dl.constants.summary')
   if (dlFull) {
     dlCompact = document.createElement('dl');
-    
+
     nl = dlFull.querySelectorAll('dt');
     for (var i = 0, el, tA, tDT; el = nl[i]; i++) {
       tA = eA.cloneNode(false);
@@ -2700,7 +2701,7 @@ function addSummaryToggle(content) {
 
   nl = content.querySelectorAll('a.summary_toggle');
   nl = Array.prototype.slice.call(nl);
-  
+
   // Set display of yard-js2 constant sections, which will be first in the nodelist
   if (nl.length > 0) {
     grandParent = nl[0].parentElement.parentElement;
