@@ -1005,7 +1005,7 @@ function listLoadDone() {
     } else if (oList.d.vis)
       oList.showClicked(aDOMNext);
     isFirstLoad = false;
-  } else if (oList.d.vis) list_ShowClicked(aDOMCur);
+  } else if (oList.d.vis) list_ShowClicked(aDOMNext);
 
   oLoad.isRunning = false;
   if (dbgListTiming) {
@@ -1021,7 +1021,7 @@ function listLoadDone() {
 /* Splits loading of LI elements when list is large, better UI responsiveness.
  * @param xhrEl  [HTMLElement] element with children to copy from (from xhr docFrag)
  * @param docEl  [HTMLElement] element to add children to (in document)
- * @param qty    [Integer]     number of chilren to load in each loop
+ * @param qty    [Integer]     number of children to load in each loop
  * @param cbFunc [Function]    callback function called when all children have
  *   been loaded/moved
  * @param oState [object] object to pass run to app, and cancel from app
@@ -1310,7 +1310,7 @@ function listSearchExec2() {
  * @note Used for both large (+2,000) lists and large (+500) search result sets.
  * @param xhrEl [HTMLElement] element with children to copy from (from xhr frag)
  * @param docEl [HTMLElement] element to add children to (in document)
- * @param qty [Integer] number of chilren to load in each loop
+ * @param qty [Integer] number of children to load in each loop
  * @param cbFunc [Function] callback function called when all children have
  * been loaded/moved
  * @param oState [object] object to pass run to app, and cancel from app
