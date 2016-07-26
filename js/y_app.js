@@ -2608,20 +2608,22 @@ function addPermaLinks(content) {
  */
 function addShowSource(content) {
   var nl = content.querySelectorAll('section.method_details div.source_code'),
-      div = document.createElement('div'),
+      span = document.createElement('span'),
       spc = String.fromCharCode(8202),
       showSource = state.showSource;
 
-  div.className = 'showSource';
-  div.innerHTML = "[" + spc + "<a href='#' class='toggleSource'>" +
+  span.className = 'showSource';
+  span.innerHTML = "[" + spc + "<a href='#' class='toggleSource'>" +
     (showSource ? T_HIDE_SRC : T_VIEW_SRC) + "</a>" + spc + "]";
 
   _id('src').disabled = (nl.length === 0);
 
   for (var i = 0, el; el = nl[i]; i++) {
+    if (el.previousElementSibling.className === 'link_repo')
+      el = el.previousElementSibling
     if (showSource) el.classList.remove(CN_HIDDEN);
     else            el.classList.add(CN_HIDDEN);
-    el.parentElement.insertBefore( div.cloneNode(true) , el);
+    el.parentElement.insertBefore( span.cloneNode(true) , el);
   }
 }
 
@@ -2839,10 +2841,10 @@ function clkContent(e) {
     prnt = tgt.parentElement;
     if (tgt.textContent === 'more...') {
       tgt.textContent = '(less)';
-      prnt.firstElementChild.style.display = 'inline';
+      prnt.querySelector('span.defines').style.display = 'inline';
     } else {
       tgt.textContent = 'more...';
-      prnt.firstElementChild.style.display = '';
+      prnt.querySelector('span.defines').style.display = '';
     }
     cancel = true;
     break;
@@ -2865,8 +2867,7 @@ function clkContent(e) {
     cancel = true;
     break;
   case 'toggleSource':
-    var sourceCode = tgt.parentElement.nextSibling;
-
+    var sourceCode = tgt.parentElement.parentElement.querySelector('div.source_code');
     if (tgt.textContent === 'view source') {
       tgt.textContent = 'hide source';
       sourceCode.classList.remove(CN_HIDDEN);
@@ -2914,8 +2915,8 @@ function clkContent(e) {
     if (cancel && eA) {
       clickedBy = CB_CONTENT;
       if (hash = eA.hash) {
-        hash = decodeURIComponent(hash.slice(1));
-        cancel = gotoDoc(eA.pathname + '#' + hash);
+        var a = eA.href.split('#');
+        cancel = gotoDoc( a[0] + '#' + decodeURIComponent(a[1]) );
       } else
         cancel = gotoDoc(eA.href);
     }
