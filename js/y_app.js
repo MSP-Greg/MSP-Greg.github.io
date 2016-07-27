@@ -2425,7 +2425,7 @@ function setWait(type) {
  */
 function sourceShowHide(content, showCode) {
   var src =  content.querySelectorAll('section.method_details div.source_code'),
-      sToggle = content.querySelectorAll('div.showSource a.toggleSource'),
+      sToggle = content.querySelectorAll('span.showSource a.toggleSource'),
       len,
       tc,
       top = 0.0,
