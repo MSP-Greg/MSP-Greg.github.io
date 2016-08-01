@@ -2438,7 +2438,7 @@ function sourceShowHide(content, showCode) {
     top = Math.round(eContentClicked.getBoundingClientRect().top);
   }
   if (hdrBottom < top && top < winHeight) {
-    eShow = eContentClicked
+    eShow = eContentClicked;
   } else {
     var nl = eContent.querySelectorAll('h2, h3');
     // eContentClicked not visible
@@ -2619,10 +2619,10 @@ function addShowSource(content) {
   _id('src').disabled = (nl.length === 0);
 
   for (var i = 0, el; el = nl[i]; i++) {
-    if (el.previousElementSibling.className === 'link_repo')
-      el = el.previousElementSibling
     if (showSource) el.classList.remove(CN_HIDDEN);
     else            el.classList.add(CN_HIDDEN);
+    if (el.previousElementSibling.className === 'link_repo')
+      el = el.previousElementSibling;
     el.parentElement.insertBefore( span.cloneNode(true) , el);
   }
 }
@@ -2882,7 +2882,10 @@ function clkContent(e) {
       cancel = true;
       clickedBy = CB_CONTENT;
       clickedTop = tgt.getBoundingClientRect().top - fwHdrHgt;
-      if (hash = eA.hash) {
+      if (e.ctrlKey) {
+        window.open(eA.href, '_blank');
+        cancel = true;
+      } else if (hash = eA.hash) {
         hash = decodeURIComponent(hash.slice(1));
         gotoDoc(eA.pathname + '#' + hash);
       } else gotoDoc(eA.href);
@@ -3113,13 +3116,14 @@ function domLayout() {
 
 /* Called anytime a new doc is loaded */
 function docReady() {
-  var h1 =
   eContent.tabIndex = 1;
   _id('y_menu').addEventListener('click', clkMenu, false);
   eContent.addEventListener('click', clkContent, false);
 }
 
-/* Hooks events on first doc load */
+/* Hooks events on first doc load; these events are not affected when a doc
+ * is loaded via XMLHttpRequest.
+ */
 function hookEvents() {
   window.addEventListener('keydown' , winKeyDown  , false);
   window.addEventListener('keypress', winKeyPress , false);

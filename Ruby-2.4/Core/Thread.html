@@ -8,7 +8,7 @@
 <meta name='apple-mobile-web-app-capable' content='yes'>
 <meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
 
-<title>Class: Thread &mdash; Core Ruby-2.4.0 d2016-07-27</title>
+<title>Class: Thread &mdash; Core Ruby-2.4.0 d2016-08-01</title>
 
 <link rel='stylesheet'  type='text/css' href='../../css/y_fonts.css' />
 <link rel='stylesheet'  type='text/css' href='../../css/highlight.github.css' />
@@ -119,8 +119,10 @@
   <tr>
     <td class='box_1'>Child Classes:</td>
     <td>
-      <a href="Thread/Backtrace.html" title="Thread::Backtrace (class)">Backtrace</a>,
+      <div class='box_max'>
+        <a href="Thread/Backtrace.html" title="Thread::Backtrace (class)">Backtrace</a>,
     <a href="Thread/Mutex.html" title="Thread::Mutex (class)">Mutex</a>
+      </div>
     </td>
   </tr>
 
@@ -136,7 +138,7 @@
   <tr>
   <td class='box_1'>Defined in:</td>
   <td class='box_rel'><div class='box_min'>
-<a href='https://github.com/ruby/ruby/blob/trunk/vm.c#L2707'>vm.c</a><span class='defines'>,<br /><a href='https://github.com/ruby/ruby/blob/trunk/prelude.rb#L1'>prelude.rb</a>,<br/> <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L745'>thread.c</a>,<br/> <a href='https://github.com/ruby/ruby/blob/trunk/vm_trace.c#L547'>vm_trace.c</a></span>
+<a href='https://github.com/ruby/ruby/blob/trunk/vm.c#L2765'>vm.c</a><span class='defines'>,<br /><a href='https://github.com/ruby/ruby/blob/trunk/prelude.rb#L1'>prelude.rb</a>,<br/> <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L747'>thread.c</a>,<br/> <a href='https://github.com/ruby/ruby/blob/trunk/vm_trace.c#L547'>vm_trace.c</a></span>
 </div>  </td>
   </tr>
 </table>
@@ -299,7 +301,7 @@ handle exceptions asynchronously with threads.
       MUTEX_FOR_THREAD_EXCLUSIVE =
     </dt>
     <dd>
-            <pre class='code'><span class='const'><a href="Thread/Mutex.html" title="Thread::Mutex (class)">Mutex</a></span><span class='period'>.</span><span class='id identifier rubyid_new'><a href="BasicObject.html#new-class_method" title="BasicObject.new (method)">new</a></span></pre>
+            <pre class='code'><span class='const'><a href="Thread/Mutex.html" title="Thread::Mutex (class)">Mutex</a></span><span class='period'>.</span><span class='id identifier rubyid_new'><a href="Thread/Mutex.html#new-class_method" title="Thread::Mutex.new (method)">new</a></span></pre>
     </dd>
   </dl>
 
@@ -918,13 +920,11 @@ remain blocked on I/O.</p>
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L745'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L747'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-745
-746
 747
 748
 749
@@ -939,27 +939,45 @@ remain blocked on I/O.</p>
 758
 759
 760
-761</pre>
+761
+762
+763
+764
+765
+766
+767
+768
+769
+770
+771</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 745</span>
+<pre><span class='info file'># File 'thread.c', line 747</span></pre>
+<pre class='code cpp'>
 
 static VALUE
-thread_s_new(int argc, VALUE *argv, VALUE klass)
+thread_initialize(VALUE thread, VALUE args)
 {
     rb_thread_t *th;
-    VALUE thread = rb_thread_alloc(klass);
-
-    if (GET_VM()-&gt;main_thread-&gt;status == THREAD_KILLED)
-	rb_raise(rb_eThreadError, &quot;can&#39;t alloc thread&quot;);
-
-    rb_obj_call_init(thread, argc, argv);
-    GetThreadPtr(thread, th);
-    if (!threadptr_initialized(th)) {
-	rb_raise(rb_eThreadError, &quot;uninitialized thread - check `%&quot;PRIsVALUE&quot;#initialize&#39;&quot;,
-		 klass);
+    if (!rb_block_given_p()) {
+	rb_raise(rb_eThreadError, &quot;must be called with a block&quot;);
     }
-    return thread;
+    GetThreadPtr(thread, th);
+    if (th-&gt;first_args) {
+	VALUE proc = th-&gt;first_proc, line, loc;
+	VALUE file;
+        if (!proc || !RTEST(loc = rb_proc_location(proc))) {
+            rb_raise(rb_eThreadError, &quot;already initialized thread&quot;);
+        }
+	file = RARRAY_AREF(loc, 0);
+	if (NIL_P(line = RARRAY_AREF(loc, 1))) {
+	    rb_raise(rb_eThreadError,
+		     &quot;already initialized thread - %&quot;PRIsVALUE, file);
+	}
+        rb_raise(rb_eThreadError,
+		 &quot;already initialized thread - %&quot;PRIsVALUE&quot;:%&quot;PRIsVALUE,
+                 file, line);
+    }
+    return thread_create_core(thread, args, 0);
 }
 </pre>
   </div>
@@ -993,19 +1011,19 @@ see <a href="#abort_on_exception-instance_method" title="Thread#abort_on_excepti
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2511'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2513'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-2511
-2512
 2513
 2514
-2515</pre>
+2515
+2516
+2517</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 2511</span>
+<pre><span class='info file'># File 'thread.c', line 2513</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_s_abort_exc(void)
@@ -1053,20 +1071,20 @@ see <a href="#abort_on_exception%3D-instance_method" title="Thread#abort_on_exce
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2547'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2549'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-2547
-2548
 2549
 2550
 2551
-2552</pre>
+2552
+2553
+2554</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 2547</span>
+<pre><span class='info file'># File 'thread.c', line 2549</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_s_abort_exc_set(VALUE self, VALUE val)
@@ -1095,19 +1113,19 @@ rb_thread_s_abort_exc_set(VALUE self, VALUE val)
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2465'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2467'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-2465
-2466
 2467
 2468
-2469</pre>
+2469
+2470
+2471</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 2465</span>
+<pre><span class='info file'># File 'thread.c', line 2467</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 thread_s_current(VALUE klass)
@@ -1144,8 +1162,8 @@ THREAD_DEBUG=-1.</p>
 241
 242</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 238</span>
+<pre><span class='info file'># File 'thread.c', line 238</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_s_debug(void)
@@ -1183,8 +1201,8 @@ THREAD_DEBUG=-1.</p>
 256
 257</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 252</span>
+<pre><span class='info file'># File 'thread.c', line 252</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_s_debug_set(VALUE self, VALUE val)
@@ -1224,8 +1242,8 @@ only block other threads which also use the <a href="#exclusive-class_method" ti
 14
 15</pre>
   <div class='lines_code'>
-<pre class='code ruby'
-<span class='info file'># File 'prelude.rb', line 10</span>
+<pre><span class='info file'># File 'prelude.rb', line 10</span></pre>
+<pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span><span class='period'>.</span><span class='id identifier rubyid_exclusive'>exclusive</span>
   <span class='id identifier rubyid_warn'>warn</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Thread.exclusive is deprecated, use Mutex</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_caller'>caller</span>
@@ -1256,20 +1274,20 @@ run.</p>
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2303'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2305'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-2303
-2304
 2305
 2306
 2307
-2308</pre>
+2308
+2309
+2310</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 2303</span>
+<pre><span class='info file'># File 'thread.c', line 2305</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_exit(void)
@@ -1300,19 +1318,19 @@ subclass&#39;s <code>initialize</code> method.</p>
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L773'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L775'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-773
-774
 775
 776
-777</pre>
+777
+778
+779</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 773</span>
+<pre><span class='info file'># File 'thread.c', line 775</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 thread_start(VALUE klass, VALUE args)
@@ -1449,13 +1467,11 @@ considered.</p>
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L1825'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L1827'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-1825
-1826
 1827
 1828
 1829
@@ -1498,10 +1514,12 @@ considered.</p>
 1866
 1867
 1868
-1869</pre>
+1869
+1870
+1871</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 1825</span>
+<pre><span class='info file'># File 'thread.c', line 1827</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_s_handle_interrupt(VALUE self, VALUE mask_arg)
@@ -1574,19 +1592,19 @@ rb_thread_s_handle_interrupt(VALUE self, VALUE mask_arg)
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2284'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2286'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-2284
-2285
 2286
 2287
-2288</pre>
+2288
+2289
+2290</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 2284</span>
+<pre><span class='info file'># File 'thread.c', line 2286</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_s_kill(VALUE obj, VALUE th)
@@ -1626,13 +1644,11 @@ or stopped.</p>
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2430'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2432'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-2430
-2431
 2432
 2433
 2434
@@ -1649,10 +1665,12 @@ or stopped.</p>
 2445
 2446
 2447
-2448</pre>
+2448
+2449
+2450</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 2430</span>
+<pre><span class='info file'># File 'thread.c', line 2432</span></pre>
+<pre class='code cpp'>
 
 VALUE
 rb_thread_list(void)
@@ -1691,19 +1709,19 @@ rb_thread_list(void)
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2484'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2486'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-2484
-2485
 2486
 2487
-2488</pre>
+2488
+2489
+2490</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 2484</span>
+<pre><span class='info file'># File 'thread.c', line 2486</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_s_main(VALUE klass)
@@ -1729,20 +1747,20 @@ running thread may or may not switch, it depends on OS and processor.</p>
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L1535'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L1537'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-1535
-1536
 1537
 1538
 1539
-1540</pre>
+1540
+1541
+1542</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 1535</span>
+<pre><span class='info file'># File 'thread.c', line 1537</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 thread_s_pass(VALUE klass)
@@ -1821,19 +1839,19 @@ avoid asynchronous interrupts.</p>
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L1969'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L1971'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-1969
-1970
 1971
 1972
-1973</pre>
+1973
+1974
+1975</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 1969</span>
+<pre><span class='info file'># File 'thread.c', line 1971</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_s_pending_interrupt_p(int argc, VALUE *argv, VALUE self)
@@ -1868,19 +1886,19 @@ see <a href="#report_on_exception-instance_method" title="Thread#report_on_excep
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2622'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2624'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-2622
-2623
 2624
 2625
-2626</pre>
+2626
+2627
+2628</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 2622</span>
+<pre><span class='info file'># File 'thread.c', line 2624</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_s_report_exc(void)
@@ -1929,20 +1947,20 @@ see <a href="#report_on_exception%3D-instance_method" title="Thread#report_on_ex
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2659'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2661'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-2659
-2660
 2661
 2662
 2663
-2664</pre>
+2664
+2665
+2666</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 2659</span>
+<pre><span class='info file'># File 'thread.c', line 2661</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_s_report_exc_set(VALUE self, VALUE val)
@@ -1992,13 +2010,11 @@ state, and schedules execution of another thread.</p>
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2397'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2399'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-2397
-2398
 2399
 2400
 2401
@@ -2006,10 +2022,12 @@ state, and schedules execution of another thread.</p>
 2403
 2404
 2405
-2406</pre>
+2406
+2407
+2408</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 2397</span>
+<pre><span class='info file'># File 'thread.c', line 2399</span></pre>
+<pre class='code cpp'>
 
 VALUE
 rb_thread_stop(void)
@@ -2096,21 +2114,21 @@ a given block switches fiber.</p>
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L3064'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L3066'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-3064
-3065
 3066
 3067
 3068
 3069
-3070</pre>
+3070
+3071
+3072</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 3064</span>
+<pre><span class='info file'># File 'thread.c', line 3066</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_aref(VALUE thread, VALUE key)
@@ -2143,19 +2161,19 @@ using either a symbol or a string.</p>
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L3119'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L3121'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-3119
-3120
 3121
 3122
-3123</pre>
+3123
+3124
+3125</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 3119</span>
+<pre><span class='info file'># File 'thread.c', line 3121</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_aset(VALUE self, VALUE id, VALUE val)
@@ -2188,21 +2206,21 @@ condition for this <code>thr</code>.</p>
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2570'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2572'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-2570
-2571
 2572
 2573
 2574
 2575
-2576</pre>
+2576
+2577
+2578</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 2570</span>
+<pre><span class='info file'># File 'thread.c', line 2572</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_abort_exc(VALUE thread)
@@ -2237,23 +2255,23 @@ will abort if an exception is raised in this <code>thr</code>.</p>
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2594'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2596'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-2594
-2595
 2596
 2597
 2598
 2599
 2600
 2601
-2602</pre>
+2602
+2603
+2604</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 2594</span>
+<pre><span class='info file'># File 'thread.c', line 2596</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_abort_exc_set(VALUE thread, VALUE val)
@@ -2299,8 +2317,8 @@ rb_thread_abort_exc_set(VALUE thread, VALUE val)
 533
 534</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'vm_trace.c', line 526</span>
+<pre><span class='info file'># File 'vm_trace.c', line 526</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 thread_add_trace_func_m(VALUE obj, VALUE trace)
@@ -2337,13 +2355,11 @@ thread_add_trace_func_m(VALUE obj, VALUE trace)
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2828'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2830'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-2828
-2829
 2830
 2831
 2832
@@ -2351,10 +2367,12 @@ thread_add_trace_func_m(VALUE obj, VALUE trace)
 2834
 2835
 2836
-2837</pre>
+2837
+2838
+2839</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 2828</span>
+<pre><span class='info file'># File 'thread.c', line 2830</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_alive_p(VALUE thread)
@@ -2384,19 +2402,19 @@ rb_thread_alive_p(VALUE thread)
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L4693'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L4695'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-4693
-4694
 4695
 4696
-4697</pre>
+4697
+4698
+4699</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 4693</span>
+<pre><span class='info file'># File 'thread.c', line 4695</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_backtrace_m(int argc, VALUE *argv, VALUE thval)
@@ -2427,19 +2445,19 @@ applies to a specific thread.</p>
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L4710'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L4712'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-4710
-4711
 4712
 4713
-4714</pre>
+4714
+4715
+4716</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 4710</span>
+<pre><span class='info file'># File 'thread.c', line 4712</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_backtrace_locations_m(int argc, VALUE *argv, VALUE thval)
@@ -2472,13 +2490,11 @@ rb_thread_backtrace_locations_m(int argc, VALUE *argv, VALUE thval)
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2229'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2231'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-2229
-2230
 2231
 2232
 2233
@@ -2503,10 +2519,12 @@ rb_thread_backtrace_locations_m(int argc, VALUE *argv, VALUE thval)
 2252
 2253
 2254
-2255</pre>
+2255
+2256
+2257</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 2229</span>
+<pre><span class='info file'># File 'thread.c', line 2231</span></pre>
+<pre class='code cpp'>
 
 VALUE
 rb_thread_kill(VALUE thread)
@@ -2557,13 +2575,11 @@ rb_thread_kill(VALUE thread)
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2725'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2727'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-2725
-2726
 2727
 2728
 2729
@@ -2574,10 +2590,12 @@ rb_thread_kill(VALUE thread)
 2734
 2735
 2736
-2737</pre>
+2737
+2738
+2739</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 2725</span>
+<pre><span class='info file'># File 'thread.c', line 2727</span></pre>
+<pre class='code cpp'>
 
 VALUE
 rb_thread_group(VALUE thread)
@@ -2610,13 +2628,11 @@ rb_thread_group(VALUE thread)
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2947'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2949'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-2947
-2948
 2949
 2950
 2951
@@ -2641,10 +2657,12 @@ rb_thread_group(VALUE thread)
 2970
 2971
 2972
-2973</pre>
+2973
+2974
+2975</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 2947</span>
+<pre><span class='info file'># File 'thread.c', line 2949</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_inspect(VALUE thread)
@@ -2725,13 +2743,11 @@ tick...</code></pre>
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L964'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L966'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-964
-965
 966
 967
 968
@@ -2745,10 +2761,12 @@ tick...</code></pre>
 976
 977
 978
-979</pre>
+979
+980
+981</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 964</span>
+<pre><span class='info file'># File 'thread.c', line 966</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 thread_join_m(int argc, VALUE *argv, VALUE self)
@@ -2791,13 +2809,11 @@ fiber-local variable.</p>
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L3197'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L3199'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-3197
-3198
 3199
 3200
 3201
@@ -2811,10 +2827,12 @@ fiber-local variable.</p>
 3209
 3210
 3211
-3212</pre>
+3212
+3213
+3214</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 3197</span>
+<pre><span class='info file'># File 'thread.c', line 3199</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_key_p(VALUE self, VALUE key)
@@ -2858,13 +2876,11 @@ rb_thread_key_p(VALUE self, VALUE key)
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L3241'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L3243'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-3241
-3242
 3243
 3244
 3245
@@ -2874,10 +2890,12 @@ rb_thread_key_p(VALUE self, VALUE key)
 3249
 3250
 3251
-3252</pre>
+3252
+3253
+3254</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 3241</span>
+<pre><span class='info file'># File 'thread.c', line 3243</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_keys(VALUE self)
@@ -2925,21 +2943,21 @@ rb_thread_keys(VALUE self)
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2894'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2896'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-2894
-2895
 2896
 2897
 2898
 2899
-2900</pre>
+2900
+2901
+2902</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 2894</span>
+<pre><span class='info file'># File 'thread.c', line 2896</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_getname(VALUE thread)
@@ -2967,13 +2985,11 @@ pthread and/or kernel.</p>
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2910'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2912'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-2910
-2911
 2912
 2913
 2914
@@ -3000,10 +3016,12 @@ pthread and/or kernel.</p>
 2935
 2936
 2937
-2938</pre>
+2938
+2939
+2940</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 2910</span>
+<pre><span class='info file'># File 'thread.c', line 2912</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_setname(VALUE thread, VALUE name)
@@ -3058,13 +3076,11 @@ deferred events.</p>
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L1881'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L1883'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-1881
-1882
 1883
 1884
 1885
@@ -3092,10 +3108,12 @@ deferred events.</p>
 1907
 1908
 1909
-1910</pre>
+1910
+1911
+1912</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 1881</span>
+<pre><span class='info file'># File 'thread.c', line 1883</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_pending_interrupt_p(int argc, VALUE *argv, VALUE target_thread)
@@ -3154,21 +3172,21 @@ platform.</p>
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L3342'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L3344'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-3342
-3343
 3344
 3345
 3346
 3347
-3348</pre>
+3348
+3349
+3350</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 3342</span>
+<pre><span class='info file'># File 'thread.c', line 3344</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_priority(VALUE thread)
@@ -3215,13 +3233,11 @@ platform.</p>
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L3377'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L3379'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-3377
-3378
 3379
 3380
 3381
@@ -3242,10 +3258,12 @@ platform.</p>
 3396
 3397
 3398
-3399</pre>
+3399
+3400
+3401</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 3377</span>
+<pre><span class='info file'># File 'thread.c', line 3379</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_priority_set(VALUE thread, VALUE prio)
@@ -3303,13 +3321,11 @@ rb_thread_priority_set(VALUE thread, VALUE prio)
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2199'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2201'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-2199
-2200
 2201
 2202
 2203
@@ -3322,10 +3338,12 @@ rb_thread_priority_set(VALUE thread, VALUE prio)
 2210
 2211
 2212
-2213</pre>
+2213
+2214
+2215</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 2199</span>
+<pre><span class='info file'># File 'thread.c', line 2201</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 thread_raise_m(int argc, VALUE *argv, VALUE self)
@@ -3368,21 +3386,21 @@ condition for this <code>thr</code>.</p>
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2682'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2684'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-2682
-2683
 2684
 2685
 2686
 2687
-2688</pre>
+2688
+2689
+2690</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 2682</span>
+<pre><span class='info file'># File 'thread.c', line 2684</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_report_exc(VALUE thread)
@@ -3416,23 +3434,23 @@ will report the exception if an exception is raised in this
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2704'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2706'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-2704
-2705
 2706
 2707
 2708
 2709
 2710
 2711
-2712</pre>
+2712
+2713
+2714</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 2704</span>
+<pre><span class='info file'># File 'thread.c', line 2706</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_report_exc_set(VALUE thread, VALUE val)
@@ -3477,21 +3495,21 @@ rb_thread_report_exc_set(VALUE thread, VALUE val)
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2373'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2375'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-2373
-2374
 2375
 2376
 2377
 2378
-2379</pre>
+2379
+2380
+2381</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 2373</span>
+<pre><span class='info file'># File 'thread.c', line 2375</span></pre>
+<pre class='code cpp'>
 
 VALUE
 rb_thread_run(VALUE thread)
@@ -3524,22 +3542,22 @@ safe levels can help when implementing sandboxes which run insecure code.</p>
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2878'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2880'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-2878
-2879
 2880
 2881
 2882
 2883
 2884
-2885</pre>
+2885
+2886
+2887</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 2878</span>
+<pre><span class='info file'># File 'thread.c', line 2880</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_safe_level(VALUE thread)
@@ -3592,8 +3610,8 @@ disables tracing if the parameter is <code>nil</code>.</p>
 560
 561</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'vm_trace.c', line 547</span>
+<pre><span class='info file'># File 'vm_trace.c', line 547</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 thread_set_trace_func_m(VALUE obj, VALUE trace)
@@ -3658,13 +3676,11 @@ thread_set_trace_func_m(VALUE obj, VALUE trace)
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2797'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2799'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-2797
-2798
 2799
 2800
 2801
@@ -3677,10 +3693,12 @@ thread_set_trace_func_m(VALUE obj, VALUE trace)
 2808
 2809
 2810
-2811</pre>
+2811
+2812
+2813</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 2797</span>
+<pre><span class='info file'># File 'thread.c', line 2799</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_status(VALUE thread)
@@ -3723,13 +3741,11 @@ rb_thread_status(VALUE thread)
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2853'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2855'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-2853
-2854
 2855
 2856
 2857
@@ -3739,10 +3755,12 @@ rb_thread_status(VALUE thread)
 2861
 2862
 2863
-2864</pre>
+2864
+2865
+2866</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 2853</span>
+<pre><span class='info file'># File 'thread.c', line 2855</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_stop_p(VALUE thread)
@@ -3800,13 +3818,11 @@ thread-local variable.</p>
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L3307'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L3309'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-3307
-3308
 3309
 3310
 3311
@@ -3823,10 +3839,12 @@ thread-local variable.</p>
 3322
 3323
 3324
-3325</pre>
+3325
+3326
+3327</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 3307</span>
+<pre><span class='info file'># File 'thread.c', line 3309</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_variable_p(VALUE thread, VALUE key)
@@ -3887,22 +3905,22 @@ local values are available.</p>
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L3153'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L3155'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-3153
-3154
 3155
 3156
 3157
 3158
 3159
-3160</pre>
+3160
+3161
+3162</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 3153</span>
+<pre><span class='info file'># File 'thread.c', line 3155</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_variable_get(VALUE thread, VALUE key)
@@ -3932,13 +3950,11 @@ these are local to threads, and not to fibers.  Please see
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L3171'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L3173'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-3171
-3172
 3173
 3174
 3175
@@ -3948,10 +3964,12 @@ these are local to threads, and not to fibers.  Please see
 3179
 3180
 3181
-3182</pre>
+3182
+3183
+3184</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 3171</span>
+<pre><span class='info file'># File 'thread.c', line 3173</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_variable_set(VALUE thread, VALUE id, VALUE val)
@@ -3994,13 +4012,11 @@ rb_thread_variable_set(VALUE thread, VALUE id, VALUE val)
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L3278'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L3280'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-3278
-3279
 3280
 3281
 3282
@@ -4010,10 +4026,12 @@ rb_thread_variable_set(VALUE thread, VALUE id, VALUE val)
 3286
 3287
 3288
-3289</pre>
+3289
+3290
+3291</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 3278</span>
+<pre><span class='info file'># File 'thread.c', line 3280</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 rb_thread_variables(VALUE thread)
@@ -4053,22 +4071,22 @@ value or raises the exception which terminated the thread.</p>
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L995'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L997'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-995
-996
 997
 998
 999
 1000
 1001
-1002</pre>
+1002
+1003
+1004</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 995</span>
+<pre><span class='info file'># File 'thread.c', line 997</span></pre>
+<pre class='code cpp'>
 
 static VALUE
 thread_value(VALUE self)
@@ -4107,22 +4125,22 @@ more information.</p>
 </div>
 <div class="tags">
   
-</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2327'>GitHub</a> ]</span>
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread.c#L2329'>GitHub</a> ]</span>
 <div class='source_code h'>
   <pre class='lines_num'>
 
 
-2327
-2328
 2329
 2330
 2331
 2332
 2333
-2334</pre>
+2334
+2335
+2336</pre>
   <div class='lines_code'>
-<pre class='code cpp'
-<span class='info file'># File 'thread.c', line 2327</span>
+<pre><span class='info file'># File 'thread.c', line 2329</span></pre>
+<pre class='code cpp'>
 
 VALUE
 rb_thread_wakeup(VALUE thread)
