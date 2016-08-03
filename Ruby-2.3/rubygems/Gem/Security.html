@@ -8,7 +8,7 @@
 <meta name='apple-mobile-web-app-capable' content='yes'>
 <meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
 
-<title>Module: Gem::Security &mdash; rubygems Ruby-2.3.2 p139</title>
+<title>Module: Gem::Security &mdash; rubygems Ruby-2.3.2 p144</title>
 
 <link rel='stylesheet'  type='text/css' href='../../../css/y_fonts.css' />
 <link rel='stylesheet'  type='text/css' href='../../../css/highlight.github.css' />
@@ -105,7 +105,6 @@
   <col class='box_1' />
   <col class='box_2' />
 </colgroup>
-
   <tr>
     <td class='box_1'>Child Classes:</td>
     <td>
@@ -124,10 +123,6 @@
       </div>
     </td>
   </tr>
-
-
-
-
   <tr>
   <td class='box_1'>Defined in:</td>
   <td class='box_rel'><div class='box_min'>
@@ -138,333 +133,7 @@
 <h2>Overview</h2><div class="docstring">
   <div class="discussion">
     
-<h2 id="label-Signing+gems">Signing gems</h2>
-
-<p>The <a href="" title="Gem::Security (module)">Security</a> implements cryptographic signatures for gems.  The
-section below is a step-by-step guide to using signed gems and generating
-your own.</p>
-
-<h3 id="label-Walkthrough">Walkthrough</h3>
-
-<h4 id="label-Building+your+certificate">Building your certificate</h4>
-
-<p>In order to start signing your gems, you&#39;ll need to build a private key
-and a self-signed certificate.  Here&#39;s how:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='comment'># build a private key and certificate for yourself:
-</span></code></pre>
-
-<p>This could take anywhere from a few seconds to a minute or two, depending
-on the speed of your computer (public key algorithms aren&#39;t exactly the
-speediest crypto algorithms in the world).  When it&#39;s finished,
-you&#39;ll see the files “gem-private_key.pem” and “gem-public_cert.pem” in
-the current directory.</p>
-
-<p>First things first: Move both files to ~/.gem if you don&#39;t already have
-a key and certificate in that directory.  Ensure the file permissions make
-the key unreadable by others (by default the file is saved securely).</p>
-
-<p>Keep your private key hidden; if it&#39;s compromised, someone can sign
-packages as you (note: PKI has ways of mitigating the risk of stolen keys;
-more on that later).</p>
-
-<h4 id="label-Signing+Gems">Signing Gems</h4>
-
-<p>In RubyGems 2 and newer there is no extra work to sign a gem.  RubyGems
-will automatically find your key and certificate in your home directory and
-use them to sign newly packaged gems.</p>
-
-<p>If your certificate is not self-signed (signed by a third party) RubyGems
-will attempt to load the certificate chain from the trusted certificates.
-Use <code>gem cert --add signing_cert.pem</code> to add your signers as
-trusted certificates.  See below for further information on certificate
-chains.</p>
-
-<p>If you build your gem it will automatically be signed.  If you peek inside
-your gem file, you&#39;ll see a couple of new files have been added:</p>
-
-<pre class="code ruby"><code class="ruby">$ tar tf your-gem-1.0.gem
-metadata.gz
-metadata.gz.sum
-metadata.gz.sig # metadata signature
-data.tar.gz
-data.tar.gz.sum
-data.tar.gz.sig # data signature</code></pre>
-
-<h4 id="label-Manually+signing+gems">Manually signing gems</h4>
-
-<p>If you wish to store your key in a separate secure location you&#39;ll need
-to set your gems up for signing by hand.  To do this, set the
-<code>signing_key</code> and <code>cert_chain</code> in the gemspec before
-packaging your gem:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_s'>s</span><span class='period'>.</span><span class='id identifier rubyid_signing_key'>signing_key</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>/secure/path/to/gem-private_key.pem</span><span class='tstring_end'>&#39;</span></span>
-<span class='id identifier rubyid_s'>s</span><span class='period'>.</span><span class='id identifier rubyid_cert_chain'>cert_chain</span> <span class='op'>=</span> <span class='qwords_beg'>%w[</span><span class='tstring_content'>/secure/path/to/gem-public_cert.pem</span><span class='words_sep'>]</span>
-</code></pre>
-
-<p>When you package your gem with these options set RubyGems will
-automatically load your key and certificate from the secure paths.</p>
-
-<h4 id="label-Signed+gems+and+security+policies">Signed gems and security policies</h4>
-
-<p>Now let&#39;s verify the signature.  Go ahead and install the gem, but add
-the following options: <code>-P HighSecurity</code>, like this:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='comment'># install the gem with using the security policy &quot;HighSecurity&quot;
-</span></code></pre>
-
-<p>The <code>-P</code> option sets your security policy – we&#39;ll talk about
-that in just a minute.  Eh, what&#39;s this?</p>
-
-<pre class="code ruby"><code class="ruby">$ gem install -P HighSecurity your-gem-1.0.gem
-ERROR:  While executing gem ... (Gem::Security::Exception)
-    root cert /CN=you/DC=example is not trusted</code></pre>
-
-<p>The culprit here is the security policy.  RubyGems has several different
-security policies.  Let&#39;s take a short break and go over the security
-policies.  Here&#39;s a list of the available security policies, and a
-brief description of each one:</p>
-<ul><li>
-<p>NoSecurity - Well, no security at all.  Signed packages are treated like
-unsigned packages.</p>
-</li><li>
-<p>LowSecurity - Pretty much no security.  If a package is signed then
-RubyGems will make sure the signature matches the signing certificate, and
-that the signing certificate hasn&#39;t expired, but that&#39;s it.  A
-malicious user could easily circumvent this kind of security.</p>
-</li><li>
-<p>MediumSecurity - Better than LowSecurity and NoSecurity, but still
-fallible.  Package contents are verified against the signing certificate,
-and the signing certificate is checked for validity, and checked against
-the rest of the certificate chain (if you don&#39;t know what a certificate
-chain is, stay tuned, we&#39;ll get to that). The biggest improvement over
-LowSecurity is that MediumSecurity won&#39;t install packages that are
-signed by untrusted sources. Unfortunately, MediumSecurity still isn&#39;t
-totally secure – a malicious user can still unpack the gem, strip the
-signatures, and distribute the gem unsigned.</p>
-</li><li>
-<p>HighSecurity - Here&#39;s the bugger that got us into this mess. The
-HighSecurity policy is identical to the MediumSecurity policy, except that
-it does not allow unsigned gems.  A malicious user doesn&#39;t have a whole
-lot of options here; they can&#39;t modify the package contents without
-invalidating the signature, and they can&#39;t modify or remove signature
-or the signing certificate chain, or RubyGems will simply refuse to install
-the package.  Oh well, maybe they&#39;ll have better luck causing problems
-for CPAN users instead :).</p>
-</li></ul>
-
-<p>The reason RubyGems refused to install your shiny new signed gem was
-because it was from an untrusted source.  Well, your code is infallible
-(naturally), so you need to add yourself as a trusted source:</p>
-
-<pre class="code ruby"><code class="ruby"># add trusted certificate
-gem cert --add ~/.gem/gem-public_cert.pem</code></pre>
-
-<p>You&#39;ve now added your public certificate as a trusted source.  Now you
-can install packages signed by your private key without any hassle. 
-Let&#39;s try the install command above again:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='comment'># install the gem with using the HighSecurity policy (and this time
-</span><span class='comment'># without any shenanigans)
-</span></code></pre>
-
-<p>This time RubyGems will accept your signed package and begin installing.</p>
-
-<p>While you&#39;re waiting for RubyGems to work it&#39;s magic, have a look
-at some of the other security commands by running <code>gem help
-cert</code>:</p>
-
-<pre class="code ruby"><code class="ruby">Options:
-  -a, --add CERT                   Add a trusted certificate.
-  -l, --list [FILTER]              List trusted certificates where the
-                                   subject contains FILTER
-  -r, --remove FILTER              Remove trusted certificates where the
-                                   subject contains FILTER
-  -b, --build EMAIL_ADDR           Build private key and self-signed
-                                   certificate for EMAIL_ADDR
-  -C, --certificate CERT           Signing certificate for --sign
-  -K, --private-key KEY            Key for --sign or --build
-  -s, --sign CERT                  Signs CERT with the key from -K
-                                   and the certificate from -C</code></pre>
-
-<p>We&#39;ve already covered the <code>--build</code> option, and the
-<code>--add</code>, <code>--list</code>, and <code>--remove</code> commands
-seem fairly straightforward; they allow you to add, list, and remove the
-certificates in your trusted certificate list.  But what&#39;s with this
-<code>--sign</code> option?</p>
-
-<h4 id="label-Certificate+chains">Certificate chains</h4>
-
-<p>To answer that question, let&#39;s take a look at “certificate chains”, a
-concept I mentioned earlier.  There are a couple of problems with
-self-signed certificates: first of all, self-signed certificates don&#39;t
-offer a whole lot of security.  Sure, the certificate says Yukihiro
-Matsumoto, but how do I know it was actually generated and signed by matz
-himself unless he gave me the certificate in person?</p>
-
-<p>The second problem is scalability.  Sure, if there are 50 gem authors, then
-I have 50 trusted certificates, no problem.  What if there are 500 gem
-authors?  1000?  Having to constantly add new trusted certificates is a
-pain, and it actually makes the trust system less secure by encouraging
-RubyGems users to blindly trust new certificates.</p>
-
-<p>Here&#39;s where certificate chains come in.  A certificate chain
-establishes an arbitrarily long chain of trust between an issuing
-certificate and a child certificate.  So instead of trusting certificates
-on a per-developer basis, we use the PKI concept of certificate chains to
-build a logical hierarchy of trust.  Here&#39;s a hypothetical example of a
-trust hierarchy based (roughly) on geography:</p>
-
-<pre class="code ruby"><code class="ruby">                    --------------------------
-                    | rubygems@rubygems.org |
-                    --------------------------
-                                |
-              -----------------------------------
-              |                                 |
-  ----------------------------    -----------------------------
-  |  seattlerb@seattlerb.org |    | dcrubyists@richkilmer.com |
-  ----------------------------    -----------------------------
-       |                |                 |             |
----------------   ----------------   -----------   --------------
-|   drbrain   |   |   zenspider  |   | pabs@dc |   | tomcope@dc |
----------------   ----------------   -----------   --------------</code></pre>
-
-<p>Now, rather than having 4 trusted certificates (one for drbrain, zenspider,
-pabs@dc, and tomecope@dc), a user could actually get by with one
-certificate, the “rubygems@rubygems.org” certificate.</p>
-
-<p>Here&#39;s how it works:</p>
-
-<p>I install “rdoc-3.12.gem”, a package signed by “drbrain”.  I&#39;ve never
-heard of “drbrain”, but his certificate has a valid signature from the
-“seattle.rb@seattlerb.org” certificate, which in turn has a valid signature
-from the “rubygems@rubygems.org” certificate.  Voila!  At this point,
-it&#39;s much more reasonable for me to trust a package signed by
-“drbrain”, because I can establish a chain to “rubygems@rubygems.org”,
-which I do trust.</p>
-
-<h4 id="label-Signing+certificates">Signing certificates</h4>
-
-<p>The <code>--sign</code> option allows all this to happen.  A developer
-creates their build certificate with the <code>--build</code> option, then
-has their certificate signed by taking it with them to their next regional
-Ruby meetup (in our hypothetical example), and it&#39;s signed there by the
-person holding the regional RubyGems signing certificate, which is signed
-at the next RubyConf by the holder of the top-level RubyGems certificate. 
-At each point the issuer runs the same command:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='comment'># sign a certificate with the specified key and certificate
-</span><span class='comment'># (note that this modifies client_cert.pem!)
-</span></code></pre>
-
-<p>Then the holder of issued certificate (in this case, your buddy “drbrain”),
-can start using this signed certificate to sign RubyGems.  By the way, in
-order to let everyone else know about his new fancy signed certificate,
-“drbrain” would save his newly signed certificate as
-<code>~/.gem/gem-public_cert.pem</code></p>
-
-<p>Obviously this RubyGems trust infrastructure doesn&#39;t exist yet.  Also,
-in the “real world”, issuers actually generate the child certificate from a
-certificate request, rather than sign an existing certificate.  And our
-hypothetical infrastructure is missing a certificate revocation system.
-These are that can be fixed in the future…</p>
-
-<p>At this point you should know how to do all of these new and interesting
-things:</p>
-<ul><li>
-<p>build a gem signing key and certificate</p>
-</li><li>
-<p>adjust your security policy</p>
-</li><li>
-<p>modify your trusted certificate list</p>
-</li><li>
-<p>sign a certificate</p>
-</li></ul>
-
-<h3 id="label-Manually+verifying+signatures">Manually verifying signatures</h3>
-
-<p>In case you don&#39;t trust RubyGems you can verify gem signatures
-manually:</p>
-<ol><li>
-<p>Fetch and unpack the gem</p>
-
-<pre class="code ruby"><code class="ruby">gem fetch some_signed_gem
-tar -xf some_signed_gem-1.0.gem</code></pre>
-</li><li>
-<p>Grab the public key from the gemspec</p>
-
-<pre class="code ruby"><code class="ruby">gem spec some_signed_gem-1.0.gem cert_chain | \
-  ruby -ryaml -e &#39;puts YAML.load_documents($stdin)&#39; &gt; public_key.crt</code></pre>
-</li><li>
-<p>Generate a SHA1 hash of the data.tar.gz</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_openssl'>openssl</span> <span class='id identifier rubyid_dgst'>dgst</span> <span class='op'>-</span><span class='id identifier rubyid_sha1'>sha1</span> <span class='op'>&lt;</span> <span class='id identifier rubyid_data'>data</span><span class='period'>.</span><span class='id identifier rubyid_tar'>tar</span><span class='period'>.</span><span class='id identifier rubyid_gz'>gz</span> <span class='op'>&gt;</span> <span class='id identifier rubyid_my'>my</span><span class='period'>.</span><span class='id identifier rubyid_hash'>hash</span>
-</code></pre>
-</li><li>
-<p>Verify the signature</p>
-
-<pre class="code ruby"><code class="ruby">openssl rsautl -verify -inkey public_key.crt -certin \
-  -in data.tar.gz.sig &gt; verified.hash</code></pre>
-</li><li>
-<p>Compare your hash to the verified hash</p>
-
-<pre class="code ruby"><code class="ruby">diff -s verified.hash my.hash</code></pre>
-</li><li>
-<p>Repeat 5 and 6 with metadata.gz</p>
-</li></ol>
-
-<h3 id="label-OpenSSL+Reference">OpenSSL Reference</h3>
-
-<p>The pem files generated by –build and –sign are PEM files.  Here&#39;s a
-couple of useful OpenSSL commands for manipulating them:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='comment'># convert a PEM format X509 certificate into DER format:
-</span><span class='comment'># (note: Windows .cer files are X509 certificates in DER format)
-</span></code></pre>
-
-<p>And you can do the same thing with the private key file as well:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='comment'># convert a PEM format RSA key into DER format:
-</span></code></pre>
-
-<h3 id="label-Bugs-2FTODO">Bugs/TODO</h3>
-<ul><li>
-<p>There&#39;s no way to define a system-wide trust list.</p>
-</li><li>
-<p>custom security policies (from a YAML file, etc)</p>
-</li><li>
-<p>Simple method to generate a signed certificate request</p>
-</li><li>
-<p>Support for OCSP, SCVP, CRLs, or some other form of cert status check (list
-is in order of preference)</p>
-</li><li>
-<p>Support for encrypted private keys</p>
-</li><li>
-<p>Some sort of semi-formal trust hierarchy (see long-winded explanation
-above)</p>
-</li><li>
-<p>Path discovery (for gem certificate chains that don&#39;t have a
-self-signed root) – by the way, since we don&#39;t have this, THE ROOT OF
-THE CERTIFICATE CHAIN MUST BE SELF SIGNED if Policy#verify_root is true
-(and it is for the MediumSecurity and HighSecurity policies)</p>
-</li><li>
-<p>Better explanation of X509 naming (ie, we don&#39;t have to use email
-addresses)</p>
-</li><li>
-<p>Honor AIA field (see note about OCSP above)</p>
-</li><li>
-<p>Honor extension restrictions</p>
-</li><li>
-<p>Might be better to store the certificate chain as a <code>PKCS#7</code> or <code>PKCS#12</code>
-file, instead of an array embedded in the metadata.</p>
-</li><li>
-<p>Flexible signature and key algorithms, not hard-coded to RSA and SHA1.</p>
-</li></ul>
-
-<h3 id="label-Original+author">Original author</h3>
-
-<p>Paul Duncan &lt;pabs@pablotron.org&gt; <a
-href="http://pablotron.org">pablotron.org</a>/</p>
+<p>forward-declare</p>
 
 
   </div>
@@ -1222,7 +891,8 @@ the given <code>extensions</code> for the <code>key</code>.</p>
   <div class="discussion">
     
 <p>Signs <code>expired_certificate</code> with <code>private_key</code> if the
-keys match and the expired certificate was self-signed.</p>
+keys match and the expired certificate was self-signed. – TODO increment
+serial</p>
 
 
   </div>
