@@ -2530,7 +2530,7 @@ function summaryToggle(tgt) {
 function addContent(content) {
   var cls = content.className,
       toc;
-
+      
   if (ga instanceof Function) ga('send', 'pageview', aDOMNext.pathname);
 
   // for javascript files
