@@ -8,7 +8,7 @@
 <meta name='apple-mobile-web-app-capable' content='yes'>
 <meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
 
-<title>Class: RDoc::Markup &mdash; rdoc Ruby-2.4.0 d2016-08-03</title>
+<title>Class: RDoc::Markup &mdash; rdoc Ruby-2.4.0 d2016-08-04</title>
 
 <link rel='stylesheet'  type='text/css' href='../../../css/y_fonts.css' />
 <link rel='stylesheet'  type='text/css' href='../../../css/highlight.github.css' />
@@ -34,7 +34,7 @@
 
 </head>
 <body>
-  <svg id='y_wait' class='' viewBox='0 0 90 90'></svg>
+  <svg id='y_wait' class viewBox='0 0 90 90'></svg>
   <div id='tbl_cont'>
     <div id='y_list' class='d h'>
       <button id='list_sizer' class='y_sizer' title='LIST Resizer'></button>
@@ -167,7 +167,815 @@
 <h2>Overview</h2><div class="docstring">
   <div class="discussion">
     
-<p>frozen_string_literal: false</p>
+<p><a href="" title="RDoc::Markup (class)">Markup</a> parses plain text documents and attempts to decompose them
+into their constituent parts.  Some of these parts are high-level:
+paragraphs, chunks of verbatim text, list entries and the like.  Other
+parts happen at the character level: a piece of bold text, a word in code
+font.  This markup is similar in spirit to that used on WikiWiki webs,
+where folks create web pages using a simple set of formatting rules.</p>
+
+<p><a href="" title="RDoc::Markup (class)">Markup</a> and other markup formats do no output formatting, this is
+handled by the <a href="Markup/Formatter.html" title="RDoc::Markup::Formatter (class)">Formatter</a> subclasses.</p>
+
+<h2 id="label-Supported+Formats">Supported Formats</h2>
+
+<p>Besides the <a href="" title="RDoc::Markup (class)">Markup</a> format, the following formats are built in to
+RDoc:</p>
+<dl class="rdoc-list note-list"><dt>markdown
+<dd>
+<p>The markdown format as described by <a
+href="http://daringfireball.net/projects/markdown">daringfireball.net/projects/markdown</a>/.
+See RDoc::Markdown for details on the parser and supported extensions.</p>
+</dd><dt>rd
+<dd>
+<p>The rdtool format.  See RDoc::RD for details on the parser and format.</p>
+</dd><dt>tomdoc
+<dd>
+<p>The TomDoc format as described by <a
+href="http://tomdoc.org">tomdoc.org</a>/.  See RDoc::TomDoc for details on
+the parser and supported extensions.</p>
+</dd></dl>
+
+<p>You can choose a markup format using the following methods:</p>
+<dl class="rdoc-list note-list"><dt>per project
+<dd>
+<p>If you build your documentation with rake use RDoc::Task#markup.</p>
+
+<p>If you build your documentation by hand run:</p>
+
+<pre class="code ruby"><code class="ruby">rdoc --markup your_favorite_format --write-options</code></pre>
+
+<p>and commit <code>.rdoc_options</code> and ship it with your packaged gem.</p>
+</dd><dt>per file
+<dd>
+<p>At the top of the file use the <code>:markup:</code> directive to set the
+default format for the rest of the file.</p>
+</dd><dt>per comment
+<dd>
+<p>Use the <code>:markup:</code> directive at the top of a comment you want to
+write in a different format.</p>
+</dd></dl>
+
+<h2 id="label-7BRDoc-3A-3AMarkup-7D"><a href="" title="RDoc::Markup (class)">Markup</a></h2>
+
+<p><a href="" title="RDoc::Markup (class)">Markup</a> is extensible at runtime: you can add new markup elements to
+be recognized in the documents that <a href="" title="RDoc::Markup (class)">Markup</a> parses.</p>
+
+<p><a href="" title="RDoc::Markup (class)">Markup</a> is intended to be the basis for a family of tools which
+share the common requirement that simple, plain-text should be rendered in
+a variety of different output formats and media.  It is envisaged that
+<a href="" title="RDoc::Markup (class)">Markup</a> could be the basis for formatting RDoc style comment blocks,
+Wiki entries, and online FAQs.</p>
+
+<h3 id="label-Synopsis">Synopsis</h3>
+
+<p>This code converts <code>input_string</code> to HTML.  The conversion takes
+place in the <code>convert</code> method, so you can use the same
+<a href="" title="RDoc::Markup (class)">Markup</a> converter to convert multiple input strings.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>rdoc</span><span class='tstring_end'>&#39;</span></span>
+
+<span class='id identifier rubyid_h'>h</span> <span class='op'>=</span> <span class='const'><a href="RDoc.html" title="RDoc::RDoc (class)">RDoc</a></span><span class='op'>::</span><span class='const'>Markup</span><span class='op'>::</span><span class='const'>ToHtml</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='const'><a href="RDoc.html" title="RDoc::RDoc (class)">RDoc</a></span><span class='op'>::</span><span class='const'>Options</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='rparen'>)</span>
+
+<span class='id identifier rubyid_puts'>puts</span> <span class='id identifier rubyid_h'>h</span><span class='period'>.</span><span class='id identifier rubyid_convert'>convert</span><span class='lparen'>(</span><span class='id identifier rubyid_input_string'>input_string</span><span class='rparen'>)</span>
+</code></pre>
+
+<p>You can extend the <a href="" title="RDoc::Markup (class)">Markup</a> parser to recognize new markup sequences,
+and to add special processing for text that matches a regular expression. 
+Here we make WikiWords significant to the parser, and also make the
+sequences <code>word</code> and &lt;no&gt;text…&lt;/no&gt; signify strike-through
+text.  We then subclass the HTML output class to deal with these:</p>
+
+<pre class="code ruby"><code class="ruby">require &#39;rdoc&#39;
+
+class WikiHtml &lt; RDoc::Markup::ToHtml
+  def handle_special_WIKIWORD(special)
+    &quot;&lt;font color=red&gt;&quot; + special.text + &quot;&lt;/font&gt;&quot;
+  end
+end
+
+markup = RDoc::Markup.new
+markup.add_word_pair(&quot;{&quot;, &quot;}&quot;, :STRIKE)
+markup.add_html(&quot;no&quot;, :STRIKE)
+
+markup.add_special(/\b([A-Z][a-z]&lt;code&gt;[A-Z]\w&lt;/code&gt;)/, :WIKIWORD)
+
+wh = WikiHtml.new RDoc::Options.new, markup
+wh.add_tag(:STRIKE, &quot;&lt;strike&gt;&quot;, &quot;&lt;/strike&gt;&quot;)
+
+puts &quot;&lt;body&gt;#{wh.convert ARGF.read}&lt;/body&gt;&quot;</code></pre>
+
+<h3 id="label-Encoding">Encoding</h3>
+
+<p>Where Encoding support is available, RDoc will automatically convert all
+documents to the same output encoding.  The output encoding can be set via
+<a href="Options.html#encoding-instance_method" title="RDoc::Options#encoding (method)">Options#encoding</a> and defaults to <code>Encoding.default_external</code>.</p>
+
+<h2 id="label-RDoc+Markup+Reference">RDoc Markup Reference</h2>
+
+<h3 id="label-Block+Markup">Block Markup</h3>
+
+<h4 id="label-Paragraphs+and+Verbatim">Paragraphs and Verbatim</h4>
+
+<p>The markup engine looks for a document&#39;s natural left margin.  This is
+used as the initial margin for the document.</p>
+
+<p>Consecutive lines starting at this margin are considered to be a paragraph.
+Empty lines separate paragraphs.</p>
+
+<p>Any line that starts to the right of the current margin is treated as
+verbatim text.  This is useful for code listings:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='int'>3</span><span class='period'>.</span><span class='id identifier rubyid_times'>times</span> <span class='lbrace'>{</span> <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Ruby</span><span class='tstring_end'>&quot;</span></span> <span class='rbrace'>}</span>
+</code></pre>
+
+<p>In verbatim text, two or more blank lines are collapsed into one, and
+trailing blank lines are removed:</p>
+
+<pre class="code ruby"><code class="ruby">This is the first line
+
+This is the second non-blank line,
+after 2 blank lines in the source markup.</code></pre>
+
+<p>There were two trailing blank lines right above this paragraph, that have
+been removed. In addition, the verbatim text has been shifted left, so the
+amount of indentation of verbatim text is unimportant.</p>
+
+<p>For HTML output RDoc makes a small effort to determine if a verbatim
+section contains Ruby source code.  If so, the verbatim block will be
+marked up as HTML.  Triggers include “def”, “class”, “module”, “require”,
+the “hash rocket”# (=&gt;) or a block call with a parameter.</p>
+
+<h4 id="label-Headers">Headers</h4>
+
+<p>A line starting with an equal sign (=) is treated as a heading.  Level one
+headings have one equals sign, level two headings have two, and so on until
+level six, which is the maximum (seven hyphens or more result in a level
+six heading).</p>
+
+<p>For example, the above header was obtained with:</p>
+
+<pre class="code ruby"><code class="ruby">==== Headers</code></pre>
+
+<p>In HTML output headers have an id matching their name.  The above
+example&#39;s HTML is:</p>
+
+<pre class="code ruby"><code class="ruby">&lt;h3 id=&quot;label-Headers&quot;&gt;Headers&lt;/h3&gt;</code></pre>
+
+<p>If a heading is inside a method body the id will be prefixed with the
+method&#39;s id.  If the above header where in the documentation for a
+method such as:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'>##
+</span><span class='comment'># This method does fun things
+</span><span class='comment'>#
+</span><span class='comment'># = Example
+</span><span class='comment'>#
+</span><span class='comment'>#   Example of fun things goes here ...
+</span>
+<span class='kw'>def</span> <span class='id identifier rubyid_do_fun_things'>do_fun_things</span>
+<span class='kw'>end</span>
+</code></pre>
+
+<p>The header&#39;s id would be:</p>
+
+<pre class="code ruby"><code class="ruby">&lt;h1 id=&quot;method-i-do_fun_things-label-Example&quot;&gt;Example&lt;/h1&gt;</code></pre>
+
+<p>The label can be linked-to using <code>SomeClass@Headers</code>.  See
+<code>Links</code>[RDoc::Markup@Links] for further details.</p>
+
+<h4 id="label-Rules">Rules</h4>
+
+<p>A line starting with three or more hyphens (at the current indent)
+generates a horizontal rule.</p>
+
+<pre class="code ruby"><code class="ruby">---</code></pre>
+
+<p>produces:</p>
+<hr>
+
+<h4 id="label-Simple+Lists">Simple Lists</h4>
+
+<p>If a paragraph starts with a “*”, “-”, “&lt;digit&gt;.” or
+“&lt;letter&gt;.”, then it is taken to be the start of a list.  The margin
+is increased to be the first non-space following the list start flag. 
+Subsequent lines should be indented to this new margin until the list ends.
+For example:</p>
+
+<pre class="code ruby"><code class="ruby">* this is a list with three paragraphs in
+  the first item.  This is the first paragraph.
+
+  And this is the second paragraph.
+
+  1. This is an indented, numbered list.
+  2. This is the second item in that list
+
+  This is the third conventional paragraph in the
+  first list item.
+
+* This is the second item in the original list</code></pre>
+
+<p>produces:</p>
+<ul><li>
+<p>this is a list with three paragraphs in the first item.  This is the first
+paragraph.</p>
+
+<p>And this is the second paragraph.</p>
+<ol><li>
+<p>This is an indented, numbered list.</p>
+</li><li>
+<p>This is the second item in that list</p>
+</li></ol>
+
+<p>This is the third conventional paragraph in the first list item.</p>
+</li><li>
+<p>This is the second item in the original list</p>
+</li></ul>
+
+<h4 id="label-Labeled+Lists">Labeled Lists</h4>
+
+<p>You can also construct labeled lists, sometimes called description or
+definition lists.  Do this by putting the label in square brackets and
+indenting the list body:</p>
+
+<pre class="code ruby"><code class="ruby">[cat]  a small furry mammal
+       that seems to sleep a lot
+
+[ant]  a little insect that is known
+       to enjoy picnics</code></pre>
+
+<p>produces:</p>
+<dl class="rdoc-list label-list"><dt>cat
+<dd>
+<p>a small furry mammal that seems to sleep a lot</p>
+</dd><dt>ant
+<dd>
+<p>a little insect that is known to enjoy picnics</p>
+</dd></dl>
+
+<p>If you want the list bodies to line up to the left of the labels, use two
+colons:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_cat'>cat</span><span class='op'>::</span>  <span class='id identifier rubyid_a'>a</span> <span class='id identifier rubyid_small'>small</span> <span class='id identifier rubyid_furry'>furry</span> <span class='id identifier rubyid_mammal'>mammal</span>
+       <span class='id identifier rubyid_that'>that</span> <span class='id identifier rubyid_seems'>seems</span> <span class='id identifier rubyid_to'>to</span> <span class='id identifier rubyid_sleep'>sleep</span> <span class='id identifier rubyid_a'>a</span> <span class='id identifier rubyid_lot'>lot</span>
+
+<span class='id identifier rubyid_ant'>ant</span><span class='op'>::</span>  <span class='id identifier rubyid_a'>a</span> <span class='id identifier rubyid_little'>little</span> <span class='id identifier rubyid_insect'>insect</span> <span class='id identifier rubyid_that'>that</span> <span class='id identifier rubyid_is'>is</span> <span class='id identifier rubyid_known'>known</span>
+       <span class='id identifier rubyid_to'>to</span> <span class='id identifier rubyid_enjoy'>enjoy</span> <span class='id identifier rubyid_picnics'>picnics</span>
+</code></pre>
+
+<p>produces:</p>
+<dl class="rdoc-list note-list"><dt>cat
+<dd>
+<p>a small furry mammal that seems to sleep a lot</p>
+</dd><dt>ant
+<dd>
+<p>a little insect that is known to enjoy picnics</p>
+</dd></dl>
+
+<p>Notice that blank lines right after the label are ignored in labeled lists:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='lbracket'>[</span><span class='id identifier rubyid_one'>one</span><span class='rbracket'>]</span>
+
+    <span class='id identifier rubyid_definition'>definition</span> <span class='int'>1</span>
+
+<span class='lbracket'>[</span><span class='id identifier rubyid_two'>two</span><span class='rbracket'>]</span>
+
+    <span class='id identifier rubyid_definition'>definition</span> <span class='int'>2</span>
+</code></pre>
+
+<p>produces the same output as</p>
+
+<pre class="code ruby"><code class="ruby">[one]  definition 1
+[two]  definition 2</code></pre>
+
+<h4 id="label-Lists+and+Verbatim">Lists and Verbatim</h4>
+
+<p>If you want to introduce a verbatim section right after a list, it has to
+be less indented than the list item bodies, but more indented than the list
+label, letter, digit or bullet. For instance:</p>
+
+<pre class="code ruby"><code class="ruby">*   point 1
+
+*   point 2, first paragraph
+
+    point 2, second paragraph
+      verbatim text inside point 2
+    point 2, third paragraph
+  verbatim text outside of the list (the list is therefore closed)
+regular paragraph after the list</code></pre>
+
+<p>produces:</p>
+<ul><li>
+<p>point 1</p>
+</li><li>
+<p>point 2, first paragraph</p>
+
+<p>point 2, second paragraph</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_verbatim'>verbatim</span> <span class='id identifier rubyid_text'>text</span> <span class='id identifier rubyid_inside'>inside</span> <span class='id identifier rubyid_point'>point</span> <span class='int'>2</span>
+</code></pre>
+
+<p>point 2, third paragraph</p>
+</li></ul>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_verbatim'>verbatim</span> <span class='id identifier rubyid_text'>text</span> <span class='id identifier rubyid_outside'>outside</span> <span class='id identifier rubyid_of'>of</span> <span class='id identifier rubyid_the'>the</span> <span class='id identifier rubyid_list'>list</span> <span class='lparen'>(</span><span class='id identifier rubyid_the'>the</span> <span class='id identifier rubyid_list'>list</span> <span class='id identifier rubyid_is'>is</span> <span class='id identifier rubyid_therefore'>therefore</span> <span class='id identifier rubyid_closed'>closed</span><span class='rparen'>)</span>
+</code></pre>
+
+<p>regular paragraph after the list</p>
+
+<h3 id="label-Text+Markup">Text Markup</h3>
+
+<h4 id="label-Bold-2C+Italic-2C+Typewriter+Text">Bold, Italic, Typewriter Text</h4>
+
+<p>You can use markup within text (except verbatim) to change the appearance
+of parts of that text.  Out of the box, <a href="" title="RDoc::Markup (class)">Markup</a> supports word-based
+and general markup.</p>
+
+<p>Word-based markup uses flag characters around individual words:</p>
+<dl class="rdoc-list note-list"><dt><code>*<em>word</em>*</code>
+<dd>
+<p>displays <em>word</em> in a <strong>bold</strong> font</p>
+</dd><dt><code>_<em>word_</em></code>
+<dd>
+<p>displays <em>word</em> in an <em>emphasized</em> font</p>
+</dd><dt><code>&lt;code&gt;<em>word</em>&lt;/code&gt;</code>
+<dd>
+<p>displays <em>word</em> in a <code>code</code> font</p>
+</dd></dl>
+
+<p>General markup affects text between a start delimiter and an end delimiter.
+Not surprisingly, these delimiters look like HTML markup.</p>
+<dl class="rdoc-list note-list"><dt><code>&lt;b&gt;<em>text</em>&lt;/b&gt;</code>
+<dd>
+<p>displays <em>text</em> in a <strong>bold</strong> font</p>
+</dd><dt><code>&lt;em&gt;<em>text</em>&lt;/em&gt;</code>
+<dd>
+<p>displays <em>text</em> in an <em>emphasized</em> font (alternate tag:
+<code>&lt;i&gt;</code>)</p>
+</dd><dt><code>&lt;tt&gt;<em>text</em>&lt;/tt&gt;</code>
+<dd>
+<p>displays <em>text</em> in a <code>code</code> font (alternate tag:
+<code>&lt;code&gt;</code>)</p>
+</dd></dl>
+
+<p>Unlike conventional Wiki markup, general markup can cross line boundaries. 
+You can turn off the interpretation of markup by preceding the first
+character with a backslash (see <em>Escaping Text Markup</em>, below).</p>
+
+<h4 id="label-Links">Links</h4>
+
+<p>Links to starting with <code>http:</code>, <code>https:</code>,
+<code>mailto:</code>, <code>ftp:</code> or <code>www.</code> are
+recognized.  An HTTP url that references an external image is converted
+into an inline image element.</p>
+
+<p>Classes and methods will be automatically linked to their definition.  For
+example, <code>RDoc::Markup</code> will link to this documentation.  By
+default methods will only be automatically linked if they contain an
+<code>_</code> (all methods can be automatically linked through the
+<code>--hyperlink-all</code> command line option).</p>
+
+<p>Single-word methods can be linked by using the <code>#</code> character for
+instance methods or <code>::</code> for class methods.  For example,
+<code>#convert</code> links to <a href="#convert-instance_method" title="RDoc::Markup#convert (method)">#convert</a>.  A class or method may be
+combined like <code>RDoc::Markup#convert</code>.</p>
+
+<p>A heading inside the documentation can be linked by following the class or
+method by an <code>@</code> then the heading name.
+<code>RDoc::Markup@Links</code> will link to this section like this:
+RDoc::Markup@Links.  Spaces in headings with multiple words must be escaped
+with <code>+</code> like <code>RDoc::Markup@Escaping+Text+Markup</code>.
+Punctuation and other special characters must be escaped like <code>CGI.escape</code>.</p>
+
+<p>The <code>@</code> can also be used to link to sections.  If a section and
+a heading share the same name the section is preferred for the link.</p>
+
+<p>Links can also be of the form <code>label[url]</code>, in which case
+<code>label</code> is used in the displayed text, and <code>url</code> is
+used as the target.  If <code>label</code> contains multiple words, put it
+in braces: <code>{multi word label}\[url]</code>. The <code>url</code> may
+be an <code>http:-type</code> link or a cross-reference to a class, module
+or method with a label.</p>
+
+<p>Links with the <code>rdoc-image:</code> scheme will create an image tag for
+HTML output.  Only fully-qualified URLs are supported.</p>
+
+<p>Links with the <code>rdoc-ref:</code> scheme will link to the referenced
+class, module, method, file, etc.  If the referenced item is does not exist
+no link will be generated and <code>rdoc-ref:</code> will be removed from
+the resulting text.</p>
+
+<p>Links starting with <code>rdoc-label:label_name</code> will link to the
+<code>label_name</code>.  You can create a label for the current link (for
+bidirectional links) by supplying a name for the current link like
+<code>rdoc-label:label-other:label-mine.</code></p>
+
+<p>Links starting with <code>link:</code> refer to local files whose path is
+relative to the <code>--op</code> directory.  Use <code>rdoc-ref:</code>
+instead of <code>link:</code> to link to files generated by RDoc as the
+link target may be different across RDoc generators.</p>
+
+<p>Example links:</p>
+
+<pre class="code ruby"><code class="ruby">https://github.com/rdoc/rdoc
+mailto:user@example.com
+{RDoc Documentation}[http://rdoc.rubyforge.org]
+{RDoc Markup}[rdoc-ref:RDoc::Markup]</code></pre>
+
+<h4 id="label-Escaping+Text+Markup">Escaping Text Markup</h4>
+
+<p>Text markup can be escaped with a backslash, as in &lt;tt&gt;, which was
+obtained with <code>\&lt;tt&gt;</code>.  Except in verbatim sections and
+between &lt;tt&gt; tags, to produce a backslash you have to double it
+unless it is followed by a space, tab or newline. Otherwise, the HTML
+formatter will discard it, as it is used to escape potential links:</p>
+
+<pre class="code ruby"><code class="ruby">* The \ must be doubled if not followed by white space: \\.
+* But not in \&lt;tt&gt; tags: in a Regexp, &lt;tt&gt;\S&lt;/tt&gt; matches non-space.
+* This is a link to {ruby-lang}[www.ruby-lang.org].
+* This is not a link, however: \{ruby-lang.org}[www.ruby-lang.org].
+* This will not be linked to \RDoc::RDoc#document</code></pre>
+
+<p>generates:</p>
+<ul><li>
+<p>The \ must be doubled if not followed by white space: \.</p>
+</li><li>
+<p>But not in &lt;tt&gt; tags: in a Regexp, <code>\S</code> matches non-space.</p>
+</li><li>
+<p>This is a link to <code>ruby-lang</code>[<a
+href="www.ruby-lang.org">www.ruby-lang.org</a>]</p>
+</li><li>
+<p>This is not a link, however: ruby-langruby-lang.org[<a
+href="www.ruby-lang.org">www.ruby-lang.org</a>]</p>
+</li><li>
+<p>This will not be linked to RDoc::RDoc#document</p>
+</li></ul>
+
+<p>Inside &lt;tt&gt; tags, more precisely, leading backslashes are removed
+only if followed by a markup character (<code>&lt;*_+</code>), a backslash,
+or a known link reference (a known class or method). So in the example
+above, the backslash of <code>\S</code> would be removed if there was a
+class or module named <code>S</code> in the current context.</p>
+
+<p>This behavior is inherited from RDoc version 1, and has been kept for
+compatibility with existing RDoc documentation.</p>
+
+<h4 id="label-Conversion+of+characters">Conversion of characters</h4>
+
+<p>HTML will convert two/three dashes to an em-dash. Other common characters
+are converted as well:</p>
+
+<pre class="code ruby"><code class="ruby">em-dash::  -- or ---
+ellipsis:: ...
+
+single quotes:: &#39;text&#39; or `text&#39;
+double quotes:: &quot;text&quot; or ``text&#39;&#39;
+
+copyright:: (c)
+registered trademark:: (r)</code></pre>
+
+<p>produces:</p>
+<dl class="rdoc-list note-list"><dt>em-dash
+<dd>
+<p>– or —</p>
+</dd><dt>ellipsis
+<dd>
+<p>…</p>
+</dd><dt>single quotes
+<dd>
+<p>&#39;text&#39; or `text&#39;</p>
+</dd><dt>double quotes
+<dd>
+<p>“text” or “text&#39;&#39;</p>
+</dd><dt>copyright
+<dd>
+<p>©</p>
+</dd><dt>registered trademark
+<dd>
+<p>®</p>
+</dd></dl>
+
+<h3 id="label-Documenting+Source+Code">Documenting Source Code</h3>
+
+<p>Comment blocks can be written fairly naturally, either using <code>#</code>
+on successive lines of the comment, or by including the comment in a
+<code>=begin</code>/<code>=end</code> block.  If you use the latter form,
+the <code>=begin</code> line <em>must</em> be flagged with an
+<code>rdoc</code> tag:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='embdoc_beg'>=begin rdoc
+</span><span class='embdoc'>Documentation to be processed by RDoc.
+</span><span class='embdoc'>
+</span><span class='embdoc'>#...
+</span><span class='embdoc_end'>=end
+</span></code></pre>
+
+<p>RDoc stops processing comments if it finds a comment line starting with
+<code>--</code> right after the <code>#</code> character (otherwise, it
+will be treated as a rule if it has three dashes or more). This can be used
+to separate external from internal comments, or to stop a comment being
+associated with a method, class, or module. Commenting can be turned back
+on with a line that starts with <code>++</code>.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'>##
+</span><span class='comment'># Extract the age and calculate the date-of-birth.
+</span><span class='comment'>#--
+</span><span class='comment'># FIXME: fails if the birthday falls on February 29th
+</span><span class='comment'>#++
+</span><span class='comment'># The DOB is returned as a Time object.
+</span>
+<span class='kw'>def</span> <span class='id identifier rubyid_get_dob'>get_dob</span><span class='lparen'>(</span><span class='id identifier rubyid_person'>person</span><span class='rparen'>)</span>
+  <span class='comment'># ...
+</span><span class='kw'>end</span>
+</code></pre>
+
+<p>Names of classes, files, and any method names containing an underscore or
+preceded by a hash character are automatically linked from comment text to
+their description. This linking works inside the current class or module,
+and with ancestor methods (in included modules or in the superclass).</p>
+
+<p>Method parameter lists are extracted and displayed with the method
+description.  If a method calls <code>yield</code>, then the parameters
+passed to yield will also be displayed:</p>
+
+<pre class="code ruby"><code class="ruby">def fred
+  #...
+  yield line, address</code></pre>
+
+<p>This will get documented as:</p>
+
+<pre class="code ruby"><code class="ruby">fred() { |line, address| ... }</code></pre>
+
+<p>You can override this using a comment containing &#39;:yields: …&#39;
+immediately after the method definition</p>
+
+<pre class="code ruby"><code class="ruby">def fred # :yields: index, position
+  # ...
+
+  yield line, address</code></pre>
+
+<p>which will get documented as</p>
+
+<pre class="code ruby"><code class="ruby">fred() { |index, position| ... }</code></pre>
+
+<p><code>:yields:</code> is an example of a documentation directive.  These
+appear immediately after the start of the document element they are
+modifying.</p>
+
+<p>RDoc automatically cross-references words with underscores or camel-case.
+To suppress cross-references, prefix the word with a \ character.  To
+include special characters like “<code>\n</code>”, you&#39;ll need to use
+two \ characters in normal text, but only one in &lt;tt&gt; text:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>\\n</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>or</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>&lt;tt&gt;\n&lt;/tt&gt;</span><span class='tstring_end'>&quot;</span></span>
+</code></pre>
+
+<p>produces:</p>
+
+<p>“\n” or “<code>\n</code>”</p>
+
+<h3 id="label-Directives">Directives</h3>
+
+<p>Directives are keywords surrounded by “:” characters.</p>
+
+<h4 id="label-Controlling+what+is+documented">Controlling what is documented</h4>
+<dl class="rdoc-list label-list"><dt><code>:nodoc:</code> / <code>:nodoc: all</code>
+<dd>
+<p>This directive prevents documentation for the element from being generated.
+For classes and modules, methods, aliases, constants, and attributes
+directly within the affected class or module also will be omitted.  By
+default, though, modules and classes within that class or module
+<em>will</em> be documented.  This is turned off by adding the
+<code>all</code> modifier.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'>MyModule</span> <span class='comment'># :nodoc:
+</span>  <span class='kw'>class</span> <span class='const'>Input</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+
+<span class='kw'>module</span> <span class='const'>OtherModule</span> <span class='comment'># :nodoc: all
+</span>  <span class='kw'>class</span> <span class='const'>Output</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+</code></pre>
+
+<p>In the above code, only class <code>MyModule::Input</code> will be
+documented.</p>
+
+<p>The <code>:nodoc:</code> directive, like <code>:enddoc:</code>,
+<code>:stopdoc:</code> and <code>:startdoc:</code> presented below, is
+local to the current file: if you do not want to document a module that
+appears in several files, specify <code>:nodoc:</code> on each appearance,
+at least once per file.</p>
+</dd><dt><code>:stopdoc:</code> / <code>:startdoc:</code>
+<dd>
+<p>Stop and start adding new documentation elements to the current container.
+For example, if a class has a number of constants that you don&#39;t want
+to document, put a <code>:stopdoc:</code> before the first, and a
+<code>:startdoc:</code> after the last.  If you don&#39;t specify a
+<code>:startdoc:</code> by the end of the container, disables documentation
+for the rest of the current file.</p>
+</dd><dt><code>:doc:</code>
+<dd>
+<p>Forces a method or attribute to be documented even if it wouldn&#39;t be
+otherwise.  Useful if, for example, you want to include documentation of a
+particular private method.</p>
+</dd><dt><code>:enddoc:</code>
+<dd>
+<p>Document nothing further at the current level: directives
+<code>:startdoc:</code> and <code>:doc:</code> that appear after this will
+not be honored for the current container (file, class or module), in the
+current file.</p>
+</dd><dt><code>:notnew:</code> / <code>:not_new:</code> / <code>:not-new:</code> 
+<dd>
+<p>Only applicable to the <code>initialize</code> instance method.  Normally
+RDoc assumes that the documentation and parameters for
+<code>initialize</code> are actually for the <code>new</code> method, and
+so fakes out a <code>new</code> for the class. The <code>:notnew:</code>
+directive stops this.  Remember that <code>initialize</code> is private, so
+you won&#39;t see the documentation unless you use the <code>-a</code>
+command line option.</p>
+</dd></dl>
+
+<h4 id="label-Method+arguments">Method arguments</h4>
+<dl class="rdoc-list label-list"><dt><code>:arg:</code> or <code>:args:</code> <em>parameters</em>
+<dd>
+<p>Overrides the default argument handling with exactly these parameters.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'>##
+</span><span class='comment'>#  :args: a, b
+</span>
+<span class='kw'>def</span> <span class='id identifier rubyid_some_method'>some_method</span><span class='lparen'>(</span><span class='op'>*</span><span class='id identifier rubyid_a'>a</span><span class='rparen'>)</span>
+<span class='kw'>end</span>
+</code></pre>
+</dd><dt><code>:yield:</code> or <code>:yields:</code> <em>parameters</em>
+<dd>
+<p>Overrides the default yield discovery with these parameters.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'>##
+</span><span class='comment'># :yields: key, value
+</span>
+<span class='kw'>def</span> <span class='id identifier rubyid_each_thing'>each_thing</span> <span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span>
+  <span class='ivar'>@things</span><span class='period'>.</span><span class='id identifier rubyid_each'>each</span><span class='lparen'>(</span><span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span><span class='rparen'>)</span>
+<span class='kw'>end</span>
+</code></pre>
+</dd><dt><code>:call-seq:</code>
+<dd>
+<p>Lines up to the next blank line or lines with a common prefix in the
+comment are treated as the method&#39;s calling sequence, overriding the
+default parsing of method parameters and yield arguments.</p>
+
+<p>Multiple lines may be used.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># :call-seq:
+</span><span class='comment'>#   ARGF.readlines(sep=$/)     -&gt; array
+</span><span class='comment'>#   ARGF.readlines(limit)      -&gt; array
+</span><span class='comment'>#   ARGF.readlines(sep, limit) -&gt; array
+</span><span class='comment'>#
+</span><span class='comment'>#   ARGF.to_a(sep=$/)     -&gt; array
+</span><span class='comment'>#   ARGF.to_a(limit)      -&gt; array
+</span><span class='comment'>#   ARGF.to_a(sep, limit) -&gt; array
+</span><span class='comment'>#
+</span><span class='comment'># The remaining lines are documentation ...
+</span></code></pre>
+</dd></dl>
+
+<h4 id="label-Sections">Sections</h4>
+
+<p>Sections allow you to group methods in a class into sensible containers. 
+If you use the sections &#39;Public&#39;, &#39;Internal&#39; and
+&#39;Deprecated&#39; (the three allowed method statuses from TomDoc) the
+sections will be displayed in that order placing the most useful methods at
+the top.  Otherwise, sections will be displayed in alphabetical order.</p>
+<dl class="rdoc-list label-list"><dt><code>:category:</code> <em>section</em>
+<dd>
+<p>Adds this item to the named <code>section</code> overriding the current
+section.  Use this to group methods by section in RDoc output while
+maintaining a sensible ordering (like alphabetical).</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># :category: Utility Methods
+</span><span class='comment'>#
+</span><span class='comment'># CGI escapes &lt;code&gt;text&lt;/code&gt;
+</span>
+<span class='kw'>def</span> <span class='id identifier rubyid_convert_string'>convert_string</span> <span class='id identifier rubyid_text'>text</span>
+  <span class='const'>CGI</span><span class='period'>.</span><span class='id identifier rubyid_escapeHTML'>escapeHTML</span> <span class='id identifier rubyid_text'>text</span>
+<span class='kw'>end</span>
+</code></pre>
+
+<p>An empty category will place the item in the default category:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># :category:
+</span><span class='comment'>#
+</span><span class='comment'># This method is in the default category
+</span>
+<span class='kw'>def</span> <span class='id identifier rubyid_some_method'>some_method</span>
+  <span class='comment'># ...
+</span><span class='kw'>end</span>
+</code></pre>
+
+<p>Unlike the :section: directive, :category: is not sticky.  The category
+only applies to the item immediately following the comment.</p>
+
+<p>Use the :section: directive to provide introductory text for a section of
+documentation.</p>
+</dd><dt><code>:section:</code> <em>title</em>
+<dd>
+<p>Provides section introductory text in RDoc output.  The title following
+<code>:section:</code> is used as the section name and the remainder of the
+comment containing the section is used as introductory text.  A
+section&#39;s comment block must be separated from following comment
+blocks.  Use an empty title to switch to the default section.</p>
+
+<p>The :section: directive is sticky, so subsequent methods, aliases,
+attributes, and classes will be contained in this section until the section
+is changed.  The :category: directive will override the :section:
+directive.</p>
+
+<p>A :section: comment block may have one or more lines before the :section:
+directive.  These will be removed, and any identical lines at the end of
+the block are also removed.  This allows you to add visual cues to the
+section.</p>
+
+<p>Example:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># ----------------------------------------
+</span><span class='comment'># :section: My Section
+</span><span class='comment'># This is the section that I wrote.
+</span><span class='comment'># See it glisten in the noon-day sun.
+</span><span class='comment'># ----------------------------------------
+</span>
+<span class='comment'>##
+</span><span class='comment'># Comment for some_method
+</span>
+<span class='kw'>def</span> <span class='id identifier rubyid_some_method'>some_method</span>
+  <span class='comment'># ...
+</span><span class='kw'>end</span>
+</code></pre>
+</dd></dl>
+
+<h4 id="label-Other+directives">Other directives</h4>
+<dl class="rdoc-list label-list"><dt><code>:markup:</code> <em>type</em>
+<dd>
+<p>Overrides the default markup type for this comment with the specified
+markup type.  For Ruby files, if the first comment contains this directive
+it is applied automatically to all comments in the file.</p>
+
+<p>Unless you are converting between markup formats you should use a
+<code>.rdoc_options</code> file to specify the default documentation format
+for your entire project.  See RDoc::Options@Saved+Options for instructions.</p>
+
+<p>At the top of a file the <code>:markup:</code> directive applies to the
+entire file:</p>
+
+<pre class="code ruby"><code class="ruby"># coding: UTF-8
+# :markup: TomDoc
+
+# TomDoc comment here ...
+
+class MyClass
+  # ...</code></pre>
+
+<p>For just one comment:</p>
+
+<pre class="code ruby"><code class="ruby">  # ...
+end
+
+# :markup: RDoc
+#
+# This is a comment in RDoc markup format ...
+
+def some_method
+  # ...</code></pre>
+
+<p>See Markup@CONTRIBUTING for instructions on adding a new markup format.</p>
+</dd><dt><code>:include:</code> <em>filename</em>
+<dd>
+<p>Include the contents of the named file at this point. This directive must
+appear alone on one line, possibly preceded by spaces. In this position, it
+can be escaped with a \ in front of the first colon.</p>
+
+<p>The file will be searched for in the directories listed by the
+<code>--include</code> option, or in the current directory by default.  The
+contents of the file will be shifted to have the same indentation as the
+&#39;:&#39; at the start of the <code>:include:</code> directive.</p>
+</dd><dt><code>:title:</code> <em>text</em>
+<dd>
+<p>Sets the title for the document.  Equivalent to the <code>--title</code>
+command line parameter.  (The command line parameter overrides any :title:
+directive in the source).</p>
+</dd><dt><code>:main:</code> <em>name</em>
+<dd>
+<p>Equivalent to the <code>--main</code> command line parameter.</p>
+</dd></dl>
+
+<p>–</p>
+<dl class="rdoc-list note-list"><dt>Original Author
+<dd>
+<p>Dave Thomas,  dave@pragmaticprogrammer.com</p>
+</dd><dt>License
+<dd>
+<p>Ruby license</p>
+</dd></dl>
 
 
   </div>
