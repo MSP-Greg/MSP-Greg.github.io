@@ -8,7 +8,7 @@
 <meta name='apple-mobile-web-app-capable' content='yes'>
 <meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
 
-<title>Class: SizedQueue &mdash; Core Ruby-2.4.0 d2016-08-04</title>
+<title>Class: SizedQueue &mdash; Core Ruby-2.4.0 d2016-08-08</title>
 
 <link rel='stylesheet'  type='text/css' href='../../css/y_fonts.css' />
 <link rel='stylesheet'  type='text/css' href='../../css/highlight.github.css' />
@@ -164,7 +164,7 @@ operation may be blocked if the capacity is full.</p>
     <li>
       <span class="summary_signature">
         <a href="#%3C%3C-instance_method" title="#&lt;&lt; (instance method)">#<strong>&lt;&lt;</strong>(object)  </a>
-        (also: #enq, #push)
+        (also: #push, #enq)
       </span>
       <span class='summary_desc'>
         <div class='inline'>
@@ -271,6 +271,7 @@ operation may be blocked if the capacity is full.</p>
 
 
 <h2 id='Constructor_Details' class='y_details'>Constructor Details</h2>
+
   <section class='method_details first' id="new-class_method">
   <h3 class='signature first'>
   .<strong>new</strong>(max)  
@@ -338,7 +339,7 @@ rb_szqueue_initialize(VALUE self, VALUE vmax)
   <span class='overload'>#<strong>push</strong>(object, non_block = false)  </span>
     <span class='overload'>#<strong>enq</strong>(object, non_block = false)  </span>
     <span class='overload'>#<strong>&lt;&lt;</strong>(object)  </span>
-  <span class='aliases'>Also known as: <span class='names'><span>enq</span>, <span>push</span></span>
+  <span class='aliases'>Also known as: <span class='names'><span>push</span>, <span>enq</span></span>
   </span>
 </h3>
 <div class="docstring">
@@ -714,7 +715,32 @@ rb_szqueue_num_waiting(VALUE self)
 
   </div>
 </div>
+<div class="tags">
+  
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread_sync.c#L1063'>GitHub</a> ]</span>
+<div class='source_code h'>
+  <pre class='lines_num'>
 
+
+1063
+1064
+1065
+1066
+1067
+1068</pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'thread_sync.c', line 1063</span></pre>
+<pre class='code cpp'>
+
+static VALUE
+rb_szqueue_pop(int argc, VALUE *argv, VALUE self)
+{
+    int should_block = queue_pop_should_block(argc, argv);
+    return szqueue_do_pop(self, should_block);
+}
+</pre>
+  </div>
+</div>
 </section>
   <section class='method_details' id="push-instance_method">
   <h3 class='signature'>
@@ -730,7 +756,76 @@ rb_szqueue_num_waiting(VALUE self)
 
   </div>
 </div>
+<div class="tags">
+  
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/thread_sync.c#L1008'>GitHub</a> ]</span>
+<div class='source_code h'>
+  <pre class='lines_num'>
 
+
+1008
+1009
+1010
+1011
+1012
+1013
+1014
+1015
+1016
+1017
+1018
+1019
+1020
+1021
+1022
+1023
+1024
+1025
+1026
+1027
+1028
+1029
+1030
+1031
+1032
+1033
+1034
+1035</pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'thread_sync.c', line 1008</span></pre>
+<pre class='code cpp'>
+
+static VALUE
+rb_szqueue_push(int argc, VALUE *argv, VALUE self)
+{
+    struct waiting_delete args;
+    int should_block = szqueue_push_should_block(argc, argv);
+    args.waiting = GET_SZQUEUE_WAITERS(self);
+    args.th      = rb_thread_current();
+
+    while (queue_length(self) &gt;= GET_SZQUEUE_ULONGMAX(self)) {
+	if (!should_block) {
+	    rb_raise(rb_eThreadError, &quot;queue full&quot;);
+	}
+	else if (queue_closed_p(self)) {
+	    goto closed;
+	}
+	else {
+	    rb_ary_push(args.waiting, args.th);
+	    rb_ensure(queue_sleep, Qfalse, queue_delete_from_waiting, (VALUE)&amp;args);
+	}
+    }
+
+    if (queue_closed_p(self)) {
+      closed:
+	raise_closed_queue_error(self);
+    }
+
+    return queue_do_push(self, argv[0]);
+}
+</pre>
+  </div>
+</div>
 </section>
   <section class='method_details' id="shift-instance_method">
   <h3 class='signature'>

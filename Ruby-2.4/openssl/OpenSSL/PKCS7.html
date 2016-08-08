@@ -8,7 +8,7 @@
 <meta name='apple-mobile-web-app-capable' content='yes'>
 <meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
 
-<title>Class: OpenSSL::PKCS7 &mdash; openssl Ruby-2.4.0 d2016-08-04</title>
+<title>Class: OpenSSL::PKCS7 &mdash; openssl Ruby-2.4.0 d2016-08-08</title>
 
 <link rel='stylesheet'  type='text/css' href='../../../css/y_fonts.css' />
 <link rel='stylesheet'  type='text/css' href='../../../css/highlight.github.css' />
@@ -412,6 +412,7 @@
 
 
 <h2 id='Constructor_Details' class='y_details'>Constructor Details</h2>
+
   <section class='method_details first' id="new-class_method">
   <h3 class='signature first'>
   <span class='overload'>.<strong>new</strong>  &#x21d2; <tt><a href="" title="OpenSSL::PKCS7 (class)">PKCS7</a></tt> </span>
@@ -974,7 +975,86 @@ ossl_pkcs7_add_crl(VALUE self, VALUE crl)
 
   </div>
 </div>
+<div class="tags">
+  
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/ext/openssl/ossl_pkcs7.c#L834'>GitHub</a> ]</span>
+<div class='source_code h'>
+  <pre class='lines_num'>
 
+
+834
+835
+836
+837
+838
+839
+840
+841
+842
+843
+844
+845
+846
+847
+848
+849
+850
+851
+852
+853
+854
+855
+856
+857
+858
+859
+860
+861
+862
+863
+864
+865
+866</pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'ext/openssl/ossl_pkcs7.c', line 834</span></pre>
+<pre class='code cpp'>
+
+static VALUE
+ossl_pkcs7_add_data(VALUE self, VALUE data)
+{
+    PKCS7 *pkcs7;
+    BIO *out, *in;
+    char buf[4096];
+    int len;
+
+    in = ossl_obj2bio(data);
+    GetPKCS7(self, pkcs7);
+    if(PKCS7_type_is_signed(pkcs7)){
+	if(!PKCS7_content_new(pkcs7, NID_pkcs7_data))
+	    ossl_raise(ePKCS7Error, NULL);
+    }
+    if(!(out = PKCS7_dataInit(pkcs7, NULL))) goto err;
+    for(;;){
+	if((len = BIO_read(in, buf, sizeof(buf))) &lt;= 0)
+	    break;
+	if(BIO_write(out, buf, len) != len)
+	    goto err;
+    }
+    if(!PKCS7_dataFinal(pkcs7, out)) goto err;
+    ossl_pkcs7_set_data(self, Qnil);
+
+ err:
+    BIO_free(out);
+    BIO_free(in);
+    if(ERR_peek_error()){
+	ossl_raise(ePKCS7Error, NULL);
+    }
+
+    return data;
+}
+</pre>
+  </div>
+</div>
 </section>
   <section class='method_details' id="add_recipient-instance_method">
   <h3 class='signature'>
@@ -1727,7 +1807,58 @@ ossl_pkcs7_to_der(VALUE self)
 
   </div>
 </div>
+<div class="tags">
+  
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/ext/openssl/ossl_pkcs7.c#L888'>GitHub</a> ]</span>
+<div class='source_code h'>
+  <pre class='lines_num'>
 
+
+888
+889
+890
+891
+892
+893
+894
+895
+896
+897
+898
+899
+900
+901
+902
+903
+904
+905
+906</pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'ext/openssl/ossl_pkcs7.c', line 888</span></pre>
+<pre class='code cpp'>
+
+static VALUE
+ossl_pkcs7_to_pem(VALUE self)
+{
+    PKCS7 *pkcs7;
+    BIO *out;
+    VALUE str;
+
+    GetPKCS7(self, pkcs7);
+    if (!(out = BIO_new(BIO_s_mem()))) {
+	ossl_raise(ePKCS7Error, NULL);
+    }
+    if (!PEM_write_bio_PKCS7(out, pkcs7)) {
+	BIO_free(out);
+	ossl_raise(ePKCS7Error, NULL);
+    }
+    str = ossl_membio2str(out);
+
+    return str;
+}
+</pre>
+  </div>
+</div>
 </section>
   <section class='method_details' id="to_s-instance_method">
   <h3 class='signature'>

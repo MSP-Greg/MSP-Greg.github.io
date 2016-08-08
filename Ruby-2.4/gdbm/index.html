@@ -8,7 +8,7 @@
 <meta name='apple-mobile-web-app-capable' content='yes'>
 <meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
 
-<title>Class: GDBM &mdash; gdbm Ruby-2.4.0 d2016-08-04</title>
+<title>Class: GDBM &mdash; gdbm Ruby-2.4.0 d2016-08-08</title>
 
 <link rel='stylesheet'  type='text/css' href='../../css/y_fonts.css' />
 <link rel='stylesheet'  type='text/css' href='../../css/highlight.github.css' />
@@ -566,7 +566,7 @@ keys as values.</p>
     <li>
       <span class="summary_signature">
         <a href="#key%3F-instance_method" title="#key? (instance method)">#<strong>key?</strong>(k)  &#x21d2; Boolean </a>
-        (also: #has_key?, #include?, #member?)
+        (also: #include?, #has_key?, #member?)
       </span>
       <span class='summary_desc'>
         <div class='inline'>
@@ -780,6 +780,7 @@ entries with duplicate keys with those from <em>other</em>.</p>
 
 
   <h2 id='Constructor_Details' class='y_details'>Constructor Details</h2>
+
   <section class='method_details first' id="new-class_method">
   <h3 class='signature first'>
   .<strong>new</strong>(filename, mode = 0666, flags = nil)  
@@ -1482,7 +1483,88 @@ fgdbm_delete(VALUE obj, VALUE keystr)
 
   </div>
 </div>
+<div class="tags">
+  
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/ext/gdbm/gdbm.c#L610'>GitHub</a> ]</span>
+<div class='source_code h'>
+  <pre class='lines_num'>
 
+
+610
+611
+612
+613
+614
+615
+616
+617
+618
+619
+620
+621
+622
+623
+624
+625
+626
+627
+628
+629
+630
+631
+632
+633
+634
+635
+636
+637
+638
+639
+640
+641
+642
+643</pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'ext/gdbm/gdbm.c', line 610</span></pre>
+<pre class='code cpp'>
+
+static VALUE
+fgdbm_delete_if(VALUE obj)
+{
+    struct dbmdata *dbmp;
+    GDBM_FILE dbm;
+    VALUE keystr, valstr;
+    VALUE ret, ary = rb_ary_tmp_new(0);
+    long i;
+    int status = 0, n;
+
+    rb_gdbm_modify(obj);
+    GetDBM2(obj, dbmp, dbm);
+    n = dbmp-&gt;di_size;
+    dbmp-&gt;di_size = -1;
+
+    for (keystr = rb_gdbm_firstkey(dbm); RTEST(keystr);
+         keystr = rb_gdbm_nextkey(dbm, keystr)) {
+
+	OBJ_FREEZE(keystr);
+        valstr = rb_gdbm_fetch2(dbm, keystr);
+        ret = rb_protect(rb_yield, rb_assoc_new(rb_str_dup(keystr), valstr), &amp;status);
+        if (status != 0) break;
+        if (RTEST(ret)) rb_ary_push(ary, keystr);
+        GetDBM2(obj, dbmp, dbm);
+    }
+
+    for (i = 0; i &lt; RARRAY_LEN(ary); i++)
+        rb_gdbm_delete(obj, RARRAY_AREF(ary, i));
+    if (status) rb_jump_tag(status);
+    if (n &gt; 0) dbmp-&gt;di_size = n - (int)RARRAY_LEN(ary);
+    rb_ary_clear(ary);
+
+    return obj;
+}
+</pre>
+  </div>
+</div>
 </section>
   <section class='method_details' id="each-instance_method">
   <h3 class='signature'>
@@ -1629,7 +1711,9 @@ fgdbm_each_key(VALUE obj)
 
   </div>
 </div>
-
+<div class="tags">
+  
+</div>
 </section>
   <section class='method_details' id="each_value-instance_method">
   <h3 class='signature'>
@@ -1899,7 +1983,9 @@ fgdbm_fetch_m(int argc, VALUE *argv, VALUE obj)
 
   </div>
 </div>
-
+<div class="tags">
+  
+</div>
 </section>
   <section class='method_details' id="has_value?-instance_method">
   <h3 class='signature'>
@@ -1914,7 +2000,66 @@ fgdbm_fetch_m(int argc, VALUE *argv, VALUE obj)
 
   </div>
 </div>
+<div class="tags">
+  
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/ext/gdbm/gdbm.c#L1014'>GitHub</a> ]</span>
+<div class='source_code h'>
+  <pre class='lines_num'>
 
+
+1014
+1015
+1016
+1017
+1018
+1019
+1020
+1021
+1022
+1023
+1024
+1025
+1026
+1027
+1028
+1029
+1030
+1031
+1032
+1033
+1034
+1035
+1036</pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'ext/gdbm/gdbm.c', line 1014</span></pre>
+<pre class='code cpp'>
+
+static VALUE
+fgdbm_has_value(VALUE obj, VALUE valstr)
+{
+    struct dbmdata *dbmp;
+    GDBM_FILE dbm;
+    VALUE keystr, valstr2;
+
+    StringValue(valstr);
+    GetDBM2(obj, dbmp, dbm);
+    for (keystr = rb_gdbm_firstkey(dbm); RTEST(keystr);
+         keystr = rb_gdbm_nextkey(dbm, keystr)) {
+
+        valstr2 = rb_gdbm_fetch2(dbm, keystr);
+
+        if (!NIL_P(valstr2) &amp;&amp;
+            (int)RSTRING_LEN(valstr) == (int)RSTRING_LEN(valstr2) &amp;&amp;
+            memcmp(RSTRING_PTR(valstr), RSTRING_PTR(valstr2),
+                   (int)RSTRING_LEN(valstr)) == 0) {
+            return Qtrue;
+        }
+    }
+    return Qfalse;
+}
+</pre>
+  </div>
+</div>
 </section>
   <section class='method_details' id="include?-instance_method">
   <h3 class='signature'>
@@ -1931,7 +2076,58 @@ fgdbm_fetch_m(int argc, VALUE *argv, VALUE obj)
 
   </div>
 </div>
+<div class="tags">
+  
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/ext/gdbm/gdbm.c#L986'>GitHub</a> ]</span>
+<div class='source_code h'>
+  <pre class='lines_num'>
 
+
+986
+987
+988
+989
+990
+991
+992
+993
+994
+995
+996
+997
+998
+999
+1000
+1001
+1002
+1003
+1004</pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'ext/gdbm/gdbm.c', line 986</span></pre>
+<pre class='code cpp'>
+
+static VALUE
+fgdbm_has_key(VALUE obj, VALUE keystr)
+{
+    datum key;
+    struct dbmdata *dbmp;
+    GDBM_FILE dbm;
+    long len;
+
+    StringValue(keystr);
+    len = RSTRING_LENINT(keystr);
+    if (TOO_LONG(len)) return Qfalse;
+    key.dptr = RSTRING_PTR(keystr);
+    key.dsize = (int)len;
+
+    GetDBM2(obj, dbmp, dbm);
+    if (gdbm_exists(dbm, key))
+        return Qtrue;
+    return Qfalse;
+}
+</pre>
+  </div>
+</div>
 </section>
   <section class='method_details' id="invert-instance_method">
   <h3 class='signature'>
@@ -2073,7 +2269,7 @@ fgdbm_key(VALUE obj, VALUE valstr)
     <span class='overload'>#<strong>has_key?</strong>(k)  &#x21d2; <tt>Boolean</tt> </span>
     <span class='overload'>#<strong>member?</strong>(k)  &#x21d2; <tt>Boolean</tt> </span>
     <span class='overload'>#<strong>key?</strong>(k)  &#x21d2; <tt>Boolean</tt> </span>
-  <span class='aliases'>Also known as: <span class='names'><span>has_key?</span>, <span>include?</span>, <span>member?</span></span>
+  <span class='aliases'>Also known as: <span class='names'><span>include?</span>, <span>has_key?</span>, <span>member?</span></span>
   </span>
 </h3>
 <div class="docstring">
@@ -2284,7 +2480,9 @@ fgdbm_length(VALUE obj)
 
   </div>
 </div>
-
+<div class="tags">
+  
+</div>
 </section>
   <section class='method_details' id="reject-instance_method">
   <h3 class='signature'>
@@ -2665,7 +2863,9 @@ fgdbm_shift(VALUE obj)
 
   </div>
 </div>
-
+<div class="tags">
+  
+</div>
 </section>
   <section class='method_details' id="store-instance_method">
   <h3 class='signature'>
@@ -2680,7 +2880,9 @@ fgdbm_shift(VALUE obj)
 
   </div>
 </div>
-
+<div class="tags">
+  
+</div>
 </section>
   <section class='method_details' id="sync-instance_method">
   <h3 class='signature'>

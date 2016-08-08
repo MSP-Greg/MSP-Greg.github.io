@@ -8,7 +8,7 @@
 <meta name='apple-mobile-web-app-capable' content='yes'>
 <meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
 
-<title>Class: SDBM &mdash; sdbm Ruby-2.4.0 d2016-08-04</title>
+<title>Class: SDBM &mdash; sdbm Ruby-2.4.0 d2016-08-08</title>
 
 <link rel='stylesheet'  type='text/css' href='../../css/y_fonts.css' />
 <link rel='stylesheet'  type='text/css' href='../../css/highlight.github.css' />
@@ -592,6 +592,7 @@ the block returns <code>true</code>.</p>
 
 
   <h2 id='Constructor_Details' class='y_details'>Constructor Details</h2>
+
   <section class='method_details first' id="new-class_method">
   <h3 class='signature first'>
   .<strong>new</strong>(filename, mode = 0666)  
@@ -1207,7 +1208,98 @@ fsdbm_delete(VALUE obj, VALUE keystr)
 
   </div>
 </div>
+<div class="tags">
+  
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/ext/sdbm/init.c#L506'>GitHub</a> ]</span>
+<div class='source_code h'>
+  <pre class='lines_num'>
 
+
+506
+507
+508
+509
+510
+511
+512
+513
+514
+515
+516
+517
+518
+519
+520
+521
+522
+523
+524
+525
+526
+527
+528
+529
+530
+531
+532
+533
+534
+535
+536
+537
+538
+539
+540
+541
+542
+543
+544</pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'ext/sdbm/init.c', line 506</span></pre>
+<pre class='code cpp'>
+
+static VALUE
+fsdbm_delete_if(VALUE obj)
+{
+    datum key, val;
+    struct dbmdata *dbmp;
+    DBM *dbm;
+    VALUE keystr, valstr;
+    VALUE ret, ary = rb_ary_new();
+    long i;
+    int status = 0, n;
+
+    fdbm_modify(obj);
+    GetDBM2(obj, dbmp, dbm);
+    n = dbmp-&gt;di_size;
+    dbmp-&gt;di_size = -1;
+    for (key = sdbm_firstkey(dbm); key.dptr; key = sdbm_nextkey(dbm)) {
+	val = sdbm_fetch(dbm, key);
+	keystr = rb_external_str_new(key.dptr, key.dsize);
+	valstr = rb_external_str_new(val.dptr, val.dsize);
+        ret = rb_protect(rb_yield, rb_assoc_new(rb_str_dup(keystr), valstr), &amp;status);
+        if (status != 0) break;
+	if (RTEST(ret)) rb_ary_push(ary, keystr);
+	GetDBM2(obj, dbmp, dbm);
+    }
+
+    for (i = 0; i &lt; RARRAY_LEN(ary); i++) {
+	keystr = RARRAY_AREF(ary, i);
+	ExportStringValue(keystr);
+	key.dptr = RSTRING_PTR(keystr);
+	key.dsize = RSTRING_LENINT(keystr);
+	if (sdbm_delete(dbm, key)) {
+	    rb_raise(rb_eDBMError, &quot;sdbm_delete failed&quot;);
+	}
+    }
+    if (status) rb_jump_tag(status);
+    if (n &gt; 0) dbmp-&gt;di_size = n - RARRAY_LENINT(ary);
+
+    return obj;
+}
+</pre>
+  </div>
+</div>
 </section>
   <section class='method_details' id="each-instance_method">
   <h3 class='signature'>
@@ -1362,7 +1454,9 @@ fsdbm_each_key(VALUE obj)
 
   </div>
 </div>
-
+<div class="tags">
+  
+</div>
 </section>
   <section class='method_details' id="each_value-instance_method">
   <h3 class='signature'>
@@ -1572,7 +1666,52 @@ fsdbm_fetch_m(int argc, VALUE *argv, VALUE obj)
 
   </div>
 </div>
+<div class="tags">
+  
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/ext/sdbm/init.c#L896'>GitHub</a> ]</span>
+<div class='source_code h'>
+  <pre class='lines_num'>
 
+
+896
+897
+898
+899
+900
+901
+902
+903
+904
+905
+906
+907
+908
+909
+910
+911</pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'ext/sdbm/init.c', line 896</span></pre>
+<pre class='code cpp'>
+
+static VALUE
+fsdbm_has_key(VALUE obj, VALUE keystr)
+{
+    datum key, val;
+    struct dbmdata *dbmp;
+    DBM *dbm;
+
+    ExportStringValue(keystr);
+    key.dptr = RSTRING_PTR(keystr);
+    key.dsize = RSTRING_LENINT(keystr);
+
+    GetDBM2(obj, dbmp, dbm);
+    val = sdbm_fetch(dbm, key);
+    if (val.dptr) return Qtrue;
+    return Qfalse;
+}
+</pre>
+  </div>
+</div>
 </section>
   <section class='method_details' id="has_value?-instance_method">
   <h3 class='signature'>
@@ -1587,7 +1726,60 @@ fsdbm_fetch_m(int argc, VALUE *argv, VALUE obj)
 
   </div>
 </div>
+<div class="tags">
+  
+</div>  <span class='link_repo'>[ <a href='https://github.com/ruby/ruby/blob/trunk/ext/sdbm/init.c#L920'>GitHub</a> ]</span>
+<div class='source_code h'>
+  <pre class='lines_num'>
 
+
+920
+921
+922
+923
+924
+925
+926
+927
+928
+929
+930
+931
+932
+933
+934
+935
+936
+937
+938
+939</pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'ext/sdbm/init.c', line 920</span></pre>
+<pre class='code cpp'>
+
+static VALUE
+fsdbm_has_value(VALUE obj, VALUE valstr)
+{
+    datum key, val;
+    struct dbmdata *dbmp;
+    DBM *dbm;
+
+    ExportStringValue(valstr);
+    val.dptr = RSTRING_PTR(valstr);
+    val.dsize = RSTRING_LENINT(valstr);
+
+    GetDBM2(obj, dbmp, dbm);
+    for (key = sdbm_firstkey(dbm); key.dptr; key = sdbm_nextkey(dbm)) {
+	val = sdbm_fetch(dbm, key);
+	if (val.dsize == RSTRING_LENINT(valstr) &amp;&amp;
+	    memcmp(val.dptr, RSTRING_PTR(valstr), val.dsize) == 0)
+	    return Qtrue;
+    }
+    return Qfalse;
+}
+</pre>
+  </div>
+</div>
 </section>
   <section class='method_details' id="include?-instance_method">
   <h3 class='signature'>
@@ -1604,7 +1796,9 @@ fsdbm_fetch_m(int argc, VALUE *argv, VALUE obj)
 
   </div>
 </div>
-
+<div class="tags">
+  
+</div>
 </section>
   <section class='method_details' id="invert-instance_method">
   <h3 class='signature'>
@@ -1955,7 +2149,9 @@ fsdbm_length(VALUE obj)
 
   </div>
 </div>
-
+<div class="tags">
+  
+</div>
 </section>
   <section class='method_details' id="reject-instance_method">
   <h3 class='signature'>
@@ -2323,7 +2519,9 @@ fsdbm_shift(VALUE obj)
 
   </div>
 </div>
-
+<div class="tags">
+  
+</div>
 </section>
   <section class='method_details' id="store-instance_method">
   <h3 class='signature'>
@@ -2338,7 +2536,9 @@ fsdbm_shift(VALUE obj)
 
   </div>
 </div>
-
+<div class="tags">
+  
+</div>
 </section>
   <section class='method_details' id="to_a-instance_method">
   <h3 class='signature'>
