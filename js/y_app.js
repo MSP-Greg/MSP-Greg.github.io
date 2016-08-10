@@ -2634,6 +2634,7 @@ function addSummaryToggle(content) {
   var nl = content.querySelectorAll('ul.summary'),
       ulFull,
       ulCompact,
+      dlAll = content.querySelectorAll('dl.constants.summary'),
       dlFull,
       dlCompact,
       remove,
@@ -2682,23 +2683,24 @@ function addSummaryToggle(content) {
   }
 
   // now create constants compact list
-  dlFull = content.querySelector('dl.constants.summary')
-  if (dlFull) {
-    dlCompact = document.createElement('dl');
+  if (dlAll) {
+    for (var j = 0, dlFull; dlFull = dlAll[j]; j++) {
+      dlCompact = document.createElement('dl');
 
-    nl = dlFull.querySelectorAll('dt');
-    for (var i = 0, el, tA, tDT; el = nl[i]; i++) {
-      tA = eA.cloneNode(false);
-      tA.href = "#" + el.id;
-      tA.textContent = el.textContent;
-      tDT = eDT.cloneNode(false);
-      tDT.appendChild(tA);
-      dlCompact.appendChild(tDT);
+      nl = dlFull.querySelectorAll('dt');
+      for (var i = 0, el, tA, tDT; el = nl[i]; i++) {
+        tA = eA.cloneNode(false);
+        tA.href = "#" + el.id;
+        tA.textContent = el.textContent;
+        tDT = eDT.cloneNode(false);
+        tDT.appendChild(tA);
+        dlCompact.appendChild(tDT);
+      }
+      prnt = dlFull.parentElement;
+      dlFull.className = "constants " + cnFull;
+      dlCompact.className = "constants " + cnCompact;
+      prnt.insertBefore(dlCompact, dlFull);
     }
-    prnt = dlFull.parentElement;
-    dlFull.className = "constants " + cnFull;
-    dlCompact.className = "constants " + cnCompact;
-    prnt.insertBefore(dlCompact, dlFull);
   }
 
   nl = content.querySelectorAll('a.summary_toggle');
