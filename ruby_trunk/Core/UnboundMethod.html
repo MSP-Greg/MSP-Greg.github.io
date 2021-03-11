@@ -77,7 +77,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2 o'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/proc.c#L4181'>proc.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/proc.c#L2513'>proc.c</a></span>
+      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/proc.c#L4189'>proc.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/proc.c#L2514'>proc.c</a></span>
       </td>
     </tr>
   </tbody>
@@ -318,11 +318,11 @@ prog.rb:16:in `bind&#39;: bind argument must be an instance of B (TypeError)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/proc.c#L2596-L2611'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/proc.c#L2593-L2610'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2596' data-end='2611'></pre>
+  <pre class='lines_num' data-start='2593' data-end='2610'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'proc.c', line 2596</span></pre>
+<pre><span class='info file'># File 'proc.c', line 2593</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -330,7 +330,9 @@ umethod_bind(VALUE method, VALUE recv)
 {
     VALUE methclass, klass, iclass;
     const rb_method_entry_t *me;
-    convert_umethod_to_method_components(method, recv, &amp;methclass, &amp;klass, &amp;iclass, &amp;me);
+    const struct METHOD *data;
+    TypedData_Get_Struct(method, struct METHOD, &amp;method_data_type, data);
+    convert_umethod_to_method_components(data, recv, &amp;methclass, &amp;klass, &amp;iclass, &amp;me);
 
     struct METHOD *bound;
     method = TypedData_Make_Struct(rb_cMethod, struct METHOD, &amp;method_data_type, bound);
@@ -356,11 +358,11 @@ umethod_bind(VALUE method, VALUE recv)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/proc.c#L2621-L2638'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/proc.c#L2620-L2646'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2621' data-end='2638'></pre>
+  <pre class='lines_num' data-start='2620' data-end='2646'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'proc.c', line 2621</span></pre>
+<pre><span class='info file'># File 'proc.c', line 2620</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -371,15 +373,24 @@ umethod_bind_call(int argc, VALUE *argv, VALUE method)
     argc--;
     argv++;
 
-    VALUE methclass, klass, iclass;
-    const rb_method_entry_t *me;
-    convert_umethod_to_method_components(method, recv, &amp;methclass, &amp;klass, &amp;iclass, &amp;me);
-    struct METHOD bound = { recv, klass, 0, me };
-
     VALUE passed_procval = rb_block_given_p() ? rb_block_proc() : Qnil;
-
     rb_execution_context_t *ec = GET_EC();
-    return call_method_data(ec, &amp;bound, argc, argv, passed_procval, RB_PASS_CALLED_KEYWORDS);
+
+    const struct METHOD *data;
+    TypedData_Get_Struct(method, struct METHOD, &amp;method_data_type, data);
+
+    const rb_callable_method_entry_t *cme = rb_callable_method_entry(CLASS_OF(recv), data-&gt;me-&gt;called_id);
+    if (data-&gt;me == (const rb_method_entry_t *)cme) {
+        vm_passed_block_handler_set(ec, proc_to_block_handler(passed_procval));
+        return rb_vm_call_kw(ec, recv, cme-&gt;called_id, argc, argv, cme, RB_PASS_CALLED_KEYWORDS);
+    } else {
+        VALUE methclass, klass, iclass;
+        const rb_method_entry_t *me;
+        convert_umethod_to_method_components(data, recv, &amp;methclass, &amp;klass, &amp;iclass, &amp;me);
+        struct METHOD bound = { recv, klass, 0, me };
+
+        return call_method_data(ec, &amp;bound, argc, argv, passed_procval, RB_PASS_CALLED_KEYWORDS);
+    }
 }
 </pre>
   </div>
@@ -534,7 +545,7 @@ umethod_bind_call(int argc, VALUE *argv, VALUE method)
 
   </div>
 </div>
-  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/proc.c#L2971'>GitHub</a> ]</span>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/proc.c#L2979'>GitHub</a> ]</span>
 
 </section>
 
