@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen'       content='yes'>
+<meta name='apple-mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Active Job Basics &mdash; Rails 7.1.3.2</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "active_job_basics",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>Rails 7.1.3.2</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Active Job Basics&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<p><strong>DO NOT READ THIS FILE ON GITHUB, GUIDES ARE PUBLISHED ON <a href="https://guides.rubyonrails.org">https://guides.rubyonrails.org</a>.</strong></p>
+
+<h1>Active Job Basics</h1>
+
+<p>This guide provides you with all you need to get started in creating,
+enqueuing and executing background jobs.</p>
+
+<p>After reading this guide, you will know:</p>
+
+<ul>
+<li>How to create jobs.</li>
+<li>How to enqueue jobs.</li>
+<li>How to run jobs in the background.</li>
+<li>How to send emails from your application asynchronously.</li>
+</ul>
+
+<hr>
+
+<h2>What is Active Job?</h2>
+
+<p>Active Job is a framework for declaring jobs and making them run on a variety
+of queuing backends. These jobs can be everything from regularly scheduled
+clean-ups, to billing charges, to mailings. Anything that can be chopped up
+into small units of work and run in parallel, really.</p>
+
+<h2>The Purpose of Active Job</h2>
+
+<p>The main point is to ensure that all <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> apps will have a job infrastructure
+in place. We can then have framework features and other gems build on top of that,
+without having to worry about API differences between various job runners such as
+Delayed Job and Resque. Picking your queuing backend becomes more of an operational
+concern, then. And you&#39;ll be able to switch between them without having to rewrite
+your jobs.</p>
+
+<p>NOTE: <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> by default comes with an asynchronous queuing implementation that
+runs jobs with an in-process thread pool. Jobs will run asynchronously, but any
+jobs in the queue will be dropped upon restart.</p>
+
+<h2>Creating a Job</h2>
+
+<p>This section will provide a step-by-step guide to creating a job and enqueuing it.</p>
+
+<h3>Create the Job</h3>
+
+<p>Active Job provides a <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> generator to create jobs. The following will create a
+job in <code>app/jobs</code> (with an attached test case under <code>test/jobs</code>):</p>
+
+<pre class="code bash"><code class="bash">$ bin/rails generate job guests_cleanup
+invoke  test_unit
+create    test/jobs/guests_cleanup_job_test.rb
+create  app/jobs/guests_cleanup_job.rb
+</code></pre>
+
+<p>You can also create a job that will run on a specific queue:</p>
+
+<pre class="code bash"><code class="bash">$ bin/rails generate job guests_cleanup --queue urgent
+</code></pre>
+
+<p>If you don&#39;t want to use a generator, you could create your own file inside of
+<code>app/jobs</code>, just make sure that it inherits from <code>ApplicationJob</code>.</p>
+
+<p>Here&#39;s what a job looks like:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>GuestsCleanupJob</span> <span class='op'>&lt;</span> <span class='const'>ApplicationJob</span>
+  <span class='id identifier rubyid_queue_as'>queue_as</span> <span class='symbeg'>:</span><span class='id identifier rubyid_default'>default</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_perform'>perform</span>(<span class='op'>*</span><span class='id identifier rubyid_guests'>guests</span>)
+    <span class='comment'># Do something later
+</span>  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Note that you can define <code>perform</code> with as many arguments as you want.</p>
+
+<p>If you already have an abstract class and its name differs from <code>ApplicationJob</code>, you can pass
+the <code>--parent</code> option to indicate you want a different abstract class:</p>
+
+<pre class="code bash"><code class="bash">$ bin/rails generate job process_payment --parent=payment_job
+</code></pre>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ProcessPaymentJob</span> <span class='op'>&lt;</span> <span class='const'>PaymentJob</span>
+  <span class='id identifier rubyid_queue_as'>queue_as</span> <span class='symbeg'>:</span><span class='id identifier rubyid_default'>default</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_perform'>perform</span>(<span class='op'>*</span><span class='id identifier rubyid_args'>args</span>)
+    <span class='comment'># Do something later
+</span>  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<h3>Enqueue the Job</h3>
+
+<p>Enqueue a job using <a href="https://api.rubyonrails.org/classes/ActiveJob/Enqueuing/ClassMethods.html#method-i-perform_later"><code>perform_later</code></a> and, optionally, <a href="https://api.rubyonrails.org/classes/ActiveJob/Core/ClassMethods.html#method-i-set"><code>set</code></a>. Like so:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># Enqueue a job to be performed as soon as the queuing system is
+</span><span class='comment'># free.
+</span><span class='const'>GuestsCleanupJob</span>.<span class='id identifier rubyid_perform_later'>perform_later</span> <span class='id identifier rubyid_guest'>guest</span></code></pre>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># Enqueue a job to be performed tomorrow at noon.
+</span><span class='const'>GuestsCleanupJob</span>.<span class='id identifier rubyid_set'>set</span>(<span class='label'>wait_until:</span> <span class='const'><a href="Date.html" title="Date (class)">Date</a></span>.<span class='id identifier rubyid_tomorrow'><a href="Date.html#tomorrow-class_method" title="Date.tomorrow (method)">tomorrow</a></span>.<span class='id identifier rubyid_noon'>noon</span>).<span class='id identifier rubyid_perform_later'>perform_later</span>(<span class='id identifier rubyid_guest'>guest</span>)</code></pre>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># Enqueue a job to be performed 1 week from now.
+</span><span class='const'>GuestsCleanupJob</span>.<span class='id identifier rubyid_set'>set</span>(<span class='label'>wait:</span> <span class='int'>1</span>.<span class='id identifier rubyid_week'>week</span>).<span class='id identifier rubyid_perform_later'>perform_later</span>(<span class='id identifier rubyid_guest'>guest</span>)</code></pre>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># `perform_now` and `perform_later` will call `perform` under the hood so
+</span><span class='comment'># you can pass as many arguments as defined in the latter.
+</span><span class='const'>GuestsCleanupJob</span>.<span class='id identifier rubyid_perform_later'>perform_later</span>(<span class='id identifier rubyid_guest1'>guest1</span><span class='comma'>,</span> <span class='id identifier rubyid_guest2'>guest2</span><span class='comma'>,</span> <span class='label'>filter:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>some_filter</span><span class='tstring_end'>&#39;</span></span>)</code></pre>
+
+<p>That&#39;s it!</p>
+
+<h2>Job Execution</h2>
+
+<p>For enqueuing and executing jobs in production you need to set up a queuing backend,
+that is to say, you need to decide on a 3rd-party queuing library that Rails should use.
+Rails itself only provides an in-process queuing system, which only keeps the jobs in RAM.
+If the process crashes or the machine is reset, then all outstanding jobs are lost with the
+default async backend. This may be fine for smaller apps or non-critical jobs, but most
+production apps will need to pick a persistent backend.</p>
+
+<h3>Backends</h3>
+
+<p>Active Job has built-in adapters for multiple queuing backends (Sidekiq,
+Resque, Delayed Job, and others). To get an up-to-date list of the adapters
+see the API Documentation for <a href="https://api.rubyonrails.org/classes/ActiveJob/QueueAdapters.html"><a href="ActiveJob/QueueAdapters.html" title="ActiveJob::QueueAdapters (module)"><code>::ActiveJob::QueueAdapters</code></a></a>.</p>
+
+<h3>Setting the Backend</h3>
+
+<p>You can easily set your queuing backend with <a href="configuring.html#config-active-job-queue-adapter"><code>config.active_job.queue_adapter</code></a>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/application.rb
+</span><span class='kw'>module</span> <span class='const'>YourApp</span>
+  <span class='kw'>class</span> <span class='const'>Application</span> <span class='op'>&lt;</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span><span class='op'>::</span><span class='const'><a href="Rails/Application.html" title="Rails::Application (class)">Application</a></span>
+    <span class='comment'># Be sure to have the adapter&#39;s gem in your Gemfile
+</span>    <span class='comment'># and follow the adapter&#39;s specific installation
+</span>    <span class='comment'># and deployment instructions.
+</span>    <span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_active_job'>active_job</span>.<span class='id identifier rubyid_queue_adapter'>queue_adapter</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_sidekiq'>sidekiq</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>You can also configure your backend on a per job basis:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>GuestsCleanupJob</span> <span class='op'>&lt;</span> <span class='const'>ApplicationJob</span>
+  <span class='kw'>self</span>.<span class='id identifier rubyid_queue_adapter'>queue_adapter</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_resque'>resque</span>
+  <span class='comment'># ...
+</span><span class='kw'>end</span>
+
+<span class='comment'># Now your job will use `resque` as its backend queue adapter, overriding what
+</span><span class='comment'># was configured in `config.active_job.queue_adapter`.</span></code></pre>
+
+<h3>Starting the Backend</h3>
+
+<p>Since jobs run in parallel to your Rails application, most queuing libraries
+require that you start a library-specific queuing service (in addition to
+starting your Rails app) for the job processing to work. Refer to library
+documentation for instructions on starting your queue backend.</p>
+
+<p>Here is a noncomprehensive list of documentation:</p>
+
+<ul>
+<li><a href="https://github.com/mperham/sidekiq/wiki/Active-Job">Sidekiq</a></li>
+<li><a href="https://github.com/resque/resque/wiki/ActiveJob">Resque</a></li>
+<li><a href="https://github.com/jondot/sneakers/wiki/How-To:-Rails-Background-Jobs-with-ActiveJob">Sneakers</a></li>
+<li><a href="https://github.com/brandonhilkert/sucker_punch#active-job">Sucker Punch</a></li>
+<li><a href="https://github.com/QueueClassic/queue_classic#active-job">Queue Classic</a></li>
+<li><a href="https://github.com/collectiveidea/delayed_job#active-job">Delayed Job</a></li>
+<li><a href="https://github.com/que-rb/que#additional-rails-specific-setup">Que</a></li>
+<li><a href="https://github.com/bensheldon/good_job#readme">Good Job</a></li>
+</ul>
+
+<h2>Queues</h2>
+
+<p>Most of the adapters support multiple queues. With Active Job you can schedule
+the job to run on a specific queue using <a href="https://api.rubyonrails.org/classes/ActiveJob/QueueName/ClassMethods.html#method-i-queue_as"><code>queue_as</code></a>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>GuestsCleanupJob</span> <span class='op'>&lt;</span> <span class='const'>ApplicationJob</span>
+  <span class='id identifier rubyid_queue_as'>queue_as</span> <span class='symbeg'>:</span><span class='id identifier rubyid_low_priority'>low_priority</span>
+  <span class='comment'># ...
+</span><span class='kw'>end</span></code></pre>
+
+<p>You can prefix the queue name for all your jobs using
+<a href="configuring.html#config-active-job-queue-name-prefix"><code>config.active_job.queue_name_prefix</code></a> in <code>application.rb</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/application.rb
+</span><span class='kw'>module</span> <span class='const'>YourApp</span>
+  <span class='kw'>class</span> <span class='const'>Application</span> <span class='op'>&lt;</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span><span class='op'>::</span><span class='const'><a href="Rails/Application.html" title="Rails::Application (class)">Application</a></span>
+    <span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_active_job'>active_job</span>.<span class='id identifier rubyid_queue_name_prefix'>queue_name_prefix</span> <span class='op'>=</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_env'><a href="Rails.html#env-class_method" title="Rails.env (method)">env</a></span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># app/jobs/guests_cleanup_job.rb
+</span><span class='kw'>class</span> <span class='const'>GuestsCleanupJob</span> <span class='op'>&lt;</span> <span class='const'>ApplicationJob</span>
+  <span class='id identifier rubyid_queue_as'>queue_as</span> <span class='symbeg'>:</span><span class='id identifier rubyid_low_priority'>low_priority</span>
+  <span class='comment'># ...
+</span><span class='kw'>end</span>
+
+<span class='comment'># Now your job will run on queue production_low_priority on your
+</span><span class='comment'># production environment and on staging_low_priority
+</span><span class='comment'># on your staging environment</span></code></pre>
+
+<p>You can also configure the prefix on a per job basis.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>GuestsCleanupJob</span> <span class='op'>&lt;</span> <span class='const'>ApplicationJob</span>
+  <span class='id identifier rubyid_queue_as'>queue_as</span> <span class='symbeg'>:</span><span class='id identifier rubyid_low_priority'>low_priority</span>
+  <span class='kw'>self</span>.<span class='id identifier rubyid_queue_name_prefix'>queue_name_prefix</span> <span class='op'>=</span> <span class='kw'>nil</span>
+  <span class='comment'># ...
+</span><span class='kw'>end</span>
+
+<span class='comment'># Now your job&#39;s queue won&#39;t be prefixed, overriding what
+</span><span class='comment'># was configured in `config.active_job.queue_name_prefix`.</span></code></pre>
+
+<p>The default queue name prefix delimiter is &#39;_&#39;.  This can be changed by setting
+<a href="configuring.html#config-active-job-queue-name-delimiter"><code>config.active_job.queue_name_delimiter</code></a> in <code>application.rb</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/application.rb
+</span><span class='kw'>module</span> <span class='const'>YourApp</span>
+  <span class='kw'>class</span> <span class='const'>Application</span> <span class='op'>&lt;</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span><span class='op'>::</span><span class='const'><a href="Rails/Application.html" title="Rails::Application (class)">Application</a></span>
+    <span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_active_job'>active_job</span>.<span class='id identifier rubyid_queue_name_prefix'>queue_name_prefix</span> <span class='op'>=</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_env'><a href="Rails.html#env-class_method" title="Rails.env (method)">env</a></span>
+    <span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_active_job'>active_job</span>.<span class='id identifier rubyid_queue_name_delimiter'>queue_name_delimiter</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>.</span><span class='tstring_end'>&#39;</span></span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># app/jobs/guests_cleanup_job.rb
+</span><span class='kw'>class</span> <span class='const'>GuestsCleanupJob</span> <span class='op'>&lt;</span> <span class='const'>ApplicationJob</span>
+  <span class='id identifier rubyid_queue_as'>queue_as</span> <span class='symbeg'>:</span><span class='id identifier rubyid_low_priority'>low_priority</span>
+  <span class='comment'># ...
+</span><span class='kw'>end</span>
+
+<span class='comment'># Now your job will run on queue production.low_priority on your
+</span><span class='comment'># production environment and on staging.low_priority
+</span><span class='comment'># on your staging environment</span></code></pre>
+
+<p>If you want more control on what queue a job will be run you can pass a <code>:queue</code>
+option to <code>set</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>MyJob</span>.<span class='id identifier rubyid_set'>set</span>(<span class='label'>queue:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_another_queue'>another_queue</span>).<span class='id identifier rubyid_perform_later'>perform_later</span>(<span class='id identifier rubyid_record'>record</span>)</code></pre>
+
+<p>To control the queue from the job level you can pass a block to <code>queue_as</code>. The
+block will be executed in the job context (so it can access <code>self.arguments</code>),
+and it must return the queue name:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ProcessVideoJob</span> <span class='op'>&lt;</span> <span class='const'>ApplicationJob</span>
+  <span class='id identifier rubyid_queue_as'>queue_as</span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_video'>video</span> <span class='op'>=</span> <span class='kw'>self</span>.<span class='id identifier rubyid_arguments'>arguments</span>.<span class='id identifier rubyid_first'>first</span>
+    <span class='kw'>if</span> <span class='id identifier rubyid_video'>video</span>.<span class='id identifier rubyid_owner'>owner</span>.<span class='id identifier rubyid_premium?'>premium?</span>
+      <span class='symbeg'>:</span><span class='id identifier rubyid_premium_videojobs'>premium_videojobs</span>
+    <span class='kw'>else</span>
+      <span class='symbeg'>:</span><span class='id identifier rubyid_videojobs'>videojobs</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_perform'>perform</span>(<span class='id identifier rubyid_video'>video</span>)
+    <span class='comment'># Do process video
+</span>  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>ProcessVideoJob</span>.<span class='id identifier rubyid_perform_later'>perform_later</span>(<span class='const'>Video</span>.<span class='id identifier rubyid_last'>last</span>)</code></pre>
+
+<p>NOTE: Make sure your queuing backend &quot;listens&quot; on your queue name. For some
+backends you need to specify the queues to listen to.</p>
+
+<h2>Callbacks</h2>
+
+<p>Active Job provides hooks to trigger logic during the life cycle of a job. Like
+other callbacks in Rails, you can implement the callbacks as ordinary methods
+and use a macro-style class method to register them as callbacks:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>GuestsCleanupJob</span> <span class='op'>&lt;</span> <span class='const'>ApplicationJob</span>
+  <span class='id identifier rubyid_queue_as'>queue_as</span> <span class='symbeg'>:</span><span class='id identifier rubyid_default'>default</span>
+
+  <span class='id identifier rubyid_around_perform'>around_perform</span> <span class='symbeg'>:</span><span class='id identifier rubyid_around_cleanup'>around_cleanup</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_perform'>perform</span>
+    <span class='comment'># Do something later
+</span>  <span class='kw'>end</span>
+
+  <span class='id identifier rubyid_private'>private</span>
+    <span class='kw'>def</span> <span class='id identifier rubyid_around_cleanup'>around_cleanup</span>
+      <span class='comment'># Do something before perform
+</span>      <span class='kw'>yield</span>
+      <span class='comment'># Do something after perform
+</span>    <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>The macro-style class methods can also receive a block. Consider using this
+style if the code inside your block is so short that it fits in a single line.
+For example, you could send metrics for every job enqueued:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ApplicationJob</span> <span class='op'>&lt;</span> <span class='const'><a href="ActiveJob.html" title="ActiveJob (module)">ActiveJob</a></span><span class='op'>::</span><span class='const'><a href="ActiveJob/Base.html" title="ActiveJob::Base (class)">Base</a></span>
+  <span class='id identifier rubyid_before_enqueue'>before_enqueue</span> { <span class='op'>|</span><span class='id identifier rubyid_job'>job</span><span class='op'>|</span> <span class='gvar'>$statsd</span>.<span class='id identifier rubyid_increment'>increment</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_job'>job</span>.<span class='id identifier rubyid_class'>class</span>.<span class='id identifier rubyid_name'>name</span>.<span class='id identifier rubyid_underscore'>underscore</span><span class='embexpr_end'>}</span><span class='tstring_content'>.enqueue</span><span class='tstring_end'>&quot;</span></span> }
+<span class='kw'>end</span></code></pre>
+
+<h3>Available Callbacks</h3>
+
+<ul>
+<li><a href="https://api.rubyonrails.org/classes/ActiveJob/Callbacks/ClassMethods.html#method-i-before_enqueue"><code>before_enqueue</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActiveJob/Callbacks/ClassMethods.html#method-i-around_enqueue"><code>around_enqueue</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActiveJob/Callbacks/ClassMethods.html#method-i-after_enqueue"><code>after_enqueue</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActiveJob/Callbacks/ClassMethods.html#method-i-before_perform"><code>before_perform</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActiveJob/Callbacks/ClassMethods.html#method-i-around_perform"><code>around_perform</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActiveJob/Callbacks/ClassMethods.html#method-i-after_perform"><code>after_perform</code></a></li>
+</ul>
+
+<h2>Action Mailer</h2>
+
+<p>One of the most common jobs in a modern web application is sending emails outside
+of the request-response cycle, so the user doesn&#39;t have to wait on it. Active Job
+is integrated with Action Mailer so you can easily send emails asynchronously:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># If you want to send the email now use #deliver_now
+</span><span class='const'>UserMailer</span>.<span class='id identifier rubyid_welcome'>welcome</span>(<span class='ivar'>@user</span>).<span class='id identifier rubyid_deliver_now'>deliver_now</span>
+
+<span class='comment'># If you want to send the email through Active Job use #deliver_later
+</span><span class='const'>UserMailer</span>.<span class='id identifier rubyid_welcome'>welcome</span>(<span class='ivar'>@user</span>).<span class='id identifier rubyid_deliver_later'>deliver_later</span></code></pre>
+
+<p>NOTE: Using the asynchronous queue from a Rake task (for example, to
+send an email using <code>.deliver_later</code>) will generally not work because Rake will
+likely end, causing the in-process thread pool to be deleted, before any/all
+of the <code>.deliver_later</code> emails are processed. To avoid this problem, use
+<code>.deliver_now</code> or run a persistent queue in development.</p>
+
+<h2>Internationalization</h2>
+
+<p>Each job uses the <code>I18n.locale</code> set when the job was created. This is useful if you send
+emails asynchronously:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="I18n.html" title="I18n (module)">I18n</a></span>.<span class='id identifier rubyid_locale'>locale</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_eo'>eo</span>
+
+<span class='const'>UserMailer</span>.<span class='id identifier rubyid_welcome'>welcome</span>(<span class='ivar'>@user</span>).<span class='id identifier rubyid_deliver_later'>deliver_later</span> <span class='comment'># Email will be localized to Esperanto.</span></code></pre>
+
+<h2>Supported Types for Arguments</h2>
+
+<p>ActiveJob supports the following types of arguments by default:</p>
+
+<ul>
+<li>Basic types (<a href="NilClass.html" title="NilClass (class)"><code>NilClass</code></a>, <a href="String.html" title="String (class)"><code>String</code></a>, <a href="Integer.html" title="Integer (class)"><code>Integer</code></a>, <a href="Float.html" title="Float (class)"><code>Float</code></a>, <a href="BigDecimal.html" title="BigDecimal (class)"><code>BigDecimal</code></a>, <a href="TrueClass.html" title="TrueClass (class)"><code>TrueClass</code></a>, <a href="FalseClass.html" title="FalseClass (class)"><code>FalseClass</code></a>)</li>
+<li><a href="Symbol.html" title="Symbol (class)"><code>Symbol</code></a></li>
+<li><a href="Date.html" title="Date (class)"><code>Date</code></a></li>
+<li><a href="Time.html" title="Time (class)"><code>Time</code></a></li>
+<li><a href="DateTime.html" title="DateTime (class)"><code>DateTime</code></a></li>
+<li><a href="ActiveSupport/TimeWithZone.html" title="ActiveSupport::TimeWithZone (class)"><code>::ActiveSupport::TimeWithZone</code></a></li>
+<li><a href="ActiveSupport/Duration.html" title="ActiveSupport::Duration (class)"><code>::ActiveSupport::Duration</code></a></li>
+<li><a href="Hash.html" title="Hash (class)"><code>Hash</code></a> (Keys should be of <a href="String.html" title="String (class)"><code>String</code></a> or <a href="Symbol.html" title="Symbol (class)"><code>Symbol</code></a> type)</li>
+<li><a href="ActiveSupport/HashWithIndifferentAccess.html" title="ActiveSupport::HashWithIndifferentAccess (class)"><code>::ActiveSupport::HashWithIndifferentAccess</code></a></li>
+<li><a href="Array.html" title="Array (class)"><code>Array</code></a></li>
+<li><a href="Range.html" title="Range (class)"><code>Range</code></a></li>
+<li><a href="Module.html" title="Module (class)"><code>Module</code></a></li>
+<li><a href="Class.html" title="Class (class)"><code>Class</code></a></li>
+</ul>
+
+<h3>GlobalID</h3>
+
+<p>Active Job supports [GlobalID]) for parameters. This makes it possible to pass live
+Active Record objects to your job instead of class/id pairs, which you then have
+to manually deserialize. Before, jobs would look like this:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>TrashableCleanupJob</span> <span class='op'>&lt;</span> <span class='const'>ApplicationJob</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_perform'>perform</span>(<span class='id identifier rubyid_trashable_class'>trashable_class</span><span class='comma'>,</span> <span class='id identifier rubyid_trashable_id'>trashable_id</span><span class='comma'>,</span> <span class='id identifier rubyid_depth'>depth</span>)
+    <span class='id identifier rubyid_trashable'>trashable</span> <span class='op'>=</span> <span class='id identifier rubyid_trashable_class'>trashable_class</span>.<span class='id identifier rubyid_constantize'>constantize</span>.<span class='id identifier rubyid_find'>find</span>(<span class='id identifier rubyid_trashable_id'>trashable_id</span>)
+    <span class='id identifier rubyid_trashable'>trashable</span>.<span class='id identifier rubyid_cleanup'>cleanup</span>(<span class='id identifier rubyid_depth'>depth</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Now you can simply do:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>TrashableCleanupJob</span> <span class='op'>&lt;</span> <span class='const'>ApplicationJob</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_perform'>perform</span>(<span class='id identifier rubyid_trashable'>trashable</span><span class='comma'>,</span> <span class='id identifier rubyid_depth'>depth</span>)
+    <span class='id identifier rubyid_trashable'>trashable</span>.<span class='id identifier rubyid_cleanup'>cleanup</span>(<span class='id identifier rubyid_depth'>depth</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>This works with any class that mixes in <code>GlobalID::Identification</code>, which
+by default has been mixed into Active Record classes.</p>
+
+<h3>Serializers</h3>
+
+<p>You can extend the list of supported argument types. You just need to define your own serializer:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># app/serializers/money_serializer.rb
+</span><span class='kw'>class</span> <span class='const'>MoneySerializer</span> <span class='op'>&lt;</span> <span class='const'><a href="ActiveJob.html" title="ActiveJob (module)">ActiveJob</a></span><span class='op'>::</span><span class='const'><a href="ActiveJob/Serializers.html" title="ActiveJob::Serializers (module)">Serializers</a></span><span class='op'>::</span><span class='const'><a href="ActiveJob/Serializers/ObjectSerializer.html" title="ActiveJob::Serializers::ObjectSerializer (class)">ObjectSerializer</a></span>
+  <span class='comment'># Checks if an argument should be serialized by this serializer.
+</span>  <span class='kw'>def</span> <span class='id identifier rubyid_serialize?'>serialize?</span>(<span class='id identifier rubyid_argument'>argument</span>)
+    <span class='id identifier rubyid_argument'>argument</span>.<span class='id identifier rubyid_is_a?'>is_a?</span> <span class='const'>Money</span>
+  <span class='kw'>end</span>
+
+  <span class='comment'># Converts an object to a simpler representative using supported object types.
+</span>  <span class='comment'># The recommended representative is a Hash with a specific key. Keys can be of basic types only.
+</span>  <span class='comment'># You should call `super` to add the custom serializer type to the hash.
+</span>  <span class='kw'>def</span> <span class='id identifier rubyid_serialize'>serialize</span>(<span class='id identifier rubyid_money'>money</span>)
+    <span class='kw'>super</span>(
+      <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>amount</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_money'>money</span>.<span class='id identifier rubyid_amount'>amount</span><span class='comma'>,</span>
+      <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>currency</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_money'>money</span>.<span class='id identifier rubyid_currency'>currency</span>
+    )
+  <span class='kw'>end</span>
+
+  <span class='comment'># Converts serialized value into a proper object.
+</span>  <span class='kw'>def</span> <span class='id identifier rubyid_deserialize'>deserialize</span>(<span class='id identifier rubyid_hash'>hash</span>)
+    <span class='const'>Money</span>.<span class='id identifier rubyid_new'>new</span>(<span class='id identifier rubyid_hash'>hash</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>amount</span><span class='tstring_end'>&quot;</span></span>]<span class='comma'>,</span> <span class='id identifier rubyid_hash'>hash</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>currency</span><span class='tstring_end'>&quot;</span></span>])
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>and add this serializer to the list:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/initializers/custom_serializers.rb
+</span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_active_job'>active_job</span>.<span class='id identifier rubyid_custom_serializers'>custom_serializers</span> <span class='op'>&lt;&lt;</span> <span class='const'>MoneySerializer</span></code></pre>
+
+<p>Note that autoloading reloadable code during initialization is not supported. Thus it is recommended
+to set-up serializers to be loaded only once, e.g. by amending <code>config/application.rb</code> like this:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/application.rb
+</span><span class='kw'>module</span> <span class='const'>YourApp</span>
+  <span class='kw'>class</span> <span class='const'>Application</span> <span class='op'>&lt;</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span><span class='op'>::</span><span class='const'><a href="Rails/Application.html" title="Rails::Application (class)">Application</a></span>
+    <span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_autoload_once_paths'>autoload_once_paths</span> <span class='op'>&lt;&lt;</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_root'><a href="Rails.html#root-class_method" title="Rails.root (method)">root</a></span>.<span class='id identifier rubyid_join'>join</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>app</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>serializers</span><span class='tstring_end'>&#39;</span></span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<h2>Exceptions</h2>
+
+<p>Exceptions raised during the execution of the job can be handled with
+<a href="https://api.rubyonrails.org/classes/ActiveSupport/Rescuable/ClassMethods.html#method-i-rescue_from"><code>rescue_from</code></a>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>GuestsCleanupJob</span> <span class='op'>&lt;</span> <span class='const'>ApplicationJob</span>
+  <span class='id identifier rubyid_queue_as'>queue_as</span> <span class='symbeg'>:</span><span class='id identifier rubyid_default'>default</span>
+
+  <span class='id identifier rubyid_rescue_from'>rescue_from</span>(<span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/RecordNotFound.html" title="ActiveRecord::RecordNotFound (class)">RecordNotFound</a></span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_exception'>exception</span><span class='op'>|</span>
+    <span class='comment'># Do something with the exception
+</span>  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_perform'>perform</span>
+    <span class='comment'># Do something later
+</span>  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>If an exception from a job is not rescued, then the job is referred to as &quot;failed&quot;.</p>
+
+<h3>Retrying or Discarding Failed Jobs</h3>
+
+<p>A failed job will not be retried, unless configured otherwise.</p>
+
+<p>It&#39;s possible to retry or discard a failed job by using <a href="https://api.rubyonrails.org/classes/ActiveJob/Exceptions/ClassMethods.html#method-i-retry_on"><code>retry_on</code></a> or
+<a href="https://api.rubyonrails.org/classes/ActiveJob/Exceptions/ClassMethods.html#method-i-discard_on"><code>discard_on</code></a>, respectively. For example:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>RemoteServiceJob</span> <span class='op'>&lt;</span> <span class='const'>ApplicationJob</span>
+  <span class='id identifier rubyid_retry_on'>retry_on</span> <span class='const'>CustomAppException</span> <span class='comment'># defaults to 3s wait, 5 attempts
+</span>
+  <span class='id identifier rubyid_discard_on'>discard_on</span> <span class='const'><a href="ActiveJob.html" title="ActiveJob (module)">ActiveJob</a></span><span class='op'>::</span><span class='const'><a href="ActiveJob/DeserializationError.html" title="ActiveJob::DeserializationError (class)">DeserializationError</a></span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_perform'>perform</span>(<span class='op'>*</span><span class='id identifier rubyid_args'>args</span>)
+    <span class='comment'># Might raise CustomAppException or ActiveJob::DeserializationError
+</span>  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<h3>Deserialization</h3>
+
+<p>GlobalID allows serializing full Active Record objects passed to <code>#perform</code>.</p>
+
+<p>If a passed record is deleted after the job is enqueued but before the <code>#perform</code>
+method is called Active Job will raise an <a href="https://api.rubyonrails.org/classes/ActiveJob/DeserializationError.html"><a href="ActiveJob/DeserializationError.html" title="ActiveJob::DeserializationError (class)"><code>::ActiveJob::DeserializationError</code></a></a>
+exception.</p>
+
+<h2>Job Testing</h2>
+
+<p>You can find detailed instructions on how to test your jobs in the
+<a href="testing.html#testing-jobs">testing guide</a>.</p>
+
+<h2>Debugging</h2>
+
+<p>If you need help figuring out where jobs are coming from, you can enable <a href="debugging_rails_applications.html#verbose-enqueue-logs">verbose logging</a>.</p>
+
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>

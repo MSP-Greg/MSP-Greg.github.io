@@ -1,0 +1,1621 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen'       content='yes'>
+<meta name='apple-mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>Module: ActiveModel::Dirty &mdash; Rails 7-1-stable</title>
+
+<link rel='stylesheet'  type='text/css' href='../../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "ActiveModel::Dirty",
+    relpath = '../';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='../'>Rails 7-1-stable</a> &raquo; 
+      <a href='../_index.html#alpha_D'>Index (D)</a> &raquo; 
+        <a href="../ActiveModel.html" title="ActiveModel (module)">ActiveModel</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>Dirty&nbsp;&#x25B2;</a></span>
+    </div>
+
+    <a id='list_href' href="../class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='module'>
+<h1>Module: ActiveModel::Dirty</h1>
+<div id='t2_rel_sf_div'>
+<table id='t2_rel_sf' class='y_box'>
+  <thead>
+    <tr><td id='t2_relations' colspan='2'>Relationships & Source Files</td></tr>
+  </thead>
+  <tbody>
+    <tr><td class='box_h' colspan='2'>Extension / Inclusion / Inheritance Descendants</td></tr>
+    <tr><td colspan='2'>
+      <div class='box_1'>Included In:</div>
+      <div class='box_11'>
+        <a href="../ActiveRecord/AttributeMethods/Dirty.html" title="ActiveRecord::AttributeMethods::Dirty (module)"><code>::ActiveRecord::AttributeMethods::Dirty</code></a>,
+          <a href="../ActiveRecord/Base.html" title="ActiveRecord::Base (class)"><code>::ActiveRecord::Base</code></a>
+      </div>
+    </td></tr>
+    <tr><td class='box_h' colspan='2'>Super Chains via Extension / Inclusion / Inheritance</td></tr>
+    <tr>
+      <td colspan='2'>
+        <div class='box_2'>Class Chain:</div>
+        <div class='box_22'>
+          self,
+          <a href="../ActiveSupport/Concern.html" title="ActiveSupport::Concern (module)"><code>::ActiveSupport::Concern</code></a>
+        </div>
+      </td>
+    </tr>
+    <tr>
+      <td colspan='2'>
+        <div class='box_2'>Instance Chain:</div>
+        <div class='box_22'>
+          self,
+          <a href="AttributeMethods.html" title="ActiveModel::AttributeMethods (module)"><code>AttributeMethods</code></a>
+        </div>
+      </td>
+    </tr>
+    <tr class='single'>
+      <td id='t2_defined_in' class='box_2'>Defined in:</td>
+      <td class='box_rel'><a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/dirty.rb#L123'>activemodel/lib/active_model/dirty.rb</a>      </td>
+    </tr>
+  </tbody>
+</table>
+</div>
+<h2 id='h2_overview'>Overview</h2>
+<div id='overview_ds'>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Provides a way to track changes in your object in the same way as Active Record does.</p>
+
+<p>The requirements for implementing <code>Dirty</code> are:</p>
+<ul><li>
+<p><code>include ActiveModel::Dirty</code> in your object.</p>
+</li><li>
+<p>Call <code>define_attribute_methods</code> passing each method you want to track.</p>
+</li><li>
+<p>Call <code>*_will_change!</code> before each change to the tracked attribute.</p>
+</li><li>
+<p>Call <a href="#changes_applied-instance_method" title="ActiveModel::Dirty#changes_applied (method)">#changes_applied</a> after the changes are persisted.</p>
+</li><li>
+<p>Call <a href="#clear_changes_information-instance_method" title="ActiveModel::Dirty#clear_changes_information (method)">#clear_changes_information</a> when you want to reset the changes information.</p>
+</li><li>
+<p>Call <a href="#restore_attributes-instance_method" title="ActiveModel::Dirty#restore_attributes (method)">#restore_attributes</a> when you want to restore previous data.</p>
+</li></ul>
+
+<p>A minimal implementation could be:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Person</span>
+  <span class='id identifier rubyid_include'>include</span> <span class='const'><a href="../ActiveModel.html" title="ActiveModel (module)">ActiveModel</a></span><span class='op'>::</span><span class='const'>Dirty</span>
+
+  <span class='id identifier rubyid_define_attribute_methods'>define_attribute_methods</span> <span class='symbeg'>:</span><span class='id identifier rubyid_name'>name</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span>
+    <span class='ivar'>@name</span> <span class='op'>=</span> <span class='kw'>nil</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_name'>name</span>
+    <span class='ivar'>@name</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_name='>name=</span>(<span class='id identifier rubyid_val'>val</span>)
+    <span class='id identifier rubyid_name_will_change!'>name_will_change!</span> <span class='kw'>unless</span> <span class='id identifier rubyid_val'>val</span> <span class='op'>==</span> <span class='ivar'>@name</span>
+    <span class='ivar'>@name</span> <span class='op'>=</span> <span class='id identifier rubyid_val'>val</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_save'>save</span>
+    <span class='comment'># do persistence work
+</span>
+    <span class='id identifier rubyid_changes_applied'><a href="#changes_applied-instance_method" title="ActiveModel::Dirty#changes_applied (method)">changes_applied</a></span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_reload!'>reload!</span>
+    <span class='comment'># get the values from the persistence layer
+</span>
+    <span class='id identifier rubyid_clear_changes_information'><a href="#clear_changes_information-instance_method" title="ActiveModel::Dirty#clear_changes_information (method)">clear_changes_information</a></span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_rollback!'>rollback!</span>
+    <span class='id identifier rubyid_restore_attributes'><a href="#restore_attributes-instance_method" title="ActiveModel::Dirty#restore_attributes (method)">restore_attributes</a></span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>A newly instantiated <code>Person</code> object is unchanged:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_person'>person</span> <span class='op'>=</span> <span class='const'>Person</span>.<span class='id identifier rubyid_new'>new</span>
+<span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_changed?'><a href="#changed%3F-instance_method" title="ActiveModel::Dirty#changed? (method)">changed?</a></span> <span class='comment'># =&gt; false</span></code></pre>
+
+<p>Change the name:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_name'>name</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Bob</span><span class='tstring_end'>&#39;</span></span>
+<span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_changed?'><a href="#changed%3F-instance_method" title="ActiveModel::Dirty#changed? (method)">changed?</a></span>       <span class='comment'># =&gt; true
+</span><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_name_changed?'>name_changed?</span>  <span class='comment'># =&gt; true
+</span><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_name_changed?'>name_changed?</span>(<span class='label'>from:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>to:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Bob</span><span class='tstring_end'>&quot;</span></span>) <span class='comment'># =&gt; true
+</span><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_name_was'>name_was</span>       <span class='comment'># =&gt; nil
+</span><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_name_change'>name_change</span>    <span class='comment'># =&gt; [nil, &quot;Bob&quot;]
+</span><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_name'>name</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Bill</span><span class='tstring_end'>&#39;</span></span>
+<span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_name_change'>name_change</span>    <span class='comment'># =&gt; [nil, &quot;Bill&quot;]</span></code></pre>
+
+<p>Save the changes:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_save'>save</span>
+<span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_changed?'><a href="#changed%3F-instance_method" title="ActiveModel::Dirty#changed? (method)">changed?</a></span>      <span class='comment'># =&gt; false
+</span><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_name_changed?'>name_changed?</span> <span class='comment'># =&gt; false</span></code></pre>
+
+<p>Reset the changes:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_previous_changes'><a href="#previous_changes-instance_method" title="ActiveModel::Dirty#previous_changes (method)">previous_changes</a></span>         <span class='comment'># =&gt; {&quot;name&quot; =&gt; [nil, &quot;Bill&quot;]}
+</span><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_name_previously_changed?'>name_previously_changed?</span> <span class='comment'># =&gt; true
+</span><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_name_previously_changed?'>name_previously_changed?</span>(<span class='label'>from:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>to:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Bill</span><span class='tstring_end'>&quot;</span></span>) <span class='comment'># =&gt; true
+</span><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_name_previous_change'>name_previous_change</span>     <span class='comment'># =&gt; [nil, &quot;Bill&quot;]
+</span><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_name_previously_was'>name_previously_was</span>      <span class='comment'># =&gt; nil
+</span><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_reload!'>reload!</span>
+<span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_previous_changes'><a href="#previous_changes-instance_method" title="ActiveModel::Dirty#previous_changes (method)">previous_changes</a></span>         <span class='comment'># =&gt; {}</span></code></pre>
+
+<p>Rollback the changes:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_name'>name</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Uncle Bob</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_rollback!'>rollback!</span>
+<span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_name'>name</span>          <span class='comment'># =&gt; &quot;Bill&quot;
+</span><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_name_changed?'>name_changed?</span> <span class='comment'># =&gt; false</span></code></pre>
+
+<p>Assigning the same value leaves the attribute unchanged:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_name'>name</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Bill</span><span class='tstring_end'>&#39;</span></span>
+<span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_name_changed?'>name_changed?</span> <span class='comment'># =&gt; false
+</span><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_name_change'>name_change</span>   <span class='comment'># =&gt; nil</span></code></pre>
+
+<p>Which attributes have changed?</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_name'>name</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Bob</span><span class='tstring_end'>&#39;</span></span>
+<span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_changed'><a href="#changed-instance_method" title="ActiveModel::Dirty#changed (method)">changed</a></span> <span class='comment'># =&gt; [&quot;name&quot;]
+</span><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_changes'><a href="#changes-instance_method" title="ActiveModel::Dirty#changes (method)">changes</a></span> <span class='comment'># =&gt; {&quot;name&quot; =&gt; [&quot;Bill&quot;, &quot;Bob&quot;]}</span></code></pre>
+
+<p>If an attribute is modified in-place then make use of <code>*_will_change!</code> to mark that the attribute is changing. Otherwise Active Model can’t track changes to in-place attributes. Note that Active Record can detect in-place modifications automatically. You do not need to call <code>*_will_change!</code> on Active Record models.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_name_will_change!'>name_will_change!</span>
+<span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_name_change'>name_change</span> <span class='comment'># =&gt; [&quot;Bill&quot;, &quot;Bill&quot;]
+</span><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_name'>name</span> <span class='op'>&lt;&lt;</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>y</span><span class='tstring_end'>&#39;</span></span>
+<span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_name_change'>name_change</span> <span class='comment'># =&gt; [&quot;Bill&quot;, &quot;Billy&quot;]</span></code></pre>
+
+<p>Methods can be invoked as <code>name_changed?</code> or by passing an argument to the generic method <code>attribute_changed?(&quot;name&quot;)</code>.</p>
+
+  </div>
+</div>
+</div>
+<h2 id='t2_cnst' class='h2_sum'>Constant Summary</h2>
+<div>
+  <h3 class='inherited'><a href="AttributeMethods.html" title="ActiveModel::AttributeMethods (module)"><code>AttributeMethods</code></a> - Included</h3>
+  <p  class='inherited'>
+    <a href="AttributeMethods.html#CALL_COMPILABLE_REGEXP-constant" title="ActiveModel::AttributeMethods::CALL_COMPILABLE_REGEXP (constant)">CALL_COMPILABLE_REGEXP</a>, 
+    <a href="AttributeMethods.html#FORWARD_PARAMETERS-constant" title="ActiveModel::AttributeMethods::FORWARD_PARAMETERS (constant)">FORWARD_PARAMETERS</a>, 
+    <a href="AttributeMethods.html#NAME_COMPILABLE_REGEXP-constant" title="ActiveModel::AttributeMethods::NAME_COMPILABLE_REGEXP (constant)">NAME_COMPILABLE_REGEXP</a>
+  </p>
+</div>
+
+<h2 class='h2_sum'><a href="AttributeMethods.html" title="ActiveModel::AttributeMethods (module)"><code>AttributeMethods</code></a> - Attributes &amp; Methods</h2>
+<div>
+<ul class='summary full'>
+  <li>
+    <span class='summary_signature rw'>
+      <a href="#attribute_aliases-class_method" title=".attribute_aliases (class method)">.<strong>attribute_aliases</strong>  </a>
+    </span>
+    <span class='note title rw'>rw</span>
+  </li>
+  <li>
+    <span class='summary_signature ro'>
+      <a href="#attribute_aliases-instance_method" title="#attribute_aliases (instance method)">#<strong>attribute_aliases</strong>  </a>
+    </span>
+    <span class='note title readonly'>readonly</span>
+  </li>
+  <li>
+    <span class='summary_signature rw'>
+      <a href="#attribute_aliases%3F-class_method" title=".attribute_aliases? (class method)">.<strong>attribute_aliases?</strong>  &#x21d2; Boolean </a>
+    </span>
+    <span class='note title rw'>rw</span>
+  </li>
+  <li>
+    <span class='summary_signature ro'>
+      <a href="#attribute_aliases%3F-instance_method" title="#attribute_aliases? (instance method)">#<strong>attribute_aliases?</strong>  &#x21d2; Boolean </a>
+    </span>
+    <span class='note title readonly'>readonly</span>
+  </li>
+  <li>
+    <span class='summary_signature rw'>
+      <a href="#attribute_method_patterns-class_method" title=".attribute_method_patterns (class method)">.<strong>attribute_method_patterns</strong>  </a>
+    </span>
+    <span class='note title rw'>rw</span>
+  </li>
+  <li>
+    <span class='summary_signature ro'>
+      <a href="#attribute_method_patterns-instance_method" title="#attribute_method_patterns (instance method)">#<strong>attribute_method_patterns</strong>  </a>
+    </span>
+    <span class='note title readonly'>readonly</span>
+  </li>
+  <li>
+    <span class='summary_signature rw'>
+      <a href="#attribute_method_patterns%3F-class_method" title=".attribute_method_patterns? (class method)">.<strong>attribute_method_patterns?</strong>  &#x21d2; Boolean </a>
+    </span>
+    <span class='note title rw'>rw</span>
+  </li>
+  <li>
+    <span class='summary_signature ro'>
+      <a href="#attribute_method_patterns%3F-instance_method" title="#attribute_method_patterns? (instance method)">#<strong>attribute_method_patterns?</strong>  &#x21d2; Boolean </a>
+    </span>
+    <span class='note title readonly'>readonly</span>
+  </li>
+</ul>
+</div>
+
+<h2 class='h2_sum' id='class_Method_summary'>Class Method Summary</h2>
+<div class='div_sum'>
+
+<h3 class='inherited'><a href="../ActiveSupport/Concern.html" title="ActiveSupport::Concern (module)"><code>::ActiveSupport::Concern</code></a> - Extended</h3>
+<div class='inherited'><table class='inherited'>
+  <tbody>
+    <tr class='i_ds'>
+      <td><a class='i_m ' href="../ActiveSupport/Concern.html#class_methods-instance_method" title="ActiveSupport::Concern#class_methods (method)">class_methods</a></td>
+      <td><div class='inline'><p>Define class methods from given block.</p></div></td>
+    </tr>
+    <tr class='i_ds'>
+      <td><a class='i_m ' href="../ActiveSupport/Concern.html#included-instance_method" title="ActiveSupport::Concern#included (method)">included</a></td>
+      <td><div class='inline'><p>Evaluate given block in context of base class, so that you can write class macros here.</p></div></td>
+    </tr>
+    <tr class='i_ds'>
+      <td><a class='i_m ' href="../ActiveSupport/Concern.html#prepended-instance_method" title="ActiveSupport::Concern#prepended (method)">prepended</a></td>
+      <td><div class='inline'><p>Evaluate given block in context of base class, so that you can write class macros here.</p></div></td>
+    </tr>
+    <tr>
+      <td colspan='2'>
+        <a class='i_m nodoc' href="../ActiveSupport/Concern.html#append_features-instance_method" title="ActiveSupport::Concern#append_features (method)">append_features</a>,
+        <a class='i_m nodoc' href="../ActiveSupport/Concern.html#prepend_features-instance_method" title="ActiveSupport::Concern#prepend_features (method)">prepend_features</a>
+      </td>
+    </tr>
+  </tbody>
+</table></div>
+</div>  <!-- class_method_summary -->
+
+<h2 class='h2_sum' id='instance_attribute_summary'>Instance Attribute Summary</h2>
+<div class='div_sum'>
+<ul class='summary full'>
+  <li>
+    <span class='summary_signature ro'>
+      <a href="#changed%3F-instance_method" title="#changed? (instance method)">#<strong>changed?</strong>  &#x21d2; Boolean </a>
+    </span>
+    <span class='note title readonly'>readonly</span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Returns <code>true</code> if any of the attributes has unsaved changes, <code>false</code> otherwise.</p></div>
+    </div>
+  </li>
+</ul>
+</div>  <!-- instance_attribute_summary -->
+
+<h2 class='h2_sum' id='instance_method_summary'>Instance Method Summary</h2>
+<div class='div_sum'>
+<ul class='summary full'>
+  <li>
+    <span class='summary_signature '>
+      <a href="#attribute_changed%3F-instance_method" title="#attribute_changed? (instance method)">#<strong>attribute_changed?</strong>(attr_name, **options)  &#x21d2; Boolean </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Dispatch target for <code>*_changed?</code> attribute methods.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#attribute_previously_changed%3F-instance_method" title="#attribute_previously_changed? (instance method)">#<strong>attribute_previously_changed?</strong>(attr_name, **options)  &#x21d2; Boolean </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Dispatch target for <code>*_previously_changed?</code> attribute methods.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#attribute_previously_was-instance_method" title="#attribute_previously_was (instance method)">#<strong>attribute_previously_was</strong>(attr_name)  </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Dispatch target for <code>*_previously_was</code> attribute methods.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#attribute_was-instance_method" title="#attribute_was (instance method)">#<strong>attribute_was</strong>(attr_name)  </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Dispatch target for <code>*_was</code> attribute methods.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature ro'>
+      <a href="#changed-instance_method" title="#changed (instance method)">#<strong>changed</strong>  </a>
+    </span>
+    <span class='note title readonly'>readonly</span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Returns an array with the name of the attributes with unsaved changes.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#changed_attributes-instance_method" title="#changed_attributes (instance method)">#<strong>changed_attributes</strong>  </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Returns a hash of the attributes with unsaved changes indicating their original values like <code>attr =&gt; original value</code>.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#changes-instance_method" title="#changes (instance method)">#<strong>changes</strong>  </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Returns a hash of changed attributes indicating their original and new values like <code>attr =&gt; [original value, new value]</code>.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#changes_applied-instance_method" title="#changes_applied (instance method)">#<strong>changes_applied</strong>  </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Clears dirty data and moves <a href="#changes-instance_method" title="ActiveModel::Dirty#changes (method)">#changes</a> to <a href="#previous_changes-instance_method" title="ActiveModel::Dirty#previous_changes (method)">#previous_changes</a> and <a href="#mutations_from_database-instance_method" title="ActiveModel::Dirty#mutations_from_database (method)">#mutations_from_database</a> to <a href="#mutations_before_last_save-instance_method" title="ActiveModel::Dirty#mutations_before_last_save (method)">#mutations_before_last_save</a> respectively.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#clear_attribute_changes-instance_method" title="#clear_attribute_changes (instance method)">#<strong>clear_attribute_changes</strong>(attr_names)  </a>
+    </span>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#clear_changes_information-instance_method" title="#clear_changes_information (instance method)">#<strong>clear_changes_information</strong>  </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Clears all dirty data: current changes and previous changes.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#previous_changes-instance_method" title="#previous_changes (instance method)">#<strong>previous_changes</strong>  </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Returns a hash of attributes that were changed before the model was saved.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#restore_attributes-instance_method" title="#restore_attributes (instance method)">#<strong>restore_attributes</strong>(attr_names = changed)  </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Restore all previous data of the provided attributes.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
+      <a href="#attribute_change-instance_method" title="#attribute_change (instance method)">#<strong>attribute_change</strong>(attr_name)  </a>
+    </span>
+    <span class='note title private'>private</span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Dispatch target for <code>*_change</code> attribute methods.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
+      <a href="#attribute_previous_change-instance_method" title="#attribute_previous_change (instance method)">#<strong>attribute_previous_change</strong>(attr_name)  </a>
+    </span>
+    <span class='note title private'>private</span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Dispatch target for <code>*_previous_change</code> attribute methods.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
+      <a href="#attribute_will_change!-instance_method" title="#attribute_will_change! (instance method)">#<strong>attribute_will_change!</strong>(attr_name)  </a>
+    </span>
+    <span class='note title private'>private</span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Dispatch target for <code>*_will_change!</code> attribute methods.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
+      <a href="#clear_attribute_change-instance_method" title="#clear_attribute_change (instance method)">#<strong>clear_attribute_change</strong>(attr_name)  </a>
+    </span>
+    <span class='note title private'>private</span>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
+      <a href="#forget_attribute_assignments-instance_method" title="#forget_attribute_assignments (instance method)">#<strong>forget_attribute_assignments</strong>  </a>
+    </span>
+    <span class='note title private'>private</span>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
+      <a href="#init_internals-instance_method" title="#init_internals (instance method)">#<strong>init_internals</strong>  </a>
+    </span>
+    <span class='note title private'>private</span>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
+      <a href="#mutations_before_last_save-instance_method" title="#mutations_before_last_save (instance method)">#<strong>mutations_before_last_save</strong>  </a>
+    </span>
+    <span class='note title private'>private</span>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
+      <a href="#mutations_from_database-instance_method" title="#mutations_from_database (instance method)">#<strong>mutations_from_database</strong>  </a>
+    </span>
+    <span class='note title private'>private</span>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
+      <a href="#restore_attribute!-instance_method" title="#restore_attribute! (instance method)">#<strong>restore_attribute!</strong>(attr_name)  </a>
+    </span>
+    <span class='note title private'>private</span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Dispatch target for <code>restore_*!</code> attribute methods.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature nodoc'>
+      <a href="#as_json-instance_method" title="#as_json (instance method)">#<strong>as_json</strong>(options = {})  </a>
+    </span>
+    <span class='nodoc note title'>Internal use only</span>
+  </li>
+  <li>
+    <span class='summary_signature nodoc'>
+      <a href="#attribute_changed_in_place%3F-instance_method" title="#attribute_changed_in_place? (instance method)">#<strong>attribute_changed_in_place?</strong>(attr_name)  &#x21d2; Boolean </a>
+    </span>
+    <span class='nodoc note title'>Internal use only</span>
+  </li>
+  <li>
+    <span class='summary_signature nodoc'>
+      <a href="#initialize_dup-instance_method" title="#initialize_dup (instance method)">#<strong>initialize_dup</strong>(other)  </a>
+    </span>
+    <span class='nodoc note title'>Internal use only</span>
+  </li>
+</ul>
+
+<h3 class='inherited'><a href="AttributeMethods.html" title="ActiveModel::AttributeMethods (module)"><code>AttributeMethods</code></a> - Included</h3>
+<div class='inherited'><table class='inherited'>
+  <tbody>
+    <tr class='i_ds'>
+      <td><a class='i_m ' href="AttributeMethods.html#attribute_missing-instance_method" title="ActiveModel::AttributeMethods#attribute_missing (method)">#attribute_missing</a></td>
+      <td><div class='inline'><p><code>attribute_missing</code> is like <code>method_missing</code>, but for attributes.</p></div></td>
+    </tr>
+    <tr class='i_ds'>
+      <td><a class='i_m ' href="AttributeMethods.html#method_missing-instance_method" title="ActiveModel::AttributeMethods#method_missing (method)">#method_missing</a></td>
+      <td><div class='inline'><p>Allows access to the object attributes, which are held in the hash returned by <code>attributes</code>, as though they were first-class methods.</p></div></td>
+    </tr>
+    <tr>
+      <td colspan='2'>
+        <a class='i_m ' href="AttributeMethods.html#respond_to%3F-instance_method" title="ActiveModel::AttributeMethods#respond_to? (method)">#respond_to?</a>,
+      </td>
+    </tr>
+    <tr class='i_ds'>
+      <td><a class='i_m ' href="AttributeMethods.html#respond_to_without_attributes%3F-instance_method" title="ActiveModel::AttributeMethods#respond_to_without_attributes? (method)">#respond_to_without_attributes?</a></td>
+      <td><div class='inline'><p>A <code>Person</code> instance with a <code>name</code> attribute can ask <code>person.respond_to?(:name)</code>, <code>person.respond_to?(:name=)</code>, and <code>person.respond_to?(:name?)</code> which will all return <code>true</code>.</p></div></td>
+    </tr>
+    <tr>
+      <td colspan='2'>
+        <a class='i_m priv' href="AttributeMethods.html#_read_attribute-instance_method" title="ActiveModel::AttributeMethods#_read_attribute (method)">#_read_attribute</a>,
+        <a class='i_m priv' href="AttributeMethods.html#attribute_method%3F-instance_method" title="ActiveModel::AttributeMethods#attribute_method? (method)">#attribute_method?</a>,
+      </td>
+    </tr>
+    <tr class='i_ds'>
+      <td><a class='i_m priv' href="AttributeMethods.html#matched_attribute_method-instance_method" title="ActiveModel::AttributeMethods#matched_attribute_method (method)">#matched_attribute_method</a></td>
+      <td><div class='inline'><p>Returns a struct representing the matching attribute method.</p></div></td>
+    </tr>
+    <tr>
+      <td colspan='2'>
+        <a class='i_m priv' href="AttributeMethods.html#missing_attribute-instance_method" title="ActiveModel::AttributeMethods#missing_attribute (method)">#missing_attribute</a>
+      </td>
+    </tr>
+  </tbody>
+</table></div>
+</div>  <!-- instance_method_summary -->
+<h2 id='method_missing_details' class='y_details'>Dynamic Method Handling</h2>
+  <p class='notice super'>
+    This class handles dynamic methods through the <tt>method_missing</tt> method
+      in the class <a href="AttributeMethods.html#method_missing-instance_method" title="ActiveModel::AttributeMethods#method_missing (method)">ActiveModel::AttributeMethods</a></p>
+<h2 class='y_details'>DSL Calls</h2>
+<section class='method_details first' id="included-dslcall">
+<h3 class='signature'><strong>included</strong></h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/dirty.rb#L127-L246'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num'>
+
+
+127
+128
+129
+130
+131
+132
+133
+134
+135
+136
+137
+138
+139
+140
+141
+142
+143
+144
+145
+146
+147
+148
+149
+150
+151
+152
+153
+154
+155
+156
+157
+158
+159
+160
+161
+162
+163
+164
+165
+166
+167
+168
+169
+170
+171
+172
+173
+174
+175
+176
+177
+178
+179
+180
+181
+182
+183
+184
+185
+186
+187
+188
+189
+190
+191
+192
+193
+194
+195
+196
+197
+198
+199
+200
+201
+202
+203
+204
+205
+206
+207
+208
+209
+210
+211
+212
+213
+214
+215
+216
+217
+218
+219
+220
+221
+222
+223
+224
+225
+226
+227
+228
+229
+230
+231
+232
+233
+234
+235
+236
+237
+238
+239
+240
+241
+242
+243
+244
+245
+246</pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/dirty.rb', line 127</span></pre>
+<pre class='code ruby'>
+
+<span class='id identifier rubyid_included'>included</span> <span class='kw'>do</span>
+  <span class='comment'>##
+</span>  <span class='comment'># :method: *_previously_changed?
+</span>  <span class='comment'>#
+</span>  <span class='comment'># :call-seq: *_previously_changed?(**options)
+</span>  <span class='comment'>#
+</span>  <span class='comment'># This method is generated for each attribute.
+</span>  <span class='comment'>#
+</span>  <span class='comment'># Returns true if the attribute previously had unsaved changes.
+</span>  <span class='comment'>#
+</span>  <span class='comment'>#   person = Person.new
+</span>  <span class='comment'>#   person.name = &#39;Britanny&#39;
+</span>  <span class='comment'>#   person.save
+</span>  <span class='comment'>#   person.name_previously_changed? # =&gt; true
+</span>  <span class='comment'>#   person.name_previously_changed?(from: nil, to: &#39;Britanny&#39;) # =&gt; true
+</span>
+  <span class='comment'>##
+</span>  <span class='comment'># :method: *_changed?
+</span>  <span class='comment'>#
+</span>  <span class='comment'># This method is generated for each attribute.
+</span>  <span class='comment'>#
+</span>  <span class='comment'># Returns true if the attribute has unsaved changes.
+</span>  <span class='comment'>#
+</span>  <span class='comment'>#   person = Person.new
+</span>  <span class='comment'>#   person.name = &#39;Andrew&#39;
+</span>  <span class='comment'>#   person.name_changed? # =&gt; true
+</span>
+  <span class='comment'>##
+</span>  <span class='comment'># :method: *_change
+</span>  <span class='comment'>#
+</span>  <span class='comment'># This method is generated for each attribute.
+</span>  <span class='comment'>#
+</span>  <span class='comment'># Returns the old and the new value of the attribute.
+</span>  <span class='comment'>#
+</span>  <span class='comment'>#   person = Person.new
+</span>  <span class='comment'>#   person.name = &#39;Nick&#39;
+</span>  <span class='comment'>#   person.name_change # =&gt; [nil, &#39;Nick&#39;]
+</span>
+  <span class='comment'>##
+</span>  <span class='comment'># :method: *_will_change!
+</span>  <span class='comment'>#
+</span>  <span class='comment'># This method is generated for each attribute.
+</span>  <span class='comment'>#
+</span>  <span class='comment'># If an attribute is modified in-place then make use of
+</span>  <span class='comment'># &lt;tt&gt;*_will_change!&lt;/tt&gt; to mark that the attribute is changing.
+</span>  <span class='comment'># Otherwise Active Model can’t track changes to in-place attributes. Note
+</span>  <span class='comment'># that Active Record can detect in-place modifications automatically. You
+</span>  <span class='comment'># do not need to call &lt;tt&gt;*_will_change!&lt;/tt&gt; on Active Record
+</span>  <span class='comment'># models.
+</span>  <span class='comment'>#
+</span>  <span class='comment'>#   person = Person.new(&#39;Sandy&#39;)
+</span>  <span class='comment'>#   person.name_will_change!
+</span>  <span class='comment'>#   person.name_change # =&gt; [&#39;Sandy&#39;, &#39;Sandy&#39;]
+</span>
+  <span class='comment'>##
+</span>  <span class='comment'># :method: *_was
+</span>  <span class='comment'>#
+</span>  <span class='comment'># This method is generated for each attribute.
+</span>  <span class='comment'>#
+</span>  <span class='comment'># Returns the old value of the attribute.
+</span>  <span class='comment'>#
+</span>  <span class='comment'>#   person = Person.new(name: &#39;Steph&#39;)
+</span>  <span class='comment'>#   person.name = &#39;Stephanie&#39;
+</span>  <span class='comment'>#   person.name_was # =&gt; &#39;Steph&#39;
+</span>
+  <span class='comment'>##
+</span>  <span class='comment'># :method: *_previous_change
+</span>  <span class='comment'>#
+</span>  <span class='comment'># This method is generated for each attribute.
+</span>  <span class='comment'>#
+</span>  <span class='comment'># Returns the old and the new value of the attribute before the last save.
+</span>  <span class='comment'>#
+</span>  <span class='comment'>#   person = Person.new
+</span>  <span class='comment'>#   person.name = &#39;Emmanuel&#39;
+</span>  <span class='comment'>#   person.save
+</span>  <span class='comment'>#   person.name_previous_change # =&gt; [nil, &#39;Emmanuel&#39;]
+</span>
+  <span class='comment'>##
+</span>  <span class='comment'># :method: *_previously_was
+</span>  <span class='comment'>#
+</span>  <span class='comment'># This method is generated for each attribute.
+</span>  <span class='comment'>#
+</span>  <span class='comment'># Returns the old value of the attribute before the last save.
+</span>  <span class='comment'>#
+</span>  <span class='comment'>#   person = Person.new
+</span>  <span class='comment'>#   person.name = &#39;Sage&#39;
+</span>  <span class='comment'>#   person.save
+</span>  <span class='comment'>#   person.name_previously_was  # =&gt; nil
+</span>
+  <span class='comment'>##
+</span>  <span class='comment'># :method: restore_*!
+</span>  <span class='comment'>#
+</span>  <span class='comment'># This method is generated for each attribute.
+</span>  <span class='comment'>#
+</span>  <span class='comment'># Restores the attribute to the old value.
+</span>  <span class='comment'>#
+</span>  <span class='comment'>#   person = Person.new
+</span>  <span class='comment'>#   person.name = &#39;Amanda&#39;
+</span>  <span class='comment'>#   person.restore_name!
+</span>  <span class='comment'>#   person.name # =&gt; nil
+</span>
+  <span class='comment'>##
+</span>  <span class='comment'># :method: clear_*_change
+</span>  <span class='comment'>#
+</span>  <span class='comment'># This method is generated for each attribute.
+</span>  <span class='comment'>#
+</span>  <span class='comment'># Clears all dirty data of the attribute: current changes and previous changes.
+</span>  <span class='comment'>#
+</span>  <span class='comment'>#   person = Person.new(name: &#39;Chris&#39;)
+</span>  <span class='comment'>#   person.name = &#39;Jason&#39;
+</span>  <span class='comment'>#   person.name_change # =&gt; [&#39;Chris&#39;, &#39;Jason&#39;]
+</span>  <span class='comment'>#   person.clear_name_change
+</span>  <span class='comment'>#   person.name_change # =&gt; nil
+</span>
+  <span class='id identifier rubyid_attribute_method_suffix'>attribute_method_suffix</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>_previously_changed?</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>_changed?</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>parameters:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>**options</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_attribute_method_suffix'>attribute_method_suffix</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>_change</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>_will_change!</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>_was</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>parameters:</span> <span class='kw'>false</span>
+  <span class='id identifier rubyid_attribute_method_suffix'>attribute_method_suffix</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>_previous_change</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>_previously_was</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>parameters:</span> <span class='kw'>false</span>
+  <span class='id identifier rubyid_attribute_method_affix'>attribute_method_affix</span> <span class='label'>prefix:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>restore_</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>suffix:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>!</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>parameters:</span> <span class='kw'>false</span>
+  <span class='id identifier rubyid_attribute_method_affix'>attribute_method_affix</span> <span class='label'>prefix:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>clear_</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>suffix:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>_change</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>parameters:</span> <span class='kw'>false</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<h2 class='y_details'>Class Attribute Details</h2>
+<section class='method_details first' id="attribute_aliases-class_method">
+  <h3 class='signature rw first'>
+    .<strong>attribute_aliases</strong>   <span class="extras">(<span class='rw'>rw</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/attribute_methods.rb#L72-L72'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='72' data-end='72'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/attribute_methods.rb', line 72</span></pre>
+<pre class='code ruby'>
+
+<span class='id identifier rubyid_class_attribute'>class_attribute</span> <span class='symbeg'>:</span><span class='id identifier rubyid_attribute_aliases'>attribute_aliases</span><span class='comma'>,</span> <span class='label'>instance_writer:</span> <span class='kw'>false</span><span class='comma'>,</span> <span class='label'>default:</span> {}
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="attribute_aliases?-class_method">
+  <h3 class='signature rw'>
+    .<strong>attribute_aliases?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='rw'>rw</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/attribute_methods.rb#L72-L72'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='72' data-end='72'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/attribute_methods.rb', line 72</span></pre>
+<pre class='code ruby'>
+
+<span class='id identifier rubyid_class_attribute'>class_attribute</span> <span class='symbeg'>:</span><span class='id identifier rubyid_attribute_aliases'><a href="#attribute_aliases-class_method" title="ActiveModel::Dirty.attribute_aliases (method)">attribute_aliases</a></span><span class='comma'>,</span> <span class='label'>instance_writer:</span> <span class='kw'>false</span><span class='comma'>,</span> <span class='label'>default:</span> {}
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="attribute_method_patterns-class_method">
+  <h3 class='signature rw'>
+    .<strong>attribute_method_patterns</strong>   <span class="extras">(<span class='rw'>rw</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/attribute_methods.rb#L73-L73'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='73' data-end='73'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/attribute_methods.rb', line 73</span></pre>
+<pre class='code ruby'>
+
+<span class='id identifier rubyid_class_attribute'>class_attribute</span> <span class='symbeg'>:</span><span class='id identifier rubyid_attribute_method_patterns'>attribute_method_patterns</span><span class='comma'>,</span> <span class='label'>instance_writer:</span> <span class='kw'>false</span><span class='comma'>,</span> <span class='label'>default:</span> [ <span class='const'><a href="AttributeMethods/ClassMethods.html" title="ActiveModel::AttributeMethods::ClassMethods (module)">ClassMethods</a></span><span class='op'>::</span><span class='const'><a href="AttributeMethods/ClassMethods/AttributeMethodPattern.html" title="ActiveModel::AttributeMethods::ClassMethods::AttributeMethodPattern (class)">AttributeMethodPattern</a></span>.<span class='id identifier rubyid_new'><a href="AttributeMethods/ClassMethods/AttributeMethodPattern.html#new-class_method" title="ActiveModel::AttributeMethods::ClassMethods::AttributeMethodPattern.new (method)">new</a></span> ]
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="attribute_method_patterns?-class_method">
+  <h3 class='signature rw'>
+    .<strong>attribute_method_patterns?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='rw'>rw</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/attribute_methods.rb#L73-L73'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='73' data-end='73'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/attribute_methods.rb', line 73</span></pre>
+<pre class='code ruby'>
+
+<span class='id identifier rubyid_class_attribute'>class_attribute</span> <span class='symbeg'>:</span><span class='id identifier rubyid_attribute_method_patterns'><a href="#attribute_method_patterns-class_method" title="ActiveModel::Dirty.attribute_method_patterns (method)">attribute_method_patterns</a></span><span class='comma'>,</span> <span class='label'>instance_writer:</span> <span class='kw'>false</span><span class='comma'>,</span> <span class='label'>default:</span> [ <span class='const'><a href="AttributeMethods/ClassMethods.html" title="ActiveModel::AttributeMethods::ClassMethods (module)">ClassMethods</a></span><span class='op'>::</span><span class='const'><a href="AttributeMethods/ClassMethods/AttributeMethodPattern.html" title="ActiveModel::AttributeMethods::ClassMethods::AttributeMethodPattern (class)">AttributeMethodPattern</a></span>.<span class='id identifier rubyid_new'><a href="AttributeMethods/ClassMethods/AttributeMethodPattern.html#new-class_method" title="ActiveModel::AttributeMethods::ClassMethods::AttributeMethodPattern.new (method)">new</a></span> ]
+</pre>
+  </div>
+</div>
+</section>
+
+<h2 class='y_details'>Instance Attribute Details</h2>
+<section class='method_details first' id="attribute_aliases-instance_method">
+  <h3 class='signature ro first'>
+    #<strong>attribute_aliases</strong>   <span class="extras">(<span class='readonly'>readonly</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/attribute_methods.rb#L72-L72'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='72' data-end='72'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/attribute_methods.rb', line 72</span></pre>
+<pre class='code ruby'>
+
+<span class='id identifier rubyid_class_attribute'>class_attribute</span> <span class='symbeg'>:</span><span class='id identifier rubyid_attribute_aliases'>attribute_aliases</span><span class='comma'>,</span> <span class='label'>instance_writer:</span> <span class='kw'>false</span><span class='comma'>,</span> <span class='label'>default:</span> {}
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="attribute_aliases?-instance_method">
+  <h3 class='signature ro'>
+    #<strong>attribute_aliases?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='readonly'>readonly</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/attribute_methods.rb#L72-L72'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='72' data-end='72'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/attribute_methods.rb', line 72</span></pre>
+<pre class='code ruby'>
+
+<span class='id identifier rubyid_class_attribute'>class_attribute</span> <span class='symbeg'>:</span><span class='id identifier rubyid_attribute_aliases'><a href="#attribute_aliases-class_method" title="ActiveModel::Dirty.attribute_aliases (method)">attribute_aliases</a></span><span class='comma'>,</span> <span class='label'>instance_writer:</span> <span class='kw'>false</span><span class='comma'>,</span> <span class='label'>default:</span> {}
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="attribute_method_patterns-instance_method">
+  <h3 class='signature ro'>
+    #<strong>attribute_method_patterns</strong>   <span class="extras">(<span class='readonly'>readonly</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/attribute_methods.rb#L73-L73'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='73' data-end='73'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/attribute_methods.rb', line 73</span></pre>
+<pre class='code ruby'>
+
+<span class='id identifier rubyid_class_attribute'>class_attribute</span> <span class='symbeg'>:</span><span class='id identifier rubyid_attribute_method_patterns'>attribute_method_patterns</span><span class='comma'>,</span> <span class='label'>instance_writer:</span> <span class='kw'>false</span><span class='comma'>,</span> <span class='label'>default:</span> [ <span class='const'><a href="AttributeMethods/ClassMethods.html" title="ActiveModel::AttributeMethods::ClassMethods (module)">ClassMethods</a></span><span class='op'>::</span><span class='const'><a href="AttributeMethods/ClassMethods/AttributeMethodPattern.html" title="ActiveModel::AttributeMethods::ClassMethods::AttributeMethodPattern (class)">AttributeMethodPattern</a></span>.<span class='id identifier rubyid_new'><a href="AttributeMethods/ClassMethods/AttributeMethodPattern.html#new-class_method" title="ActiveModel::AttributeMethods::ClassMethods::AttributeMethodPattern.new (method)">new</a></span> ]
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="attribute_method_patterns?-instance_method">
+  <h3 class='signature ro'>
+    #<strong>attribute_method_patterns?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='readonly'>readonly</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/attribute_methods.rb#L73-L73'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='73' data-end='73'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/attribute_methods.rb', line 73</span></pre>
+<pre class='code ruby'>
+
+<span class='id identifier rubyid_class_attribute'>class_attribute</span> <span class='symbeg'>:</span><span class='id identifier rubyid_attribute_method_patterns'><a href="#attribute_method_patterns-class_method" title="ActiveModel::Dirty.attribute_method_patterns (method)">attribute_method_patterns</a></span><span class='comma'>,</span> <span class='label'>instance_writer:</span> <span class='kw'>false</span><span class='comma'>,</span> <span class='label'>default:</span> [ <span class='const'><a href="AttributeMethods/ClassMethods.html" title="ActiveModel::AttributeMethods::ClassMethods (module)">ClassMethods</a></span><span class='op'>::</span><span class='const'><a href="AttributeMethods/ClassMethods/AttributeMethodPattern.html" title="ActiveModel::AttributeMethods::ClassMethods::AttributeMethodPattern (class)">AttributeMethodPattern</a></span>.<span class='id identifier rubyid_new'><a href="AttributeMethods/ClassMethods/AttributeMethodPattern.html#new-class_method" title="ActiveModel::AttributeMethods::ClassMethods::AttributeMethodPattern.new (method)">new</a></span> ]
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="changed?-instance_method">
+  <h3 class='signature ro'>
+    #<strong>changed?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='readonly'>readonly</span>)</span>
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Returns <code>true</code> if any of the attributes has unsaved changes, <code>false</code> otherwise.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_changed?'>changed?</span> <span class='comment'># =&gt; false
+</span><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_name'>name</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>bob</span><span class='tstring_end'>&#39;</span></span>
+<span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_changed?'>changed?</span> <span class='comment'># =&gt; true</span></code></pre>
+
+  </div>
+</div>
+<div class='tags'>
+  
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/dirty.rb#L279-L281'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='279' data-end='281'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/dirty.rb', line 279</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_changed?'>changed?</span>
+  <span class='id identifier rubyid_mutations_from_database'><a href="#mutations_from_database-instance_method" title="ActiveModel::Dirty#mutations_from_database (method)">mutations_from_database</a></span>.<span class='id identifier rubyid_any_changes?'>any_changes?</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<h2 class='y_details'>Instance Method Details</h2>
+<section class='method_details first' id="as_json-instance_method">
+  <h3 class='signature nodoc first'>
+    #<strong>as_json</strong>(options = {})  
+  </h3>
+  <div class='note nodoc inline-block'>
+    <strong>This method is for internal use only.</strong>
+  </div><div></div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/dirty.rb#L258-L261'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='258' data-end='261'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/dirty.rb', line 258</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_as_json'>as_json</span>(<span class='id identifier rubyid_options'>options</span> <span class='op'>=</span> {}) <span class='comment'># :nodoc:
+</span>  <span class='id identifier rubyid_options'>options</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_except'>except</span>] <span class='op'>=</span> [<span class='op'>*</span><span class='id identifier rubyid_options'>options</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_except'>except</span>]<span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>mutations_from_database</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>mutations_before_last_save</span><span class='tstring_end'>&quot;</span></span>]
+  <span class='kw'>super</span>(<span class='id identifier rubyid_options'>options</span>)
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="attribute_change-instance_method">
+  <h3 class='signature priv'>
+    #<strong>attribute_change</strong>(attr_name)   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Dispatch target for <code>*_change</code> attribute methods.</p>
+
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/dirty.rb#L392-L394'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='392' data-end='394'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/dirty.rb', line 392</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_attribute_change'>attribute_change</span>(<span class='id identifier rubyid_attr_name'>attr_name</span>)
+  <span class='id identifier rubyid_mutations_from_database'><a href="#mutations_from_database-instance_method" title="ActiveModel::Dirty#mutations_from_database (method)">mutations_from_database</a></span>.<span class='id identifier rubyid_change_to_attribute'>change_to_attribute</span>(<span class='id identifier rubyid_attr_name'>attr_name</span>.<span class='id identifier rubyid_to_s'>to_s</span>)
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="attribute_changed?-instance_method">
+  <h3 class='signature '>
+    #<strong>attribute_changed?</strong>(attr_name, **options)  &#x21d2; <code>Boolean</code> 
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Dispatch target for <code>*_changed?</code> attribute methods.</p>
+
+  </div>
+</div>
+<div class='tags'>
+  
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/dirty.rb#L293-L295'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='293' data-end='295'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/dirty.rb', line 293</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_attribute_changed?'>attribute_changed?</span>(<span class='id identifier rubyid_attr_name'>attr_name</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_options'>options</span>)
+  <span class='id identifier rubyid_mutations_from_database'><a href="#mutations_from_database-instance_method" title="ActiveModel::Dirty#mutations_from_database (method)">mutations_from_database</a></span>.<span class='id identifier rubyid_changed?'><a href="#changed%3F-instance_method" title="ActiveModel::Dirty#changed? (method)">changed?</a></span>(<span class='id identifier rubyid_attr_name'>attr_name</span>.<span class='id identifier rubyid_to_s'>to_s</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_options'>options</span>)
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="attribute_changed_in_place?-instance_method">
+  <h3 class='signature nodoc'>
+    #<strong>attribute_changed_in_place?</strong>(attr_name)  &#x21d2; <code>Boolean</code> 
+  </h3>
+  <div class='note nodoc inline-block'>
+    <strong>This method is for internal use only.</strong>
+  </div><div></div>
+<div class='docstring'>
+  <div class='discussion'>
+    
+  </div>
+</div>
+<div class='tags'>
+  
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/dirty.rb#L360-L362'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='360' data-end='362'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/dirty.rb', line 360</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_attribute_changed_in_place?'>attribute_changed_in_place?</span>(<span class='id identifier rubyid_attr_name'>attr_name</span>) <span class='comment'># :nodoc:
+</span>  <span class='id identifier rubyid_mutations_from_database'><a href="#mutations_from_database-instance_method" title="ActiveModel::Dirty#mutations_from_database (method)">mutations_from_database</a></span>.<span class='id identifier rubyid_changed_in_place?'>changed_in_place?</span>(<span class='id identifier rubyid_attr_name'>attr_name</span>.<span class='id identifier rubyid_to_s'>to_s</span>)
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="attribute_previous_change-instance_method">
+  <h3 class='signature priv'>
+    #<strong>attribute_previous_change</strong>(attr_name)   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Dispatch target for <code>*_previous_change</code> attribute methods.</p>
+
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/dirty.rb#L397-L399'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='397' data-end='399'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/dirty.rb', line 397</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_attribute_previous_change'>attribute_previous_change</span>(<span class='id identifier rubyid_attr_name'>attr_name</span>)
+  <span class='id identifier rubyid_mutations_before_last_save'><a href="#mutations_before_last_save-instance_method" title="ActiveModel::Dirty#mutations_before_last_save (method)">mutations_before_last_save</a></span>.<span class='id identifier rubyid_change_to_attribute'>change_to_attribute</span>(<span class='id identifier rubyid_attr_name'>attr_name</span>.<span class='id identifier rubyid_to_s'>to_s</span>)
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="attribute_previously_changed?-instance_method">
+  <h3 class='signature '>
+    #<strong>attribute_previously_changed?</strong>(attr_name, **options)  &#x21d2; <code>Boolean</code> 
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Dispatch target for <code>*_previously_changed?</code> attribute methods.</p>
+
+  </div>
+</div>
+<div class='tags'>
+  
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/dirty.rb#L303-L305'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='303' data-end='305'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/dirty.rb', line 303</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_attribute_previously_changed?'>attribute_previously_changed?</span>(<span class='id identifier rubyid_attr_name'>attr_name</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_options'>options</span>)
+  <span class='id identifier rubyid_mutations_before_last_save'><a href="#mutations_before_last_save-instance_method" title="ActiveModel::Dirty#mutations_before_last_save (method)">mutations_before_last_save</a></span>.<span class='id identifier rubyid_changed?'><a href="#changed%3F-instance_method" title="ActiveModel::Dirty#changed? (method)">changed?</a></span>(<span class='id identifier rubyid_attr_name'>attr_name</span>.<span class='id identifier rubyid_to_s'>to_s</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_options'>options</span>)
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="attribute_previously_was-instance_method">
+  <h3 class='signature '>
+    #<strong>attribute_previously_was</strong>(attr_name)  
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Dispatch target for <code>*_previously_was</code> attribute methods.</p>
+
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/dirty.rb#L308-L310'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='308' data-end='310'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/dirty.rb', line 308</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_attribute_previously_was'>attribute_previously_was</span>(<span class='id identifier rubyid_attr_name'>attr_name</span>)
+  <span class='id identifier rubyid_mutations_before_last_save'><a href="#mutations_before_last_save-instance_method" title="ActiveModel::Dirty#mutations_before_last_save (method)">mutations_before_last_save</a></span>.<span class='id identifier rubyid_original_value'>original_value</span>(<span class='id identifier rubyid_attr_name'>attr_name</span>.<span class='id identifier rubyid_to_s'>to_s</span>)
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="attribute_was-instance_method">
+  <h3 class='signature '>
+    #<strong>attribute_was</strong>(attr_name)  
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Dispatch target for <code>*_was</code> attribute methods.</p>
+
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/dirty.rb#L298-L300'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='298' data-end='300'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/dirty.rb', line 298</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_attribute_was'>attribute_was</span>(<span class='id identifier rubyid_attr_name'>attr_name</span>)
+  <span class='id identifier rubyid_mutations_from_database'><a href="#mutations_from_database-instance_method" title="ActiveModel::Dirty#mutations_from_database (method)">mutations_from_database</a></span>.<span class='id identifier rubyid_original_value'>original_value</span>(<span class='id identifier rubyid_attr_name'>attr_name</span>.<span class='id identifier rubyid_to_s'>to_s</span>)
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="attribute_will_change!-instance_method">
+  <h3 class='signature priv'>
+    #<strong>attribute_will_change!</strong>(attr_name)   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Dispatch target for <code>*_will_change!</code> attribute methods.</p>
+
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/dirty.rb#L402-L404'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='402' data-end='404'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/dirty.rb', line 402</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_attribute_will_change!'>attribute_will_change!</span>(<span class='id identifier rubyid_attr_name'>attr_name</span>)
+  <span class='id identifier rubyid_mutations_from_database'><a href="#mutations_from_database-instance_method" title="ActiveModel::Dirty#mutations_from_database (method)">mutations_from_database</a></span>.<span class='id identifier rubyid_force_change'>force_change</span>(<span class='id identifier rubyid_attr_name'>attr_name</span>.<span class='id identifier rubyid_to_s'>to_s</span>)
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="changed-instance_method">
+  <h3 class='signature ro'>
+    #<strong>changed</strong>   <span class="extras">(<span class='readonly'>readonly</span>)</span>
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Returns an array with the name of the attributes with unsaved changes.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_changed'>changed</span> <span class='comment'># =&gt; []
+</span><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_name'>name</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>bob</span><span class='tstring_end'>&#39;</span></span>
+<span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_changed'>changed</span> <span class='comment'># =&gt; [&quot;name&quot;]</span></code></pre>
+
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/dirty.rb#L288-L290'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='288' data-end='290'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/dirty.rb', line 288</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_changed'>changed</span>
+  <span class='id identifier rubyid_mutations_from_database'><a href="#mutations_from_database-instance_method" title="ActiveModel::Dirty#mutations_from_database (method)">mutations_from_database</a></span>.<span class='id identifier rubyid_changed_attribute_names'>changed_attribute_names</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="changed_attributes-instance_method">
+  <h3 class='signature '>
+    #<strong>changed_attributes</strong>  
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Returns a hash of the attributes with unsaved changes indicating their original values like <code>attr =&gt; original value</code>.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_name'>name</span> <span class='comment'># =&gt; &quot;bob&quot;
+</span><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_name'>name</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>robert</span><span class='tstring_end'>&#39;</span></span>
+<span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_changed_attributes'>changed_attributes</span> <span class='comment'># =&gt; {&quot;name&quot; =&gt; &quot;bob&quot;}</span></code></pre>
+
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/dirty.rb#L336-L338'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='336' data-end='338'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/dirty.rb', line 336</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_changed_attributes'>changed_attributes</span>
+  <span class='id identifier rubyid_mutations_from_database'><a href="#mutations_from_database-instance_method" title="ActiveModel::Dirty#mutations_from_database (method)">mutations_from_database</a></span>.<span class='id identifier rubyid_changed_values'>changed_values</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="changes-instance_method">
+  <h3 class='signature '>
+    #<strong>changes</strong>  
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Returns a hash of changed attributes indicating their original and new values like <code>attr =&gt; [original value, new value]</code>.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_changes'>changes</span> <span class='comment'># =&gt; {}
+</span><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_name'>name</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>bob</span><span class='tstring_end'>&#39;</span></span>
+<span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_changes'>changes</span> <span class='comment'># =&gt; { &quot;name&quot; =&gt; [&quot;bill&quot;, &quot;bob&quot;] }</span></code></pre>
+
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/dirty.rb#L346-L348'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='346' data-end='348'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/dirty.rb', line 346</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_changes'>changes</span>
+  <span class='id identifier rubyid_mutations_from_database'><a href="#mutations_from_database-instance_method" title="ActiveModel::Dirty#mutations_from_database (method)">mutations_from_database</a></span>.<span class='id identifier rubyid_changes'>changes</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="changes_applied-instance_method">
+  <h3 class='signature '>
+    #<strong>changes_applied</strong>  
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Clears dirty data and moves <a href="#changes-instance_method" title="ActiveModel::Dirty#changes (method)">#changes</a> to <a href="#previous_changes-instance_method" title="ActiveModel::Dirty#previous_changes (method)">#previous_changes</a> and <a href="#mutations_from_database-instance_method" title="ActiveModel::Dirty#mutations_from_database (method)">#mutations_from_database</a> to <a href="#mutations_before_last_save-instance_method" title="ActiveModel::Dirty#mutations_before_last_save (method)">#mutations_before_last_save</a> respectively.</p>
+
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/dirty.rb#L265-L272'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='265' data-end='272'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/dirty.rb', line 265</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_changes_applied'>changes_applied</span>
+  <span class='kw'>unless</span> <span class='kw'>defined?</span>(<span class='ivar'>@attributes</span>)
+    <span class='id identifier rubyid_mutations_from_database'><a href="#mutations_from_database-instance_method" title="ActiveModel::Dirty#mutations_from_database (method)">mutations_from_database</a></span>.<span class='id identifier rubyid_finalize_changes'>finalize_changes</span>
+  <span class='kw'>end</span>
+  <span class='ivar'>@mutations_before_last_save</span> <span class='op'>=</span> <span class='id identifier rubyid_mutations_from_database'><a href="#mutations_from_database-instance_method" title="ActiveModel::Dirty#mutations_from_database (method)">mutations_from_database</a></span>
+  <span class='id identifier rubyid_forget_attribute_assignments'><a href="#forget_attribute_assignments-instance_method" title="ActiveModel::Dirty#forget_attribute_assignments (method)">forget_attribute_assignments</a></span>
+  <span class='ivar'>@mutations_from_database</span> <span class='op'>=</span> <span class='kw'>nil</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="clear_attribute_change-instance_method">
+  <h3 class='signature priv'>
+    #<strong>clear_attribute_change</strong>(attr_name)   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/dirty.rb#L371-L373'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='371' data-end='373'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/dirty.rb', line 371</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_clear_attribute_change'>clear_attribute_change</span>(<span class='id identifier rubyid_attr_name'>attr_name</span>)
+  <span class='id identifier rubyid_mutations_from_database'><a href="#mutations_from_database-instance_method" title="ActiveModel::Dirty#mutations_from_database (method)">mutations_from_database</a></span>.<span class='id identifier rubyid_forget_change'>forget_change</span>(<span class='id identifier rubyid_attr_name'>attr_name</span>.<span class='id identifier rubyid_to_s'>to_s</span>)
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="clear_attribute_changes-instance_method">
+  <h3 class='signature '>
+    #<strong>clear_attribute_changes</strong>(attr_names)  
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/dirty.rb#L324-L328'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='324' data-end='328'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/dirty.rb', line 324</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_clear_attribute_changes'>clear_attribute_changes</span>(<span class='id identifier rubyid_attr_names'>attr_names</span>)
+  <span class='id identifier rubyid_attr_names'>attr_names</span>.<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_attr_name'>attr_name</span><span class='op'>|</span>
+    <span class='id identifier rubyid_clear_attribute_change'><a href="#clear_attribute_change-instance_method" title="ActiveModel::Dirty#clear_attribute_change (method)">clear_attribute_change</a></span>(<span class='id identifier rubyid_attr_name'>attr_name</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="clear_changes_information-instance_method">
+  <h3 class='signature '>
+    #<strong>clear_changes_information</strong>  
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Clears all dirty data: current changes and previous changes.</p>
+
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/dirty.rb#L318-L322'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='318' data-end='322'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/dirty.rb', line 318</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_clear_changes_information'>clear_changes_information</span>
+  <span class='ivar'>@mutations_before_last_save</span> <span class='op'>=</span> <span class='kw'>nil</span>
+  <span class='id identifier rubyid_forget_attribute_assignments'><a href="#forget_attribute_assignments-instance_method" title="ActiveModel::Dirty#forget_attribute_assignments (method)">forget_attribute_assignments</a></span>
+  <span class='ivar'>@mutations_from_database</span> <span class='op'>=</span> <span class='kw'>nil</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="forget_attribute_assignments-instance_method">
+  <h3 class='signature priv'>
+    #<strong>forget_attribute_assignments</strong>   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/dirty.rb#L383-L385'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='383' data-end='385'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/dirty.rb', line 383</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_forget_attribute_assignments'>forget_attribute_assignments</span>
+  <span class='ivar'>@attributes</span> <span class='op'>=</span> <span class='ivar'>@attributes</span>.<span class='id identifier rubyid_map'>map</span>(<span class='op'>&amp;</span><span class='symbeg'>:</span><span class='id identifier rubyid_forgetting_assignment'>forgetting_assignment</span>) <span class='kw'>if</span> <span class='kw'>defined?</span>(<span class='ivar'>@attributes</span>)
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="init_internals-instance_method">
+  <h3 class='signature priv'>
+    #<strong>init_internals</strong>   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/dirty.rb#L365-L369'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='365' data-end='369'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/dirty.rb', line 365</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_init_internals'>init_internals</span>
+  <span class='kw'>super</span>
+  <span class='ivar'>@mutations_before_last_save</span> <span class='op'>=</span> <span class='kw'>nil</span>
+  <span class='ivar'>@mutations_from_database</span> <span class='op'>=</span> <span class='kw'>nil</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="initialize_dup-instance_method">
+  <h3 class='signature nodoc'>
+    #<strong>initialize_dup</strong>(other)  
+  </h3>
+  <div class='note nodoc inline-block'>
+    <strong>This method is for internal use only.</strong>
+  </div><div></div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/dirty.rb#L248-L256'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='248' data-end='256'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/dirty.rb', line 248</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_initialize_dup'>initialize_dup</span>(<span class='id identifier rubyid_other'>other</span>) <span class='comment'># :nodoc:
+</span>  <span class='kw'>super</span>
+  <span class='kw'>if</span> <span class='kw'>self</span>.<span class='id identifier rubyid_class'>class</span>.<span class='id identifier rubyid_respond_to?'>respond_to?</span>(<span class='symbeg'>:</span><span class='id identifier rubyid__default_attributes'>_default_attributes</span>)
+    <span class='ivar'>@attributes</span> <span class='op'>=</span> <span class='kw'>self</span>.<span class='id identifier rubyid_class'>class</span>.<span class='id identifier rubyid__default_attributes'>_default_attributes</span>.<span class='id identifier rubyid_map'>map</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_attr'>attr</span><span class='op'>|</span>
+      <span class='id identifier rubyid_attr'>attr</span>.<span class='id identifier rubyid_with_value_from_user'>with_value_from_user</span>(<span class='ivar'>@attributes</span>.<span class='id identifier rubyid_fetch_value'>fetch_value</span>(<span class='id identifier rubyid_attr'>attr</span>.<span class='id identifier rubyid_name'>name</span>))
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+  <span class='ivar'>@mutations_from_database</span> <span class='op'>=</span> <span class='kw'>nil</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="mutations_before_last_save-instance_method">
+  <h3 class='signature priv'>
+    #<strong>mutations_before_last_save</strong>   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/dirty.rb#L387-L389'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='387' data-end='389'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/dirty.rb', line 387</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_mutations_before_last_save'>mutations_before_last_save</span>
+  <span class='ivar'>@mutations_before_last_save</span> <span class='op'>||=</span> <span class='const'><a href="../ActiveModel.html" title="ActiveModel (module)">ActiveModel</a></span><span class='op'>::</span><span class='const'><a href="NullMutationTracker.html" title="ActiveModel::NullMutationTracker (class)">NullMutationTracker</a></span>.<span class='id identifier rubyid_instance'>instance</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="mutations_from_database-instance_method">
+  <h3 class='signature priv'>
+    #<strong>mutations_from_database</strong>   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/dirty.rb#L375-L381'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='375' data-end='381'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/dirty.rb', line 375</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_mutations_from_database'>mutations_from_database</span>
+  <span class='ivar'>@mutations_from_database</span> <span class='op'>||=</span> <span class='kw'>if</span> <span class='kw'>defined?</span>(<span class='ivar'>@attributes</span>)
+    <span class='const'><a href="../ActiveModel.html" title="ActiveModel (module)">ActiveModel</a></span><span class='op'>::</span><span class='const'><a href="AttributeMutationTracker.html" title="ActiveModel::AttributeMutationTracker (class)">AttributeMutationTracker</a></span>.<span class='id identifier rubyid_new'><a href="AttributeMutationTracker.html#new-class_method" title="ActiveModel::AttributeMutationTracker.new (method)">new</a></span>(<span class='ivar'>@attributes</span>)
+  <span class='kw'>else</span>
+    <span class='const'><a href="../ActiveModel.html" title="ActiveModel (module)">ActiveModel</a></span><span class='op'>::</span><span class='const'><a href="ForcedMutationTracker.html" title="ActiveModel::ForcedMutationTracker (class)">ForcedMutationTracker</a></span>.<span class='id identifier rubyid_new'><a href="ForcedMutationTracker.html#new-class_method" title="ActiveModel::ForcedMutationTracker.new (method)">new</a></span>(<span class='kw'>self</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="previous_changes-instance_method">
+  <h3 class='signature '>
+    #<strong>previous_changes</strong>  
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Returns a hash of attributes that were changed before the model was saved.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_name'>name</span> <span class='comment'># =&gt; &quot;bob&quot;
+</span><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_name'>name</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>robert</span><span class='tstring_end'>&#39;</span></span>
+<span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_save'>save</span>
+<span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_previous_changes'>previous_changes</span> <span class='comment'># =&gt; {&quot;name&quot; =&gt; [&quot;bob&quot;, &quot;robert&quot;]}</span></code></pre>
+
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/dirty.rb#L356-L358'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='356' data-end='358'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/dirty.rb', line 356</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_previous_changes'>previous_changes</span>
+  <span class='id identifier rubyid_mutations_before_last_save'><a href="#mutations_before_last_save-instance_method" title="ActiveModel::Dirty#mutations_before_last_save (method)">mutations_before_last_save</a></span>.<span class='id identifier rubyid_changes'><a href="#changes-instance_method" title="ActiveModel::Dirty#changes (method)">changes</a></span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="restore_attribute!-instance_method">
+  <h3 class='signature priv'>
+    #<strong>restore_attribute!</strong>(attr_name)   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Dispatch target for <code>restore_*!</code> attribute methods.</p>
+
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/dirty.rb#L407-L413'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='407' data-end='413'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/dirty.rb', line 407</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_restore_attribute!'>restore_attribute!</span>(<span class='id identifier rubyid_attr_name'>attr_name</span>)
+  <span class='id identifier rubyid_attr_name'>attr_name</span> <span class='op'>=</span> <span class='id identifier rubyid_attr_name'>attr_name</span>.<span class='id identifier rubyid_to_s'>to_s</span>
+  <span class='kw'>if</span> <span class='id identifier rubyid_attribute_changed?'><a href="#attribute_changed%3F-instance_method" title="ActiveModel::Dirty#attribute_changed? (method)">attribute_changed?</a></span>(<span class='id identifier rubyid_attr_name'>attr_name</span>)
+    <span class='id identifier rubyid___send__'>__send__</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_attr_name'>attr_name</span><span class='embexpr_end'>}</span><span class='tstring_content'>=</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_attribute_was'><a href="#attribute_was-instance_method" title="ActiveModel::Dirty#attribute_was (method)">attribute_was</a></span>(<span class='id identifier rubyid_attr_name'>attr_name</span>))
+    <span class='id identifier rubyid_clear_attribute_change'><a href="#clear_attribute_change-instance_method" title="ActiveModel::Dirty#clear_attribute_change (method)">clear_attribute_change</a></span>(<span class='id identifier rubyid_attr_name'>attr_name</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="restore_attributes-instance_method">
+  <h3 class='signature '>
+    #<strong>restore_attributes</strong>(attr_names = changed)  
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Restore all previous data of the provided attributes.</p>
+
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-1-stable/activemodel/lib/active_model/dirty.rb#L313-L315'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='313' data-end='315'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activemodel/lib/active_model/dirty.rb', line 313</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_restore_attributes'>restore_attributes</span>(<span class='id identifier rubyid_attr_names'>attr_names</span> <span class='op'>=</span> <span class='id identifier rubyid_changed'><a href="#changed-instance_method" title="ActiveModel::Dirty#changed (method)">changed</a></span>)
+  <span class='id identifier rubyid_attr_names'>attr_names</span>.<span class='id identifier rubyid_each'>each</span> { <span class='op'>|</span><span class='id identifier rubyid_attr_name'>attr_name</span><span class='op'>|</span> <span class='id identifier rubyid_restore_attribute!'><a href="#restore_attribute!-instance_method" title="ActiveModel::Dirty#restore_attribute! (method)">restore_attribute!</a></span>(<span class='id identifier rubyid_attr_name'>attr_name</span>) }
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>

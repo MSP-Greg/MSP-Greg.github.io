@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen'       content='yes'>
+<meta name='apple-mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Transactions &mdash; Mongo master</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "transactions",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>Mongo master</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Transactions&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<h1>Transactions</h1>
+
+<p>Version 4.0 of the MongoDB server introduces
+<a href="https://mongodb.com/docs/manual/core/transactions/">multi-document transactions</a>.
+(Updates to multiple fields within a single document are atomic in all
+versions of MongoDB.) Ruby driver version 2.6.0 adds support for transactions.</p>
+
+<h2>Using Transactions</h2>
+
+<p>In order to start a transaction, the application must have a <code>session &lt;sessions&gt;</code>.</p>
+
+<p>The recommended way to use transactions is to utilize the <code>with_transaction</code>
+helper method:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_session'>session</span> <span class='op'>=</span> <span class='id identifier rubyid_client'>client</span>.<span class='id identifier rubyid_start_session'>start_session</span>
+<span class='id identifier rubyid_session'>session</span>.<span class='id identifier rubyid_with_transaction'>with_transaction</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_collection'>collection</span>.<span class='id identifier rubyid_insert_one'>insert_one</span>({<span class='label'>hello:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>world</span><span class='tstring_end'>&#39;</span></span>}<span class='comma'>,</span> <span class='label'>session:</span> <span class='id identifier rubyid_session'>session</span>)
+<span class='kw'>end</span></code></pre>
+
+<p>The <code>with_transaction</code> helper does the following:</p>
+
+<ul>
+<li>  It starts a transaction prior to calling the supplied block, and commits
+the transaction when the block finishes.</li>
+<li>  If any of the operations in the block, or the commit operation, result in
+a transient transaction error, the block and/or the commit will be executed
+again.</li>
+</ul>
+
+<p>The block should be idempotent, because it may be called multiple times.</p>
+
+<p>The block may explicitly commit or abort the transaction, by calling
+<code>commit_transaction</code> or <code>abort_transaction</code>; in this case <code>with_transaction</code>
+will not attempt to commit or abort (but may still retry the block on
+transient transaction errors propagated out of the block).</p>
+
+<p>The block will also be retried if the transaction&#39;s commit result is unknown.
+This may happen, for example, if the cluster undergoes an election during the
+commit. In this case when the block is retried, the primary server of the
+topology would likely have changed.</p>
+
+<p>Currently <code>with_transaction</code> will stop retrying the block and the commit once
+120 seconds pass since the beginning of its execution. This time is not
+configurable and may change in a future driver version. Note that this
+does not guarantee the overall runtime of <code>with_transactions</code> will be 120
+seconds or less - just that once 120 seconds of wall clock time have elapsed,
+further retry attempts will not be initiated.</p>
+
+<p>A low level API is also available if more control over transactions is desired.</p>
+
+<p><code>with_transaction</code> takes the same options as <code>start_transaction</code> does,
+which are read concern, write concern and read preference:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_session'>session</span> <span class='op'>=</span> <span class='id identifier rubyid_client'>client</span>.<span class='id identifier rubyid_start_session'>start_session</span>
+<span class='id identifier rubyid_session'>session</span>.<span class='id identifier rubyid_with_transaction'>with_transaction</span>(
+  <span class='label'>read_concern:</span> {<span class='label'>level:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_majority'>majority</span>}<span class='comma'>,</span>
+  <span class='label'>write_concern:</span> {<span class='label'>w:</span> <span class='int'>3</span>}<span class='comma'>,</span>
+  <span class='label'>read:</span> {<span class='label'>mode:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_primary'>primary</span>}
+) <span class='kw'>do</span>
+  <span class='id identifier rubyid_collection'>collection</span>.<span class='id identifier rubyid_insert_one'>insert_one</span>({<span class='label'>hello:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>world</span><span class='tstring_end'>&#39;</span></span>}<span class='comma'>,</span> <span class='label'>session:</span> <span class='id identifier rubyid_session'>session</span>)
+<span class='kw'>end</span></code></pre>
+
+<h3>Handling Errors Within the <code>with_transaction</code> Block</h3>
+
+<p>If a command inside the <code>with_transaction</code> block fails, it may cause
+the transaction on the server to be aborted. This situation is normally handled
+transparently by the driver. However, if the application catches such an error
+and does not re-raise it, the driver will not be able to determine whether
+the transaction was aborted or not. The driver will then retry the block
+indefinitely.</p>
+
+<p>To avoid this situation, the application must not silently handle errors within
+<code>with_transaction</code> block. If the application needs to handle errors within
+the block, it must re-raise the errors.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_session'>session</span>.<span class='id identifier rubyid_with_transaction'>with_transaction</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_collection'>collection</span>.<span class='id identifier rubyid_insert_one'>insert_one</span>({<span class='label'>hello:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>world</span><span class='tstring_end'>&#39;</span></span>}<span class='comma'>,</span> <span class='label'>session:</span> <span class='id identifier rubyid_session'>session</span>)
+<span class='kw'>rescue</span> <span class='const'><a href="Mongo.html" title="Mongo (module)">Mongo</a></span><span class='op'>::</span><span class='const'><a href="Mongo/Error.html" title="Mongo::Error (class)">Error</a></span><span class='op'>::</span><span class='const'><a href="Mongo/Error/OperationFailure.html" title="Mongo::Error::OperationFailure (class)">OperationFailure</a></span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
+  <span class='comment'># Do something in response to the error
+</span>  <span class='id identifier rubyid_raise'>raise</span> <span class='id identifier rubyid_e'>e</span>
+<span class='kw'>end</span></code></pre>
+
+<p>If the applications needs to handle errors in a custom way, it should use
+the low level API instead.</p>
+
+<h2>Low Level API</h2>
+
+<p>A transaction can be started by calling the <code>start_transaction</code> method on a session:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_session'>session</span> <span class='op'>=</span> <span class='id identifier rubyid_client'>client</span>.<span class='id identifier rubyid_start_session'>start_session</span>
+<span class='id identifier rubyid_session'>session</span>.<span class='id identifier rubyid_start_transaction'>start_transaction</span></code></pre>
+
+<p>It is also possible to specify read concern, write concern and read preference
+when starting a transaction:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_session'>session</span> <span class='op'>=</span> <span class='id identifier rubyid_client'>client</span>.<span class='id identifier rubyid_start_session'>start_session</span>
+<span class='id identifier rubyid_session'>session</span>.<span class='id identifier rubyid_start_transaction'>start_transaction</span>(
+  <span class='label'>read_concern:</span> {<span class='label'>level:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_majority'>majority</span>}<span class='comma'>,</span>
+  <span class='label'>write_concern:</span> {<span class='label'>w:</span> <span class='int'>3</span>}<span class='comma'>,</span>
+  <span class='label'>read:</span> {<span class='label'>mode:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_primary'>primary</span>})</code></pre>
+
+<p>To persist changes made in a transaction to the database, the transaction
+must be explicitly committed. If a session ends with an open transaction,
+<a href="https://mongodb.com/docs/manual/core/transactions/#transactions-and-sessions">the transaction is aborted</a>.
+A transaction may also be aborted explicitly.</p>
+
+<p>To commit or abort a transaction, call <code>commit_transaction</code> or
+<code>abort_transaction</code> on the session instance:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_session'>session</span>.<span class='id identifier rubyid_commit_transaction'>commit_transaction</span>
+
+<span class='id identifier rubyid_session'>session</span>.<span class='id identifier rubyid_abort_transaction'>abort_transaction</span></code></pre>
+
+<p>Note: an outstanding transaction can hold locks to various objects in the
+server, such as the database. For example, the drop call in the following
+snippet will hang for <a href="https://mongodb.com/docs/manual/reference/parameters/#param.transactionLifetimeLimitSeconds">transactionLifetimeLimitSeconds</a>
+seconds (default 60) until the server expires and aborts the transaction:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_c1'>c1</span> <span class='op'>=</span> <span class='const'><a href="Mongo.html" title="Mongo (module)">Mongo</a></span><span class='op'>::</span><span class='const'><a href="Mongo/Client.html" title="Mongo::Client (class)">Client</a></span>.<span class='id identifier rubyid_new'><a href="Mongo/Client.html#new-class_method" title="Mongo::Client.new (method)">new</a></span>([<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>127.0.0.1:27017</span><span class='tstring_end'>&#39;</span></span>]).<span class='id identifier rubyid_use'><a href="Mongo/Client.html#use-instance_method" title="Mongo::Client#use (method)">use</a></span>(<span class='symbeg'>:</span><span class='id identifier rubyid_test_db'>test_db</span>)
+<span class='id identifier rubyid_session'>session</span> <span class='op'>=</span> <span class='id identifier rubyid_c1'>c1</span>.<span class='id identifier rubyid_start_session'>start_session</span>
+<span class='id identifier rubyid_c1'>c1</span>[<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&#39;</span></span>].<span class='id identifier rubyid_insert_one'>insert_one</span>(<span class='label'>test:</span> <span class='int'>1</span>)
+<span class='id identifier rubyid_session'>session</span>.<span class='id identifier rubyid_start_transaction'>start_transaction</span>
+<span class='id identifier rubyid_c1'>c1</span>[<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&#39;</span></span>].<span class='id identifier rubyid_insert_one'>insert_one</span>({<span class='label'>test:</span> <span class='int'>2</span>}<span class='comma'>,</span> <span class='label'>session:</span> <span class='id identifier rubyid_session'>session</span>)
+
+<span class='id identifier rubyid_c2'>c2</span> <span class='op'>=</span> <span class='const'><a href="Mongo.html" title="Mongo (module)">Mongo</a></span><span class='op'>::</span><span class='const'><a href="Mongo/Client.html" title="Mongo::Client (class)">Client</a></span>.<span class='id identifier rubyid_new'><a href="Mongo/Client.html#new-class_method" title="Mongo::Client.new (method)">new</a></span>([<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>127.0.0.1:27017</span><span class='tstring_end'>&#39;</span></span>]).<span class='id identifier rubyid_use'><a href="Mongo/Client.html#use-instance_method" title="Mongo::Client#use (method)">use</a></span>(<span class='symbeg'>:</span><span class='id identifier rubyid_test_db'>test_db</span>)
+<span class='comment'># hangs
+</span><span class='id identifier rubyid_c2'>c2</span>.<span class='id identifier rubyid_database'>database</span>.<span class='id identifier rubyid_drop'>drop</span></code></pre>
+
+<p>Since transactions are associated with server-side sessions, closing the client
+does not abort a transaction that this client initiated - the application must
+either call <code>abort_transaction</code> or wait for the transaction to time out on
+the server side. In addition to committing or aborting the transaction, an
+application can also end the session which will abort a transaction on this
+session if one is in progress:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_session'>session</span>.<span class='id identifier rubyid_end_session'>end_session</span>
+
+<span class='id identifier rubyid_c2'>c2</span> <span class='op'>=</span> <span class='const'><a href="Mongo.html" title="Mongo (module)">Mongo</a></span><span class='op'>::</span><span class='const'><a href="Mongo/Client.html" title="Mongo::Client (class)">Client</a></span>.<span class='id identifier rubyid_new'><a href="Mongo/Client.html#new-class_method" title="Mongo::Client.new (method)">new</a></span>([<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>127.0.0.1:27017</span><span class='tstring_end'>&#39;</span></span>]).<span class='id identifier rubyid_use'><a href="Mongo/Client.html#use-instance_method" title="Mongo::Client#use (method)">use</a></span>(<span class='symbeg'>:</span><span class='id identifier rubyid_test_db'>test_db</span>)
+<span class='comment'># ok
+</span><span class='id identifier rubyid_c2'>c2</span>.<span class='id identifier rubyid_database'>database</span>.<span class='id identifier rubyid_drop'>drop</span></code></pre>
+
+<h3>Handling Errors</h3>
+
+<p>If a command inside the transaction fails, the transaction may be aborted
+on the server. Errors that abort transactions do not have
+<code>TransientTransactionError</code> in their error labels. An attempt to commit such a
+transaction will be rejected with <code>NoSuchTransaction</code> error.</p>
+
+<h2>Retrying Commits</h2>
+
+<p>The transaction commit <a href="https://mongodb.com/docs/manual/core/transactions/#retry-commit-operation">can be retried</a>
+if it fails. Here is the Ruby code to do so:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>begin</span>
+  <span class='id identifier rubyid_session'>session</span>.<span class='id identifier rubyid_commit_transaction'>commit_transaction</span>
+<span class='kw'>rescue</span> <span class='const'><a href="Mongo.html" title="Mongo (module)">Mongo</a></span><span class='op'>::</span><span class='const'><a href="Mongo/Error.html" title="Mongo::Error (class)">Error</a></span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
+  <span class='kw'>if</span> <span class='id identifier rubyid_e'>e</span>.<span class='id identifier rubyid_label?'>label?</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>UnknownTransactionCommitResult</span><span class='tstring_end'>&#39;</span></span>)
+    <span class='kw'>retry</span>
+  <span class='kw'>else</span>
+    <span class='id identifier rubyid_raise'>raise</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<h2>Transaction Nesting</h2>
+
+<p>MongoDB does not support nesting transactions. Attempting to call
+<code>start_transaction</code> or <code>with_transaction</code> when a transaction is already
+in progress will result in an error.</p>
+
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>

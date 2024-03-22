@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen'       content='yes'>
+<meta name='apple-mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Callbacks &mdash; FFI master</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "Callbacks",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>FFI master</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Callbacks&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<p>Let&#8217;s assume we have a C <span class="caps">API</span> that allows for callbacks by taking a function pointer argument:</p>
+<pre class="code c"><code class="c">typedef void completion_function(char *buffer, long count, unsigned char code);
+int do_work(char *buffer, completion_function *);
+</code></pre>
+<p><span class="caps">FFI</span> supports the mapping of Ruby closures (Proc, lambda) to C function pointers, and it also supports passing in a function pointer that points directly to another C function.</p>
+<h3>Proc callback</h3>
+<p>The simplest way to define a callback is by using a Proc to create an anonymous function. In the example given below, the callback is assigned to a constant <code>Callback</code> so that we never need worry about the garbage collector removing it.</p>
+<pre class="code ruby"><code class='ruby'><span class='kw'>module</span> <span class='const'>LibWrap</span>
+  <span class='id identifier rubyid_extend'>extend</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/Library.html" title="FFI::Library (module)">Library</a></span>
+  <span class='id identifier rubyid_ffi_lib'>ffi_lib</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>some_lib.so</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_callback'>callback</span> <span class='symbeg'>:</span><span class='id identifier rubyid_completion_function'>completion_function</span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_long'>long</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_uint8'>uint8</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_void'>void</span>
+  <span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_do_work'>do_work</span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_completion_function'>completion_function</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_int'>int</span>
+
+  <span class='const'>Callback</span> <span class='op'>=</span> <span class='const'>Proc</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_buf_ptr'>buf_ptr</span><span class='comma'>,</span> <span class='id identifier rubyid_count'>count</span><span class='comma'>,</span> <span class='id identifier rubyid_code'>code</span><span class='op'>|</span>
+    <span class='comment'># finish up
+</span>  <span class='kw'>end</span>
+<span class='kw'>end</span>
+
+<span class='const'>LibWrap</span>.<span class='id identifier rubyid_do_work'>do_work</span>(<span class='const'>LibWrap</span><span class='op'>::</span><span class='const'>Callback</span>)</code></pre>
+<p>Upon execution of the callback by the C <span class="caps">API</span>, the <span class="caps">FFI</span> library unwraps the Proc to see if an <a href="http://www.rubydoc.info/github/ffi/ffi/FFI/Function"><span class="caps">FFI</span>::Function</a> has been allocated for it. If it finds one, it invokes the <span class="caps">FFI</span>::Function immediately. If no <span class="caps">FFI</span>::Function is found, it allocates an <span class="caps">FFI</span>::Function and invokes it.</p>
+<h3><span class="caps">FFI</span>::Function</h3>
+<p>You can save a little work and gain a little flexibility by defining your callback as an <a href="http://www.rubydoc.info/github/ffi/ffi/FFI/Function"><span class="caps">FFI</span>::Function</a> directly. Check the <a href="http://www.rubydoc.info/github/ffi/ffi/FFI/Function">rdoc page</a> for a complete description.</p>
+<pre class="code ruby"><code class='ruby'><span class='kw'>module</span> <span class='const'>LibWrap</span>
+  <span class='id identifier rubyid_extend'>extend</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/Library.html" title="FFI::Library (module)">Library</a></span>
+  <span class='id identifier rubyid_ffi_lib'>ffi_lib</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>some_lib.so</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_do_work'>do_work</span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_int'>int</span>
+
+  <span class='const'>Callback</span> <span class='op'>=</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/Function.html" title="FFI::Function (class)">Function</a></span>.<span class='id identifier rubyid_new'><a href="FFI/Function.html#new-class_method" title="FFI::Function.new (method)">new</a></span>(<span class='symbeg'>:</span><span class='id identifier rubyid_void'>void</span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_long'>long</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_uint8'>uint8</span>]) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_buf_ptr'>buf_ptr</span><span class='comma'>,</span> <span class='id identifier rubyid_count'>count</span><span class='comma'>,</span> <span class='id identifier rubyid_code'>code</span><span class='op'>|</span>
+    <span class='comment'># finish up
+</span>  <span class='kw'>end</span>
+<span class='kw'>end</span>
+
+<span class='const'>LibWrap</span>.<span class='id identifier rubyid_do_work'>do_work</span>(<span class='const'>LibWrap</span><span class='op'>::</span><span class='const'>Callback</span>)</code></pre>
+<h3>C callback</h3>
+<p>There may be situations where the callback function is another C function in the library.  There are two ways to get a Ruby object representing the C function so that it can be passed as a function pointer argument:</p>
+<ul>
+	<li>You can save the return value of <code>attach_function</code>, which is an <span class="caps">FFI</span>::VariadicInvoker or <span class="caps">FFI</span>::Function.</li>
+	<li><code>attach_function</code> adds <span class="caps">FFI</span>::Function implicitly as a class variable.</li>
+	<li>You can call <span class="caps">FFI</span>::Library#ffi_libraries to get an array of <span class="caps">FFI</span>::DynamicLibrary objects representing native libraries, choose the correct one, and then call <span class="caps">FFI</span>::DynamicLibrary#find_function to get a <span class="caps">FFI</span>::Symbol representing the function.  This is more complicated but might be appropriate if you are using an <span class="caps">FFI</span> wrapper written by someone else and it is not easy to modify it.</li>
+</ul>
+<pre class="code ruby"><code class='ruby'><span class='kw'>module</span> <span class='const'>LibWrap</span>
+  <span class='id identifier rubyid_extend'>extend</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/Library.html" title="FFI::Library (module)">Library</a></span>
+  <span class='id identifier rubyid_ffi_lib'>ffi_lib</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>some_lib.so</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_do_work'>do_work</span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_int'>int</span>
+
+  <span class='const'>Completer</span> <span class='op'>=</span> <span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_completer'>completer</span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_long'>long</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_uint8'>uint8</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_void'>void</span>
+<span class='kw'>end</span>
+
+<span class='const'>LibWrap</span>.<span class='id identifier rubyid_do_work'>do_work</span>(<span class='const'>LibWrap</span><span class='op'>::</span><span class='const'>Completer</span>)
+
+<span class='const'>LibWrap</span>.<span class='id identifier rubyid_do_work'>do_work</span>(<span class='const'>LibWrap</span>.<span class='id identifier rubyid_class_variable_get'>class_variable_get</span>(<span class='symbeg'>:</span><span class='cvar'>@@completer</span>))
+
+<span class='const'>LibWrap</span>.<span class='id identifier rubyid_do_work'>do_work</span>(<span class='const'>LibWrap</span>.<span class='id identifier rubyid_ffi_libraries'>ffi_libraries</span>[<span class='int'>0</span>].<span class='id identifier rubyid_find_function'>find_function</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>completer</span><span class='tstring_end'>&#39;</span></span>))</code></pre>
+<h3><span class="caps">GIL</span></h3>
+<p><span class="caps">MRI</span>/CRuby implementation uses a global lock called <span class="caps">GIL</span> or <span class="caps">GVL</span>. It is locked whenever Ruby code is executed. It needs to be released to allow true parallel processing. But if the <span class="caps">GIL</span> is released, no Ruby code can be executed.</p>
+<p>By default all calls to C functions keep the <span class="caps">GIL</span> locked and therefore block other Ruby threads to be executed. This is no problem, if the function is fast and doesn&#8217;t wait for external resources. However if the function waits for IO or does some extensive computation, it&#8217;s desirable that other Ruby threads continue to run.</p>
+<p>Releasing the <span class="caps">GIL</span> will allow the Ruby runtime to (potentially) schedule another thread to run while the C function is still running. Luckily, <span class="caps">FFI</span>::Function allows us to optionally release the <span class="caps">GIL</span> by marking the callback as <code>blocking: true</code>. This setting only affects Ruby-to-native calls; it has no effect for native-to-Ruby calls.</p>
+<pre class="code ruby"><code class='ruby'><span class='kw'>module</span> <span class='const'>LibWrap</span>
+  <span class='id identifier rubyid_extend'>extend</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/Library.html" title="FFI::Library (module)">Library</a></span>
+  <span class='id identifier rubyid_ffi_lib'>ffi_lib</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>some_lib.so</span><span class='tstring_end'>&quot;</span></span>
+
+  <span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_long_running_function'>long_running_function</span><span class='comma'>,</span> []<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_int'>int</span><span class='comma'>,</span> <span class='label'>blocking:</span> <span class='kw'>true</span>
+<span class='kw'>end</span></code></pre>
+<p>Looking at the code path for both kinds of setup can shed some light on what&#8217;s happening under the covers.</p>
+<h4><span class="caps">FFI</span>::Function, <code>blocking: false</code>, Ruby to native method call</h4>
+<pre class="code ruby"><code class="ruby">Ruby -&gt;
+  FFI stub for parameter conversion -&gt;  
+  call native function -&gt;
+  FFI stub for result conversion -&gt;
+Ruby</code></pre>
+<h4><span class="caps">FFI</span>::Function, <code>blocking: true</code>, Ruby to native method call</h4>
+<pre class="code ruby"><code class="ruby">Ruby -&gt; 
+  FFI stub for parameter conversion -&gt; 
+  release GIL -&gt;
+  call native function -&gt; 
+  reacquire GIL -&gt;
+  FFI stub for result conversion -&gt;
+Ruby</code></pre>
+<h4>Callback Proc</h4>
+<p>Callback Procs always follow this code path.</p>
+<pre class="code ruby"><code class="ruby">Ruby -&gt; FFI callback stub -&gt;
+  if thread.has_gil?
+    convert parameters to Ruby
+    call Ruby
+    convert results to native
+
+  elsif thread.is_ruby_thread?
+    acquire GIL
+    convert parameters to Ruby
+    call Ruby
+    convert results to native
+    release GIL
+
+  else # not a Ruby-owned thread
+    start a new ruby thread
+    bundle up FFI data and pass it to the new thread
+    convert parameters to Ruby
+    call Ruby on this dedicated thread
+    convert results to native
+    bundle up Ruby result and pass it to the origin thread
+    terminate the ruby thread
+
+  end
+#=&gt; native code</code></pre>
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>

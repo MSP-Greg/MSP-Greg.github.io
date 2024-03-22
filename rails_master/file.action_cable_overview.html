@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen'       content='yes'>
+<meta name='apple-mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Action Cable Overview &mdash; Rails main</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "action_cable_overview",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>Rails main</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Action Cable Overview&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<p><strong>DO NOT READ THIS FILE ON GITHUB, GUIDES ARE PUBLISHED ON <a href="https://guides.rubyonrails.org">https://guides.rubyonrails.org</a>.</strong></p>
+
+<h1>Action Cable Overview</h1>
+
+<p>In this guide, you will learn how Action Cable works and how to use WebSockets to
+incorporate real-time features into your <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> application.</p>
+
+<p>After reading this guide, you will know:</p>
+
+<ul>
+<li>What Action Cable is and its integration backend and frontend</li>
+<li>How to set up Action Cable</li>
+<li>How to set up channels</li>
+<li>Deployment and Architecture setup for running Action Cable</li>
+</ul>
+
+<hr>
+
+<h2>What is Action Cable?</h2>
+
+<p>Action Cable seamlessly integrates
+<a href="https://en.wikipedia.org/wiki/WebSocket">WebSockets</a> with the rest of your
+<a href="Rails.html" title="Rails (module)"><code>Rails</code></a> application. It allows for real-time features to be written in Ruby in the
+same style and form as the rest of your <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> application, while still being
+performant and scalable. It&#39;s a full-stack offering that provides both a
+client-side JavaScript framework and a server-side Ruby framework. You have
+access to your entire domain model written with Active Record or your ORM of
+choice.</p>
+
+<h2>Terminology</h2>
+
+<p>Action Cable uses WebSockets instead of the HTTP request-response protocol.
+Both Action Cable and WebSockets introduce some less familiar terminology:</p>
+
+<h3>Connections</h3>
+
+<p><em>Connections</em> form the foundation of the client-server relationship.
+A single Action Cable server can handle multiple connection instances. It has one
+connection instance per WebSocket connection. A single user may have multiple
+WebSockets open to your application if they use multiple browser tabs or devices.</p>
+
+<h3>Consumers</h3>
+
+<p>The client of a WebSocket connection is called the <em>consumer</em>. In Action Cable,
+the consumer is created by the client-side JavaScript framework.</p>
+
+<h3>Channels</h3>
+
+<p>Each consumer can, in turn, subscribe to multiple <em>channels</em>. Each channel
+encapsulates a logical unit of work, similar to what a controller does in
+a typical MVC setup. For example, you could have a <code>ChatChannel</code> and
+an <code>AppearancesChannel</code>, and a consumer could be subscribed to either
+or both of these channels. At the very least, a consumer should be subscribed
+to one channel.</p>
+
+<h3>Subscribers</h3>
+
+<p>When the consumer is subscribed to a channel, they act as a <em>subscriber</em>.
+The connection between the subscriber and the channel is, surprise-surprise,
+called a subscription. A consumer can act as a subscriber to a given channel
+any number of times. For example, a consumer could subscribe to multiple chat rooms
+at the same time. (And remember that a physical user may have multiple consumers,
+one per tab/device open to your connection).</p>
+
+<h3>Pub/Sub</h3>
+
+<p><a href="https://en.wikipedia.org/wiki/Publish%E2%80%93subscribe_pattern">Pub/Sub</a> or
+Publish-Subscribe refers to a message queue paradigm whereby senders of
+information (publishers), send data to an abstract class of recipients
+(subscribers), without specifying individual recipients. Action Cable uses this
+approach to communicate between the server and many clients.</p>
+
+<h3>Broadcastings</h3>
+
+<p>A broadcasting is a pub/sub link where anything transmitted by the broadcaster is
+sent directly to the channel subscribers who are streaming that named broadcasting.
+Each channel can be streaming zero or more broadcastings.</p>
+
+<h2>Server-Side Components</h2>
+
+<h3>Connections</h3>
+
+<p>For every WebSocket accepted by the server, a connection object is instantiated. This
+object becomes the parent of all the <em>channel subscriptions</em> that are created
+from thereon. The connection itself does not deal with any specific application
+logic beyond authentication and authorization. The client of a WebSocket
+connection is called the connection <em>consumer</em>. An individual user will create
+one consumer-connection pair per browser tab, window, or device they have open.</p>
+
+<p>Connections are instances of <code>ApplicationCable::Connection</code>, which extends
+<a href="https://api.rubyonrails.org/classes/ActionCable/Connection/Base.html"><a href="ActionCable/Connection/Base.html" title="ActionCable::Connection::Base (class)"><code>::ActionCable::Connection::Base</code></a></a>. In <code>ApplicationCable::Connection</code>, you
+authorize the incoming connection and proceed to establish it if the user can
+be identified.</p>
+
+<h4>Connection Setup</h4>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># app/channels/application_cable/connection.rb
+</span><span class='kw'>module</span> <span class='const'>ApplicationCable</span>
+  <span class='kw'>class</span> <span class='const'>Connection</span> <span class='op'>&lt;</span> <span class='const'><a href="ActionCable.html" title="ActionCable (module)">ActionCable</a></span><span class='op'>::</span><span class='const'><a href="ActionCable/Connection.html" title="ActionCable::Connection (module)">Connection</a></span><span class='op'>::</span><span class='const'><a href="ActionCable/Connection/Base.html" title="ActionCable::Connection::Base (class)">Base</a></span>
+    <span class='id identifier rubyid_identified_by'>identified_by</span> <span class='symbeg'>:</span><span class='id identifier rubyid_current_user'>current_user</span>
+
+    <span class='kw'>def</span> <span class='id identifier rubyid_connect'>connect</span>
+      <span class='kw'>self</span>.<span class='id identifier rubyid_current_user'>current_user</span> <span class='op'>=</span> <span class='id identifier rubyid_find_verified_user'>find_verified_user</span>
+    <span class='kw'>end</span>
+
+    <span class='id identifier rubyid_private'>private</span>
+      <span class='kw'>def</span> <span class='id identifier rubyid_find_verified_user'>find_verified_user</span>
+        <span class='kw'>if</span> <span class='id identifier rubyid_verified_user'>verified_user</span> <span class='op'>=</span> <span class='const'>User</span>.<span class='id identifier rubyid_find_by'>find_by</span>(<span class='label'>id:</span> <span class='id identifier rubyid_cookies'>cookies</span>.<span class='id identifier rubyid_encrypted'>encrypted</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_user_id'>user_id</span>])
+          <span class='id identifier rubyid_verified_user'>verified_user</span>
+        <span class='kw'>else</span>
+          <span class='id identifier rubyid_reject_unauthorized_connection'>reject_unauthorized_connection</span>
+        <span class='kw'>end</span>
+      <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Here <a href="https://api.rubyonrails.org/classes/ActionCable/Connection/Identification/ClassMethods.html#method-i-identified_by"><code>identified_by</code></a> designates a connection identifier that can be used to find the
+specific connection later. Note that anything marked as an identifier will automatically
+create a delegate by the same name on any channel instances created off the connection.</p>
+
+<p>This example relies on the fact that you will already have handled authentication of the user
+somewhere else in your application, and that a successful authentication sets an encrypted
+cookie with the user ID.</p>
+
+<p>The cookie is then automatically sent to the connection instance when a new connection
+is attempted, and you use that to set the <code>current_user</code>. By identifying the connection
+by this same current user, you&#39;re also ensuring that you can later retrieve all open
+connections by a given user (and potentially disconnect them all if the user is deleted
+or unauthorized).</p>
+
+<p>If your authentication approach includes using a session, you use cookie store for the
+session, your session cookie is named <code>_session</code> and the user ID key is <code>user_id</code> you
+can use this approach:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_verified_user'>verified_user</span> <span class='op'>=</span> <span class='const'>User</span>.<span class='id identifier rubyid_find_by'>find_by</span>(<span class='label'>id:</span> <span class='id identifier rubyid_cookies'>cookies</span>.<span class='id identifier rubyid_encrypted'>encrypted</span>[<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>_session</span><span class='tstring_end'>&#39;</span></span>][<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>user_id</span><span class='tstring_end'>&#39;</span></span>])</code></pre>
+
+<h4>Exception Handling</h4>
+
+<p>By default, unhandled exceptions are caught and logged to Rails&#39; logger. If you would like to
+globally intercept these exceptions and report them to an external bug tracking service, for
+example, you can do so with <a href="https://api.rubyonrails.org/classes/ActiveSupport/Rescuable/ClassMethods.html#method-i-rescue_from"><code>rescue_from</code></a>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># app/channels/application_cable/connection.rb
+</span><span class='kw'>module</span> <span class='const'>ApplicationCable</span>
+  <span class='kw'>class</span> <span class='const'>Connection</span> <span class='op'>&lt;</span> <span class='const'><a href="ActionCable.html" title="ActionCable (module)">ActionCable</a></span><span class='op'>::</span><span class='const'><a href="ActionCable/Connection.html" title="ActionCable::Connection (module)">Connection</a></span><span class='op'>::</span><span class='const'><a href="ActionCable/Connection/Base.html" title="ActionCable::Connection::Base (class)">Base</a></span>
+    <span class='id identifier rubyid_rescue_from'>rescue_from</span> <span class='const'>StandardError</span><span class='comma'>,</span> <span class='label'>with:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_report_error'>report_error</span>
+
+    <span class='id identifier rubyid_private'>private</span>
+      <span class='kw'>def</span> <span class='id identifier rubyid_report_error'>report_error</span>(<span class='id identifier rubyid_e'>e</span>)
+        <span class='const'>SomeExternalBugtrackingService</span>.<span class='id identifier rubyid_notify'>notify</span>(<span class='id identifier rubyid_e'>e</span>)
+      <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<h4>Connection Callbacks</h4>
+
+<p><a href="https://api.rubyonrails.org/classes/ActionCable/Connection/Callbacks.html"><a href="ActionCable/Connection/Callbacks.html" title="ActionCable::Connection::Callbacks (module)"><code>::ActionCable::Connection::Callbacks</code></a></a> provides callback hooks that are
+invoked when sending commands to the client, such as when subscribing,
+unsubscribing, or performing an action:</p>
+
+<ul>
+<li><a href="https://api.rubyonrails.org/classes/ActionCable/Connection/Callbacks/ClassMethods.html#method-i-before_command"><code>before_command</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActionCable/Connection/Callbacks/ClassMethods.html#method-i-after_command"><code>after_command</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActionCable/Connection/Callbacks/ClassMethods.html#method-i-around_command"><code>around_command</code></a></li>
+</ul>
+
+<h3>Channels</h3>
+
+<p>A <em>channel</em> encapsulates a logical unit of work, similar to what a controller does in a
+typical MVC setup. By default, Rails creates a parent <code>ApplicationCable::Channel</code> class
+(which extends <a href="https://api.rubyonrails.org/classes/ActionCable/Channel/Base.html"><a href="ActionCable/Channel/Base.html" title="ActionCable::Channel::Base (class)"><code>::ActionCable::Channel::Base</code></a></a>) for encapsulating shared logic between your channels.</p>
+
+<h4>Parent Channel Setup</h4>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># app/channels/application_cable/channel.rb
+</span><span class='kw'>module</span> <span class='const'>ApplicationCable</span>
+  <span class='kw'>class</span> <span class='const'>Channel</span> <span class='op'>&lt;</span> <span class='const'><a href="ActionCable.html" title="ActionCable (module)">ActionCable</a></span><span class='op'>::</span><span class='const'><a href="ActionCable/Channel.html" title="ActionCable::Channel (module)">Channel</a></span><span class='op'>::</span><span class='const'><a href="ActionCable/Channel/Base.html" title="ActionCable::Channel::Base (class)">Base</a></span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Then you would create your own channel classes. For example, you could have a
+<code>ChatChannel</code> and an <code>AppearanceChannel</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># app/channels/chat_channel.rb
+</span><span class='kw'>class</span> <span class='const'>ChatChannel</span> <span class='op'>&lt;</span> <span class='const'>ApplicationCable</span><span class='op'>::</span><span class='const'>Channel</span>
+<span class='kw'>end</span></code></pre>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># app/channels/appearance_channel.rb
+</span><span class='kw'>class</span> <span class='const'>AppearanceChannel</span> <span class='op'>&lt;</span> <span class='const'>ApplicationCable</span><span class='op'>::</span><span class='const'>Channel</span>
+<span class='kw'>end</span></code></pre>
+
+<p>A consumer could then be subscribed to either or both of these channels.</p>
+
+<h4>Subscriptions</h4>
+
+<p>Consumers subscribe to channels, acting as <em>subscribers</em>. Their connection is
+called a <em>subscription</em>. Produced messages are then routed to these channel
+subscriptions based on an identifier sent by the channel consumer.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># app/channels/chat_channel.rb
+</span><span class='kw'>class</span> <span class='const'>ChatChannel</span> <span class='op'>&lt;</span> <span class='const'>ApplicationCable</span><span class='op'>::</span><span class='const'>Channel</span>
+  <span class='comment'># Called when the consumer has successfully
+</span>  <span class='comment'># become a subscriber to this channel.
+</span>  <span class='kw'>def</span> <span class='id identifier rubyid_subscribed'>subscribed</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<h4>Exception Handling</h4>
+
+<p>As with <code>ApplicationCable::Connection</code>, you can also use <a href="https://api.rubyonrails.org/classes/ActiveSupport/Rescuable/ClassMethods.html#method-i-rescue_from"><code>rescue_from</code></a> on a
+specific channel to handle raised exceptions:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># app/channels/chat_channel.rb
+</span><span class='kw'>class</span> <span class='const'>ChatChannel</span> <span class='op'>&lt;</span> <span class='const'>ApplicationCable</span><span class='op'>::</span><span class='const'>Channel</span>
+  <span class='id identifier rubyid_rescue_from'>rescue_from</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>MyError</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='label'>with:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_deliver_error_message'>deliver_error_message</span>
+
+  <span class='id identifier rubyid_private'>private</span>
+    <span class='kw'>def</span> <span class='id identifier rubyid_deliver_error_message'>deliver_error_message</span>(<span class='id identifier rubyid_e'>e</span>)
+      <span class='comment'># broadcast_to(...)
+</span>    <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<h4>Channel Callbacks</h4>
+
+<p><a href="https://api.rubyonrails.org/classes/ActionCable/Channel/Callbacks.html"><a href="ActionCable/Channel/Callbacks.html" title="ActionCable::Channel::Callbacks (module)"><code>::ActionCable::Channel::Callbacks</code></a></a> provides callback hooks that are invoked
+during the life cycle of a channel:</p>
+
+<ul>
+<li><a href="https://api.rubyonrails.org/classes/ActionCable/Channel/Callbacks/ClassMethods.html#method-i-before_subscribe"><code>before_subscribe</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActionCable/Channel/Callbacks/ClassMethods.html#method-i-after_subscribe"><code>after_subscribe</code></a> (aliased as <a href="https://api.rubyonrails.org/classes/ActionCable/Channel/Callbacks/ClassMethods.html#method-i-on_subscribe"><code>on_subscribe</code></a>)</li>
+<li><a href="https://api.rubyonrails.org/classes/ActionCable/Channel/Callbacks/ClassMethods.html#method-i-before_unsubscribe"><code>before_unsubscribe</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActionCable/Channel/Callbacks/ClassMethods.html#method-i-after_unsubscribe"><code>after_unsubscribe</code></a> (aliased as <a href="https://api.rubyonrails.org/classes/ActionCable/Channel/Callbacks/ClassMethods.html#method-i-on_unsubscribe"><code>on_unsubscribe</code></a>)</li>
+</ul>
+
+<h2>Client-Side Components</h2>
+
+<h3>Connections</h3>
+
+<p>Consumers require an instance of the connection on their side. This can be
+established using the following JavaScript, which is generated by default by Rails:</p>
+
+<h4>Connect Consumer</h4>
+
+<pre class="code js"><code class="js">// app/javascript/channels/consumer.js
+// Action Cable provides the framework to deal with WebSockets in Rails.
+// You can generate new channels where WebSocket features live using the `bin/rails generate channel` command.
+
+import { createConsumer } from &quot;@rails/actioncable&quot;
+
+export default createConsumer()
+</code></pre>
+
+<p>This will ready a consumer that&#39;ll connect against <code>/cable</code> on your server by default.
+The connection won&#39;t be established until you&#39;ve also specified at least one subscription
+you&#39;re interested in having.</p>
+
+<p>The consumer can optionally take an argument that specifies the URL to connect to. This
+can be a string or a function that returns a string that will be called when the
+WebSocket is opened.</p>
+
+<pre class="code js"><code class="js">// Specify a different URL to connect to
+createConsumer(&#39;wss://example.com/cable&#39;)
+// Or when using websockets over HTTP
+createConsumer(&#39;https://ws.example.com/cable&#39;)
+
+// Use a function to dynamically generate the URL
+createConsumer(getWebSocketURL)
+
+function getWebSocketURL() {
+  const token = localStorage.get(&#39;auth-token&#39;)
+  return `wss://example.com/cable?token=${token}`
+}
+</code></pre>
+
+<h4>Subscriber</h4>
+
+<p>A consumer becomes a subscriber by creating a subscription to a given channel:</p>
+
+<pre class="code js"><code class="js">// app/javascript/channels/chat_channel.js
+import consumer from &quot;./consumer&quot;
+
+consumer.subscriptions.create({ channel: &quot;ChatChannel&quot;, room: &quot;Best Room&quot; })
+
+// app/javascript/channels/appearance_channel.js
+import consumer from &quot;./consumer&quot;
+
+consumer.subscriptions.create({ channel: &quot;AppearanceChannel&quot; })
+</code></pre>
+
+<p>While this creates the subscription, the functionality needed to respond to
+received data will be described later on.</p>
+
+<p>A consumer can act as a subscriber to a given channel any number of times. For
+example, a consumer could subscribe to multiple chat rooms at the same time:</p>
+
+<pre class="code js"><code class="js">// app/javascript/channels/chat_channel.js
+import consumer from &quot;./consumer&quot;
+
+consumer.subscriptions.create({ channel: &quot;ChatChannel&quot;, room: &quot;1st Room&quot; })
+consumer.subscriptions.create({ channel: &quot;ChatChannel&quot;, room: &quot;2nd Room&quot; })
+</code></pre>
+
+<h2>Client-Server Interactions</h2>
+
+<h3>Streams</h3>
+
+<p><em>Streams</em> provide the mechanism by which channels route published content
+(broadcasts) to their subscribers. For example, the following code uses
+<a href="https://api.rubyonrails.org/classes/ActionCable/Channel/Streams.html#method-i-stream_from"><code>stream_from</code></a> to subscribe to the broadcasting named <code>chat_Best Room</code> when
+the value of the <code>:room</code> parameter is <code>&quot;Best Room&quot;</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># app/channels/chat_channel.rb
+</span><span class='kw'>class</span> <span class='const'>ChatChannel</span> <span class='op'>&lt;</span> <span class='const'>ApplicationCable</span><span class='op'>::</span><span class='const'>Channel</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_subscribed'>subscribed</span>
+    <span class='id identifier rubyid_stream_from'>stream_from</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>chat_</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_room'>room</span>]<span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Then, elsewhere in your Rails application, you can broadcast to such a room by
+calling <a href="https://api.rubyonrails.org/classes/ActionCable/Server/Broadcasting.html#method-i-broadcast"><code>broadcast</code></a>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="ActionCable.html" title="ActionCable (module)">ActionCable</a></span>.<span class='id identifier rubyid_server'>server</span>.<span class='id identifier rubyid_broadcast'>broadcast</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>chat_Best Room</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> { <span class='label'>body:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>This Room is Best Room.</span><span class='tstring_end'>&quot;</span></span> })</code></pre>
+
+<p>If you have a stream that is related to a model, then the broadcasting name
+can be generated from the channel and model. For example, the following code
+uses <a href="https://api.rubyonrails.org/classes/ActionCable/Channel/Streams.html#method-i-stream_for"><code>stream_for</code></a> to subscribe to a broadcasting like
+<code>posts:Z2lkOi8vVGVzdEFwcC9Qb3N0LzE</code>, where <code>Z2lkOi8vVGVzdEFwcC9Qb3N0LzE</code> is
+the GlobalID of the Post model.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>PostsChannel</span> <span class='op'>&lt;</span> <span class='const'>ApplicationCable</span><span class='op'>::</span><span class='const'>Channel</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_subscribed'>subscribed</span>
+    <span class='id identifier rubyid_post'>post</span> <span class='op'>=</span> <span class='const'>Post</span>.<span class='id identifier rubyid_find'>find</span>(<span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span>])
+    <span class='id identifier rubyid_stream_for'>stream_for</span> <span class='id identifier rubyid_post'>post</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>You can then broadcast to this channel by calling <a href="https://api.rubyonrails.org/classes/ActionCable/Channel/Broadcasting/ClassMethods.html#method-i-broadcast_to"><code>broadcast_to</code></a>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>PostsChannel</span>.<span class='id identifier rubyid_broadcast_to'>broadcast_to</span>(<span class='ivar'>@post</span><span class='comma'>,</span> <span class='ivar'>@comment</span>)</code></pre>
+
+<h3>Broadcastings</h3>
+
+<p>A <em>broadcasting</em> is a pub/sub link where anything transmitted by a publisher
+is routed directly to the channel subscribers who are streaming that named
+broadcasting. Each channel can be streaming zero or more broadcastings.</p>
+
+<p>Broadcastings are purely an online queue and time-dependent. If a consumer is
+not streaming (subscribed to a given channel), they&#39;ll not get the broadcast
+should they connect later.</p>
+
+<h3>Subscriptions</h3>
+
+<p>When a consumer is subscribed to a channel, they act as a subscriber. This
+connection is called a subscription. Incoming messages are then routed to
+these channel subscriptions based on an identifier sent by the cable consumer.</p>
+
+<pre class="code js"><code class="js">// app/javascript/channels/chat_channel.js
+import consumer from &quot;./consumer&quot;
+
+consumer.subscriptions.create({ channel: &quot;ChatChannel&quot;, room: &quot;Best Room&quot; }, {
+  received(data) {
+    this.appendLine(data)
+  },
+
+  appendLine(data) {
+    const html = this.createLine(data)
+    const element = document.querySelector(&quot;[data-chat-room=&#39;Best Room&#39;]&quot;)
+    element.insertAdjacentHTML(&quot;beforeend&quot;, html)
+  },
+
+  createLine(data) {
+    return `
+      &lt;article class=&quot;chat-line&quot;&gt;
+        &lt;span class=&quot;speaker&quot;&gt;${data[&quot;sent_by&quot;]}&lt;/span&gt;
+        &lt;span class=&quot;body&quot;&gt;${data[&quot;body&quot;]}&lt;/span&gt;
+      &lt;/article&gt;
+    `
+  }
+})
+</code></pre>
+
+<h3>Passing Parameters to Channels</h3>
+
+<p>You can pass parameters from the client-side to the server-side when creating a
+subscription. For example:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># app/channels/chat_channel.rb
+</span><span class='kw'>class</span> <span class='const'>ChatChannel</span> <span class='op'>&lt;</span> <span class='const'>ApplicationCable</span><span class='op'>::</span><span class='const'>Channel</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_subscribed'>subscribed</span>
+    <span class='id identifier rubyid_stream_from'>stream_from</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>chat_</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_room'>room</span>]<span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>An object passed as the first argument to <code>subscriptions.create</code> becomes the
+params hash in the cable channel. The keyword <code>channel</code> is required:</p>
+
+<pre class="code js"><code class="js">// app/javascript/channels/chat_channel.js
+import consumer from &quot;./consumer&quot;
+
+consumer.subscriptions.create({ channel: &quot;ChatChannel&quot;, room: &quot;Best Room&quot; }, {
+  received(data) {
+    this.appendLine(data)
+  },
+
+  appendLine(data) {
+    const html = this.createLine(data)
+    const element = document.querySelector(&quot;[data-chat-room=&#39;Best Room&#39;]&quot;)
+    element.insertAdjacentHTML(&quot;beforeend&quot;, html)
+  },
+
+  createLine(data) {
+    return `
+      &lt;article class=&quot;chat-line&quot;&gt;
+        &lt;span class=&quot;speaker&quot;&gt;${data[&quot;sent_by&quot;]}&lt;/span&gt;
+        &lt;span class=&quot;body&quot;&gt;${data[&quot;body&quot;]}&lt;/span&gt;
+      &lt;/article&gt;
+    `
+  }
+})
+</code></pre>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># Somewhere in your app this is called, perhaps
+</span><span class='comment'># from a NewCommentJob.
+</span><span class='const'><a href="ActionCable.html" title="ActionCable (module)">ActionCable</a></span>.<span class='id identifier rubyid_server'>server</span>.<span class='id identifier rubyid_broadcast'>broadcast</span>(
+  <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>chat_</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_room'>room</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  {
+    <span class='label'>sent_by:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Paul</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span>
+    <span class='label'>body:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>This is a cool chat app.</span><span class='tstring_end'>&#39;</span></span>
+  }
+)</code></pre>
+
+<h3>Rebroadcasting a Message</h3>
+
+<p>A common use case is to <em>rebroadcast</em> a message sent by one client to any
+other connected clients.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># app/channels/chat_channel.rb
+</span><span class='kw'>class</span> <span class='const'>ChatChannel</span> <span class='op'>&lt;</span> <span class='const'>ApplicationCable</span><span class='op'>::</span><span class='const'>Channel</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_subscribed'>subscribed</span>
+    <span class='id identifier rubyid_stream_from'>stream_from</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>chat_</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_room'>room</span>]<span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_receive'>receive</span>(<span class='id identifier rubyid_data'>data</span>)
+    <span class='const'><a href="ActionCable.html" title="ActionCable (module)">ActionCable</a></span>.<span class='id identifier rubyid_server'>server</span>.<span class='id identifier rubyid_broadcast'>broadcast</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>chat_</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_room'>room</span>]<span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_data'>data</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<pre class="code js"><code class="js">// app/javascript/channels/chat_channel.js
+import consumer from &quot;./consumer&quot;
+
+const chatChannel = consumer.subscriptions.create({ channel: &quot;ChatChannel&quot;, room: &quot;Best Room&quot; }, {
+  received(data) {
+    // data =&gt; { sent_by: &quot;Paul&quot;, body: &quot;This is a cool chat app.&quot; }
+  }
+})
+
+chatChannel.send({ sent_by: &quot;Paul&quot;, body: &quot;This is a cool chat app.&quot; })
+</code></pre>
+
+<p>The rebroadcast will be received by all connected clients, <em>including</em> the
+client that sent the message. Note that params are the same as they were when
+you subscribed to the channel.</p>
+
+<h2>Full-Stack Examples</h2>
+
+<p>The following setup steps are common to both examples:</p>
+
+<ol>
+<li><a href="#connection-setup">Set up your connection</a>.</li>
+<li><a href="#parent-channel-setup">Set up your parent channel</a>.</li>
+<li><a href="#connect-consumer">Connect your consumer</a>.</li>
+</ol>
+
+<h3>Example 1: User Appearances</h3>
+
+<p>Here&#39;s a simple example of a channel that tracks whether a user is online or not
+and what page they&#39;re on. (This is useful for creating presence features like showing
+a green dot next to a username if they&#39;re online).</p>
+
+<p>Create the server-side appearance channel:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># app/channels/appearance_channel.rb
+</span><span class='kw'>class</span> <span class='const'>AppearanceChannel</span> <span class='op'>&lt;</span> <span class='const'>ApplicationCable</span><span class='op'>::</span><span class='const'>Channel</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_subscribed'>subscribed</span>
+    <span class='id identifier rubyid_current_user'>current_user</span>.<span class='id identifier rubyid_appear'>appear</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_unsubscribed'>unsubscribed</span>
+    <span class='id identifier rubyid_current_user'>current_user</span>.<span class='id identifier rubyid_disappear'>disappear</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_appear'>appear</span>(<span class='id identifier rubyid_data'>data</span>)
+    <span class='id identifier rubyid_current_user'>current_user</span>.<span class='id identifier rubyid_appear'>appear</span>(<span class='label'>on:</span> <span class='id identifier rubyid_data'>data</span>[<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>appearing_on</span><span class='tstring_end'>&#39;</span></span>])
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_away'>away</span>
+    <span class='id identifier rubyid_current_user'>current_user</span>.<span class='id identifier rubyid_away'>away</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>When a subscription is initiated the <code>subscribed</code> callback gets fired, and we
+take that opportunity to say &quot;the current user has indeed appeared&quot;. That
+appear/disappear API could be backed by Redis, a database, or whatever else.</p>
+
+<p>Create the client-side appearance channel subscription:</p>
+
+<pre class="code js"><code class="js">// app/javascript/channels/appearance_channel.js
+import consumer from &quot;./consumer&quot;
+
+consumer.subscriptions.create(&quot;AppearanceChannel&quot;, {
+  // Called once when the subscription is created.
+  initialized() {
+    this.update = this.update.bind(this)
+  },
+
+  // Called when the subscription is ready for use on the server.
+  connected() {
+    this.install()
+    this.update()
+  },
+
+  // Called when the WebSocket connection is closed.
+  disconnected() {
+    this.uninstall()
+  },
+
+  // Called when the subscription is rejected by the server.
+  rejected() {
+    this.uninstall()
+  },
+
+  update() {
+    this.documentIsActive ? this.appear() : this.away()
+  },
+
+  appear() {
+    // Calls {AppearanceChannel#appear(data)} on the server.
+    this.perform(&quot;appear&quot;, { appearing_on: this.appearingOn })
+  },
+
+  away() {
+    // Calls {AppearanceChannel#away} on the server.
+    this.perform(&quot;away&quot;)
+  },
+
+  install() {
+    window.addEventListener(&quot;focus&quot;, this.update)
+    window.addEventListener(&quot;blur&quot;, this.update)
+    document.addEventListener(&quot;turbo:load&quot;, this.update)
+    document.addEventListener(&quot;visibilitychange&quot;, this.update)
+  },
+
+  uninstall() {
+    window.removeEventListener(&quot;focus&quot;, this.update)
+    window.removeEventListener(&quot;blur&quot;, this.update)
+    document.removeEventListener(&quot;turbo:load&quot;, this.update)
+    document.removeEventListener(&quot;visibilitychange&quot;, this.update)
+  },
+
+  get documentIsActive() {
+    return document.visibilityState === &quot;visible&quot; &amp;&amp; document.hasFocus()
+  },
+
+  get appearingOn() {
+    const element = document.querySelector(&quot;[data-appearing-on]&quot;)
+    return element ? element.getAttribute(&quot;data-appearing-on&quot;) : null
+  }
+})
+</code></pre>
+
+<h4>Client-Server Interaction</h4>
+
+<ol>
+<li><p><strong>Client</strong> connects to the <strong>Server</strong> via <code>createConsumer()</code>. (<code>consumer.js</code>). The
+<strong>Server</strong> identifies this connection by <code>current_user</code>.</p></li>
+<li><p><strong>Client</strong> subscribes to the appearance channel via
+<code>consumer.subscriptions.create({ channel: &quot;AppearanceChannel&quot; })</code>. (<code>appearance_channel.js</code>)</p></li>
+<li><p><strong>Server</strong> recognizes a new subscription has been initiated for the
+appearance channel and runs its <code>subscribed</code> callback, calling the <code>appear</code>
+method on <code>current_user</code>. (<code>appearance_channel.rb</code>)</p></li>
+<li><p><strong>Client</strong> recognizes that a subscription has been established and calls
+<code>connected</code> (<code>appearance_channel.js</code>), which in turn calls <code>install</code> and <code>appear</code>.
+<code>appear</code> calls <code>AppearanceChannel#appear(data)</code> on the server, and supplies a
+data hash of <code>{ appearing_on: this.appearingOn }</code>. This is
+possible because the server-side channel instance automatically exposes all
+public methods declared on the class (minus the callbacks), so that these can be
+reached as remote procedure calls via a subscription&#39;s <code>perform</code> method.</p></li>
+<li><p><strong>Server</strong> receives the request for the <code>appear</code> action on the appearance
+channel for the connection identified by <code>current_user</code>
+(<code>appearance_channel.rb</code>). <strong>Server</strong> retrieves the data with the
+<code>:appearing_on</code> key from the data hash and sets it as the value for the <code>:on</code>
+key being passed to <code>current_user.appear</code>.</p></li>
+</ol>
+
+<h3>Example 2: Receiving New Web Notifications</h3>
+
+<p>The appearance example was all about exposing server functionality to
+client-side invocation over the WebSocket connection. But the great thing
+about WebSockets is that it&#39;s a two-way street. So, now, let&#39;s show an example
+where the server invokes an action on the client.</p>
+
+<p>This is a web notification channel that allows you to trigger client-side
+web notifications when you broadcast to the relevant streams:</p>
+
+<p>Create the server-side web notifications channel:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># app/channels/web_notifications_channel.rb
+</span><span class='kw'>class</span> <span class='const'>WebNotificationsChannel</span> <span class='op'>&lt;</span> <span class='const'>ApplicationCable</span><span class='op'>::</span><span class='const'>Channel</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_subscribed'>subscribed</span>
+    <span class='id identifier rubyid_stream_for'>stream_for</span> <span class='id identifier rubyid_current_user'>current_user</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Create the client-side web notifications channel subscription:</p>
+
+<pre class="code js"><code class="js">// app/javascript/channels/web_notifications_channel.js
+// Client-side which assumes you&#39;ve already requested
+// the right to send web notifications.
+import consumer from &quot;./consumer&quot;
+
+consumer.subscriptions.create(&quot;WebNotificationsChannel&quot;, {
+  received(data) {
+    new Notification(data[&quot;title&quot;], { body: data[&quot;body&quot;] })
+  }
+})
+</code></pre>
+
+<p>Broadcast content to a web notification channel instance from elsewhere in your
+application:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># Somewhere in your app this is called, perhaps from a NewCommentJob
+</span><span class='const'>WebNotificationsChannel</span>.<span class='id identifier rubyid_broadcast_to'>broadcast_to</span>(
+  <span class='id identifier rubyid_current_user'>current_user</span><span class='comma'>,</span>
+  <span class='label'>title:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>New things!</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span>
+  <span class='label'>body:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>All the news fit to print</span><span class='tstring_end'>&#39;</span></span>
+)</code></pre>
+
+<p>The <code>WebNotificationsChannel.broadcast_to</code> call places a message in the current
+subscription adapter&#39;s pubsub queue under a separate broadcasting name for each
+user. For a user with an ID of 1, the broadcasting name would be
+<code>web_notifications:1</code>.</p>
+
+<p>The channel has been instructed to stream everything that arrives at
+<code>web_notifications:1</code> directly to the client by invoking the <code>received</code>
+callback. The data passed as an argument is the hash sent as the second parameter
+to the server-side broadcast call, JSON encoded for the trip across the wire
+and unpacked for the data argument arriving as <code>received</code>.</p>
+
+<h3>More Complete Examples</h3>
+
+<p>See the <a href="https://github.com/rails/actioncable-examples">rails/actioncable-examples</a>
+repository for a full example of how to set up Action Cable in a Rails app and adding channels.</p>
+
+<h2>Configuration</h2>
+
+<p>Action Cable has two required configurations: a subscription adapter and allowed request origins.</p>
+
+<h3>Subscription Adapter</h3>
+
+<p>By default, Action Cable looks for a configuration file in <code>config/cable.yml</code>.
+The file must specify an adapter for each Rails environment. See the
+<a href="#dependencies">Dependencies</a> section for additional information on adapters.</p>
+
+<pre class="code yaml"><code class="yaml">development:
+  adapter: async
+
+test:
+  adapter: test
+
+production:
+  adapter: redis
+  url: redis://10.10.3.153:6381
+  channel_prefix: appname_production
+</code></pre>
+
+<h4>Adapter Configuration</h4>
+
+<p>Below is a list of the subscription adapters available for end-users.</p>
+
+<h5>Async Adapter</h5>
+
+<p>The async adapter is intended for development/testing and should not be used in production.</p>
+
+<h5>Redis Adapter</h5>
+
+<p>The Redis adapter requires users to provide a URL pointing to the Redis server.
+Additionally, a <code>channel_prefix</code> may be provided to avoid channel name collisions
+when using the same Redis server for multiple applications. See the <a href="https://redis.io/docs/manual/pubsub/#database--scoping">Redis Pub/Sub documentation</a> for more details.</p>
+
+<p>The Redis adapter also supports SSL/TLS connections. The required SSL/TLS parameters can be passed in <code>ssl_params</code> key in the configuration YAML file.</p>
+
+<pre class="code yaml"><code class="yaml">production:
+  adapter: redis
+  url: rediss://10.10.3.153:tls_port
+  channel_prefix: appname_production
+  ssl_params: {
+    ca_file: &quot;/path/to/ca.crt&quot;
+  }
+</code></pre>
+
+<p>The options given to <code>ssl_params</code> are passed directly to the <code>OpenSSL::SSL::SSLContext#set_params</code> method and can be any valid attribute of the SSL context.
+Please refer to the <a href="https://docs.ruby-lang.org/en/master/OpenSSL/SSL/SSLContext.html">OpenSSL::SSL::SSLContext documentation</a> for other available attributes.</p>
+
+<p>If you are using self-signed certificates for redis adapter behind a firewall and opt to skip certificate check, then the ssl <code>verify_mode</code> should be set as <code>OpenSSL::SSL::VERIFY_NONE</code>.</p>
+
+<p>WARNING: It is not recommended to use <code>VERIFY_NONE</code> in production unless you absolutely understand the security implications. In order to set this option for the Redis adapter, the config should be <code>ssl_params: { verify_mode: &lt;%= OpenSSL::SSL::VERIFY_NONE %&gt; }</code>.</p>
+
+<h5>PostgreSQL Adapter</h5>
+
+<p>The PostgreSQL adapter uses Active Record&#39;s connection pool, and thus the
+application&#39;s <code>config/database.yml</code> database configuration, for its connection.
+This may change in the future. <a href="https://github.com/rails/rails/issues/27214">#27214</a></p>
+
+<p>NOTE: PostgreSQL has a <a href="https://www.postgresql.org/docs/current/sql-notify.html">8000 bytes limit</a> on <code>NOTIFY</code> (the command used under the hood for sending notifications) which might be a constraint when dealing with large payloads.</p>
+
+<h3>Allowed Request Origins</h3>
+
+<p>Action Cable will only accept requests from specified origins, which are
+passed to the server config as an array. The origins can be instances of
+strings or regular expressions, against which a check for the match will be performed.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_action_cable'>action_cable</span>.<span class='id identifier rubyid_allowed_request_origins'>allowed_request_origins</span> <span class='op'>=</span> [<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>https://rubyonrails.com</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='tstring'><span class='regexp_beg'>%r{</span><span class='tstring_content'>http://ruby.*</span><span class='regexp_end'>}</span></span>]</code></pre>
+
+<p>To disable and allow requests from any origin:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_action_cable'>action_cable</span>.<span class='id identifier rubyid_disable_request_forgery_protection'>disable_request_forgery_protection</span> <span class='op'>=</span> <span class='kw'>true</span></code></pre>
+
+<p>By default, Action Cable allows all requests from localhost:3000 when running
+in the development environment.</p>
+
+<h3>Consumer Configuration</h3>
+
+<p>To configure the URL, add a call to <a href="https://api.rubyonrails.org/classes/ActionCable/Helpers/ActionCableHelper.html#method-i-action_cable_meta_tag"><code>action_cable_meta_tag</code></a> in your HTML layout
+HEAD. This uses a URL or path typically set via <a href="configuring.html#config-action-cable-url"><code>config.action_cable.url</code></a> in the
+environment configuration files.</p>
+
+<h3>Worker Pool Configuration</h3>
+
+<p>The worker pool is used to run connection callbacks and channel actions in
+isolation from the server&#39;s main thread. Action Cable allows the application
+to configure the number of simultaneously processed threads in the worker pool.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_action_cable'>action_cable</span>.<span class='id identifier rubyid_worker_pool_size'>worker_pool_size</span> <span class='op'>=</span> <span class='int'>4</span></code></pre>
+
+<p>Also, note that your server must provide at least the same number of database
+connections as you have workers. The default worker pool size is set to 4, so
+that means you have to make at least 4 database connections available.
+You can change that in <code>config/database.yml</code> through the <code>pool</code> attribute.</p>
+
+<h3>Client-side Logging</h3>
+
+<p>Client-side logging is disabled by default. You can enable this by setting the <code>ActionCable.logger.enabled</code> to true.</p>
+
+<pre class="code js"><code class="js">import * as ActionCable from &#39;@rails/actioncable&#39;
+
+ActionCable.logger.enabled = true
+</code></pre>
+
+<h3>Other Configurations</h3>
+
+<p>The other common option to configure is the log tags applied to the
+per-connection logger. Here&#39;s an example that uses
+the user account id if available, else &quot;no-account&quot; while tagging:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_action_cable'>action_cable</span>.<span class='id identifier rubyid_log_tags'>log_tags</span> <span class='op'>=</span> [
+  <span class='comment'>#=&gt; request { request.env[&#39;user_account_id&#39;] || &quot;no-account&quot; },
+</span>  <span class='symbeg'>:</span><span class='id identifier rubyid_action_cable'>action_cable</span><span class='comma'>,</span>
+  <span class='comment'>#=&gt; request { request.uuid }
+</span>]</code></pre>
+
+<p>For a full list of all configuration options, see the
+<a href="ActionCable/Server/Configuration.html" title="ActionCable::Server::Configuration (class)"><code>::ActionCable::Server::Configuration</code></a> class.</p>
+
+<h2>Running Standalone Cable Servers</h2>
+
+<p>Action Cable can either run as part of your Rails application, or as
+a standalone server. In development, running as part of your Rails app
+is generally fine, but in production you should run it as a standalone.</p>
+
+<h3>In App</h3>
+
+<p>Action Cable can run alongside your Rails application. For example, to
+listen for WebSocket requests on <code>/websocket</code>, specify that path to
+<a href="configuring.html#config-action-cable-mount-path"><code>config.action_cable.mount_path</code></a>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/application.rb
+</span><span class='kw'>class</span> <span class='const'>Application</span> <span class='op'>&lt;</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span><span class='op'>::</span><span class='const'><a href="Rails/Application.html" title="Rails::Application (class)">Application</a></span>
+  <span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_action_cable'>action_cable</span>.<span class='id identifier rubyid_mount_path'>mount_path</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>/websocket</span><span class='tstring_end'>&#39;</span></span>
+<span class='kw'>end</span></code></pre>
+
+<p>You can use <code>ActionCable.createConsumer()</code> to connect to the cable
+server if <a href="https://api.rubyonrails.org/classes/ActionCable/Helpers/ActionCableHelper.html#method-i-action_cable_meta_tag"><code>action_cable_meta_tag</code></a> is invoked in the layout. Otherwise, a path is
+specified as first argument to <code>createConsumer</code> (e.g. <code>ActionCable.createConsumer("/websocket")</code>).</p>
+
+<p>For every instance of your server you create, and for every worker your server
+spawns, you will also have a new instance of Action Cable, but the Redis or
+PostgreSQL adapter keeps messages synced across connections.</p>
+
+<h3>Standalone</h3>
+
+<p>The cable servers can be separated from your normal application server. It&#39;s
+still a Rack application, but it is its own Rack application. The recommended
+basic setup is as follows:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># cable/config.ru
+</span><span class='id identifier rubyid_require_relative'>require_relative</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>../config/environment</span><span class='tstring_end'>&quot;</span></span>
+<span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_eager_load!'>eager_load!</span>
+
+<span class='id identifier rubyid_run'>run</span> <span class='const'><a href="ActionCable.html" title="ActionCable (module)">ActionCable</a></span>.<span class='id identifier rubyid_server'>server</span></code></pre>
+
+<p>Then to start the server:</p>
+
+<pre class="code bash"><code class="bash">$ bundle exec puma -p 28080 cable/config.ru
+</code></pre>
+
+<p>This starts a cable server on port 28080. To tell Rails to use this
+server, update your config:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/environments/development.rb
+</span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_configure'>configure</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_action_cable'>action_cable</span>.<span class='id identifier rubyid_mount_path'>mount_path</span> <span class='op'>=</span> <span class='kw'>nil</span>
+  <span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_action_cable'>action_cable</span>.<span class='id identifier rubyid_url'>url</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ws://localhost:28080</span><span class='tstring_end'>&quot;</span></span> <span class='comment'># use wss:// in production
+</span><span class='kw'>end</span></code></pre>
+
+<p>Finally, ensure you have <a href="#consumer-configuration">configured the consumer correctly</a>.</p>
+
+<h3>Notes</h3>
+
+<p>The WebSocket server doesn&#39;t have access to the session, but it has
+access to the cookies. This can be used when you need to handle
+authentication. You can see one way of doing that with Devise in this <a href="https://greg.molnar.io/blog/actioncable-devise-authentication/">article</a>.</p>
+
+<h2>Dependencies</h2>
+
+<p>Action Cable provides a subscription adapter interface to process its
+pubsub internals. By default, asynchronous, inline, PostgreSQL, and Redis
+adapters are included. The default adapter
+in new Rails applications is the asynchronous (<code>async</code>) adapter.</p>
+
+<p>The Ruby side of things is built on top of <a href="https://github.com/faye/websocket-driver-ruby">websocket-driver</a>,
+<a href="https://github.com/celluloid/nio4r">nio4r</a>, and <a href="https://github.com/ruby-concurrency/concurrent-ruby">concurrent-ruby</a>.</p>
+
+<h2>Deployment</h2>
+
+<p>Action Cable is powered by a combination of WebSockets and threads. Both the
+framework plumbing and user-specified channel work are handled internally by
+utilizing Ruby&#39;s native thread support. This means you can use all your existing
+Rails models with no problem, as long as you haven&#39;t committed any thread-safety sins.</p>
+
+<p>The Action Cable server implements the Rack socket hijacking API,
+thereby allowing the use of a multi-threaded pattern for managing connections
+internally, irrespective of whether the application server is multi-threaded or not.</p>
+
+<p>Accordingly, Action Cable works with popular servers like Unicorn, Puma, and
+Passenger.</p>
+
+<h2>Testing</h2>
+
+<p>You can find detailed instructions on how to test your Action Cable functionality in the
+<a href="testing.html#testing-action-cable">testing guide</a>.</p>
+
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>
