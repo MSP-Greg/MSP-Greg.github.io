@@ -118,6 +118,7 @@
 <h4>Default Values for Target Version 7.2</h4>
 
 <ul>
+<li><a href="#config-active-job-enqueue-after-transaction-commit"><code>config.active_job.enqueue_after_transaction_commit</code></a>: <code>:default</code></li>
 <li><a href="#config-active-record-automatically-invert-plural-associations"><code>config.active_record.automatically_invert_plural_associations</code></a>: <code>true</code></li>
 <li><a href="#config-active-record-validate-migration-timestamps"><code>config.active_record.validate_migration_timestamps</code></a>: <code>true</code></li>
 <li><a href="#config-active-storage-web-image-content-types"><code>config.active_storage.web_image_content_types</code></a>: <code>%w[image/png image/jpeg image/gif image/webp]</code></li>
@@ -3411,6 +3412,55 @@ as <code>handled</code> and logged instead.</p>
   <span class='id identifier rubyid_queue_as'>queue_as</span> <span class='symbeg'>:</span><span class='id identifier rubyid_low_priority'>low_priority</span>
   <span class='comment'>#....
 </span><span class='kw'>end</span></code></pre>
+
+<h4><code>config.active_job.enqueue_after_transaction_commit</code></h4>
+
+<p>Controls whether Active Job&#39;s <code>#perform_later</code> and similar methods automatically defer
+the job queuing to after the current Active Record transaction is committed.</p>
+
+<p>It can be set to <code>:never</code> to never defer the enqueue, to <code>:always</code> always defer
+the enqueue, or to <code>:default</code> to let the queue adapter define if it should be defered
+or not. Active Job backends that use the same database than Active Record as a queue,
+should generally prevent the deferring, and others should allow it.</p>
+
+<p>Example:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Topic</span>.<span class='id identifier rubyid_transaction'>transaction</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_topic'>topic</span> <span class='op'>=</span> <span class='const'>Topic</span>.<span class='id identifier rubyid_create'>create</span>(<span class='label'>title:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>New Topic</span><span class='tstring_end'>&quot;</span></span>)
+  <span class='const'>NewTopicNotificationJob</span>.<span class='id identifier rubyid_perform_later'>perform_later</span>(<span class='id identifier rubyid_topic'>topic</span>)
+<span class='kw'>end</span></code></pre>
+
+<p>In this example, if the configuration is set to <code>:never</code>, the job will
+be enqueued immediately, even thought the <code>Topic</code> hasn&#39;t been committed yet.
+Because of this, if the job is picked up almost emmediately, or if the
+transaction doesn&#39;t succeed for some reason, the job will fail to find this
+topic in the database.</p>
+
+<p>If it&#39;s set to <code>:always</code>, the job will be actually enqueued after the
+transaction has been committed. If the transaction is rolled back, the job
+won&#39;t be enqueued at all.</p>
+
+<p>This configuration can additionally be set on a per job class basis:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>SomeJob</span> <span class='op'>&lt;</span> <span class='const'>ApplicationJob</span>
+  <span class='kw'>self</span>.<span class='id identifier rubyid_enqueue_after_transaction_commit'>enqueue_after_transaction_commit</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_never'>never</span>
+<span class='kw'>end</span></code></pre>
+
+<table><thead>
+<tr>
+<th>Starting with version</th>
+<th>The default value is</th>
+</tr>
+</thead><tbody>
+<tr>
+<td>(original)</td>
+<td><code>:never</code></td>
+</tr>
+<tr>
+<td>7.2</td>
+<td><code>:default</code></td>
+</tr>
+</tbody></table>
 
 <h4><code>config.active_job.logger</code></h4>
 
