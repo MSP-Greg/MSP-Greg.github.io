@@ -182,32 +182,72 @@ and the loaded configuration will be printed as part of the boot process.</p>
 
 <p>Preloading can’t be used with phased restart, since phased restart kills and restarts workers one-by-one, and preloading copies the code of master into the workers.</p>
 
-<p>When using clustered mode, you can specify a block in your configuration file that will be run on boot of each worker:</p>
+<h4>Clustered mode hooks</h4>
 
-<pre class="code ruby"><code class="ruby"><span class='comment'># config/puma.rb
-</span><span class='id identifier rubyid_on_worker_boot'>on_worker_boot</span> <span class='kw'>do</span>
-  <span class='comment'># configuration here
-</span><span class='kw'>end</span></code></pre>
+<p>When using clustered mode, Puma&#39;s configuration DSL provides <code>before_fork</code> and <code>on_worker_boot</code>
+hooks to run code when the master process forks and child workers are booted respectively.</p>
 
-<p>This code can be used to setup the process before booting the application, allowing
-you to do some Puma-specific things that you don&#39;t want to embed in your application.
-For instance, you could fire a log notification that a worker booted or send something to statsd. This can be called multiple times.</p>
-
-<p>Constants loaded by your application (such as <code>Rails</code>) will not be available in <code>on_worker_boot</code>
-unless preloading is enabled.</p>
-
-<p>You can also specify a block to be run before workers are forked, using <code>before_fork</code>:</p>
+<p>It is recommended to use these hooks with <code>preload_app!</code>, otherwise constants loaded by your
+application (such as <code>Rails</code>) will not be available inside the hooks.</p>
 
 <pre class="code ruby"><code class="ruby"><span class='comment'># config/puma.rb
 </span><span class='id identifier rubyid_before_fork'>before_fork</span> <span class='kw'>do</span>
-  <span class='comment'># configuration here
+  <span class='comment'># Add code to run inside the Puma master process before it forks a worker child.
+</span><span class='kw'>end</span>
+
+<span class='id identifier rubyid_on_worker_boot'>on_worker_boot</span> <span class='kw'>do</span>
+  <span class='comment'># Add code to run inside the Puma worker process after forking.
 </span><span class='kw'>end</span></code></pre>
 
-<p>You can also specify a block to be run after puma is booted using <code>on_booted</code>:</p>
+<p>In addition, there is an <code>on_refork</code> hook which is used only in <a href="file.fork_worker.html"><code>fork_worker</code> mode</a>,
+when the worker 0 child process forks a grandchild worker:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_on_refork'>on_refork</span> <span class='kw'>do</span>
+  <span class='comment'># Used only when fork_worker mode is enabled. Add code to run inside the Puma worker 0
+</span>  <span class='comment'># child process before it forks a grandchild worker.
+</span><span class='kw'>end</span></code></pre>
+
+<p>Importantly, note the following considerations when Ruby forks a child process: </p>
+
+<ol>
+<li>File descriptors such as network sockets <strong>are</strong> copied from the parent to the forked
+child process. Dual-use of the same sockets by parent and child will result in I/O conflicts
+such as <code>SocketError</code>, <code>Errno::EPIPE</code>, and <code>EOFError</code>.</li>
+<li>Background Ruby threads, including threads used by various third-party gems for connection
+monitoring, etc., are <strong>not</strong> copied to the child process. Often this does not cause
+immediate problems until a third-party connection goes down, at which point there will
+be no supervisor to reconnect it.</li>
+</ol>
+
+<p>Therefore, we recommend the following:</p>
+
+<ol>
+<li>If possible, do not establish any socket connections (HTTP, database connections, etc.)
+inside Puma&#39;s master process when booting.</li>
+<li>If (1) is not possible, use <code>before_fork</code> and <code>on_refork</code> to disconnect the parent&#39;s socket
+connections when forking, so that they are not accidentally copied to the child process.</li>
+<li>Use <code>on_worker_boot</code> to restart any background threads on the forked child.</li>
+</ol>
+
+<h4>Master process lifecycle hooks</h4>
+
+<p>Puma&#39;s configuration DSL provides master process lifecycle hooks <code>on_booted</code>, <code>on_restart</code>, and <code>on_stopped</code>
+which may be used to specify code blocks to run on each event:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='comment'># config/puma.rb
 </span><span class='id identifier rubyid_on_booted'>on_booted</span> <span class='kw'>do</span>
-  <span class='comment'># configuration here
+  <span class='comment'># Add code to run in the Puma master process after it boots,
+</span>  <span class='comment'># and also after a phased restart completes.
+</span><span class='kw'>end</span>
+
+<span class='id identifier rubyid_on_restart'>on_restart</span> <span class='kw'>do</span>
+  <span class='comment'># Add code to run in the Puma master process when it receives
+</span>  <span class='comment'># a restart command but before it restarts.
+</span><span class='kw'>end</span>
+
+<span class='id identifier rubyid_on_stopped'>on_stopped</span> <span class='kw'>do</span>
+  <span class='comment'># Add code to run in the Puma master process when it receives
+</span>  <span class='comment'># a stop command but before it shuts down.
 </span><span class='kw'>end</span></code></pre>
 
 <h3>Error handling</h3>
