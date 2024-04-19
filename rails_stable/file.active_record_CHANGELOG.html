@@ -62,6 +62,31 @@
   </header>
 <div id='content' class='file'>
 <ul>
+<li><p>Strict loading using <code>:n_plus_one_only</code> does not eagerly load child associations.</p>
+
+<p>With this change, child associations are no longer eagerly loaded, to
+match intended behavior and to prevent non-deterministic order issues caused
+by calling methods like <code>first</code> or <code>last</code>. As <code>first</code> and <code>last</code> don&#39;t cause
+an N+1 by themselves, calling child associations will no longer raise.
+Fixes #49473.</p>
+
+<p>Before:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_person'>person</span> <span class='op'>=</span> <span class='const'>Person</span>.<span class='id identifier rubyid_find'>find</span>(<span class='int'>1</span>)
+<span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_strict_loading!'>strict_loading!</span>(<span class='label'>mode:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_n_plus_one_only'>n_plus_one_only</span>)
+<span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_posts'>posts</span>.<span class='id identifier rubyid_first'>first</span>
+<span class='comment'># SELECT * FROM posts WHERE person_id = 1; -- non-deterministic order
+</span><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_posts'>posts</span>.<span class='id identifier rubyid_first'>first</span>.<span class='id identifier rubyid_firm'>firm</span> <span class='comment'># raises ActiveRecord::StrictLoadingViolationError</span></code></pre>
+
+<p>After:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_person'>person</span> <span class='op'>=</span> <span class='const'>Person</span>.<span class='id identifier rubyid_find'>find</span>(<span class='int'>1</span>)
+<span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_strict_loading!'>strict_loading!</span>(<span class='label'>mode:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_n_plus_one_only'>n_plus_one_only</span>)
+<span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_posts'>posts</span>.<span class='id identifier rubyid_first'>first</span> <span class='comment'># this is 1+1, not N+1
+</span><span class='comment'># SELECT * FROM posts WHERE person_id = 1 ORDER BY id LIMIT 1;
+</span><span class='id identifier rubyid_person'>person</span>.<span class='id identifier rubyid_posts'>posts</span>.<span class='id identifier rubyid_first'>first</span>.<span class='id identifier rubyid_firm'>firm</span> <span class='comment'># no longer raises</span></code></pre>
+
+<p><em>Reid Lynch</em></p></li>
 <li><p>Using <code>Model.query_constraints</code> with a single non-primary-key column used to raise as expected, but with an
 incorrect error message. This has been fixed to raise with a more appropriate error message.</p>
 
