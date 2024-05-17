@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen'       content='yes'>
+<meta name='apple-mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Autoloading and Reloading Constants &mdash; Rails 6.1.7.7</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "autoloading_and_reloading_constants",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>Rails 6.1.7.7</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Autoloading and Reloading Constants&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<p><strong>DO NOT READ THIS FILE ON GITHUB, GUIDES ARE PUBLISHED ON <a href="https://guides.rubyonrails.org">https://guides.rubyonrails.org</a>.</strong></p>
+
+<h1>Autoloading and Reloading Constants (Zeitwerk Mode)</h1>
+
+<p>This guide documents how autoloading and reloading works in <code>zeitwerk</code> mode.</p>
+
+<p>After reading this guide, you will know:</p>
+
+<ul>
+<li>Autoloading modes</li>
+<li>Related Rails configuration</li>
+<li>Project structure</li>
+<li>Autoloading, reloading, and eager loading</li>
+<li>Single Table Inheritance</li>
+<li>And more</li>
+</ul>
+
+<hr>
+
+<h2>Introduction</h2>
+
+<p>INFO. This guide documents autoloading in <code>zeitwerk</code> mode, which is new in <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> 6. If you&#39;d like to read about <code>classic</code> mode instead, please check <a href="autoloading_and_reloading_constants_classic_mode.html">Autoloading and Reloading Constants (Classic Mode)</a>.</p>
+
+<p>In a normal Ruby program, dependencies need to be loaded by hand. For example, the following controller uses classes <code>ApplicationController</code> and <code>Post</code>, and normally you&#39;d need to put <code>require</code> calls for them:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># DO NOT DO THIS.
+</span><span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>application_controller</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>post</span><span class='tstring_end'>&quot;</span></span>
+<span class='comment'># DO NOT DO THIS.
+</span>
+<span class='kw'>class</span> <span class='const'>PostsController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_index'>index</span>
+    <span class='ivar'>@posts</span> <span class='op'>=</span> <span class='const'>Post</span>.<span class='id identifier rubyid_all'>all</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>This is not the case in Rails applications, where application classes and modules are just available everywhere:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>PostsController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_index'>index</span>
+    <span class='ivar'>@posts</span> <span class='op'>=</span> <span class='const'>Post</span>.<span class='id identifier rubyid_all'>all</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Idiomatic Rails applications only issue <code>require</code> calls to load stuff from their <code>lib</code> directory, the Ruby standard library, Ruby gems, etc. That is, anything that does not belong to their autoload paths, explained below.</p>
+
+<h2>Enabling Zeitwerk Mode</h2>
+
+<p>The autoloading <code>zeitwerk</code> mode is enabled by default in Rails 6 applications running on CRuby:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/application.rb
+</span><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_load_defaults'>load_defaults</span> <span class='float'>6.0</span> <span class='comment'># enables zeitwerk mode in CRuby</span></code></pre>
+
+<p>In <code>zeitwerk</code> mode, Rails uses <a href="https://github.com/fxn/zeitwerk">Zeitwerk</a> internally to autoload, reload, and eager load. Rails instantiates and configures a dedicated Zeitwerk instance that manages the project.</p>
+
+<p>INFO. You do not configure Zeitwerk manually in a Rails application. Rather, you configure the application using the portable configuration points explained in this guide, and Rails translates that to Zeitwerk on your behalf.</p>
+
+<h2>Project Structure</h2>
+
+<p>In a Rails application file names have to match the constants they define, with directories acting as namespaces.</p>
+
+<p>For example, the file <code>app/helpers/users_helper.rb</code> should define <code>UsersHelper</code> and the file <code>app/controllers/admin/payments_controller.rb</code> should define <code>Admin::PaymentsController</code>.</p>
+
+<p>By default, Rails configures Zeitwerk to inflect file names with <a href="String.html#camelize-instance_method" title="String#camelize (method)">String#camelize</a>. For example, it expects that <code>app/controllers/users_controller.rb</code> defines the constant <code>UsersController</code> because</p>
+
+<pre class="code ruby"><code class="ruby"><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>users_controller</span><span class='tstring_end'>&quot;</span></span>.<span class='id identifier rubyid_camelize'>camelize</span> <span class='comment'># =&gt; UsersController</span></code></pre>
+
+<p>The section <em>Customizing Inflections</em> below documents ways to override this default.</p>
+
+<p>Please, check the <a href="https://github.com/fxn/zeitwerk#file-structure">Zeitwerk documentation</a> for further details.</p>
+
+<h2>Autoload Paths</h2>
+
+<p>We refer to the list of application directories whose contents are to be autoloaded as <em>autoload paths</em>. For example, <code>app/models</code>. Such directories represent the root namespace: <a href="Object.html" title="Object (class)"><code>Object</code></a>.</p>
+
+<p>INFO. Autoload paths are called <em>root directories</em> in Zeitwerk documentation, but we&#39;ll stay with &quot;autoload path&quot; in this guide.</p>
+
+<p>Within an autoload path, file names must match the constants they define as documented <a href="https://github.com/fxn/zeitwerk#file-structure">here</a>.</p>
+
+<p>By default, the autoload paths of an application consist of all the subdirectories of <code>app</code> that exist when the application boots ---except for <code>assets</code>, <code>javascript</code>, <code>views</code>,--- plus the autoload paths of engines it might depend on.</p>
+
+<p>For example, if <code>UsersHelper</code> is implemented in <code>app/helpers/users_helper.rb</code>, the module is autoloadable, you do not need (and should not write) a <code>require</code> call for it:</p>
+
+<pre class="code bash"><code class="bash">$ bin/rails runner &#39;p UsersHelper&#39;
+UsersHelper
+</code></pre>
+
+<p>Autoload paths automatically pick any custom directories under <code>app</code>. For example, if your application has <code>app/presenters</code>, or <code>app/services</code>, etc., they are added to autoload paths.</p>
+
+<p>The array of autoload paths can be extended by mutating <code>config.autoload_paths</code>, in <code>config/application.rb</code>, but nowadays this is discouraged.</p>
+
+<p>WARNING. Please, do not mutate <a href="ActiveSupport/Dependencies.html#autoload_paths-class_method" title="ActiveSupport::Dependencies.autoload_paths (method)">ActiveSupport::Dependencies.autoload_paths</a>, the public interface to change autoload paths is <code>config.autoload_paths</code>.</p>
+
+<h2>$LOAD_PATH</h2>
+
+<p>Autoload paths are added to <code>$LOAD_PATH</code> by default. However, Zeitwerk uses absolute file names internally, and your application should not issue <code>require</code> calls for autoloadable files, so those directories are actually not needed there. You can opt-out with this flag:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_add_autoload_paths_to_load_path'>add_autoload_paths_to_load_path</span> <span class='op'>=</span> <span class='kw'>false</span></code></pre>
+
+<p>That may speed legit <code>require</code> calls a bit, since there are less lookups. Also, if your application uses <a href="https://github.com/Shopify/bootsnap">Bootsnap</a>, that saves the library from building unnecessary indexes, and saves the RAM they would need.</p>
+
+<h2>Reloading</h2>
+
+<p>Rails automatically reloads classes and modules if application files change.</p>
+
+<p>More precisely, if the web server is running and application files have been modified, Rails unloads all autoloaded constants just before the next request is processed. That way, application classes or modules used during that request are going to be autoloaded, thus picking up their current implementation in the file system.</p>
+
+<p>Reloading can be enabled or disabled. The setting that controls this behavior is <code>config.cache_classes</code>, which is false by default in <code>development</code> mode (reloading enabled), and true by default in <code>production</code> mode (reloading disabled).</p>
+
+<p>Rails detects files have changed using an evented file monitor (default), or walking the autoload paths, depending on <code>config.file_watcher</code>.</p>
+
+<p>In a Rails console there is no file watcher active regardless of the value of <code>config.cache_classes</code>. This is so because, normally, it would be confusing to have code reloaded in the middle of a console session, the same way you generally want an individual request to be served by a consistent, non-changing set of application classes and modules.</p>
+
+<p>However, you can force a reload in the console by executing <code>reload!</code>:</p>
+
+<pre class="code irb"><code class="irb">irb(main):001:0&gt; User.object_id
+=&gt; 70136277390120
+irb(main):002:0&gt; reload!
+Reloading...
+=&gt; true
+irb(main):003:0&gt; User.object_id
+=&gt; 70136284426020
+</code></pre>
+
+<p>as you can see, the class object stored in the <code>User</code> constant is different after reloading.</p>
+
+<h3>Reloading and Stale Objects</h3>
+
+<p>It is very important to understand that Ruby does not have a way to truly reload classes and modules in memory, and have that reflected everywhere they are already used. Technically, &quot;unloading&quot; the <code>User</code> class means removing the <code>User</code> constant via <code>Object.send(:remove_const, &quot;User&quot;)</code>.</p>
+
+<p>Therefore, code that references a reloadable class or module, but that is not executed again on reload, becomes stale. Let&#39;s see an example next.</p>
+
+<p>Let&#39;s consider this initializer:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/initializers/configure_payment_gateway.rb
+</span><span class='comment'># DO NOT DO THIS.
+</span><span class='gvar'>$PAYMENT_GATEWAY</span> <span class='op'>=</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_env'><a href="Rails.html#env-class_method" title="Rails.env (method)">env</a></span>.<span class='id identifier rubyid_production?'>production?</span> <span class='op'>?</span> <span class='const'>RealGateway</span> <span class='op'>:</span> <span class='const'>MockedGateway</span>
+<span class='comment'># DO NOT DO THIS.</span></code></pre>
+
+<p>The idea would be to use <code>$PAYMENT_GATEWAY</code> in the code, and let the initializer set that to the actual implementation depending on the environment.</p>
+
+<p>On reload, <code>MockedGateway</code> is reloaded, but <code>$PAYMENT_GATEWAY</code> is not updated because initializers only run on boot. Therefore, it won&#39;t reflect the changes.</p>
+
+<p>There are several ways to do this safely. For instance, the application could define a class method <code>PaymentGateway.impl</code> whose definition depends on the environment; or could define <code>PaymentGateway</code> to have a parent class or mixin that depends on the environment; or use the same global variable trick, but in a reloader callback, as explained below.</p>
+
+<p>Let&#39;s see other situations that involve stale class or module objects.</p>
+
+<p>Check this Rails console session:</p>
+
+<pre class="code irb"><code class="irb">irb&gt; joe = User.new
+irb&gt; reload!
+irb&gt; alice = User.new
+irb&gt; joe.class == alice.class
+=&gt; false
+</code></pre>
+
+<p><code>joe</code> is an instance of the original <code>User</code> class. When there is a reload, the <code>User</code> constant evaluates to a different, reloaded class. <code>alice</code> is an instance of the current one, but <code>joe</code> is not, his class is stale. You may define <code>joe</code> again, start an IRB subsession, or just launch a new console instead of calling <code>reload!</code>.</p>
+
+<p>Another situation in which you may find this gotcha is subclassing reloadable classes in a place that is not reloaded:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># lib/vip_user.rb
+</span><span class='kw'>class</span> <span class='const'>VipUser</span> <span class='op'>&lt;</span> <span class='const'>User</span>
+<span class='kw'>end</span></code></pre>
+
+<p>if <code>User</code> is reloaded, since <code>VipUser</code> is not, the superclass of <code>VipUser</code> is the original stale class object.</p>
+
+<p>Bottom line: <strong>do not cache reloadable classes or modules</strong>.</p>
+
+<h3>Autoloading when the application boots</h3>
+
+<p>Applications can safely autoload constants during boot using a reloader callback:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_reloader'>reloader</span>.<span class='id identifier rubyid_to_prepare'>to_prepare</span> <span class='kw'>do</span>
+  <span class='gvar'>$PAYMENT_GATEWAY</span> <span class='op'>=</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_env'><a href="Rails.html#env-class_method" title="Rails.env (method)">env</a></span>.<span class='id identifier rubyid_production?'>production?</span> <span class='op'>?</span> <span class='const'>RealGateway</span> <span class='op'>:</span> <span class='const'>MockedGateway</span>
+<span class='kw'>end</span></code></pre>
+
+<p>That block runs when the application boots, and every time code is reloaded.</p>
+
+<p>NOTE: For historical reasons, this callback may run twice. The code it executes must be idempotent.</p>
+
+<p>However, if you do not need to reload the class, it is easier to define it in a directory which does not belong to the autoload paths. For instance, <code>lib</code> is an idiomatic choice, it does not belong to the autoload paths by default but it belongs to <code>$LOAD_PATH</code>. Then, in the place the class is needed at boot time, just perform a regular <code>require</code> to load it.</p>
+
+<p>For example, there is no point in defining reloadable Rack middleware, because changes would not be reflected in the instance stored in the middleware stack anyway. If <code>lib/my_app/middleware/foo.rb</code> defines a middleware class, then in <code>config/application.rb</code> you write:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>my_app/middleware/foo</span><span class='tstring_end'>&quot;</span></span>
+<span class='comment'>#...
+</span><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_middleware'>middleware</span>.<span class='id identifier rubyid_use'>use</span> <span class='const'>MyApp</span><span class='op'>::</span><span class='const'>Middleware</span><span class='op'>::</span><span class='const'>Foo</span></code></pre>
+
+<p>To have changes in that middleware reflected, you need to restart the server.</p>
+
+<h2>Eager Loading</h2>
+
+<p>In production-like environments it is generally better to load all the application code when the application boots. Eager loading puts everything in memory ready to serve requests right away, and it is also <a href="https://en.wikipedia.org/wiki/Copy-on-write">CoW</a>-friendly.</p>
+
+<p>Eager loading is controlled by the flag <code>config.eager_load</code>, which is enabled by default in <code>production</code> mode.</p>
+
+<p>The order in which files are eager loaded is undefined.</p>
+
+<p>if the <code>Zeitwerk</code> constant is defined, Rails invokes <code>Zeitwerk::Loader.eager_load_all</code> regardless of the application autoloading mode. That ensures dependencies managed by Zeitwerk are eager loaded.</p>
+
+<h2>Single Table Inheritance</h2>
+
+<p>Single Table Inheritance is a feature that doesn&#39;t play well with lazy loading. Reason is, its API generally needs to be able to enumerate the STI hierarchy to work correctly, whereas lazy loading defers loading classes until they are referenced. You can&#39;t enumerate what you haven&#39;t referenced yet.</p>
+
+<p>In a sense, applications need to eager load STI hierarchies regardless of the loading mode.</p>
+
+<p>Of course, if the application eager loads on boot, that is already accomplished. When it does not, it is in practice enough to instantiate the existing types in the database, which in development or test modes is usually fine. One way to do that is to throw this module into the <code>lib</code> directory:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'>StiPreload</span>
+  <span class='kw'>unless</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_eager_load'>eager_load</span>
+    <span class='id identifier rubyid_extend'>extend</span> <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/Concern.html" title="ActiveSupport::Concern (module)">Concern</a></span>
+
+    <span class='id identifier rubyid_included'>included</span> <span class='kw'>do</span>
+      <span class='id identifier rubyid_cattr_accessor'>cattr_accessor</span> <span class='symbeg'>:</span><span class='id identifier rubyid_preloaded'>preloaded</span><span class='comma'>,</span> <span class='label'>instance_accessor:</span> <span class='kw'>false</span>
+    <span class='kw'>end</span>
+
+    <span class='id identifier rubyid_class_methods'>class_methods</span> <span class='kw'>do</span>
+      <span class='kw'>def</span> <span class='id identifier rubyid_descendants'>descendants</span>
+        <span class='id identifier rubyid_preload_sti'>preload_sti</span> <span class='kw'>unless</span> <span class='id identifier rubyid_preloaded'>preloaded</span>
+        <span class='kw'>super</span>
+      <span class='kw'>end</span>
+
+      <span class='comment'># Constantizes all types present in the database. There might be more on
+</span>      <span class='comment'># disk, but that does not matter in practice as far as the STI API is
+</span>      <span class='comment'># concerned.
+</span>      <span class='comment'>#
+</span>      <span class='comment'># Assumes store_full_sti_class is true, the default.
+</span>      <span class='kw'>def</span> <span class='id identifier rubyid_preload_sti'>preload_sti</span>
+        <span class='id identifier rubyid_types_in_db'>types_in_db</span> <span class='op'>=</span> \
+          <span class='id identifier rubyid_base_class'>base_class</span>.
+            <span class='id identifier rubyid_unscoped'>unscoped</span>.
+            <span class='id identifier rubyid_select'>select</span>(<span class='id identifier rubyid_inheritance_column'>inheritance_column</span>).
+            <span class='id identifier rubyid_distinct'>distinct</span>.
+            <span class='id identifier rubyid_pluck'>pluck</span>(<span class='id identifier rubyid_inheritance_column'>inheritance_column</span>).
+            <span class='id identifier rubyid_compact'>compact</span>
+
+        <span class='id identifier rubyid_types_in_db'>types_in_db</span>.<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_type'>type</span><span class='op'>|</span>
+          <span class='id identifier rubyid_logger'>logger</span>.<span class='id identifier rubyid_debug'>debug</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Preloading STI type </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_type'>type</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>)
+          <span class='id identifier rubyid_type'>type</span>.<span class='id identifier rubyid_constantize'>constantize</span>
+        <span class='kw'>end</span>
+
+        <span class='kw'>self</span>.<span class='id identifier rubyid_preloaded'>preloaded</span> <span class='op'>=</span> <span class='kw'>true</span>
+      <span class='kw'>end</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>and then include it in the STI root classes of your project:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># app/models/shape.rb
+</span><span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>sti_preload</span><span class='tstring_end'>&quot;</span></span>
+
+<span class='kw'>class</span> <span class='const'>Shape</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_include'>include</span> <span class='const'>StiPreload</span> <span class='comment'># Only in the root class.
+</span><span class='kw'>end</span></code></pre>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># app/models/polygon.rb
+</span><span class='kw'>class</span> <span class='const'>Polygon</span> <span class='op'>&lt;</span> <span class='const'>Shape</span>
+<span class='kw'>end</span></code></pre>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># app/models/triangle.rb
+</span><span class='kw'>class</span> <span class='const'>Triangle</span> <span class='op'>&lt;</span> <span class='const'>Polygon</span>
+<span class='kw'>end</span></code></pre>
+
+<h2>Customizing Inflections</h2>
+
+<p>By default, Rails uses <a href="String.html#camelize-instance_method" title="String#camelize (method)">String#camelize</a> to know which constant should a given file or directory name define. For example, <code>posts_controller.rb</code> should define <code>PostsController</code> because that is what <code>&quot;posts_controller&quot;.camelize</code> returns.</p>
+
+<p>It could be the case that some particular file or directory name does not get inflected as you want. For instance, <code>html_parser.rb</code> is expected to define <code>HtmlParser</code> by default. What if you prefer the class to be <code>HTMLParser</code>? There are a few ways to customize this.</p>
+
+<p>The easiest way is to define acronyms in <code>config/initializers/inflections.rb</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/Inflector.html" title="ActiveSupport::Inflector (module)">Inflector</a></span>.<span class='id identifier rubyid_inflections'><a href="ActiveSupport/Inflector.html#inflections-instance_method" title="ActiveSupport::Inflector#inflections (method)">inflections</a></span>(<span class='symbeg'>:</span><span class='id identifier rubyid_en'>en</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_inflect'>inflect</span><span class='op'>|</span>
+  <span class='id identifier rubyid_inflect'>inflect</span>.<span class='id identifier rubyid_acronym'>acronym</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>HTML</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_inflect'>inflect</span>.<span class='id identifier rubyid_acronym'>acronym</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>SSL</span><span class='tstring_end'>&quot;</span></span>
+<span class='kw'>end</span></code></pre>
+
+<p>Doing so affects how Active Support inflects globally. That may be fine in some applications, but you can also customize how to camelize individual basenames independently from Active Support by passing a collection of overrides to the default inflectors:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/initializers/zeitwerk.rb
+</span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_autoloaders'><a href="Rails.html#autoloaders-class_method" title="Rails.autoloaders (method)">autoloaders</a></span>.<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_autoloader'>autoloader</span><span class='op'>|</span>
+  <span class='id identifier rubyid_autoloader'>autoloader</span>.<span class='id identifier rubyid_inflector'>inflector</span>.<span class='id identifier rubyid_inflect'>inflect</span>(
+    <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>html_parser</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>HTMLParser</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+    <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ssl_error</span><span class='tstring_end'>&quot;</span></span>   <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>SSLError</span><span class='tstring_end'>&quot;</span></span>
+  )
+<span class='kw'>end</span></code></pre>
+
+<p>That technique still depends on <a href="String.html#camelize-instance_method" title="String#camelize (method)">String#camelize</a>, though, because that is what the default inflectors use as fallback. If you instead prefer not to depend on Active Support inflections at all and have absolute control over inflections, configure the inflectors to be instances of <code>Zeitwerk::Inflector</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/initializers/zeitwerk.rb
+</span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_autoloaders'><a href="Rails.html#autoloaders-class_method" title="Rails.autoloaders (method)">autoloaders</a></span>.<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_autoloader'>autoloader</span><span class='op'>|</span>
+  <span class='id identifier rubyid_autoloader'>autoloader</span>.<span class='id identifier rubyid_inflector'>inflector</span> <span class='op'>=</span> <span class='const'>Zeitwerk</span><span class='op'>::</span><span class='const'>Inflector</span>.<span class='id identifier rubyid_new'>new</span>
+  <span class='id identifier rubyid_autoloader'>autoloader</span>.<span class='id identifier rubyid_inflector'>inflector</span>.<span class='id identifier rubyid_inflect'>inflect</span>(
+    <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>html_parser</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>HTMLParser</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+    <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ssl_error</span><span class='tstring_end'>&quot;</span></span>   <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>SSLError</span><span class='tstring_end'>&quot;</span></span>
+  )
+<span class='kw'>end</span></code></pre>
+
+<p>There is no global configuration that can affect said instances, they are deterministic.</p>
+
+<p>You can even define a custom inflector for full flexibility. Please, check the <a href="https://github.com/fxn/zeitwerk#custom-inflector">Zeitwerk documentation</a> for further details.</p>
+
+<h2>Troubleshooting</h2>
+
+<p>The best way to follow what the loaders are doing is to inspect their activity.</p>
+
+<p>The easiest way to do that is to throw</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_autoloaders'><a href="Rails.html#autoloaders-class_method" title="Rails.autoloaders (method)">autoloaders</a></span>.<span class='id identifier rubyid_log!'>log!</span></code></pre>
+
+<p>to <code>config/application.rb</code> after loading the framework defaults. That will print traces to standard output.</p>
+
+<p>If you prefer logging to a file, configure this instead:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_autoloaders'><a href="Rails.html#autoloaders-class_method" title="Rails.autoloaders (method)">autoloaders</a></span>.<span class='id identifier rubyid_logger'>logger</span> <span class='op'>=</span> <span class='const'>Logger</span>.<span class='id identifier rubyid_new'>new</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_root'><a href="Rails.html#root-class_method" title="Rails.root (method)">root</a></span><span class='embexpr_end'>}</span><span class='tstring_content'>/log/autoloading.log</span><span class='tstring_end'>&quot;</span></span>)</code></pre>
+
+<p>The Rails logger is still not ready in <code>config/application.rb</code>, but it is in initializers:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/initializers/log_autoloaders.rb
+</span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_autoloaders'><a href="Rails.html#autoloaders-class_method" title="Rails.autoloaders (method)">autoloaders</a></span>.<span class='id identifier rubyid_logger'>logger</span> <span class='op'>=</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_logger'><a href="Rails.html#logger-class_method" title="Rails.logger (method)">logger</a></span></code></pre>
+
+<h2>Rails.autoloaders</h2>
+
+<p>The Zeitwerk instances managing your application are available at</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_autoloaders'><a href="Rails.html#autoloaders-class_method" title="Rails.autoloaders (method)">autoloaders</a></span>.<span class='id identifier rubyid_main'>main</span>
+<span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_autoloaders'><a href="Rails.html#autoloaders-class_method" title="Rails.autoloaders (method)">autoloaders</a></span>.<span class='id identifier rubyid_once'>once</span></code></pre>
+
+<p>The former is the main one. The latter is there mostly for backwards compatibility reasons, in case the application has something in <code>config.autoload_once_paths</code> (this is discouraged nowadays).</p>
+
+<p>You can check if <code>zeitwerk</code> mode is enabled with</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_autoloaders'><a href="Rails.html#autoloaders-class_method" title="Rails.autoloaders (method)">autoloaders</a></span>.<span class='id identifier rubyid_zeitwerk_enabled?'>zeitwerk_enabled?</span></code></pre>
+
+<h2>Differences with Classic Mode</h2>
+
+<h3>Ruby Constant Lookup Compliance</h3>
+
+<p><code>classic</code> mode cannot match constant lookup semantics due to fundamental limitations of the technique it is based on, whereas <code>zeitwerk</code> mode works like Ruby.</p>
+
+<p>For example, in <code>classic</code> mode defining classes or modules in namespaces with qualified constants this way</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Admin</span><span class='op'>::</span><span class='const'>UsersController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
+<span class='kw'>end</span></code></pre>
+
+<p>was not recommended because the resolution of constants inside their body was brittle. You&#39;d better write them in this style:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'>Admin</span>
+  <span class='kw'>class</span> <span class='const'>UsersController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>In <code>zeitwerk</code> mode that does not matter anymore, you can pick either style.</p>
+
+<p>The resolution of a constant could depend on load order, the definition of a class or module object could depend on load order, there was edge cases with singleton classes, oftentimes you had to use <code>require_dependency</code> as a workaround, .... The guide for <code>classic</code> mode documents <a href="autoloading_and_reloading_constants_classic_mode.html#common-gotchas">these issues</a>.</p>
+
+<p>All these problems are solved in <code>zeitwerk</code> mode, it just works as expected, and <code>require_dependency</code> should not be used anymore, it is no longer needed.</p>
+
+<h3>Less File Lookups</h3>
+
+<p>In <code>classic</code> mode, every single missing constant triggers a file lookup that walks the autoload paths.</p>
+
+<p>In <code>zeitwerk</code> mode there is only one pass. That pass is done once, not per missing constant, and so it is generally more performant. Subdirectories are visited only if their namespace is used.</p>
+
+<h3>Underscore vs Camelize</h3>
+
+<p>Inflections go the other way around.</p>
+
+<p>In <code>classic</code> mode, given a missing constant Rails <em>underscores</em> its name and performs a file lookup. On the other hand, <code>zeitwerk</code> mode checks first the file system, and <em>camelizes</em> file names to know the constant those files are expected to define.</p>
+
+<p>While in common names these operations match, if acronyms or custom inflection rules are configured, they may not. For example, by default <code>&quot;HTMLParser&quot;.underscore</code> is <code>&quot;html_parser&quot;</code>, and <code>&quot;html_parser&quot;.camelize</code> is <code>&quot;HtmlParser&quot;</code>.</p>
+
+<h3>More Differences</h3>
+
+<p>There are some other subtle differences, please check <a href="upgrading_ruby_on_rails.html#autoloading">this section of <em>Upgrading Ruby on Rails</em></a> guide for details.</p>
+
+<h2>Classic Mode is Deprecated</h2>
+
+<p>By now, it is still possible to use <code>classic</code> mode. However, <code>classic</code> is deprecated and will be eventually removed.</p>
+
+<p>New applications should use <code>zeitwerk</code> mode (which is the default), and applications being upgrade are strongly encouraged to migrate to <code>zeitwerk</code> mode. Please check the <a href="upgrading_ruby_on_rails.html#autoloading"><em>Upgrading Ruby on Rails</em></a> guide for details.</p>
+
+<h2>Opting Out</h2>
+
+<p>Applications can load Rails 6 defaults and still use the classic autoloader this way:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/application.rb
+</span><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_load_defaults'>load_defaults</span> <span class='float'>6.0</span>
+<span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_autoloader'>autoloader</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_classic'>classic</span></code></pre>
+
+<p>That may be handy if upgrading to Rails 6 in different phases, but classic mode is discouraged for new applications.</p>
+
+<p><code>zeitwerk</code> mode is not available in versions of Rails previous to 6.0.</p>
+
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>

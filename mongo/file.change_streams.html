@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen'       content='yes'>
+<meta name='apple-mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Change Streams &mdash; Mongo master</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "change_streams",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>Mongo master</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Change Streams&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<h1>Change Streams</h1>
+
+<p>As of version 3.6 of the MongoDB server, a new <code>$changeStream</code> pipeline stage
+is supported in the aggregation framework. Specifying this stage first in an
+aggregation pipeline allows users to request that notifications are sent for all
+changes to a particular collection. As of MongoDB 4.0, change streams are
+supported on databases and clusters in addition to collections.</p>
+
+<p>The Ruby driver provides an API for
+receiving notifications for changes to a particular collection, database
+or cluster using this
+new pipeline stage. Although you can create a change stream using the pipeline
+operator and aggregation framework directly, it is recommended to use the
+driver API described below as the driver resumes the change stream one time
+if there is a timeout, a network error, a server error indicating that a
+failover is taking place or another type of a resumable error.</p>
+
+<p>Change streams on the server require a <code>&quot;majority&quot;</code> read concern or no
+read concern.</p>
+
+<p>Change streams do not work properly with JRuby because of the issue documented <a href="https://github.com/jruby/jruby/issues/4212">here</a>.
+Namely, JRuby eagerly evaluates <code>#next</code> on an Enumerator in a background
+green thread, therefore calling <code>#next</code> on the change stream will cause
+getMores to be called in a loop in the background.</p>
+
+<h2>Watching for Changes on a Collection</h2>
+
+<p>A collection change stream is created by calling the <code>#watch</code> method on a
+collection:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_client'>client</span> <span class='op'>=</span> <span class='const'><a href="Mongo.html" title="Mongo (module)">Mongo</a></span><span class='op'>::</span><span class='const'><a href="Mongo/Client.html" title="Mongo::Client (class)">Client</a></span>.<span class='id identifier rubyid_new'><a href="Mongo/Client.html#new-class_method" title="Mongo::Client.new (method)">new</a></span>([ <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>127.0.0.1:27017</span><span class='tstring_end'>&#39;</span></span> ]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_database'>database</span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>test</span><span class='tstring_end'>&#39;</span></span>)
+<span class='id identifier rubyid_collection'>collection</span> <span class='op'>=</span> <span class='id identifier rubyid_client'>client</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_test'>test</span>]
+<span class='id identifier rubyid_stream'>stream</span> <span class='op'>=</span> <span class='id identifier rubyid_collection'>collection</span>.<span class='id identifier rubyid_watch'>watch</span>
+<span class='id identifier rubyid_collection'>collection</span>.<span class='id identifier rubyid_insert_one'>insert_one</span>(<span class='label'>a:</span> <span class='int'>1</span>)
+<span class='id identifier rubyid_doc'>doc</span> <span class='op'>=</span> <span class='id identifier rubyid_stream'>stream</span>.<span class='id identifier rubyid_to_enum'>to_enum</span>.<span class='id identifier rubyid_next'>next</span>
+<span class='id identifier rubyid_process'>process</span>(<span class='id identifier rubyid_doc'>doc</span>)</code></pre>
+
+<p>You can also receive the notifications as they become available:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_stream'>stream</span> <span class='op'>=</span> <span class='id identifier rubyid_collection'>collection</span>.<span class='id identifier rubyid_watch'>watch</span>
+<span class='id identifier rubyid_enum'>enum</span> <span class='op'>=</span> <span class='id identifier rubyid_stream'>stream</span>.<span class='id identifier rubyid_to_enum'>to_enum</span>
+<span class='kw'>while</span> <span class='id identifier rubyid_doc'>doc</span> <span class='op'>=</span> <span class='id identifier rubyid_enum'>enum</span>.<span class='id identifier rubyid_next'>next</span>
+  <span class='id identifier rubyid_process'>process</span>(<span class='id identifier rubyid_doc'>doc</span>)
+<span class='kw'>end</span></code></pre>
+
+<p>The <code>next</code> method blocks and polls the cluster until a change is available.
+Use the <code>try_next</code> method to iterate a change stream without blocking; this
+method will wait up to max_await_time_ms milliseconds for changes from the server,
+and if no changes are received it will return nil. If there is a non-resumable
+error, both <code>next</code> and <code>try_next</code> will raise an exception.
+See Resuming a Change Stream section below for an example that reads
+changes from a collection indefinitely.</p>
+
+<p>The change stream can take filters in the aggregation framework pipeline
+operator format:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_stream'>stream</span> <span class='op'>=</span> <span class='id identifier rubyid_collection'>collection</span>.<span class='id identifier rubyid_watch'>watch</span>([{<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>$match</span><span class='tstring_end'>&#39;</span></span> <span class='op'>=&gt;</span> { <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>operationType</span><span class='tstring_end'>&#39;</span></span> <span class='op'>=&gt;</span> {<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>$in</span><span class='tstring_end'>&#39;</span></span> <span class='op'>=&gt;</span> [<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>insert</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>replace</span><span class='tstring_end'>&#39;</span></span>] } } }<span class='comma'>,</span>
+                           {<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>$match</span><span class='tstring_end'>&#39;</span></span> <span class='op'>=&gt;</span> { <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>fullDocument.n</span><span class='tstring_end'>&#39;</span></span> <span class='op'>=&gt;</span> { <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>$gte</span><span class='tstring_end'>&#39;</span></span> <span class='op'>=&gt;</span> <span class='int'>1</span> } } }
+                          ])
+<span class='id identifier rubyid_enum'>enum</span> <span class='op'>=</span> <span class='id identifier rubyid_stream'>stream</span>.<span class='id identifier rubyid_to_enum'>to_enum</span>
+<span class='kw'>while</span> <span class='id identifier rubyid_doc'>doc</span> <span class='op'>=</span> <span class='id identifier rubyid_enum'>enum</span>.<span class='id identifier rubyid_next'>next</span>
+  <span class='id identifier rubyid_process'>process</span>(<span class='id identifier rubyid_doc'>doc</span>)
+<span class='kw'>end</span></code></pre>
+
+<h2>Watching for Changes on a Database</h2>
+
+<p>A database change stream notifies on changes on any collection within the
+database as well as database-wide events, such as the database being dropped.</p>
+
+<p>A database change stream is created by calling the <code>#watch</code> method on a
+database object:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_client'>client</span> <span class='op'>=</span> <span class='const'><a href="Mongo.html" title="Mongo (module)">Mongo</a></span><span class='op'>::</span><span class='const'><a href="Mongo/Client.html" title="Mongo::Client (class)">Client</a></span>.<span class='id identifier rubyid_new'><a href="Mongo/Client.html#new-class_method" title="Mongo::Client.new (method)">new</a></span>([ <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>127.0.0.1:27017</span><span class='tstring_end'>&#39;</span></span> ]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_database'>database</span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>test</span><span class='tstring_end'>&#39;</span></span>)
+<span class='id identifier rubyid_database'>database</span> <span class='op'>=</span> <span class='id identifier rubyid_client'>client</span>.<span class='id identifier rubyid_database'>database</span>
+<span class='id identifier rubyid_stream'>stream</span> <span class='op'>=</span> <span class='id identifier rubyid_database'>database</span>.<span class='id identifier rubyid_watch'>watch</span>
+<span class='id identifier rubyid_client'>client</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_test'>test</span>].<span class='id identifier rubyid_insert_one'>insert_one</span>(<span class='label'>a:</span> <span class='int'>1</span>)
+<span class='id identifier rubyid_doc'>doc</span> <span class='op'>=</span> <span class='id identifier rubyid_stream'>stream</span>.<span class='id identifier rubyid_to_enum'>to_enum</span>.<span class='id identifier rubyid_next'>next</span>
+<span class='id identifier rubyid_process'>process</span>(<span class='id identifier rubyid_doc'>doc</span>)</code></pre>
+
+<h2>Watching for Changes on a Cluster</h2>
+
+<p>A cluster change stream notifies on changes on any collection, any database
+within the cluster as well as cluster-wide events.</p>
+
+<p>A cluster change stream is created by calling the <code>#watch</code> method on a
+client object (not the cluster object):</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_client'>client</span> <span class='op'>=</span> <span class='const'><a href="Mongo.html" title="Mongo (module)">Mongo</a></span><span class='op'>::</span><span class='const'><a href="Mongo/Client.html" title="Mongo::Client (class)">Client</a></span>.<span class='id identifier rubyid_new'><a href="Mongo/Client.html#new-class_method" title="Mongo::Client.new (method)">new</a></span>([ <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>127.0.0.1:27017</span><span class='tstring_end'>&#39;</span></span> ]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_database'>database</span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>test</span><span class='tstring_end'>&#39;</span></span>)
+<span class='id identifier rubyid_stream'>stream</span> <span class='op'>=</span> <span class='id identifier rubyid_client'>client</span>.<span class='id identifier rubyid_watch'>watch</span>
+<span class='id identifier rubyid_client'>client</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_test'>test</span>].<span class='id identifier rubyid_insert_one'>insert_one</span>(<span class='label'>a:</span> <span class='int'>1</span>)
+<span class='id identifier rubyid_doc'>doc</span> <span class='op'>=</span> <span class='id identifier rubyid_stream'>stream</span>.<span class='id identifier rubyid_to_enum'>to_enum</span>.<span class='id identifier rubyid_next'>next</span>
+<span class='id identifier rubyid_process'>process</span>(<span class='id identifier rubyid_doc'>doc</span>)</code></pre>
+
+<h2>Closing a Change Stream</h2>
+
+<p>You can close a change stream by calling its <code>#close</code> method:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_stream'>stream</span>.<span class='id identifier rubyid_close'>close</span></code></pre>
+
+<h2>Resuming a Change Stream</h2>
+
+<p>A change stream consists of two types of operations: the initial aggregation
+and <code>getMore</code> requests to receive the next batch of changes.</p>
+
+<p>The driver will automatically retry each <code>getMore</code> operation once on
+network errors and when the server returns an error indicating it changed
+state (for example, it is no longer the primary). The driver does not retry
+the initial aggregation.</p>
+
+<p>In practical terms this means that, for example:</p>
+
+<ul>
+<li>  Calling <code>collection.watch</code> will fail if the cluster does not have
+enough available nodes to satisfy the <code>&quot;majority&quot;</code> read preference.</li>
+<li>  Once <code>collection.watch</code> successfully returns, if the cluster subsequently
+experiences an election or loses a node, but heals quickly enough,
+change stream reads via <code>next</code> or <code>each</code> methods will continue
+transparently to the application.</li>
+</ul>
+
+<p>To indefinitely and reliably watch for changes without losing any changes or
+processing a change more than once, the application must track the resume
+token for the change stream and restart the change stream when it experiences
+extended error conditions that cause the driver&#39;s automatic resume to also
+fail. The following code snippet shows an example of iterating a change stream
+indefinitely, retrieving the resume token using the <code>resume_token</code> change
+stream method and restarting the change stream using the <code>:resume_after</code>
+option on all MongoDB or network errors:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_token'>token</span> <span class='op'>=</span> <span class='kw'>nil</span>
+<span class='id identifier rubyid_loop'>loop</span> <span class='kw'>do</span>
+  <span class='kw'>begin</span>
+    <span class='id identifier rubyid_stream'>stream</span> <span class='op'>=</span> <span class='id identifier rubyid_collection'>collection</span>.<span class='id identifier rubyid_watch'>watch</span>([]<span class='comma'>,</span> <span class='label'>resume_after:</span> <span class='id identifier rubyid_token'>token</span>)
+    <span class='id identifier rubyid_enum'>enum</span> <span class='op'>=</span> <span class='id identifier rubyid_stream'>stream</span>.<span class='id identifier rubyid_to_enum'>to_enum</span>
+    <span class='kw'>while</span> <span class='id identifier rubyid_doc'>doc</span> <span class='op'>=</span> <span class='id identifier rubyid_enum'>enum</span>.<span class='id identifier rubyid_next'>next</span>
+      <span class='id identifier rubyid_process'>process</span>(<span class='id identifier rubyid_doc'>doc</span>)
+      <span class='id identifier rubyid_token'>token</span> <span class='op'>=</span> <span class='id identifier rubyid_stream'>stream</span>.<span class='id identifier rubyid_resume_token'>resume_token</span>
+    <span class='kw'>end</span>
+  <span class='kw'>rescue</span> <span class='const'><a href="Mongo.html" title="Mongo (module)">Mongo</a></span><span class='op'>::</span><span class='const'><a href="Mongo/Error.html" title="Mongo::Error (class)">Error</a></span>
+    <span class='id identifier rubyid_sleep'>sleep</span> <span class='int'>1</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>The above iteration is blocking at the <code>enum.next</code> call, and does not
+permit resuming processing in the event the Ruby process running this code
+is terminated. The driver also provides the <code>try_next</code> method which returns
+<code>nil</code> (after a small waiting period) instead of blocking indefinitely when
+there are no changes in the change stream. Using the <code>try_next</code> method,
+the resume token may be persisted after each <code>getMore</code> request, even when
+a particular request does not return any changes, such that the resume token
+remains at the top of the oplog and the application has an opportunity to
+persist it should the process handling changes terminates:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_token'>token</span> <span class='op'>=</span> <span class='kw'>nil</span>
+<span class='id identifier rubyid_loop'>loop</span> <span class='kw'>do</span>
+  <span class='kw'>begin</span>
+    <span class='id identifier rubyid_stream'>stream</span> <span class='op'>=</span> <span class='id identifier rubyid_collection'>collection</span>.<span class='id identifier rubyid_watch'>watch</span>([]<span class='comma'>,</span> <span class='label'>resume_after:</span> <span class='id identifier rubyid_token'>token</span>)
+    <span class='id identifier rubyid_enum'>enum</span> <span class='op'>=</span> <span class='id identifier rubyid_stream'>stream</span>.<span class='id identifier rubyid_to_enum'>to_enum</span>
+    <span class='id identifier rubyid_doc'>doc</span> <span class='op'>=</span> <span class='id identifier rubyid_enum'>enum</span>.<span class='id identifier rubyid_try_next'>try_next</span>
+    <span class='kw'>if</span> <span class='id identifier rubyid_doc'>doc</span>
+      <span class='id identifier rubyid_process'>process</span>(<span class='id identifier rubyid_doc'>doc</span>)
+    <span class='kw'>end</span>
+    <span class='id identifier rubyid_token'>token</span> <span class='op'>=</span> <span class='id identifier rubyid_stream'>stream</span>.<span class='id identifier rubyid_resume_token'>resume_token</span>
+    <span class='comment'># Persist +token+ to support resuming processing upon process restart
+</span>  <span class='kw'>rescue</span> <span class='const'><a href="Mongo.html" title="Mongo (module)">Mongo</a></span><span class='op'>::</span><span class='const'><a href="Mongo/Error.html" title="Mongo::Error (class)">Error</a></span>
+    <span class='id identifier rubyid_sleep'>sleep</span> <span class='int'>1</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Note that the resume token should be retrieved from the change stream after
+every <code>try_next</code> call, even if the call returned no document.</p>
+
+<p>The resume token is also provided in the <code>_id</code> field of each change stream
+document. Reading the <code>_id</code> field is not recommended because it may be
+projected out by the application, and because using only the <code>_id</code> field
+would not advance the resume token when a <code>getMore</code> returns no documents.</p>
+
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>
