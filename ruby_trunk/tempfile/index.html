@@ -108,7 +108,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L89'>lib/tempfile.rb</a>      </td>
+      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L157'>lib/tempfile.rb</a>      </td>
     </tr>
   </tbody>
 </table>
@@ -118,13 +118,59 @@
 <div class='docstring'>
   <div class='discussion'>
     
-<p>A utility class for managing temporary files. When you create a <code>Tempfile</code> object, it will create a temporary file with a unique filename. A Tempfile objects behaves just like a File object, and you can perform all the usual file operations on it: reading data, writing data, changing its permissions, etc. So although this class does not explicitly document all instance methods supported by File, you can in fact call any File instance method on a <code>Tempfile</code> object.</p>
+<p>A utility class for managing temporary files.</p>
+
+<p>There are two kind of methods of creating a temporary file:</p>
+<ul><li>
+<p><a href="#create-class_method" title="Tempfile.create (method)">.create</a> (recommended)</p>
+</li><li>
+<p><a href="#new-class_method" title="Tempfile.new (method)">.new</a> and <a href="#open-class_method" title="Tempfile.open (method)">.open</a> (mostly for backward compatibility, not recommended)</p>
+</li></ul>
+
+<p><a href="#create-class_method" title="Tempfile.create (method)">.create</a> creates a usual File object. The timing of file deletion is predictable. Also, it supports open-and-unlink technique which removes the temporary file immediately after creation.</p>
+
+<p><a href="#new-class_method" title="Tempfile.new (method)">.new</a> and <a href="#open-class_method" title="Tempfile.open (method)">.open</a> creates a Tempfile object. The created file is removed by the GC (finalizer). The timing of file deletion is not predictable.</p>
 
 <h3 id="label-Synopsis">Synopsis</h3>
 
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>tempfile</span><span class='tstring_end'>&#39;</span></span>
 
-<span class='id identifier rubyid_file'>file</span> <span class='op'>=</span> <span class='const'>Tempfile</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Tempfile.new (method)">new</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&#39;</span></span>)
+<span class='comment'># Tempfile.create with a block
+</span><span class='comment'># The filename are choosen automatically.
+</span><span class='comment'># (You can specify the prefix and suffix of the filename by an optional argument.)
+</span><span class='const'>Tempfile</span>.<span class='id identifier rubyid_create'><a href="#create-class_method" title="Tempfile.create (method)">create</a></span> {<span class='op'>|</span><span class='id identifier rubyid_f'>f</span><span class='op'>|</span>
+  <span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_rewind'>rewind</span>
+  <span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_read'>read</span>                <span class='comment'># =&gt; &quot;foo\n&quot;
+</span>}                       <span class='comment'># The file is removed at block exit.
+</span>
+<span class='comment'># Tempfile.create without a block
+</span><span class='comment'># You need to unlink the file in non-block form.
+</span><span class='id identifier rubyid_f'>f</span> <span class='op'>=</span> <span class='const'>Tempfile</span>.<span class='id identifier rubyid_create'><a href="#create-class_method" title="Tempfile.create (method)">create</a></span>
+<span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_close'><a href="#close-instance_method" title="Tempfile#close (method)">close</a></span>
+<span class='const'>File</span>.<span class='id identifier rubyid_unlink'><a href="#unlink-instance_method" title="Tempfile#unlink (method)">unlink</a></span>(<span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>)     <span class='comment'># You need to unlink the file.
+</span>
+<span class='comment'># Tempfile.create(anonymous: true) without a block
+</span><span class='id identifier rubyid_f'>f</span> <span class='op'>=</span> <span class='const'>Tempfile</span>.<span class='id identifier rubyid_create'><a href="#create-class_method" title="Tempfile.create (method)">create</a></span>(<span class='label'>anonymous:</span> <span class='kw'>true</span>)
+<span class='comment'># The file is already removed because anonymous.
+</span><span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>                  <span class='comment'># =&gt; &quot;/tmp/&quot;  (no filename since no file)
+</span><span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_rewind'>rewind</span>
+<span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_read'>read</span>                  <span class='comment'># =&gt; &quot;foo\n&quot;
+</span><span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_close'><a href="#close-instance_method" title="Tempfile#close (method)">close</a></span>
+
+<span class='comment'># Tempfile.create(anonymous: true) with a block
+</span><span class='const'>Tempfile</span>.<span class='id identifier rubyid_create'><a href="#create-class_method" title="Tempfile.create (method)">create</a></span>(<span class='label'>anonymous:</span> <span class='kw'>true</span>) {<span class='op'>|</span><span class='id identifier rubyid_f'>f</span><span class='op'>|</span>
+  <span class='comment'># The file is already removed because anonymous.
+</span>  <span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>                <span class='comment'># =&gt; &quot;/tmp/&quot;  (no filename since no file)
+</span>  <span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_rewind'>rewind</span>
+  <span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_read'>read</span>                <span class='comment'># =&gt; &quot;foo\n&quot;
+</span>}
+
+<span class='comment'># Not recommended: Tempfile.new without a block
+</span><span class='id identifier rubyid_file'>file</span> <span class='op'>=</span> <span class='const'>Tempfile</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Tempfile.new (method)">new</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&#39;</span></span>)
 <span class='id identifier rubyid_file'>file</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>      <span class='comment'># =&gt; A unique filename in the OS&#39;s temp directory,
 </span>               <span class='comment'>#    e.g.: &quot;/tmp/foo.24722.0&quot;
 </span>               <span class='comment'>#    This filename contains &#39;foo&#39; in its basename.
@@ -134,7 +180,20 @@
 </span><span class='id identifier rubyid_file'>file</span>.<span class='id identifier rubyid_close'><a href="#close-instance_method" title="Tempfile#close (method)">close</a></span>
 <span class='id identifier rubyid_file'>file</span>.<span class='id identifier rubyid_unlink'><a href="#unlink-instance_method" title="Tempfile#unlink (method)">unlink</a></span>    <span class='comment'># deletes the temp file</span></code></pre>
 
-<h3 id="label-Good+practices">Good practices</h3>
+<h3 id="label-About+-7BTempfile.new-7D+and+-7BTempfile.open-7D">About <a href="#new-class_method" title="Tempfile.new (method)">.new</a> and <a href="#open-class_method" title="Tempfile.open (method)">.open</a></h3>
+
+<p>This section does not apply to <a href="#create-class_method" title="Tempfile.create (method)">.create</a> because it returns a File object (not a <code>Tempfile</code> object).</p>
+
+<p>When you create a <code>Tempfile</code> object, it will create a temporary file with a unique filename. A Tempfile objects behaves just like a File object, and you can perform all the usual file operations on it: reading data, writing data, changing its permissions, etc. So although this class does not explicitly document all instance methods supported by File, you can in fact call any File instance method on a <code>Tempfile</code> object.</p>
+
+<p>A Tempfile object has a finalizer to remove the temporary file. This means that the temporary file is removed via GC. This can cause several problems:</p>
+<ul><li>
+<p>Long GC intervals and conservative GC can accumulate temporary files that are not removed.</p>
+</li><li>
+<p>Temporary files are not removed if Ruby exits abnormally (such as SIGKILL, SEGV).</p>
+</li></ul>
+
+<p>There are legacy good practices for <a href="#new-class_method" title="Tempfile.new (method)">.new</a> and <a href="#open-class_method" title="Tempfile.open (method)">.open</a> as follows.</p>
 
 <h4 id="label-Explicit+close">Explicit close</h4>
 
@@ -160,9 +219,11 @@
 
 <p>On POSIX systems, it’s possible to unlink a file right after creating it, and before closing it. This removes the filesystem entry without closing the file handle, so it ensures that only the processes that already had the file handle open can access the file’s contents. It’s strongly recommended that you do this if you do not want any other processes to be able to read from or write to the <code>Tempfile</code>, and you do not need to know the Tempfile’s filename either.</p>
 
+<p>Also, this guarantees the temporary file is removed even if Ruby exits abnormally. The OS reclaims the storage for the temporary file when the file is closed or the Ruby process exits (normally or abnormally).</p>
+
 <p>For example, a practical use case for unlink-after-creation would be this: you need a large byte buffer that’s too large to comfortably fit in RAM, e.g. when you’re writing a web server and you want to buffer the client’s file upload data.</p>
 
-<p>Please refer to <a href="#unlink-instance_method" title="Tempfile#unlink (method)">#unlink</a> for more information and a code example.</p>
+<p><code>Tempfile.create(anonymous: true)</code> supports this behavior. It also works on Windows.</p>
 
 <h3 id="label-Minor+notes">Minor notes</h3>
 
@@ -185,7 +246,7 @@
 
   </div>
 </div>
-    <a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L92-L92'># File 'lib/tempfile.rb', line 92</a>    <pre class='code ruby'><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>0.2.1</span><span class='tstring_end'>&quot;</span></span></pre>
+    <a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L160-L160'># File 'lib/tempfile.rb', line 160</a>    <pre class='code ruby'><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>0.2.1</span><span class='tstring_end'>&quot;</span></span></pre>
   </li>
 </ul>
 </div>
@@ -454,11 +515,11 @@
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L151-L167'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L219-L235'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='151' data-end='167'></pre>
+  <pre class='lines_num' data-start='219' data-end='235'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 151</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 219</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span>(<span class='id identifier rubyid_basename'>basename</span><span class='op'>=</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_tmpdir'>tmpdir</span><span class='op'>=</span><span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>mode:</span> <span class='int'>0</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_options'>options</span>)
@@ -592,11 +653,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L486-L492'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L554-L560'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='486' data-end='492'></pre>
+  <pre class='lines_num' data-start='554' data-end='560'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 486</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 554</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='const'>Tempfile</span>.<span class='id identifier rubyid_create'>create</span>(<span class='id identifier rubyid_basename'>basename</span><span class='op'>=</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_tmpdir'>tmpdir</span><span class='op'>=</span><span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>mode:</span> <span class='int'>0</span><span class='comma'>,</span> <span class='label'>anonymous:</span> <span class='kw'>false</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_options'>options</span><span class='comma'>,</span> <span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span>)
@@ -615,11 +676,11 @@
   <h3 class='signature '>
     .<strong>create_anonymous</strong>(basename = &quot;&quot;, tmpdir = nil, mode: 0, **options, &amp;block)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L524-L555'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L592-L623'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='524' data-end='555'></pre>
+  <pre class='lines_num' data-start='592' data-end='623'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 524</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 592</span></pre>
 <pre class='code ruby'>
 
 <span class='id identifier rubyid_private'>private</span> <span class='kw'>def</span> <span class='id identifier rubyid_create_anonymous'>create_anonymous</span>(<span class='id identifier rubyid_basename'>basename</span><span class='op'>=</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_tmpdir'>tmpdir</span><span class='op'>=</span><span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>mode:</span> <span class='int'>0</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_options'>options</span><span class='comma'>,</span> <span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span>)
@@ -663,11 +724,11 @@
   <h3 class='signature '>
     .<strong>create_with_filename</strong>(basename = &quot;&quot;, tmpdir = nil, mode: 0, **options)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L495-L522'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L563-L590'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='495' data-end='522'></pre>
+  <pre class='lines_num' data-start='563' data-end='590'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 495</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 563</span></pre>
 <pre class='code ruby'>
 
 <span class='id identifier rubyid_private'>private</span> <span class='kw'>def</span> <span class='id identifier rubyid_create_with_filename'>create_with_filename</span>(<span class='id identifier rubyid_basename'>basename</span><span class='op'>=</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_tmpdir'>tmpdir</span><span class='op'>=</span><span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>mode:</span> <span class='int'>0</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_options'>options</span>)
@@ -738,11 +799,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L367-L379'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L435-L447'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='367' data-end='379'></pre>
+  <pre class='lines_num' data-start='435' data-end='447'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 367</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 435</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_open'>open</span>(<span class='op'>*</span><span class='id identifier rubyid_args'>args</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_kw'>kw</span>)
@@ -771,11 +832,11 @@
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L296-L296'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L364-L364'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='296' data-end='296'></pre>
+  <pre class='lines_num' data-start='364' data-end='364'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 296</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 364</span></pre>
 <pre class='code ruby'>
 
 <span class='id identifier rubyid_attr_reader'>attr_reader</span> <span class='symbeg'>:</span><span class='id identifier rubyid_unlinked'><a href="#unlinked-instance_method" title="Tempfile#unlinked (method)">unlinked</a></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_mode'><a href="#mode-instance_method" title="Tempfile#mode (method)">mode</a></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_opts'><a href="#opts-instance_method" title="Tempfile#opts (method)">opts</a></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_finalizer_obj'>finalizer_obj</span>
@@ -791,11 +852,11 @@
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L296-L296'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L364-L364'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='296' data-end='296'></pre>
+  <pre class='lines_num' data-start='364' data-end='364'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 296</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 364</span></pre>
 <pre class='code ruby'>
 
 <span class='id identifier rubyid_attr_reader'>attr_reader</span> <span class='symbeg'>:</span><span class='id identifier rubyid_unlinked'><a href="#unlinked-instance_method" title="Tempfile#unlinked (method)">unlinked</a></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_mode'>mode</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_opts'><a href="#opts-instance_method" title="Tempfile#opts (method)">opts</a></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_finalizer_obj'><a href="#finalizer_obj-instance_method" title="Tempfile#finalizer_obj (method)">finalizer_obj</a></span>
@@ -811,11 +872,11 @@
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L296-L296'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L364-L364'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='296' data-end='296'></pre>
+  <pre class='lines_num' data-start='364' data-end='364'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 296</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 364</span></pre>
 <pre class='code ruby'>
 
 <span class='id identifier rubyid_attr_reader'>attr_reader</span> <span class='symbeg'>:</span><span class='id identifier rubyid_unlinked'><a href="#unlinked-instance_method" title="Tempfile#unlinked (method)">unlinked</a></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_mode'><a href="#mode-instance_method" title="Tempfile#mode (method)">mode</a></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_opts'>opts</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_finalizer_obj'><a href="#finalizer_obj-instance_method" title="Tempfile#finalizer_obj (method)">finalizer_obj</a></span>
@@ -831,11 +892,11 @@
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L296-L296'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L364-L364'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='296' data-end='296'></pre>
+  <pre class='lines_num' data-start='364' data-end='364'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 296</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 364</span></pre>
 <pre class='code ruby'>
 
 <span class='id identifier rubyid_attr_reader'>attr_reader</span> <span class='symbeg'>:</span><span class='id identifier rubyid_unlinked'>unlinked</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_mode'><a href="#mode-instance_method" title="Tempfile#mode (method)">mode</a></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_opts'><a href="#opts-instance_method" title="Tempfile#opts (method)">opts</a></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_finalizer_obj'><a href="#finalizer_obj-instance_method" title="Tempfile#finalizer_obj (method)">finalizer_obj</a></span>
@@ -852,11 +913,11 @@
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L198-L200'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L266-L268'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='198' data-end='200'></pre>
+  <pre class='lines_num' data-start='266' data-end='268'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 198</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 266</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid__close'>_close</span>    <span class='comment'># :nodoc:
@@ -880,11 +941,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L209-L212'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L277-L280'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='209' data-end='212'></pre>
+  <pre class='lines_num' data-start='277' data-end='280'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 209</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 277</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_close'>close</span>(<span class='id identifier rubyid_unlink_now'>unlink_now</span><span class='op'>=</span><span class='kw'>false</span>)
@@ -907,11 +968,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L216-L218'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L284-L286'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='216' data-end='218'></pre>
+  <pre class='lines_num' data-start='284' data-end='286'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 216</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 284</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_close!'>close!</span>
@@ -933,11 +994,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L265-L265'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L333-L333'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='265' data-end='265'></pre>
+  <pre class='lines_num' data-start='333' data-end='333'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 265</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 333</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>alias</span> <span class='id identifier rubyid_delete'>delete</span> <span class='id identifier rubyid_unlink'><a href="#unlink-instance_method" title="Tempfile#unlink (method)">unlink</a></span>
@@ -953,11 +1014,11 @@
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L175-L179'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L243-L247'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='175' data-end='179'></pre>
+  <pre class='lines_num' data-start='243' data-end='247'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 175</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 243</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_initialize_clone'>initialize_clone</span>(<span class='id identifier rubyid_other'>other</span>) <span class='comment'># :nodoc:
@@ -977,11 +1038,11 @@
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L181-L186'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L249-L254'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='181' data-end='186'></pre>
+  <pre class='lines_num' data-start='249' data-end='254'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 181</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 249</span></pre>
 <pre class='code ruby'>
 
 <span class='id identifier rubyid_private'>private</span> <span class='kw'>def</span> <span class='id identifier rubyid_initialize_copy_iv'>initialize_copy_iv</span>(<span class='id identifier rubyid_other'>other</span>) <span class='comment'># :nodoc:
@@ -1002,11 +1063,11 @@
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L169-L173'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L237-L241'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='169' data-end='173'></pre>
+  <pre class='lines_num' data-start='237' data-end='241'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 169</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 237</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_initialize_dup'>initialize_dup</span>(<span class='id identifier rubyid_other'>other</span>) <span class='comment'># :nodoc:
@@ -1027,11 +1088,11 @@
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L285-L291'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L353-L359'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='285' data-end='291'></pre>
+  <pre class='lines_num' data-start='353' data-end='359'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 285</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 353</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_inspect'>inspect</span>
@@ -1057,11 +1118,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L282-L282'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L350-L350'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='282' data-end='282'></pre>
+  <pre class='lines_num' data-start='350' data-end='350'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 282</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 350</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>alias</span> <span class='id identifier rubyid_length'>length</span> <span class='id identifier rubyid_size'><a href="#size-instance_method" title="Tempfile#size (method)">size</a></span>
@@ -1081,11 +1142,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L189-L196'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L257-L264'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='189' data-end='196'></pre>
+  <pre class='lines_num' data-start='257' data-end='264'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 189</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 257</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_open'>open</span>
@@ -1112,11 +1173,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L269-L271'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L337-L339'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='269' data-end='271'></pre>
+  <pre class='lines_num' data-start='337' data-end='339'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 269</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 337</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_path'>path</span>
@@ -1139,11 +1200,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L275-L281'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L343-L349'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='275' data-end='281'></pre>
+  <pre class='lines_num' data-start='343' data-end='349'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 275</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 343</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_size'>size</span>
@@ -1172,11 +1233,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L292-L292'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L360-L360'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='292' data-end='292'></pre>
+  <pre class='lines_num' data-start='360' data-end='360'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 292</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 360</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>alias</span> <span class='id identifier rubyid_to_s'>to_s</span> <span class='id identifier rubyid_inspect'><a href="#inspect-instance_method" title="Tempfile#inspect (method)">inspect</a></span>
@@ -1221,11 +1282,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L253-L264'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L321-L332'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='253' data-end='264'></pre>
+  <pre class='lines_num' data-start='321' data-end='332'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 253</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 321</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_unlink'>unlink</span>
