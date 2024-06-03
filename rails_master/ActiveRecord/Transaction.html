@@ -92,10 +92,59 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/transaction.rb#L6'>activerecord/lib/active_record/transaction.rb</a>      </td>
+      <td class='box_rel'><a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/transaction.rb#L46'>activerecord/lib/active_record/transaction.rb</a>      </td>
     </tr>
   </tbody>
 </table>
+</div>
+<h2 id='h2_overview'>Overview</h2>
+<div id='overview_ds'>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>This abstract class specifies the interface to interact with the current transaction state.</p>
+
+<p>Any other methods not specified here are considered to be private interfaces.</p>
+
+<h3 id="label-Callbacks">Callbacks</h3>
+
+<p>After updating the database state, you may sometimes need to perform some extra work, or reflect these changes in a remote system like clearing or updating a cache:</p>
+
+<p>def publish_article(article)</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_article'>article</span>.<span class='id identifier rubyid_update!'>update!</span>(<span class='label'>published:</span> <span class='kw'>true</span>)
+<span class='const'>NotificationService</span>.<span class='id identifier rubyid_article_published'>article_published</span>(<span class='id identifier rubyid_article'>article</span>)</code></pre>
+
+<p>end</p>
+
+<p>The above code works but has one important flaw, which is that it no longer works properly if called inside a transaction, as it will interact with the remote system before the changes are persisted:</p>
+
+<p><code>Article.transaction</code> do</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_article'>article</span> <span class='op'>=</span> <span class='id identifier rubyid_create_article'>create_article</span>(<span class='id identifier rubyid_article'>article</span>)
+<span class='id identifier rubyid_publish_article'>publish_article</span>(<span class='id identifier rubyid_article'>article</span>)</code></pre>
+
+<p>end</p>
+
+<p>The callbacks offered by <code>Transaction</code> allow to rewriting this method in a way that is compatible with transactions:</p>
+
+<p>def publish_article(article)</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_article'>article</span>.<span class='id identifier rubyid_update!'>update!</span>(<span class='label'>published:</span> <span class='kw'>true</span>)
+<span class='const'>Article</span>.<span class='id identifier rubyid_current_transaction'>current_transaction</span>.<span class='id identifier rubyid_after_commit'><a href="#after_commit-instance_method" title="ActiveRecord::Transaction#after_commit (method)">after_commit</a></span> <span class='kw'>do</span>
+  <span class='const'>NotificationService</span>.<span class='id identifier rubyid_article_published'>article_published</span>(<span class='id identifier rubyid_article'>article</span>)
+<span class='kw'>end</span></code></pre>
+
+<p>end</p>
+
+<p>In the above example, if <code>publish_article</code> is called inside a transaction, the callback will be invoked after the transaction is successfully committed, and if called outside a transaction, the callback will be invoked immediately.</p>
+
+<h3 id="label-Caveats">Caveats</h3>
+
+<p>When using after_commit callbacks, it is important to note that if the callback raises an error, the transaction won’t be rolled back. Relying solely on these to synchronize state between multiple systems may lead to consistency issues.</p>
+
+  </div>
+</div>
 </div>
 <h2 class='h2_sum' id='class_method_summary'>Class Method Summary</h2>
 <div class='div_sum'>
@@ -109,6 +158,40 @@
   </li>
 </ul>
 </div>  <!-- class_method_summary -->
+
+<h2 class='h2_sum' id='instance_attribute_summary'>Instance Attribute Summary</h2>
+<div class='div_sum'>
+<ul class='summary full'>
+  <li>
+    <span class='summary_signature ro'>
+      <a href="#blank%3F-instance_method" title="#blank? (instance method)">#<strong>blank?</strong>  </a>
+    </span>
+    <span class='note title readonly'>readonly</span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Alias for <a href="#closed%3F-instance_method" title="ActiveRecord::Transaction#closed? (method)">#closed?</a>.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature ro'>
+      <a href="#closed%3F-instance_method" title="#closed? (instance method)">#<strong>closed?</strong>  &#x21d2; Boolean </a>
+      (also: #blank?)
+    </span>
+    <span class='note title readonly'>readonly</span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Returns true if no transaction is currently active.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature ro'>
+      <a href="#open%3F-instance_method" title="#open? (instance method)">#<strong>open?</strong>  &#x21d2; Boolean </a>
+    </span>
+    <span class='note title readonly'>readonly</span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Returns true if a transaction was started.</p></div>
+    </div>
+  </li>
+</ul>
+</div>  <!-- instance_attribute_summary -->
 
 <h2 class='h2_sum' id='instance_method_summary'>Instance Method Summary</h2>
 <div class='div_sum'>
@@ -146,10 +229,11 @@
     </div>
   </li>
   <li>
-    <span class='summary_signature prot'>
+    <span class='summary_signature prot nodoc'>
       <a href="#append_callbacks-instance_method" title="#append_callbacks (instance method)">#<strong>append_callbacks</strong>(callbacks)  </a>
     </span>
     <span class='note title protected'>protected</span>
+    <span class='nodoc note title'>Internal use only</span>
   </li>
 </ul>
 </div>  <!-- instance_method_summary -->
@@ -170,16 +254,100 @@
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/transaction.rb#L26-L29'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/transaction.rb#L66-L69'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='26' data-end='29'></pre>
+  <pre class='lines_num' data-start='66' data-end='69'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/transaction.rb', line 26</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/transaction.rb', line 66</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span> <span class='comment'># :nodoc:
 </span>  <span class='ivar'>@callbacks</span> <span class='op'>=</span> <span class='kw'>nil</span>
   <span class='ivar'>@uuid</span> <span class='op'>=</span> <span class='kw'>nil</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<h2 class='y_details'>Instance Attribute Details</h2>
+<section class='method_details first' id="blank?-instance_method">
+  <h3 class='signature ro first'>
+    #<strong>blank?</strong>   <span class="extras">(<span class='readonly'>readonly</span>)</span>
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Alias for <a href="#closed%3F-instance_method" title="ActiveRecord::Transaction#closed? (method)">#closed?</a>.</p>
+
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/transaction.rb#L119-L119'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='119' data-end='119'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activerecord/lib/active_record/transaction.rb', line 119</span></pre>
+<pre class='code ruby'>
+
+<span class='id identifier rubyid_alias_method'>alias_method</span> <span class='symbeg'>:</span><span class='id identifier rubyid_blank?'>blank?</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_closed?'><a href="#closed%3F-instance_method" title="ActiveRecord::Transaction#closed? (method)">closed?</a></span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="closed?-instance_method">
+  <h3 class='signature ro'>
+    #<strong>closed?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='readonly'>readonly</span>)</span>
+    <span class='aliases'>Also known as: <span class='names'>#blank?</span></span>
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Returns true if no transaction is currently active.</p>
+
+  </div>
+</div>
+<div class='tags'>
+  
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/transaction.rb#L116-L118'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='116' data-end='118'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activerecord/lib/active_record/transaction.rb', line 116</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_closed?'>closed?</span>
+  <span class='kw'>false</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="open?-instance_method">
+  <h3 class='signature ro'>
+    #<strong>open?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='readonly'>readonly</span>)</span>
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Returns true if a transaction was started.</p>
+
+  </div>
+</div>
+<div class='tags'>
+  
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/transaction.rb#L111-L113'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='111' data-end='113'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activerecord/lib/active_record/transaction.rb', line 111</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_open?'>open?</span>
+  <span class='kw'>true</span>
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -200,13 +368,15 @@
 
 <p>If the current transaction has a parent transaction, the callback is transferred to the parent when the current transaction commits, or dropped when the current transaction is rolled back. This operation is repeated until the outermost transaction is reached.</p>
 
+<p>If the callback raises an error, the transaction remains committed.</p>
+
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/transaction.rb#L49-L51'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/transaction.rb#L93-L95'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='49' data-end='51'></pre>
+  <pre class='lines_num' data-start='93' data-end='95'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/transaction.rb', line 49</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/transaction.rb', line 93</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_after_commit'>after_commit</span>(<span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span>)
@@ -234,11 +404,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/transaction.rb#L62-L64'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/transaction.rb#L106-L108'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='62' data-end='64'></pre>
+  <pre class='lines_num' data-start='106' data-end='108'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/transaction.rb', line 62</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/transaction.rb', line 106</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_after_rollback'>after_rollback</span>(<span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span>)
@@ -250,18 +420,21 @@
 </section>
 
 <section class='method_details' id="append_callbacks-instance_method">
-  <h3 class='signature prot'>
+  <h3 class='signature prot  nodoc'>
     #<strong>append_callbacks</strong>(callbacks)   <span class="extras">(<span class='prot'>protected</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/transaction.rb#L72-L74'>GitHub</a>&#8202;]</span>
+  <div class='note nodoc inline-block'>
+    <strong>This method is for internal use only.</strong>
+  </div><div></div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/transaction.rb#L127-L129'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='72' data-end='74'></pre>
+  <pre class='lines_num' data-start='127' data-end='129'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/transaction.rb', line 72</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/transaction.rb', line 127</span></pre>
 <pre class='code ruby'>
 
-<span class='kw'>def</span> <span class='id identifier rubyid_append_callbacks'>append_callbacks</span>(<span class='id identifier rubyid_callbacks'>callbacks</span>)
-  (<span class='ivar'>@callbacks</span> <span class='op'>||=</span> []).<span class='id identifier rubyid_concat'>concat</span>(<span class='id identifier rubyid_callbacks'>callbacks</span>)
+<span class='kw'>def</span> <span class='id identifier rubyid_append_callbacks'>append_callbacks</span>(<span class='id identifier rubyid_callbacks'>callbacks</span>) <span class='comment'># :nodoc:
+</span>  (<span class='ivar'>@callbacks</span> <span class='op'>||=</span> []).<span class='id identifier rubyid_concat'>concat</span>(<span class='id identifier rubyid_callbacks'>callbacks</span>)
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -281,13 +454,15 @@
 
 <p>If the current transaction has a parent transaction, the callback is transferred to the parent when the current transaction commits, or dropped when the current transaction is rolled back. This operation is repeated until the outermost transaction is reached.</p>
 
+<p>If the callback raises an error, the transaction is rolled back.</p>
+
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/transaction.rb#L38-L40'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/transaction.rb#L80-L82'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='38' data-end='40'></pre>
+  <pre class='lines_num' data-start='80' data-end='82'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/transaction.rb', line 38</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/transaction.rb', line 80</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_before_commit'>before_commit</span>(<span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span>)
@@ -309,11 +484,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/transaction.rb#L67-L69'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/transaction.rb#L122-L124'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='67' data-end='69'></pre>
+  <pre class='lines_num' data-start='122' data-end='124'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/transaction.rb', line 67</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/transaction.rb', line 122</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_uuid'>uuid</span>
