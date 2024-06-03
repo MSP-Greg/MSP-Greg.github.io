@@ -110,32 +110,26 @@
 
 <p>After updating the database state, you may sometimes need to perform some extra work, or reflect these changes in a remote system like clearing or updating a cache:</p>
 
-<p>def publish_article(article)</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_article'>article</span>.<span class='id identifier rubyid_update!'>update!</span>(<span class='label'>published:</span> <span class='kw'>true</span>)
-<span class='const'>NotificationService</span>.<span class='id identifier rubyid_article_published'>article_published</span>(<span class='id identifier rubyid_article'>article</span>)</code></pre>
-
-<p>end</p>
-
-<p>The above code works but has one important flaw, which is that it no longer works properly if called inside a transaction, as it will interact with the remote system before the changes are persisted:</p>
-
-<p><code>Article.transaction</code> do</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_article'>article</span> <span class='op'>=</span> <span class='id identifier rubyid_create_article'>create_article</span>(<span class='id identifier rubyid_article'>article</span>)
-<span class='id identifier rubyid_publish_article'>publish_article</span>(<span class='id identifier rubyid_article'>article</span>)</code></pre>
-
-<p>end</p>
-
-<p>The callbacks offered by <code>Transaction</code> allow to rewriting this method in a way that is compatible with transactions:</p>
-
-<p>def publish_article(article)</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_article'>article</span>.<span class='id identifier rubyid_update!'>update!</span>(<span class='label'>published:</span> <span class='kw'>true</span>)
-<span class='const'>Article</span>.<span class='id identifier rubyid_current_transaction'>current_transaction</span>.<span class='id identifier rubyid_after_commit'><a href="#after_commit-instance_method" title="ActiveRecord::Transaction#after_commit (method)">after_commit</a></span> <span class='kw'>do</span>
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_publish_article'>publish_article</span>(<span class='id identifier rubyid_article'>article</span>)
+  <span class='id identifier rubyid_article'>article</span>.<span class='id identifier rubyid_update!'>update!</span>(<span class='label'>published:</span> <span class='kw'>true</span>)
   <span class='const'>NotificationService</span>.<span class='id identifier rubyid_article_published'>article_published</span>(<span class='id identifier rubyid_article'>article</span>)
 <span class='kw'>end</span></code></pre>
 
-<p>end</p>
+<p>The above code works but has one important flaw, which is that it no longer works properly if called inside a transaction, as it will interact with the remote system before the changes are persisted:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Article</span>.<span class='id identifier rubyid_transaction'>transaction</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_article'>article</span> <span class='op'>=</span> <span class='id identifier rubyid_create_article'>create_article</span>(<span class='id identifier rubyid_article'>article</span>)
+  <span class='id identifier rubyid_publish_article'>publish_article</span>(<span class='id identifier rubyid_article'>article</span>)
+<span class='kw'>end</span></code></pre>
+
+<p>The callbacks offered by <code>Transaction</code> allow to rewriting this method in a way that is compatible with transactions:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_publish_article'>publish_article</span>(<span class='id identifier rubyid_article'>article</span>)
+  <span class='id identifier rubyid_article'>article</span>.<span class='id identifier rubyid_update!'>update!</span>(<span class='label'>published:</span> <span class='kw'>true</span>)
+  <span class='const'>Article</span>.<span class='id identifier rubyid_current_transaction'>current_transaction</span>.<span class='id identifier rubyid_after_commit'><a href="#after_commit-instance_method" title="ActiveRecord::Transaction#after_commit (method)">after_commit</a></span> <span class='kw'>do</span>
+    <span class='const'>NotificationService</span>.<span class='id identifier rubyid_article_published'>article_published</span>(<span class='id identifier rubyid_article'>article</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
 
 <p>In the above example, if <code>publish_article</code> is called inside a transaction, the callback will be invoked after the transaction is successfully committed, and if called outside a transaction, the callback will be invoked immediately.</p>
 
@@ -168,12 +162,13 @@
     </span>
     <span class='note title readonly'>readonly</span>
     <div class='summary_desc'>
-      <div class='inline'><p>Alias for <a href="#open%3F-instance_method" title="ActiveRecord::Transaction#open? (method)">#open?</a>.</p></div>
+      <div class='inline'><p>Alias for <a href="#closed%3F-instance_method" title="ActiveRecord::Transaction#closed? (method)">#closed?</a>.</p></div>
     </div>
   </li>
   <li>
     <span class='summary_signature ro'>
       <a href="#closed%3F-instance_method" title="#closed? (instance method)">#<strong>closed?</strong>  &#x21d2; Boolean </a>
+      (also: #blank?)
     </span>
     <span class='note title readonly'>readonly</span>
     <div class='summary_desc'>
@@ -183,7 +178,6 @@
   <li>
     <span class='summary_signature ro'>
       <a href="#open%3F-instance_method" title="#open? (instance method)">#<strong>open?</strong>  &#x21d2; Boolean </a>
-      (also: #blank?)
     </span>
     <span class='note title readonly'>readonly</span>
     <div class='summary_desc'>
@@ -278,18 +272,18 @@
 <div class='docstring'>
   <div class='discussion'>
     
-<p>Alias for <a href="#open%3F-instance_method" title="ActiveRecord::Transaction#open? (method)">#open?</a>.</p>
+<p>Alias for <a href="#closed%3F-instance_method" title="ActiveRecord::Transaction#closed? (method)">#closed?</a>.</p>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-2-stable/activerecord/lib/active_record/transaction.rb#L114-L114'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-2-stable/activerecord/lib/active_record/transaction.rb#L119-L119'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='114' data-end='114'></pre>
+  <pre class='lines_num' data-start='119' data-end='119'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/transaction.rb', line 114</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/transaction.rb', line 119</span></pre>
 <pre class='code ruby'>
 
-<span class='id identifier rubyid_alias_method'>alias_method</span> <span class='symbeg'>:</span><span class='id identifier rubyid_blank?'>blank?</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_open?'><a href="#open%3F-instance_method" title="ActiveRecord::Transaction#open? (method)">open?</a></span>
+<span class='id identifier rubyid_alias_method'>alias_method</span> <span class='symbeg'>:</span><span class='id identifier rubyid_blank?'>blank?</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_closed?'><a href="#closed%3F-instance_method" title="ActiveRecord::Transaction#closed? (method)">closed?</a></span>
 </pre>
   </div>
 </div>
@@ -298,6 +292,7 @@
 <section class='method_details' id="closed?-instance_method">
   <h3 class='signature ro'>
     #<strong>closed?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='readonly'>readonly</span>)</span>
+    <span class='aliases'>Also known as: <span class='names'>#blank?</span></span>
   </h3>
 <div class='docstring'>
   <div class='discussion'>
@@ -309,11 +304,11 @@
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-2-stable/activerecord/lib/active_record/transaction.rb#L117-L119'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/7-2-stable/activerecord/lib/active_record/transaction.rb#L116-L118'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='117' data-end='119'></pre>
+  <pre class='lines_num' data-start='116' data-end='118'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/transaction.rb', line 117</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/transaction.rb', line 116</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_closed?'>closed?</span>
@@ -327,7 +322,6 @@
 <section class='method_details' id="open?-instance_method">
   <h3 class='signature ro'>
     #<strong>open?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='readonly'>readonly</span>)</span>
-    <span class='aliases'>Also known as: <span class='names'>#blank?</span></span>
   </h3>
 <div class='docstring'>
   <div class='discussion'>
