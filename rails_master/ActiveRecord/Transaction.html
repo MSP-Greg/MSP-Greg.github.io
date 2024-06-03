@@ -110,32 +110,26 @@
 
 <p>After updating the database state, you may sometimes need to perform some extra work, or reflect these changes in a remote system like clearing or updating a cache:</p>
 
-<p>def publish_article(article)</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_article'>article</span>.<span class='id identifier rubyid_update!'>update!</span>(<span class='label'>published:</span> <span class='kw'>true</span>)
-<span class='const'>NotificationService</span>.<span class='id identifier rubyid_article_published'>article_published</span>(<span class='id identifier rubyid_article'>article</span>)</code></pre>
-
-<p>end</p>
-
-<p>The above code works but has one important flaw, which is that it no longer works properly if called inside a transaction, as it will interact with the remote system before the changes are persisted:</p>
-
-<p><code>Article.transaction</code> do</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_article'>article</span> <span class='op'>=</span> <span class='id identifier rubyid_create_article'>create_article</span>(<span class='id identifier rubyid_article'>article</span>)
-<span class='id identifier rubyid_publish_article'>publish_article</span>(<span class='id identifier rubyid_article'>article</span>)</code></pre>
-
-<p>end</p>
-
-<p>The callbacks offered by <code>Transaction</code> allow to rewriting this method in a way that is compatible with transactions:</p>
-
-<p>def publish_article(article)</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_article'>article</span>.<span class='id identifier rubyid_update!'>update!</span>(<span class='label'>published:</span> <span class='kw'>true</span>)
-<span class='const'>Article</span>.<span class='id identifier rubyid_current_transaction'>current_transaction</span>.<span class='id identifier rubyid_after_commit'><a href="#after_commit-instance_method" title="ActiveRecord::Transaction#after_commit (method)">after_commit</a></span> <span class='kw'>do</span>
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_publish_article'>publish_article</span>(<span class='id identifier rubyid_article'>article</span>)
+  <span class='id identifier rubyid_article'>article</span>.<span class='id identifier rubyid_update!'>update!</span>(<span class='label'>published:</span> <span class='kw'>true</span>)
   <span class='const'>NotificationService</span>.<span class='id identifier rubyid_article_published'>article_published</span>(<span class='id identifier rubyid_article'>article</span>)
 <span class='kw'>end</span></code></pre>
 
-<p>end</p>
+<p>The above code works but has one important flaw, which is that it no longer works properly if called inside a transaction, as it will interact with the remote system before the changes are persisted:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Article</span>.<span class='id identifier rubyid_transaction'>transaction</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_article'>article</span> <span class='op'>=</span> <span class='id identifier rubyid_create_article'>create_article</span>(<span class='id identifier rubyid_article'>article</span>)
+  <span class='id identifier rubyid_publish_article'>publish_article</span>(<span class='id identifier rubyid_article'>article</span>)
+<span class='kw'>end</span></code></pre>
+
+<p>The callbacks offered by <code>Transaction</code> allow to rewriting this method in a way that is compatible with transactions:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_publish_article'>publish_article</span>(<span class='id identifier rubyid_article'>article</span>)
+  <span class='id identifier rubyid_article'>article</span>.<span class='id identifier rubyid_update!'>update!</span>(<span class='label'>published:</span> <span class='kw'>true</span>)
+  <span class='const'>Article</span>.<span class='id identifier rubyid_current_transaction'>current_transaction</span>.<span class='id identifier rubyid_after_commit'><a href="#after_commit-instance_method" title="ActiveRecord::Transaction#after_commit (method)">after_commit</a></span> <span class='kw'>do</span>
+    <span class='const'>NotificationService</span>.<span class='id identifier rubyid_article_published'>article_published</span>(<span class='id identifier rubyid_article'>article</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
 
 <p>In the above example, if <code>publish_article</code> is called inside a transaction, the callback will be invoked after the transaction is successfully committed, and if called outside a transaction, the callback will be invoked immediately.</p>
 
