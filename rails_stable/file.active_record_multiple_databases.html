@@ -107,7 +107,7 @@ need to do to get your application ready for multiple databases.</p>
 new database for some new tables we&#39;re adding. The name of the new database will be
 &quot;animals&quot;.</p>
 
-<p>The <code>database.yml</code> looks like this:</p>
+<p><code>config/database.yml</code> looks like this:</p>
 
 <pre class="code yaml"><code class="yaml">production:
   database: my_primary_database
@@ -116,15 +116,15 @@ new database for some new tables we&#39;re adding. The name of the new database 
   password: &lt;%= ENV[&#39;ROOT_PASSWORD&#39;] %&gt;
 </code></pre>
 
-<p>Let&#39;s add a second database called animals and replicas for both databases as well. To do
-this, we need to change our <code>database.yml</code> from a 2-tier
-to a 3-tier config.</p>
+<p>Let&#39;s add a second database called &quot;animals&quot; and replicas for both databases as
+well. To do this, we need to change our <code>config/database.yml</code> from a 2-tier to a
+3-tier config.</p>
 
-<p>If a primary configuration is provided, it will be used as the &quot;default&quot; configuration. If
-there is no configuration named <code>&quot;primary&quot;</code>, Rails will use the first configuration as default
+<p>If a <code>primary</code> configuration key is provided, it will be used as the &quot;default&quot; configuration. If
+there is no configuration named <code>primary</code>, Rails will use the first configuration as default
 for each environment. The default configurations will use the default Rails filenames. For example,
-primary configurations will use <code>schema.rb</code> for the schema file, whereas all the other entries
-will use <code>[CONFIGURATION_NAMESPACE]_schema.rb</code> for the filename.</p>
+primary configurations will use <code>db/schema.rb</code> for the schema file, whereas all the other entries
+will use <code>db/[CONFIGURATION_NAMESPACE]_schema.rb</code> for the filename.</p>
 
 <pre class="code yaml"><code class="yaml">production:
   primary:
@@ -154,33 +154,26 @@ will use <code>[CONFIGURATION_NAMESPACE]_schema.rb</code> for the filename.</p>
 
 <p>When using multiple databases, there are a few important settings.</p>
 
-<p>First, the database name for the <code>primary</code> and <code>primary_replica</code> should be the same because they contain
+<p>First, the database name for <code>primary</code> and <code>primary_replica</code> should be the same because they contain
 the same data. This is also the case for <code>animals</code> and <code>animals_replica</code>.</p>
 
 <p>Second, the username for the writers and replicas should be different, and the
 replica user&#39;s database permissions should be set to only read and not write.</p>
 
-<p>When using a replica database, you need to add a <code>replica: true</code> entry to the replica in the
-<code>database.yml</code>. This is because Rails otherwise has no way of knowing which one is a replica
+<p>When using a replica database, you need to add a <code>replica: true</code> entry to the replica in
+<code>config/database.yml</code>. This is because Rails otherwise has no way of knowing which one is a replica
 and which one is the writer. Rails will not run certain tasks, such as migrations, against replicas.</p>
 
-<p>Lastly, for new writer databases, you need to set the <code>migrations_paths</code> to the directory
+<p>Lastly, for new writer databases, you need to set the <code>migrations_paths</code> key to the directory
 where you will store migrations for that database. We&#39;ll look more at <code>migrations_paths</code>
 later on in this guide.</p>
 
 <p>You can also configure the schema dump file by setting <code>schema_dump</code> to a custom schema file name
 or completely skip the schema dumping by setting <code>schema_dump: false</code>.</p>
 
-<p>Now that we have a new database, let&#39;s set up the connection model. In order to use the
-new database we need to create a new abstract class and connect to the animals databases.</p>
+<p>Now that we have a new database, let&#39;s set up the connection model.</p>
 
-<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>AnimalsRecord</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
-  <span class='kw'>self</span>.<span class='id identifier rubyid_abstract_class'>abstract_class</span> <span class='op'>=</span> <span class='kw'>true</span>
-
-  <span class='id identifier rubyid_connects_to'>connects_to</span> <span class='label'>database:</span> { <span class='label'>writing:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_animals'>animals</span><span class='comma'>,</span> <span class='label'>reading:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_animals_replica'>animals_replica</span> }
-<span class='kw'>end</span></code></pre>
-
-<p>Then we need to update <code>ApplicationRecord</code> to be aware of our new replica.</p>
+<p>The primary database replica may be configured in <code>ApplicationRecord</code> this way:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ApplicationRecord</span> <span class='op'>&lt;</span> <span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)">Base</a></span>
   <span class='kw'>self</span>.<span class='id identifier rubyid_abstract_class'>abstract_class</span> <span class='op'>=</span> <span class='kw'>true</span>
@@ -194,15 +187,32 @@ should share a connection with.</p>
 
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>PrimaryApplicationRecord</span> <span class='op'>&lt;</span> <span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)">Base</a></span>
   <span class='id identifier rubyid_primary_abstract_class'>primary_abstract_class</span>
+
+  <span class='id identifier rubyid_connects_to'>connects_to</span> <span class='label'>database:</span> { <span class='label'>writing:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_primary'>primary</span><span class='comma'>,</span> <span class='label'>reading:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_primary_replica'>primary_replica</span> }
 <span class='kw'>end</span></code></pre>
 
-<p>Classes that connect to primary/primary_replica can inherit from your primary abstract
-class like standard Rails applications:</p>
+<p>In that case, classes that connect to <code>primary</code>/<code>primary_replica</code> can inherit
+from your primary abstract class like standard Rails applications do with
+<code>ApplicationRecord</code>:</p>
 
-<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Person</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Person</span> <span class='op'>&lt;</span> <span class='const'>PrimaryApplicationRecord</span>
 <span class='kw'>end</span></code></pre>
 
-<p>By default Rails expects the database roles to be <code>writing</code> and <code>reading</code> for the primary
+<p>On the other hand, we need to setup our models persisted in the &quot;animals&quot; database:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>AnimalsRecord</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='kw'>self</span>.<span class='id identifier rubyid_abstract_class'>abstract_class</span> <span class='op'>=</span> <span class='kw'>true</span>
+
+  <span class='id identifier rubyid_connects_to'>connects_to</span> <span class='label'>database:</span> { <span class='label'>writing:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_animals'>animals</span><span class='comma'>,</span> <span class='label'>reading:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_animals_replica'>animals_replica</span> }
+<span class='kw'>end</span></code></pre>
+
+<p>Those models should inherit from that common abstract class:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Car</span> <span class='op'>&lt;</span> <span class='const'>AnimalsRecord</span>
+  <span class='comment'># Talks automatically to the animals database.
+</span><span class='kw'>end</span></code></pre>
+
+<p>By default, Rails expects the database roles to be <code>writing</code> and <code>reading</code> for the primary
 and replica respectively. If you have a legacy system you may already have roles set up that
 you don&#39;t want to change. In that case you can set a new role name in your application config.</p>
 
@@ -215,8 +225,9 @@ clients have a limit to the number of open connections there can be, and if you 
 multiply the number of connections you have since Rails uses the model class name for the
 connection specification name.</p>
 
-<p>Now that we have the <code>database.yml</code> and the new model set up, it&#39;s time to create the databases.
-Rails ships with all the commands you need to use multiple databases.</p>
+<p>Now that we have the <code>config/database.yml</code> and the new model set up, it&#39;s time
+to create the databases. Rails ships with all the commands you need to use
+multiple databases.</p>
 
 <p>You can run <code>bin/rails --help</code> to see all the commands you&#39;re able to run. You should see the following:</p>
 
@@ -279,8 +290,8 @@ set to true.</p>
 <p>Migrations for multiple databases should live in their own folders prefixed with the
 name of the database key in the configuration.</p>
 
-<p>You also need to set the <code>migrations_paths</code> in the database configurations to tell Rails
-where to find the migrations.</p>
+<p>You also need to set <code>migrations_paths</code> in the database configurations to tell
+Rails where to find the migrations.</p>
 
 <p>For example the <code>animals</code> database would look for migrations in the <code>db/animals_migrate</code> directory and
 <code>primary</code> would look in <code>db/migrate</code>. Rails generators now take a <code>--database</code> option
@@ -295,8 +306,8 @@ class for you. Simply pass the database key to the command line.</p>
 <pre class="code bash"><code class="bash">$ bin/rails generate scaffold Dog name:string --database animals
 </code></pre>
 
-<p>A class with the database name and <code>Record</code> will be created. In this example
-the database is <code>Animals</code> so we end up with <code>AnimalsRecord</code>:</p>
+<p>A class with the camelized database name and <code>Record</code> will be created. In this
+example the database is &quot;animals&quot; so we end up with <code>AnimalsRecord</code>:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>AnimalsRecord</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
   <span class='kw'>self</span>.<span class='id identifier rubyid_abstract_class'>abstract_class</span> <span class='op'>=</span> <span class='kw'>true</span>
@@ -312,8 +323,8 @@ the database is <code>Animals</code> so we end up with <code>AnimalsRecord</code
 <p>NOTE: Since Rails doesn&#39;t know which database is the replica for your writer you will need to
 add this to the abstract class after you&#39;re done.</p>
 
-<p>Rails will only generate the new class once. It will not be overwritten by new scaffolds
-or deleted if the scaffold is deleted.</p>
+<p>Rails will only generate <code>AnimalsRecord</code> once. It will not be overwritten by new
+scaffolds or deleted if the scaffold is deleted.</p>
 
 <p>If you already have an abstract class and its name differs from <code>AnimalsRecord</code>, you can pass
 the <code>--parent</code> option to indicate you want a different abstract class:</p>
@@ -405,7 +416,7 @@ POST request path.</p>
 need.</p>
 
 <pre class="code ruby"><code class="ruby"><span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)">Base</a></span>.<span class='id identifier rubyid_connected_to'><a href="ActiveRecord/ConnectionHandling.html#connected_to-instance_method" title="ActiveRecord::ConnectionHandling#connected_to (method)">connected_to</a></span>(<span class='label'>role:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_reading'>reading</span>) <span class='kw'>do</span>
-  <span class='comment'># all code in this block will be connected to the reading role
+  <span class='comment'># All code in this block will be connected to the reading role.
 </span><span class='kw'>end</span></code></pre>
 
 <p>The &quot;role&quot; in the <code>connected_to</code> call looks up the connections that are connected on that
@@ -419,10 +430,10 @@ like <code>connected_to(role: :nonexistent)</code> you will get an error that sa
 
 <p>If you want Rails to ensure any queries performed are read only, pass <code>prevent_writes: true</code>.
 This just prevents queries that look like writes from being sent to the database.
-You should also configure your replica database to run in readonly mode.</p>
+You should also configure your replica database to run in read-only mode.</p>
 
 <pre class="code ruby"><code class="ruby"><span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)">Base</a></span>.<span class='id identifier rubyid_connected_to'><a href="ActiveRecord/ConnectionHandling.html#connected_to-instance_method" title="ActiveRecord::ConnectionHandling#connected_to (method)">connected_to</a></span>(<span class='label'>role:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_reading'>reading</span><span class='comma'>,</span> <span class='label'>prevent_writes:</span> <span class='kw'>true</span>) <span class='kw'>do</span>
-  <span class='comment'># Rails will check each query to ensure it&#39;s a read query
+  <span class='comment'># Rails will check each query to ensure it&#39;s a read query.
 </span><span class='kw'>end</span></code></pre>
 
 <h2>Horizontal Sharding</h2>
@@ -502,7 +513,7 @@ using sharding, both a <code>role</code> and a <code>shard</code> must be passed
 role and the shard with the <code>connected_to</code> API.</p>
 
 <pre class="code ruby"><code class="ruby"><span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)">Base</a></span>.<span class='id identifier rubyid_connected_to'><a href="ActiveRecord/ConnectionHandling.html#connected_to-instance_method" title="ActiveRecord::ConnectionHandling#connected_to (method)">connected_to</a></span>(<span class='label'>role:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_reading'>reading</span><span class='comma'>,</span> <span class='label'>shard:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_shard_one'>shard_one</span>) <span class='kw'>do</span>
-  <span class='const'>Person</span>.<span class='id identifier rubyid_first'>first</span> <span class='comment'># Lookup record from read replica of shard one
+  <span class='const'>Person</span>.<span class='id identifier rubyid_first'>first</span> <span class='comment'># Lookup record from read replica of shard one.
 </span><span class='kw'>end</span></code></pre>
 
 <h2>Activating Automatic Shard Switching</h2>
@@ -510,12 +521,12 @@ role and the shard with the <code>connected_to</code> API.</p>
 <p>Applications are able to automatically switch shards per request using the provided
 middleware.</p>
 
-<p>The <code>ShardSelector</code> Middleware provides a framework for automatically
+<p>The <code>ShardSelector</code> middleware provides a framework for automatically
 swapping shards. Rails provides a basic framework to determine which
 shard to switch to and allows for applications to write custom strategies
 for swapping if needed.</p>
 
-<p>The <code>ShardSelector</code> takes a set of options (currently only <code>lock</code> is supported)
+<p><code>ShardSelector</code> takes a set of options (currently only <code>lock</code> is supported)
 that can be used by the middleware to alter behavior. <code>lock</code> is
 true by default and will prohibit the request from switching shards once
 inside the block. If <code>lock</code> is false, then shard swapping will be allowed.
@@ -528,7 +539,7 @@ automatic shard swapping:</p>
 <pre class="code bash"><code class="bash">$ bin/rails g active_record:multi_db
 </code></pre>
 
-<p>Then in the file uncomment the following:</p>
+<p>Then in the generated <code>config/initializers/multi_db.rb</code> uncomment the following:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_configure'>configure</span> <span class='kw'>do</span>
   <span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_active_record'>active_record</span>.<span class='id identifier rubyid_shard_selector'>shard_selector</span> <span class='op'>=</span> { <span class='label'>lock:</span> <span class='kw'>true</span> }
@@ -546,8 +557,8 @@ specific models. An example resolver would look like this:</p>
 
 <h2>Granular Database Connection Switching</h2>
 
-<p>In Rails 6.1 it&#39;s possible to switch connections for one database instead of
-all databases globally.</p>
+<p>Starting from Rails 6.1, it&#39;s possible to switch connections for one database
+instead of all databases globally.</p>
 
 <p>With granular database connection switching, any abstract connection class
 will be able to switch connections without affecting other connections. This
@@ -555,23 +566,26 @@ is useful for switching your <code>AnimalsRecord</code> queries to read from the
 while ensuring your <code>ApplicationRecord</code> queries go to the primary.</p>
 
 <pre class="code ruby"><code class="ruby"><span class='const'>AnimalsRecord</span>.<span class='id identifier rubyid_connected_to'>connected_to</span>(<span class='label'>role:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_reading'>reading</span>) <span class='kw'>do</span>
-  <span class='const'>Dog</span>.<span class='id identifier rubyid_first'>first</span> <span class='comment'># Reads from animals_replica
-</span>  <span class='const'>Person</span>.<span class='id identifier rubyid_first'>first</span>  <span class='comment'># Reads from primary
+  <span class='const'>Dog</span>.<span class='id identifier rubyid_first'>first</span> <span class='comment'># Reads from animals_replica.
+</span>  <span class='const'>Person</span>.<span class='id identifier rubyid_first'>first</span>  <span class='comment'># Reads from primary.
 </span><span class='kw'>end</span></code></pre>
 
 <p>It&#39;s also possible to swap connections granularly for shards.</p>
 
 <pre class="code ruby"><code class="ruby"><span class='const'>AnimalsRecord</span>.<span class='id identifier rubyid_connected_to'>connected_to</span>(<span class='label'>role:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_reading'>reading</span><span class='comma'>,</span> <span class='label'>shard:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_shard_one'>shard_one</span>) <span class='kw'>do</span>
-  <span class='const'>Dog</span>.<span class='id identifier rubyid_first'>first</span> <span class='comment'># Will read from shard_one_replica. If no connection exists for shard_one_replica,
-</span>  <span class='comment'># a ConnectionNotEstablished error will be raised
-</span>  <span class='const'>Person</span>.<span class='id identifier rubyid_first'>first</span> <span class='comment'># Will read from primary writer
-</span><span class='kw'>end</span></code></pre>
+  <span class='comment'># Will read from shard_one_replica. If no connection exists for shard_one_replica,
+</span>  <span class='comment'># a ConnectionNotEstablished error will be raised.
+</span>  <span class='const'>Dog</span>.<span class='id identifier rubyid_first'>first</span>
+
+  <span class='comment'># Will read from primary writer.
+</span>  <span class='const'>Person</span>.<span class='id identifier rubyid_first'>first</span>
+<span class='kw'>end</span></code></pre>
 
 <p>To switch only the primary database cluster use <code>ApplicationRecord</code>:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='const'>ApplicationRecord</span>.<span class='id identifier rubyid_connected_to'>connected_to</span>(<span class='label'>role:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_reading'>reading</span><span class='comma'>,</span> <span class='label'>shard:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_shard_one'>shard_one</span>) <span class='kw'>do</span>
-  <span class='const'>Person</span>.<span class='id identifier rubyid_first'>first</span> <span class='comment'># Reads from primary_shard_one_replica
-</span>  <span class='const'>Dog</span>.<span class='id identifier rubyid_first'>first</span> <span class='comment'># Reads from animals_primary
+  <span class='const'>Person</span>.<span class='id identifier rubyid_first'>first</span> <span class='comment'># Reads from primary_shard_one_replica.
+</span>  <span class='const'>Dog</span>.<span class='id identifier rubyid_first'>first</span> <span class='comment'># Reads from animals_primary.
 </span><span class='kw'>end</span></code></pre>
 
 <p><code>ActiveRecord::Base.connected_to</code> maintains the ability to switch
@@ -633,16 +647,20 @@ Rails already needs to know what SQL should be generated.</li>
 
 <h3>Schema Caching</h3>
 
-<p>If you want to load a schema cache for each database you must set a <code>schema_cache_path</code> in each database configuration and set <code>config.active_record.lazily_load_schema_cache = true</code> in your application configuration. Note that this will lazily load the cache when the database connections are established.</p>
+<p>If you want to load a schema cache for each database you must set
+<code>schema_cache_path</code> in each database configuration and set
+<code>config.active_record.lazily_load_schema_cache = true</code> in your application
+configuration. Note that this will lazily load the cache when the database
+connections are established.</p>
 
 <h2>Caveats</h2>
 
 <h3>Load Balancing Replicas</h3>
 
-<p>Rails also doesn&#39;t support automatic load balancing of replicas. This is very
-dependent on your infrastructure. We may implement basic, primitive load balancing
-in the future, but for an application at scale this should be something your application
-handles outside of Rails.</p>
+<p>Rails doesn&#39;t support automatic load balancing of replicas. This is very
+dependent on your infrastructure. We may implement basic, primitive load
+balancing in the future, but for an application at scale this should be
+something your application handles outside of Rails.</p>
 
 <div id='footer'></div>
 </div> <!-- content  -->
