@@ -103,7 +103,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2 o'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/ext/nokogiri/html4_sax_push_parser.c#L90'>ext/nokogiri/html4_sax_push_parser.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/ext/nokogiri/xml_sax_push_parser.c#L76'>ext/nokogiri/xml_sax_push_parser.c</a>,<br/> <a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/lib/nokogiri/html4/sax/push_parser.rb#L6'>lib/nokogiri/html4/sax/push_parser.rb</a></span>
+      <td class='box_rel'><a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/ext/nokogiri/html4_sax_push_parser.c#L89'>ext/nokogiri/html4_sax_push_parser.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/lib/nokogiri/html4/sax/push_parser.rb#L6'>lib/nokogiri/html4/sax/push_parser.rb</a></span>
       </td>
     </tr>
   </tbody>
@@ -160,11 +160,11 @@
     </tr>
     <tr class='i_ds'>
       <td><a class='i_m rw' href="../../XML/SAX/PushParser.html#replace_entities-instance_method" title="Nokogiri::XML::SAX::PushParser#replace_entities (method)">#replace_entities</a></td>
-      <td><div class='inline'><p>Should this parser replace entities?  &amp;amp; will get converted to ‘&amp;’ if set to true.</p></div></td>
+      <td><div class='inline'><p>See Document@Entity+Handling for an explanation of the behavior controlled by this flag.</p></div></td>
     </tr>
     <tr class='i_ds'>
       <td><a class='i_m rw' href="../../XML/SAX/PushParser.html#replace_entities=-instance_method" title="Nokogiri::XML::SAX::PushParser#replace_entities= (method)">#replace_entities=</a></td>
-      <td><div class='inline'><p>Should this parser replace entities?  &amp;amp; will get converted to ‘&amp;’ if set to true.</p></div></td>
+      <td><div class='inline'><p>See Document@Entity+Handling for an explanation of the behavior controlled by this flag.</p></div></td>
     </tr>
   </tbody>
 </table></div>
@@ -200,20 +200,20 @@
   </li>
   <li>
     <span class='summary_signature priv'>
-      <a href="#initialize_native-instance_method" title="#initialize_native (instance method)">#<strong>initialize_native</strong>(xml_sax, filename)  </a>
+      <a href="#initialize_native-instance_method" title="#initialize_native (instance method)">#<strong>initialize_native</strong>(rb_xml_sax, rb_filename, encoding)  </a>
     </span>
     <span class='note title private'>private</span>
     <div class='summary_desc'>
-      <div class='inline'><p>Alias for <a href="../../XML/SAX/PushParser.html#initialize_native-instance_method" title="Nokogiri::XML::SAX::PushParser#initialize_native (method)">XML::SAX::PushParser#initialize_native</a>.</p></div>
+      <div class='inline'><p>Initialize the push parser with <code>xml_sax</code> using <code>filename</code></p></div>
     </div>
   </li>
   <li>
     <span class='summary_signature priv'>
-      <a href="#native_write-instance_method" title="#native_write (instance method)">#<strong>native_write</strong>(chunk, last_chunk)  </a>
+      <a href="#native_write-instance_method" title="#native_write (instance method)">#<strong>native_write</strong>(rb_chunk, rb_last_chunk)  </a>
     </span>
     <span class='note title private'>private</span>
     <div class='summary_desc'>
-      <div class='inline'><p>Alias for <a href="../../XML/SAX/PushParser.html#native_write-instance_method" title="Nokogiri::XML::SAX::PushParser#native_write (method)">XML::SAX::PushParser#native_write</a>.</p></div>
+      <div class='inline'><p>Write <code>chunk</code> to <code>PushParser</code>.</p></div>
     </div>
   </li>
 </ul>
@@ -356,28 +356,120 @@
 
 <section class='method_details' id="initialize_native-instance_method">
   <h3 class='signature priv'>
-    #<strong>initialize_native</strong>(xml_sax, filename)   <span class="extras">(<span class='priv'>private</span>)</span>  </h3>
+    #<strong>initialize_native</strong>(rb_xml_sax, rb_filename, encoding)   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
 <div class='docstring'>
   <div class='discussion'>
     
-<p>Alias for <a href="../../XML/SAX/PushParser.html#initialize_native-instance_method" title="Nokogiri::XML::SAX::PushParser#initialize_native (method)">XML::SAX::PushParser#initialize_native</a>.</p>
+<p>Initialize the push parser with <code>xml_sax</code> using <code>filename</code></p>
 
   </div>
 </div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/ext/nokogiri/html4_sax_push_parser.c#L42-L83'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='42' data-end='83'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'ext/nokogiri/html4_sax_push_parser.c', line 42</span></pre>
+<pre class='code cpp'>
 
+static VALUE
+noko_html4_sax_push_parser__initialize_native(
+  VALUE self,
+  VALUE rb_xml_sax,
+  VALUE rb_filename,
+  VALUE encoding
+)
+{
+  htmlSAXHandlerPtr sax;
+  const char *filename = NULL;
+  htmlParserCtxtPtr ctx;
+  xmlCharEncoding enc = XML_CHAR_ENCODING_NONE;
+
+  sax = noko_xml_sax_parser_unwrap(rb_xml_sax);
+
+  if (rb_filename != Qnil) { filename = StringValueCStr(rb_filename); }
+
+  if (!NIL_P(encoding)) {
+    enc = xmlParseCharEncoding(StringValueCStr(encoding));
+    if (enc == XML_CHAR_ENCODING_ERROR) {
+      rb_raise(rb_eArgError, &quot;Unsupported Encoding&quot;);
+    }
+  }
+
+  ctx = htmlCreatePushParserCtxt(
+          sax,
+          NULL,
+          NULL,
+          0,
+          filename,
+          enc
+        );
+  if (ctx == NULL) {
+    rb_raise(rb_eRuntimeError, &quot;Could not create a parser context&quot;);
+  }
+
+  ctx-&gt;userData = ctx;
+  ctx-&gt;_private = (void *)rb_xml_sax;
+
+  DATA_PTR(self) = ctx;
+  return self;
+}
+</pre>
+  </div>
+</div>
 </section>
 
 <section class='method_details' id="native_write-instance_method">
   <h3 class='signature priv'>
-    #<strong>native_write</strong>(chunk, last_chunk)   <span class="extras">(<span class='priv'>private</span>)</span>  </h3>
+    #<strong>native_write</strong>(rb_chunk, rb_last_chunk)   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
 <div class='docstring'>
   <div class='discussion'>
     
-<p>Alias for <a href="../../XML/SAX/PushParser.html#native_write-instance_method" title="Nokogiri::XML::SAX::PushParser#native_write (method)">XML::SAX::PushParser#native_write</a>.</p>
+<p>Write <code>chunk</code> to <code>PushParser</code>. <code>last_chunk</code> triggers the end_document handle</p>
 
   </div>
 </div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/ext/nokogiri/html4_sax_push_parser.c#L8-L37'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='8' data-end='37'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'ext/nokogiri/html4_sax_push_parser.c', line 8</span></pre>
+<pre class='code cpp'>
 
+static VALUE
+noko_html4_sax_push_parser__native_write(VALUE self, VALUE rb_chunk, VALUE rb_last_chunk)
+{
+  xmlParserCtxtPtr ctx;
+  const char *chunk = NULL;
+  int size = 0;
+  int status = 0;
+  libxmlStructuredErrorHandlerState handler_state;
+
+  ctx = noko_xml_sax_push_parser_unwrap(self);
+
+  if (Qnil != rb_chunk) {
+    chunk = StringValuePtr(rb_chunk);
+    size = (int)RSTRING_LEN(rb_chunk);
+  }
+
+  noko__structured_error_func_save_and_set(&amp;handler_state, NULL, NULL);
+
+  status = htmlParseChunk(ctx, chunk, size, Qtrue == rb_last_chunk ? 1 : 0);
+
+  noko__structured_error_func_restore(&amp;handler_state);
+
+  if ((status != 0) &amp;&amp; !(xmlCtxtGetOptions(ctx) &amp; XML_PARSE_RECOVER)) {
+    // TODO: there appear to be no tests for this block
+    xmlErrorConstPtr e = xmlCtxtGetLastError(ctx);
+    noko__error_raise(NULL, e);
+  }
+
+  return self;
+}
+</pre>
+  </div>
+</div>
 </section>
 
 <section class='method_details' id="write-instance_method">
