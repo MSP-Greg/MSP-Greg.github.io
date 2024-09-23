@@ -65,11 +65,11 @@
 
 <p><a href="Puma.html" title="Puma (module)"><code>Puma</code></a> 5 introduces an experimental new cluster-mode configuration option, <code>fork_worker</code> (<code>--fork-worker</code> from the CLI). This mode causes <a href="Puma.html" title="Puma (module)"><code>Puma</code></a> to fork additional workers from worker 0, instead of directly from the master process:</p>
 
-<pre class="code ruby"><code class="ruby">10000   \_ puma 4.3.3 (tcp://0.0.0.0:9292) [puma]
-10001       \_ puma: cluster worker 0: 10000 [puma]
-10002           \_ puma: cluster worker 1: 10000 [puma]
-10003           \_ puma: cluster worker 2: 10000 [puma]
-10004           \_ puma: cluster worker 3: 10000 [puma]</code></pre>
+<pre class="code ruby"><code class="ruby"><span class='int'>10000</span>   <span class='CHAR'>\</span><span class='id identifier rubyid__'>_</span> <span class='id identifier rubyid_puma'>puma</span> <span class='float'>4.3</span> (<span class='id identifier rubyid_tcp'>tcp</span><span class='symbeg'>:</span><span class='op'>/</span><span class='op'>/</span><span class='float'>0.0</span><span class='op'>:</span><span class='int'>9292</span>) [<span class='id identifier rubyid_puma'>puma</span>]
+<span class='int'>10001</span>       <span class='CHAR'>\</span><span class='id identifier rubyid__'>_</span> <span class='label'>puma:</span> <span class='id identifier rubyid_cluster'>cluster</span> <span class='id identifier rubyid_worker'>worker</span> <span class='int'>0</span><span class='op'>:</span> <span class='int'>10000</span> [<span class='id identifier rubyid_puma'>puma</span>]
+<span class='int'>10002</span>           <span class='CHAR'>\</span><span class='id identifier rubyid__'>_</span> <span class='label'>puma:</span> <span class='id identifier rubyid_cluster'>cluster</span> <span class='id identifier rubyid_worker'>worker</span> <span class='int'>1</span><span class='op'>:</span> <span class='int'>10000</span> [<span class='id identifier rubyid_puma'>puma</span>]
+<span class='int'>10003</span>           <span class='CHAR'>\</span><span class='id identifier rubyid__'>_</span> <span class='label'>puma:</span> <span class='id identifier rubyid_cluster'>cluster</span> <span class='id identifier rubyid_worker'>worker</span> <span class='int'>2</span><span class='op'>:</span> <span class='int'>10000</span> [<span class='id identifier rubyid_puma'>puma</span>]
+<span class='int'>10004</span>           <span class='CHAR'>\</span><span class='id identifier rubyid__'>_</span> <span class='label'>puma:</span> <span class='id identifier rubyid_cluster'>cluster</span> <span class='id identifier rubyid_worker'>worker</span> <span class='int'>3</span><span class='op'>:</span> <span class='int'>10000</span> [<span class='id identifier rubyid_puma'>puma</span>]</code></pre>
 
 <p>The <code>fork_worker</code> option allows your application to be initialized only once for copy-on-write memory savings, and it has two additional advantages:</p>
 
@@ -87,14 +87,19 @@
 
 <p>You can trigger a refork by sending the cluster the <code>SIGURG</code> signal or running the <code>pumactl refork</code> command at any time. A refork will also automatically trigger once, after a certain number of requests have been processed by worker 0 (default 1000). To configure the number of requests before the auto-refork, pass a positive integer argument to <code>fork_worker</code> (e.g., <code>fork_worker 1000</code>), or <code>0</code> to disable.</p>
 
+<h3>Usage Considerations</h3>
+
+<ul>
+<li><code>fork_worker</code> introduces a new <code>on_refork</code> configuration hook. If you were using the <code>before_fork</code> hook previously, we generally recommend to copy its logic to <code>on_refork</code>. Note that <code>fork_worker</code> triggers the <code>before_fork</code> configuration hook <em>only</em> when initially forking the master process to worker 0, and triggers the <code>on_refork</code> hook on all subsequent forks from worker 0 to additional workers.</li>
+</ul>
+
 <h3>Limitations</h3>
 
 <ul>
 <li><p>This mode is still very experimental so there may be bugs or edge-cases, particularly around expected behavior of existing hooks. Please open a [bug report]) if you encounter any issues.</p></li>
 <li><p>In order to fork new workers cleanly, worker 0 shuts down its server and stops serving requests so there are no open file descriptors or other kinds of shared global state between processes, and to maximize copy-on-write efficiency across the newly-forked workers. This may temporarily reduce total capacity of the cluster during a phased restart / refork.</p></li>
+<li><p>In a cluster with <code>n</code> workers, a normal phased restart stops and restarts workers one by one while the application is loaded in each process, so <code>n-1</code> workers are available serving requests during the restart. In a phased restart in fork-worker mode, the application is first loaded in worker 0 while <code>n-1</code> workers are available, then worker 0 remains stopped while the rest of the workers are reloaded one by one, leaving only <code>n-2</code> workers to be available for a brief period of time. Reloading the rest of the workers should be quick because the application is preloaded at that point, but there may be situations where it can take longer (slow clients, long-running application code, slow worker-fork hooks, etc).</p></li>
 </ul>
-
-<p>In a cluster with <code>n</code> workers, a normal phased restart stops and restarts workers one by one while the application is loaded in each process, so <code>n-1</code> workers are available serving requests during the restart. In a phased restart in fork-worker mode, the application is first loaded in worker 0 while <code>n-1</code> workers are available, then worker 0 remains stopped while the rest of the workers are reloaded one by one, leaving only <code>n-2</code> workers to be available for a brief period of time. Reloading the rest of the workers should be quick because the application is preloaded at that point, but there may be situations where it can take longer (slow clients, long-running application code, slow worker-fork hooks, etc).</p>
 
 <div id='footer'></div>
 </div> <!-- content  -->
