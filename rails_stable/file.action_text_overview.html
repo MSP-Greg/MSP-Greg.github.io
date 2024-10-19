@@ -8,7 +8,7 @@
 <meta name='apple-mobile-web-app-capable' content='yes'>
 <meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
 
-<title>File: Action Text Overview &mdash; Rails 7-2-stable</title>
+<title>File: Action Text Overview &mdash; Rails 8-0-stable</title>
 
 <link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
 <link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
@@ -50,7 +50,7 @@
   <header id='y_header'>
     <div id='y_menu'>
       <a id='home_no_xhr' href='/'>Home</a> &raquo; 
-      <a href='.'>Rails 7-2-stable</a> &raquo; 
+      <a href='.'>Rails 8-0-stable</a> &raquo; 
       <a href='_index.html'>Index</a> &raquo; 
       <span class='title'><a id='t2_doc_top' href='#'>File: Action Text Overview&nbsp;&#x25B2;</a></span>
           </div>
@@ -134,8 +134,7 @@ information about it.</li>
 <li>Adds migrations to create the following tables that store rich text content
 and attachments: <code>action_text_rich_texts</code>, <code>active_storage_blobs</code>,
 <code>active_storage_attachments</code>, <code>active_storage_variant_records</code>.</li>
-<li>Creates <code>actiontext.css</code> and imports it into <code>application.css</code>. The Trix
-stylesheet is also included in the <code>application.css</code> file.</li>
+<li>Creates <code>actiontext.css</code> which includes all Trix styles and overrides.</li>
 <li>Adds the default view partials <code>_content.html</code> and <code>_blob.html</code> to render
 Action Text content and Active Storage attachment (aka blob) respectively.</li>
 </ul>
@@ -189,14 +188,14 @@ name the attribute to be something different from <code>content</code>.</p>
 <p>Once you have added the <code>has_rich_text</code> class method to the model, you can then
 update your views to make use of the rich text editor (Trix) for that field. To
 do so, use a
-<a href="https://api.rubyonrails.org/classes/ActionView/Helpers/FormHelper.html#method-i-rich_text_area"><code>rich_text_area</code></a>
+<a href="https://api.rubyonrails.org/classes/ActionView/Helpers/FormHelper.html#method-i-rich_textarea"><code>rich_textarea</code></a>
 for the form field.</p>
 
 <pre class="code xml"><code class="xml">&lt;%# app/views/articles/_form.html.erb %&gt;
 &lt;%= form_with model: article do |form| %&gt;
   &lt;div class=&quot;field&quot;&gt;
     &lt;%= form.label :content %&gt;
-    &lt;%= form.rich_text_area :content %&gt;
+    &lt;%= form.rich_textarea :content %&gt;
   &lt;/div&gt;
 &lt;% end %&gt;
 </code></pre>
@@ -211,7 +210,7 @@ permit the referenced attribute as a parameter in the relevant controller:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ArticlesController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
   <span class='kw'>def</span> <span class='id identifier rubyid_create'>create</span>
-    <span class='id identifier rubyid_article'>article</span> <span class='op'>=</span> <span class='const'>Article</span>.<span class='id identifier rubyid_create!'>create!</span> <span class='id identifier rubyid_params'>params</span>.<span class='id identifier rubyid_require'>require</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_article'>article</span>).<span class='id identifier rubyid_permit'>permit</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_title'>title</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_content'>content</span>)
+    <span class='id identifier rubyid_article'>article</span> <span class='op'>=</span> <span class='const'>Article</span>.<span class='id identifier rubyid_create!'>create!</span> <span class='id identifier rubyid_params'>params</span>.<span class='id identifier rubyid_expect'>expect</span>(<span class='label'>article:</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_title'>title</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_content'>content</span>])
     <span class='id identifier rubyid_redirect_to'>redirect_to</span> <span class='id identifier rubyid_article'>article</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
@@ -258,15 +257,8 @@ meet your stylistic requirements, this section guides on how to do that.</p>
 class are then styled by the trix stylesheet.</p>
 
 <p>If you’d like to update any of the trix styles, you can add your custom styles
-in <code>app/assets/stylesheets/actiontext.css</code>.</p>
-
-<p>However, if you’d prefer to provide your own styles or utilize a third-party
-library instead of the default trix stylesheet, you can remove trix from the
-pre-processor directives in the <code>app/assets/stylesheets/actiontext.css</code> file by
-deleting the following:</p>
-
-<pre class="code css"><code class="css">= require trix
-</code></pre>
+in <code>app/assets/stylesheets/actiontext.css</code>, which includes both the full set of
+styles for Trix and the overrides needed for Action Text.</p>
 
 <h3>Customizing the Editor Container</h3>
 
@@ -320,6 +312,42 @@ kind of uploads you are expecting within the editor. A common error that users
 encounter when working with Action Text and Active Storage is that images do not
 render correctly in the editor. This is usually due to the <code>libvips</code> dependency
 not being installed.</p>
+
+<h4>Attachment Direct Upload JavaScript Events</h4>
+
+<table><thead>
+<tr>
+<th>Event name</th>
+<th>Event target</th>
+<th>Event data (<code>event.detail</code>)</th>
+<th>Description</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>direct-upload:start</code></td>
+<td><code>&lt;input&gt;</code></td>
+<td><code>{id, file}</code></td>
+<td>A direct upload is starting.</td>
+</tr>
+<tr>
+<td><code>direct-upload:progress</code></td>
+<td><code>&lt;input&gt;</code></td>
+<td><code>{id, file, progress}</code></td>
+<td>As requests to store files progress.</td>
+</tr>
+<tr>
+<td><code>direct-upload:error</code></td>
+<td><code>&lt;input&gt;</code></td>
+<td><code>{id, file, error}</code></td>
+<td>An error occurred. An <code>alert</code> will display unless this event is canceled.</td>
+</tr>
+<tr>
+<td><code>direct-upload:end</code></td>
+<td><code>&lt;input&gt;</code></td>
+<td><code>{id, file}</code></td>
+<td>A direct upload has ended.</td>
+</tr>
+</tbody></table>
 
 <h3>Signed GlobalID</h3>
 

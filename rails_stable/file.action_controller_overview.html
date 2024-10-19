@@ -8,7 +8,7 @@
 <meta name='apple-mobile-web-app-capable' content='yes'>
 <meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
 
-<title>File: Action Controller Overview &mdash; Rails 7-2-stable</title>
+<title>File: Action Controller Overview &mdash; Rails 8-0-stable</title>
 
 <link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
 <link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
@@ -50,7 +50,7 @@
   <header id='y_header'>
     <div id='y_menu'>
       <a id='home_no_xhr' href='/'>Home</a> &raquo; 
-      <a href='.'>Rails 7-2-stable</a> &raquo; 
+      <a href='.'>Rails 8-0-stable</a> &raquo; 
       <a href='_index.html'>Index</a> &raquo; 
       <span class='title'><a id='t2_doc_top' href='#'>File: Action Controller Overview&nbsp;&#x25B2;</a></span>
           </div>
@@ -159,6 +159,8 @@
     <span class='kw'>end</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
+
+<p>NOTE: The <code>params</code> hash is not a plain old Ruby Hash; instead, it is an <a href="https://api.rubyonrails.org/classes/ActionController/Parameters.html"><a href="ActionController/Parameters.html" title="ActionController::Parameters (class)"><code>::ActionController::Parameters</code></a></a> object. While it behaves like Hash, it does not inherit from Hash.</p>
 
 <h3>Hash and Array Parameters</h3>
 
@@ -298,7 +300,7 @@ returned if not all required parameters are passed in.</p>
 </span>    <span class='comment'># permit list between create and update. Also, you can specialize
 </span>    <span class='comment'># this method with per-user checking of permissible attributes.
 </span>    <span class='kw'>def</span> <span class='id identifier rubyid_person_params'>person_params</span>
-      <span class='id identifier rubyid_params'>params</span>.<span class='id identifier rubyid_require'>require</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_person'>person</span>).<span class='id identifier rubyid_permit'>permit</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_name'>name</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_age'>age</span>)
+      <span class='id identifier rubyid_params'>params</span>.<span class='id identifier rubyid_expect'>expect</span>(<span class='label'>person:</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_name'>name</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_age'>age</span>])
     <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
 
@@ -332,48 +334,73 @@ a hash parameter or its internal structure. Just map to an empty hash:</p>
 case, <code>permit</code> ensures values in the returned structure are permitted
 scalars and filters out anything else.</p>
 
-<p>To permit an entire hash of parameters, the <a href="https://api.rubyonrails.org/classes/ActionController/Parameters.html#method-i-permit-21"><code>permit!</code></a> method can be
-used:</p>
+<p><a href="https://api.rubyonrails.org/classes/ActionController/Parameters.html#method-i-expect"><code>expect</code></a> provides a concise and safe way to require and permit parameters.</p>
 
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_params'>params</span>.<span class='id identifier rubyid_require'>require</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_log_entry'>log_entry</span>).<span class='id identifier rubyid_permit!'>permit!</span></code></pre>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_id'>id</span> <span class='op'>=</span> <span class='id identifier rubyid_params'>params</span>.<span class='id identifier rubyid_expect'>expect</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span>)</code></pre>
+
+<p><code>expect</code> ensures that the type returned is not vulnerable to param tampering.
+The above expect will always return a scalar value and not an array or hash.
+When expecting params from a form, use <code>expect</code> to ensure that the root key
+is present and the attributes are permitted.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_user_params'>user_params</span> <span class='op'>=</span> <span class='id identifier rubyid_params'>params</span>.<span class='id identifier rubyid_expect'>expect</span>(<span class='label'>user:</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_username'>username</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_password'>password</span>])
+<span class='id identifier rubyid_user_params'>user_params</span>.<span class='id identifier rubyid_has_key?'>has_key?</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_username'>username</span>) <span class='comment'># =&gt; true</span></code></pre>
+
+<p><code>expect</code> will raise an error and return a 400 Bad Request response
+when the user key is not a nested hash with the expected keys.</p>
+
+<p>To require and permit an entire hash of parameters, <a href="https://api.rubyonrails.org/classes/ActionController/Parameters.html#method-i-expect"><code>expect</code></a> can be
+used in this way.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_params'>params</span>.<span class='id identifier rubyid_expect'>expect</span>(<span class='label'>log_entry:</span> {})</code></pre>
 
 <p>This marks the <code>:log_entry</code> parameters hash and any sub-hash of it as
 permitted and does not check for permitted scalars, anything is accepted.
-Extreme care should be taken when using <code>permit!</code>, as it will allow all current
-and future model attributes to be mass-assigned.</p>
+Extreme care should be taken when using <a href="https://api.rubyonrails.org/classes/ActionController/Parameters.html#method-i-permit-21"><code>permit!</code></a> or calling <code>expect</code>
+with an empty hash, as it will allow all current and future model
+attributes to be mass-assigned with external user-controlled params.</p>
 
 <h4>Nested Parameters</h4>
 
-<p>You can also use <code>permit</code> on nested parameters, like:</p>
+<p>You can also use <code>expect</code> (or <code>permit</code>) on nested parameters, like:</p>
 
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_params'>params</span>.<span class='id identifier rubyid_permit'>permit</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_name'>name</span><span class='comma'>,</span> { <span class='label'>emails:</span> [] }<span class='comma'>,</span>
-              <span class='label'>friends:</span> [ <span class='symbeg'>:</span><span class='id identifier rubyid_name'>name</span><span class='comma'>,</span>
-                         { <span class='label'>family:</span> [ <span class='symbeg'>:</span><span class='id identifier rubyid_name'>name</span> ]<span class='comma'>,</span> <span class='label'>hobbies:</span> [] }])</code></pre>
+<pre class="code ruby"><code class="ruby"><span class='comment'># Given the example expected params:
+</span><span class='id identifier rubyid_params'>params</span> <span class='op'>=</span> <span class='const'><a href="ActionController.html" title="ActionController (module)">ActionController</a></span><span class='op'>::</span><span class='const'><a href="ActionController/Parameters.html" title="ActionController::Parameters (class)">Parameters</a></span>.<span class='id identifier rubyid_new'><a href="ActionController/Parameters.html#new-class_method" title="ActionController::Parameters.new (method)">new</a></span>(
+  <span class='label'>name:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Martin</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>emails:</span> [<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>me@example.com</span><span class='tstring_end'>&quot;</span></span>]<span class='comma'>,</span>
+  <span class='label'>friends:</span> [
+    { <span class='label'>name:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>André</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>family:</span> { <span class='label'>name:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>RubyGems</span><span class='tstring_end'>&quot;</span></span> }<span class='comma'>,</span> <span class='label'>hobbies:</span> [<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>keyboards</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>card games</span><span class='tstring_end'>&quot;</span></span>] }<span class='comma'>,</span>
+    { <span class='label'>name:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Kewe</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>family:</span> { <span class='label'>name:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Baroness</span><span class='tstring_end'>&quot;</span></span> }<span class='comma'>,</span> <span class='label'>hobbies:</span> [<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>video games</span><span class='tstring_end'>&quot;</span></span>] }<span class='comma'>,</span>
+  ]
+)
+<span class='comment'># the following expect will ensure the params are permitted
+</span><span class='id identifier rubyid_name'>name</span><span class='comma'>,</span> <span class='id identifier rubyid_emails'>emails</span><span class='comma'>,</span> <span class='id identifier rubyid_friends'>friends</span> <span class='op'>=</span> <span class='id identifier rubyid_params'>params</span>.<span class='id identifier rubyid_expect'>expect</span>(
+  <span class='symbeg'>:</span><span class='id identifier rubyid_name'>name</span><span class='comma'>,</span>                 <span class='comment'># permitted scalar
+</span>  <span class='label'>emails:</span> []<span class='comma'>,</span>            <span class='comment'># array of permitted scalars
+</span>  <span class='label'>friends:</span> [[            <span class='comment'># array of permitted Parameter hashes
+</span>    <span class='symbeg'>:</span><span class='id identifier rubyid_name'>name</span><span class='comma'>,</span>               <span class='comment'># permitted scalar
+</span>    <span class='label'>family:</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_name'>name</span>]<span class='comma'>,</span>     <span class='comment'># family: { name: &quot;permitted scalar&quot; }
+</span>    <span class='label'>hobbies:</span> []          <span class='comment'># array of permitted scalars
+</span>  ]]
+)</code></pre>
 
-<p>This declaration permits the <code>name</code>, <code>emails</code>, and <code>friends</code>
-attributes. It is expected that <code>emails</code> will be an array of permitted
-scalar values, and that <code>friends</code> will be an array of resources with
-specific attributes: they should have a <code>name</code> attribute (any
-permitted scalar values allowed), a <code>hobbies</code> attribute as an array of
-permitted scalar values, and a <code>family</code> attribute which is restricted
-to having a <code>name</code> (any permitted scalar values allowed here, too).</p>
+<p>This declaration permits the <code>name</code>, <code>emails</code>, and <code>friends</code> attributes and
+returns them each. It is expected that <code>emails</code> will be an array of permitted
+scalar values, and that <code>friends</code> will be an array of resources (note the new
+double array syntax to explicitly require an array) with specific
+attributes: they should have a <code>name</code> attribute (any permitted scalar values
+allowed), a <code>hobbies</code> attribute as an array of permitted scalar values, and a
+<code>family</code> attribute which is restricted to a hash with only a <code>name</code> key and
+any permitted scalar value.</p>
 
 <h4>More Examples</h4>
-
-<p>You may want to also use the permitted attributes in your <code>new</code>
-action. This raises the problem that you can&#39;t use <a href="https://api.rubyonrails.org/classes/ActionController/Parameters.html#method-i-require"><code>require</code></a> on the
-root key because, normally, it does not exist when calling <code>new</code>:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='comment'># using `fetch` you can supply a default and use
-</span><span class='comment'># the Strong Parameters API from there.
-</span><span class='id identifier rubyid_params'>params</span>.<span class='id identifier rubyid_fetch'>fetch</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_blog'>blog</span><span class='comma'>,</span> {}).<span class='id identifier rubyid_permit'>permit</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_title'>title</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_author'>author</span>)</code></pre>
 
 <p>The model class method <code>accepts_nested_attributes_for</code> allows you to
 update and destroy associated records. This is based on the <code>id</code> and <code>_destroy</code>
 parameters:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='comment'># permit :id and :_destroy
-</span><span class='id identifier rubyid_params'>params</span>.<span class='id identifier rubyid_require'>require</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_author'>author</span>).<span class='id identifier rubyid_permit'>permit</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_name'>name</span><span class='comma'>,</span> <span class='label'>books_attributes:</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_title'>title</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid__destroy'>_destroy</span>])</code></pre>
+</span><span class='id identifier rubyid_params'>params</span>.<span class='id identifier rubyid_expect'>expect</span>(<span class='label'>author:</span> [ <span class='symbeg'>:</span><span class='id identifier rubyid_name'>name</span><span class='comma'>,</span> <span class='label'>books_attributes:</span> [[ <span class='symbeg'>:</span><span class='id identifier rubyid_title'>title</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid__destroy'>_destroy</span> ]] ])</code></pre>
 
 <p>Hashes with integer keys are treated differently, and you can declare
 the attributes as if they were direct children. You get these kinds of
@@ -385,7 +412,7 @@ with a <code>has_many</code> association:</p>
 </span><span class='comment'>#             &quot;chapters_attributes&quot; =&gt; { &quot;1&quot; =&gt; {&quot;title&quot; =&gt; &quot;First Chapter&quot;},
 </span><span class='comment'>#                                        &quot;2&quot; =&gt; {&quot;title&quot; =&gt; &quot;Second Chapter&quot;}}}}
 </span>
-<span class='id identifier rubyid_params'>params</span>.<span class='id identifier rubyid_require'>require</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_book'>book</span>).<span class='id identifier rubyid_permit'>permit</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_title'>title</span><span class='comma'>,</span> <span class='label'>chapters_attributes:</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_title'>title</span>])</code></pre>
+<span class='id identifier rubyid_params'>params</span>.<span class='id identifier rubyid_expect'>expect</span>(<span class='label'>book:</span> [ <span class='symbeg'>:</span><span class='id identifier rubyid_title'>title</span><span class='comma'>,</span> <span class='label'>chapters_attributes:</span> [[ <span class='symbeg'>:</span><span class='id identifier rubyid_title'>title</span> ]] ])</code></pre>
 
 <p>Imagine a scenario where you have parameters representing a product
 name, and a hash of arbitrary data associated with that product, and
@@ -393,7 +420,7 @@ you want to permit the product name attribute and also the whole
 data hash:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_product_params'>product_params</span>
-  <span class='id identifier rubyid_params'>params</span>.<span class='id identifier rubyid_require'>require</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_product'>product</span>).<span class='id identifier rubyid_permit'>permit</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_name'>name</span><span class='comma'>,</span> <span class='label'>data:</span> {})
+  <span class='id identifier rubyid_params'>params</span>.<span class='id identifier rubyid_expect'>expect</span>(<span class='label'>product:</span> [ <span class='symbeg'>:</span><span class='id identifier rubyid_name'>name</span><span class='comma'>,</span> <span class='label'>data:</span> {} ])
 <span class='kw'>end</span></code></pre>
 
 <h4>Outside the Scope of Strong Parameters</h4>
@@ -481,7 +508,7 @@ secret_key_base: 492f...
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>LoginsController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
   <span class='comment'># &quot;Create&quot; a login, aka &quot;log the user in&quot;
 </span>  <span class='kw'>def</span> <span class='id identifier rubyid_create'>create</span>
-    <span class='kw'>if</span> <span class='id identifier rubyid_user'>user</span> <span class='op'>=</span> <span class='const'>User</span>.<span class='id identifier rubyid_authenticate'>authenticate</span>(<span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_username'>username</span>]<span class='comma'>,</span> <span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_password'>password</span>])
+    <span class='kw'>if</span> <span class='id identifier rubyid_user'>user</span> <span class='op'>=</span> <span class='const'>User</span>.<span class='id identifier rubyid_authenticate_by'>authenticate_by</span>(<span class='label'>email:</span> <span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_email'>email</span>]<span class='comma'>,</span> <span class='label'>password:</span> <span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_password'>password</span>])
       <span class='comment'># Save the user ID in the session so it can be used in
 </span>      <span class='comment'># subsequent requests
 </span>      <span class='id identifier rubyid_session'>session</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_current_user_id'>current_user_id</span>] <span class='op'>=</span> <span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_id'>id</span>

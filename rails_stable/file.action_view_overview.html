@@ -8,7 +8,7 @@
 <meta name='apple-mobile-web-app-capable' content='yes'>
 <meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
 
-<title>File: Action View Overview &mdash; Rails 7-2-stable</title>
+<title>File: Action View Overview &mdash; Rails 8-0-stable</title>
 
 <link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
 <link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
@@ -50,7 +50,7 @@
   <header id='y_header'>
     <div id='y_menu'>
       <a id='home_no_xhr' href='/'>Home</a> &raquo; 
-      <a href='.'>Rails 7-2-stable</a> &raquo; 
+      <a href='.'>Rails 8-0-stable</a> &raquo; 
       <a href='_index.html'>Index</a> &raquo; 
       <span class='title'><a id='t2_doc_top' href='#'>File: Action View Overview&nbsp;&#x25B2;</a></span>
           </div>
@@ -614,17 +614,39 @@ enables compact partial-local default variable assignments:</p>
 &lt;% end %&gt;
 </code></pre>
 
-<p>INFO: By default, partials will accept any <code>locals</code> as keyword arguments. To
-define what <code>locals</code> a partial accepts, use a <code>locals:</code> magic comment. To learn
-more, read about <a href="#strict-locals">Strict Locals</a>.</p>
-
 <h3>Strict Locals</h3>
 
-<p>Action View partials will accept any number of <code>locals</code> as keyword arguments.
-You can enforce how many and which <code>locals</code> a template accepts, set default
-values, and more with a <code>locals:</code> magic comment.</p>
+<p>Action View partials are compiled into regular Ruby methods under the hood.
+Because it is impossible in Ruby to dynamically create local variables, every single combination of <code>locals</code> passed to
+a partial requires compiling another version:</p>
 
-<p>Here are some examples of the <code>locals:</code> magic comment:</p>
+<pre class="code xml"><code class="xml">&lt;%# app/views/articles/show.html.erb %&gt;
+&lt;%= render partial: &quot;article&quot;, layout: &quot;box&quot;, locals: { article: @article } %&gt;
+&lt;%= render partial: &quot;article&quot;, layout: &quot;box&quot;, locals: { article: @article, theme: &quot;dark&quot; } %&gt;
+</code></pre>
+
+<p>The above snippet will cause the partial to be compiled twice, taking more time and using more memory.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid__render_template_2323231_article_show'>_render_template_2323231_article_show</span>(<span class='id identifier rubyid_buffer'>buffer</span><span class='comma'>,</span> <span class='id identifier rubyid_local_assigns'>local_assigns</span><span class='comma'>,</span> <span class='label'>article:</span>)
+  <span class='comment'># ...
+</span><span class='kw'>end</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid__render_template_3243454_article_show'>_render_template_3243454_article_show</span>(<span class='id identifier rubyid_buffer'>buffer</span><span class='comma'>,</span> <span class='id identifier rubyid_local_assigns'>local_assigns</span><span class='comma'>,</span> <span class='label'>article:</span><span class='comma'>,</span> <span class='label'>theme:</span>)
+  <span class='comment'># ...
+</span><span class='kw'>end</span></code></pre>
+
+<p>When the number of combinations is small, it&#39;s not really a problem, but if it&#39;s large it can waste
+a sizeable amount of memory and take a long time to compile. To counter act this you can use
+strict locals to define the compiled partial signature, and ensure only a single version of the partial is compiled:</p>
+
+<pre class="code html+erb"><code class="html+erb">&lt;%# locals: (article:, theme: &quot;light&quot;) -%&gt;
+...
+</code></pre>
+
+<p>You can enforce how many and which <code>locals</code> a template accepts, set default
+values, and more with a <code>locals:</code> signature, using the same syntax as Ruby method signatures.</p>
+
+<p>Here are some examples of the <code>locals:</code> signature:</p>
 
 <pre class="code xml"><code class="xml">&lt;%# app/views/messages/_message.html.erb %&gt;
 
@@ -648,13 +670,12 @@ without a <code>:message</code> local variable argument will raise an exception:
 </code></pre>
 
 <p>Rendering the partial without a <code>:message</code> local variable uses the default value
-set in the <code>locals:</code> magic comment:</p>
+set in the <code>locals:</code> signature:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_render'>render</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>messages/message</span><span class='tstring_end'>&quot;</span></span>
 <span class='comment'># =&gt; &quot;Hello, world!&quot;</span></code></pre>
 
-<p>Rendering the partial with local variables not specified in the <code>local:</code> magic
-comment will also raise an exception:</p>
+<p>Rendering the partial with local variables not specified in the <code>local:</code> signature will also raise an exception:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_render'>render</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>messages/message</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>unknown_local:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>will raise</span><span class='tstring_end'>&quot;</span></span>
 <span class='comment'># =&gt; ActionView::Template::Error: unknown local: :unknown_local for app/views/messages/_message.html.erb</span></code></pre>
@@ -681,15 +702,15 @@ exception:</p>
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_render'>render</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>messages/message</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>unknown_local:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>will raise</span><span class='tstring_end'>&quot;</span></span>
 <span class='comment'># =&gt; ActionView::Template::Error: no locals accepted for app/views/messages/_message.html.erb</span></code></pre>
 
-<p>Action View will process the <code>locals:</code> magic comment in any templating engine
-that supports <code>#</code>-prefixed comments, and will read the magic comment from any
+<p>Action View will process the <code>locals:</code> signature in any templating engine
+that supports <code>#</code>-prefixed comments, and will read the signature from any
 line in the partial.</p>
 
 <p>CAUTION: Only keyword arguments are supported. Defining positional or block
 arguments will raise an Action View Error at render-time.</p>
 
 <p>The <code>local_assigns</code> method does not contain default values specified in the
-<code>local:</code> magic comment. To access a local variable with a default value that
+<code>local:</code> signature. To access a local variable with a default value that
 is named the same as a reserved Ruby keyword, like <code>class</code> or <code>if</code>, the values
 can be accessed through <code>binding.local_variable_get</code>:</p>
 
