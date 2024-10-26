@@ -79,7 +79,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2 o'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/json/parser/parser.c#L2151'>ext/json/parser/parser.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/json/parser/parser.c#L1772'>ext/json/parser/parser.c</a></span>
+      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/json/parser/parser.c#L2188'>ext/json/parser/parser.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/json/parser/parser.c#L1788'>ext/json/parser/parser.c</a></span>
       </td>
     </tr>
   </tbody>
@@ -157,18 +157,23 @@
 </li><li>
 <p><strong>create_additions</strong>: If set to false, the <code>Parser</code> doesn’t create additions even if a matching class and create_id was found. This option defaults to false.</p>
 </li><li>
-<p><strong>object_class</strong>: Defaults to Hash</p>
+<p><strong>object_class</strong>: Defaults to Hash. If another type is provided, it will be used instead of Hash to represent JSON objects. The type must respond to <code>new</code> without arguments, and return an object that respond to <code>[]=</code>.</p>
 </li><li>
-<p><strong>array_class</strong>: Defaults to Array</p>
+<p><strong>array_class</strong>: Defaults to Array If another type is provided, it will be used instead of Hash to represent JSON arrays. The type must respond to <code>new</code> without arguments, and return an object that respond to <code><<</code>.</p>
+</li><li>
+<p><strong>decimal_class</strong>: Specifies which class to use instead of the default</p>
+
+<pre class="code ruby"><code class="ruby">(<span class='const'>Float</span>) <span class='kw'>when</span> <span class='id identifier rubyid_parsing'>parsing</span> <span class='id identifier rubyid_decimal'>decimal</span> <span class='id identifier rubyid_numbers'>numbers</span>. <span class='const'>This</span> <span class='kw'>class</span> <span class='id identifier rubyid_must'>must</span> <span class='id identifier rubyid_accept'>accept</span> <span class='id identifier rubyid_a'>a</span> <span class='id identifier rubyid_single'>single</span>
+<span class='id identifier rubyid_string'>string</span> <span class='id identifier rubyid_argument'>argument</span> <span class='kw'>in</span> <span class='id identifier rubyid_its'>its</span> <span class='id identifier rubyid_constructor'>constructor</span>.</code></pre>
 </li></ul>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/json/parser/parser.c#L1812-L1909'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/json/parser/parser.c#L1838-L1946'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1812' data-end='1909'></pre>
+  <pre class='lines_num' data-start='1838' data-end='1946'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/json/parser/parser.c', line 1812</span></pre>
+<pre><span class='info file'># File 'ext/json/parser/parser.c', line 1838</span></pre>
 <pre class='code cpp'>
 
 static VALUE cParser_initialize(int argc, VALUE *argv, VALUE self)
@@ -179,80 +184,91 @@ static VALUE cParser_initialize(int argc, VALUE *argv, VALUE self)
     if (json-&gt;Vsource) {
         rb_raise(rb_eTypeError, &quot;already initialized instance&quot;);
     }
-    rb_scan_args(argc, argv, &quot;1:&quot;, &amp;source, &amp;opts);
+
+    rb_check_arity(argc, 1, 2);
+    source = argv[0];
+    opts = Qnil;
+    if (argc == 2) {
+        opts = argv[1];
+        Check_Type(argv[1], T_HASH);
+        if (RHASH_SIZE(argv[1]) &gt; 0) {
+            opts = argv[1];
+        }
+    }
+
     if (!NIL_P(opts)) {
-	VALUE tmp = ID2SYM(i_max_nesting);
-	if (option_given_p(opts, tmp)) {
-	    VALUE max_nesting = rb_hash_aref(opts, tmp);
-	    if (RTEST(max_nesting)) {
-		Check_Type(max_nesting, T_FIXNUM);
-		json-&gt;max_nesting = FIX2INT(max_nesting);
-	    } else {
-		json-&gt;max_nesting = 0;
-	    }
-	} else {
-	    json-&gt;max_nesting = 100;
-	}
-	tmp = ID2SYM(i_allow_nan);
-	if (option_given_p(opts, tmp)) {
-	    json-&gt;allow_nan = RTEST(rb_hash_aref(opts, tmp)) ? 1 : 0;
-	} else {
-	    json-&gt;allow_nan = 0;
-	}
-	tmp = ID2SYM(i_symbolize_names);
-	if (option_given_p(opts, tmp)) {
-	    json-&gt;symbolize_names = RTEST(rb_hash_aref(opts, tmp)) ? 1 : 0;
-	} else {
-	    json-&gt;symbolize_names = 0;
-	}
-	tmp = ID2SYM(i_freeze);
-	if (option_given_p(opts, tmp)) {
-	    json-&gt;freeze = RTEST(rb_hash_aref(opts, tmp)) ? 1 : 0;
-	} else {
-	    json-&gt;freeze = 0;
-	}
-	tmp = ID2SYM(i_create_additions);
-	if (option_given_p(opts, tmp)) {
-	    json-&gt;create_additions = RTEST(rb_hash_aref(opts, tmp));
-	} else {
-	    json-&gt;create_additions = 0;
-	}
-	if (json-&gt;symbolize_names &amp;&amp; json-&gt;create_additions) {
-	    rb_raise(rb_eArgError,
-		     &quot;options :symbolize_names and :create_additions cannot be &quot;
-		     &quot; used in conjunction&quot;);
-	}
-	tmp = ID2SYM(i_create_id);
-	if (option_given_p(opts, tmp)) {
-	    json-&gt;create_id = rb_hash_aref(opts, tmp);
-	} else {
-	    json-&gt;create_id = rb_funcall(mJSON, i_create_id, 0);
-	}
-	tmp = ID2SYM(i_object_class);
-	if (option_given_p(opts, tmp)) {
-	    json-&gt;object_class = rb_hash_aref(opts, tmp);
-	} else {
-	    json-&gt;object_class = Qnil;
-	}
-	tmp = ID2SYM(i_array_class);
-	if (option_given_p(opts, tmp)) {
-	    json-&gt;array_class = rb_hash_aref(opts, tmp);
-	} else {
-	    json-&gt;array_class = Qnil;
-	}
-	tmp = ID2SYM(i_decimal_class);
-	if (option_given_p(opts, tmp)) {
-	    json-&gt;decimal_class = rb_hash_aref(opts, tmp);
-	} else {
-	    json-&gt;decimal_class = Qnil;
-	}
-	tmp = ID2SYM(i_match_string);
-	if (option_given_p(opts, tmp)) {
-	    VALUE match_string = rb_hash_aref(opts, tmp);
-	    json-&gt;match_string = RTEST(match_string) ? match_string : Qnil;
-	} else {
-	    json-&gt;match_string = Qnil;
-	}
+        VALUE tmp = ID2SYM(i_max_nesting);
+        if (option_given_p(opts, tmp)) {
+            VALUE max_nesting = rb_hash_aref(opts, tmp);
+            if (RTEST(max_nesting)) {
+                Check_Type(max_nesting, T_FIXNUM);
+                json-&gt;max_nesting = FIX2INT(max_nesting);
+            } else {
+                json-&gt;max_nesting = 0;
+            }
+        } else {
+            json-&gt;max_nesting = 100;
+        }
+        tmp = ID2SYM(i_allow_nan);
+        if (option_given_p(opts, tmp)) {
+            json-&gt;allow_nan = RTEST(rb_hash_aref(opts, tmp)) ? 1 : 0;
+        } else {
+            json-&gt;allow_nan = 0;
+        }
+        tmp = ID2SYM(i_symbolize_names);
+        if (option_given_p(opts, tmp)) {
+            json-&gt;symbolize_names = RTEST(rb_hash_aref(opts, tmp)) ? 1 : 0;
+        } else {
+            json-&gt;symbolize_names = 0;
+        }
+        tmp = ID2SYM(i_freeze);
+        if (option_given_p(opts, tmp)) {
+            json-&gt;freeze = RTEST(rb_hash_aref(opts, tmp)) ? 1 : 0;
+        } else {
+            json-&gt;freeze = 0;
+        }
+        tmp = ID2SYM(i_create_additions);
+        if (option_given_p(opts, tmp)) {
+            json-&gt;create_additions = RTEST(rb_hash_aref(opts, tmp));
+        } else {
+            json-&gt;create_additions = 0;
+        }
+        if (json-&gt;symbolize_names &amp;&amp; json-&gt;create_additions) {
+            rb_raise(rb_eArgError,
+                &quot;options :symbolize_names and :create_additions cannot be &quot;
+                &quot; used in conjunction&quot;);
+        }
+        tmp = ID2SYM(i_create_id);
+        if (option_given_p(opts, tmp)) {
+            json-&gt;create_id = rb_hash_aref(opts, tmp);
+        } else {
+            json-&gt;create_id = rb_funcall(mJSON, i_create_id, 0);
+        }
+        tmp = ID2SYM(i_object_class);
+        if (option_given_p(opts, tmp)) {
+            json-&gt;object_class = rb_hash_aref(opts, tmp);
+        } else {
+            json-&gt;object_class = Qnil;
+        }
+        tmp = ID2SYM(i_array_class);
+        if (option_given_p(opts, tmp)) {
+            json-&gt;array_class = rb_hash_aref(opts, tmp);
+        } else {
+            json-&gt;array_class = Qnil;
+        }
+        tmp = ID2SYM(i_decimal_class);
+        if (option_given_p(opts, tmp)) {
+            json-&gt;decimal_class = rb_hash_aref(opts, tmp);
+        } else {
+            json-&gt;decimal_class = Qnil;
+        }
+        tmp = ID2SYM(i_match_string);
+        if (option_given_p(opts, tmp)) {
+            VALUE match_string = rb_hash_aref(opts, tmp);
+            json-&gt;match_string = RTEST(match_string) ? match_string : Qnil;
+        } else {
+            json-&gt;match_string = Qnil;
+        }
     } else {
         json-&gt;max_nesting = 100;
         json-&gt;allow_nan = 0;
@@ -285,31 +301,31 @@ static VALUE cParser_initialize(int argc, VALUE *argv, VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/json/parser/parser.c#L1930-L2088'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/json/parser/parser.c#L1967-L2125'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1930' data-end='2088'></pre>
+  <pre class='lines_num' data-start='1967' data-end='2125'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/json/parser/parser.c', line 1930</span></pre>
+<pre><span class='info file'># File 'ext/json/parser/parser.c', line 1967</span></pre>
 <pre class='code cpp'>
 
 static VALUE cParser_parse(VALUE self)
 {
-  char *p, *pe;
-  int cs = EVIL;
-  VALUE result = Qnil;
-  GET_PARSER;
+    char *p, *pe;
+    int cs = EVIL;
+    VALUE result = Qnil;
+    GET_PARSER;
 
 
-#line 1939 &quot;parser.c&quot;
+#line 1976 &quot;parser.c&quot;
 	{
 	cs = JSON_start;
 	}
 
-#line 838 &quot;parser.rl&quot;
-  p = json-&gt;source;
-  pe = p + json-&gt;len;
+#line 875 &quot;parser.rl&quot;
+    p = json-&gt;source;
+    pe = p + json-&gt;len;
 
-#line 1948 &quot;parser.c&quot;
+#line 1985 &quot;parser.c&quot;
 	{
 	if ( p == pe )
 		goto _test_eof;
@@ -343,7 +359,7 @@ st0:
 cs = 0;
 	goto _out;
 tr2:
-#line 813 &quot;parser.rl&quot;
+#line 850 &quot;parser.rl&quot;
 	{
         char *np = JSON_parse_value(json, p, pe, &amp;result, 0);
         if (np == NULL) { p--; {p++; cs = 10; goto _out;} } else {p = (( np))-1;}
@@ -353,7 +369,7 @@ st10:
 	if ( ++p == pe )
 		goto _test_eof10;
 case 10:
-#line 1992 &quot;parser.c&quot;
+#line 2029 &quot;parser.c&quot;
 	switch( (*p) ) {
 		case 13: goto st10;
 		case 32: goto st10;
@@ -442,14 +458,14 @@ case 9:
 	_out: {}
 	}
 
-#line 841 &quot;parser.rl&quot;
+#line 878 &quot;parser.rl&quot;
 
-  if (cs &gt;= JSON_first_final &amp;&amp; p == pe) {
-    return result;
-  } else {
-    rb_enc_raise(rb_utf8_encoding(), eParserError, &quot;unexpected token at &#39;%s&#39;&quot;, p);
-    return Qnil;
-  }
+    if (cs &gt;= JSON_first_final &amp;&amp; p == pe) {
+        return result;
+    } else {
+        raise_parse_error(&quot;unexpected token at &#39;%s&#39;&quot;, p);
+        return Qnil;
+    }
 }
 </pre>
   </div>
@@ -466,11 +482,11 @@ case 9:
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/json/parser/parser.c#L2135-L2139'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/json/parser/parser.c#L2172-L2176'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2135' data-end='2139'></pre>
+  <pre class='lines_num' data-start='2172' data-end='2176'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/json/parser/parser.c', line 2135</span></pre>
+<pre><span class='info file'># File 'ext/json/parser/parser.c', line 2172</span></pre>
 <pre class='code cpp'>
 
 static VALUE cParser_source(VALUE self)
