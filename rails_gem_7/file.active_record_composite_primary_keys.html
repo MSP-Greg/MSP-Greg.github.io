@@ -8,7 +8,7 @@
 <meta name='apple-mobile-web-app-capable' content='yes'>
 <meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
 
-<title>File: Active Record Composite Primary Keys &mdash; Rails 7.1.5</title>
+<title>File: Active Record Composite Primary Keys &mdash; Rails 7.1.5.1</title>
 
 <link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
 <link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
@@ -50,7 +50,7 @@
   <header id='y_header'>
     <div id='y_menu'>
       <a id='home_no_xhr' href='/'>Home</a> &raquo; 
-      <a href='.'>Rails 7.1.5</a> &raquo; 
+      <a href='.'>Rails 7.1.5.1</a> &raquo; 
       <a href='_index.html'>Index</a> &raquo; 
       <span class='title'><a id='t2_doc_top' href='#'>File: Active Record Composite Primary Keys&nbsp;&#x25B2;</a></span>
           </div>
@@ -96,7 +96,7 @@ before using one.</p>
 <p>You can create a table with a composite primary key by passing the
 <code>:primary_key</code> option to <code>create_table</code> with an array value:</p>
 
-<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>CreateProducts</span> <span class='op'>&lt;</span> <span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/Migration.html" title="ActiveRecord::Migration (class)">Migration</a></span>[<span class='float'>7.1</span>]
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>CreateProducts</span> <span class='op'>&lt;</span> <span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/Migration.html" title="ActiveRecord::Migration (class)">Migration</a></span>[<span class='float'>8.1</span>]
   <span class='kw'>def</span> <span class='id identifier rubyid_change'>change</span>
     <span class='id identifier rubyid_create_table'>create_table</span> <span class='symbeg'>:</span><span class='id identifier rubyid_products'>products</span><span class='comma'>,</span> <span class='label'>primary_key:</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_store_id'>store_id</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_sku'>sku</span>] <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_t'>t</span><span class='op'>|</span>
       <span class='id identifier rubyid_t'>t</span>.<span class='id identifier rubyid_integer'>integer</span> <span class='symbeg'>:</span><span class='id identifier rubyid_store_id'>store_id</span>
@@ -169,9 +169,14 @@ guide to learn more.</p>
 
 <h2>Associations between Models with Composite Primary Keys</h2>
 
-<p>Rails is often able to infer the primary key - foreign key information between
-associated models with composite primary keys without needing extra information.
-Take the following example:</p>
+<p>Rails can often infer the primary key-foreign key relationships between
+associated models. However, when dealing with composite primary keys, Rails
+typically defaults to using only part of the composite key, usually the <code>id</code>
+column, unless explicitly instructed otherwise. This default behavior only works
+if the model&#39;s composite primary key contains the <code>:id</code> column, <em>and</em> the column
+is unique for all records.</p>
+
+<p>Consider the following example:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Order</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
   <span class='kw'>self</span>.<span class='id identifier rubyid_primary_key'>primary_key</span> <span class='op'>=</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_shop_id'>shop_id</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span>]
@@ -182,45 +187,61 @@ Take the following example:</p>
   <span class='id identifier rubyid_belongs_to'>belongs_to</span> <span class='symbeg'>:</span><span class='id identifier rubyid_order'>order</span>
 <span class='kw'>end</span></code></pre>
 
-<p>Here, Rails assumes that the <code>:id</code> column should be used as the primary key for
-the association between an order and its books, just as with a regular
-<code>has_many</code> / <code>belongs_to</code> association. It will infer that the foreign key column
-on the <code>books</code> table is <code>:order_id</code>. Accessing a book&#39;s order:</p>
+<p>In this setup, <code>Order</code> has a composite primary key consisting of <code>[:shop_id,
+:id]</code>, and <code>Book</code> belongs to <code>Order</code>. Rails will assume that the <code>:id</code> column
+should be used as the primary key for the association between an order and its
+books. It will infer that the foreign key column on the books table is
+<code>:order_id</code>.</p>
+
+<p>Below we create an <code>Order</code> and a <code>Book</code> associated with it:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_order'>order</span> <span class='op'>=</span> <span class='const'>Order</span>.<span class='id identifier rubyid_create!'>create!</span>(<span class='label'>id:</span> [<span class='int'>1</span><span class='comma'>,</span> <span class='int'>2</span>]<span class='comma'>,</span> <span class='label'>status:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>pending</span><span class='tstring_end'>&quot;</span></span>)
-<span class='id identifier rubyid_book'>book</span> <span class='op'>=</span> <span class='id identifier rubyid_order'>order</span>.<span class='id identifier rubyid_books'>books</span>.<span class='id identifier rubyid_create!'>create!</span>(<span class='label'>title:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>A Cool Book</span><span class='tstring_end'>&quot;</span></span>)
+<span class='id identifier rubyid_book'>book</span> <span class='op'>=</span> <span class='id identifier rubyid_order'>order</span>.<span class='id identifier rubyid_books'>books</span>.<span class='id identifier rubyid_create!'>create!</span>(<span class='label'>title:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>A Cool Book</span><span class='tstring_end'>&quot;</span></span>)</code></pre>
 
-<span class='id identifier rubyid_book'>book</span>.<span class='id identifier rubyid_reload'>reload</span>.<span class='id identifier rubyid_order'>order</span></code></pre>
+<p>To access the book&#39;s order, we reload the association:</p>
 
-<p>will generate the following SQL to access the order:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_book'>book</span>.<span class='id identifier rubyid_reload'>reload</span>.<span class='id identifier rubyid_order'>order</span></code></pre>
+
+<p>When doing so, Rails will generate the following SQL to access the order:</p>
 
 <pre class="code sql"><code class="sql">SELECT * FROM orders WHERE id = 2
 </code></pre>
 
-<p>This only works if the model&#39;s composite primary key contains the <code>:id</code> column,
-<em>and</em> the column is unique for all records. In order to use the full composite
-primary key in associations, set the <code>query_constraints</code> option on the
-association. This option specifies a composite foreign key on the association,
-meaning that all columns in the foreign key will be used to query the
+<p>You can see that Rails uses the order&#39;s <code>id</code> in its query, rather than both the
+<code>shop_id</code> and the <code>id</code>. In this case, the <code>id</code> is sufficient because the model&#39;s
+composite primary key does in fact contain the <code>:id</code> column, <em>and</em> the column is
+unique for all records.</p>
+
+<p>However, if the above requirements are not met or you would like to use the full
+composite primary key in associations, you can set the <code>foreign_key:</code> option on
+the association. This option specifies a composite foreign key on the
+association; all columns in the foreign key will be used when querying the
 associated record(s). For example:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Author</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
   <span class='kw'>self</span>.<span class='id identifier rubyid_primary_key'>primary_key</span> <span class='op'>=</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_first_name'>first_name</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_last_name'>last_name</span>]
-  <span class='id identifier rubyid_has_many'>has_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_books'>books</span><span class='comma'>,</span> <span class='label'>query_constraints:</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_first_name'>first_name</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_last_name'>last_name</span>]
+  <span class='id identifier rubyid_has_many'>has_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_books'>books</span><span class='comma'>,</span> <span class='label'>foreign_key:</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_first_name'>first_name</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_last_name'>last_name</span>]
 <span class='kw'>end</span>
 
 <span class='kw'>class</span> <span class='const'>Book</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
-  <span class='id identifier rubyid_belongs_to'>belongs_to</span> <span class='symbeg'>:</span><span class='id identifier rubyid_author'>author</span><span class='comma'>,</span> <span class='label'>query_constraints:</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_author_first_name'>author_first_name</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_author_last_name'>author_last_name</span>]
+  <span class='id identifier rubyid_belongs_to'>belongs_to</span> <span class='symbeg'>:</span><span class='id identifier rubyid_author'>author</span><span class='comma'>,</span> <span class='label'>foreign_key:</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_author_first_name'>author_first_name</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_author_last_name'>author_last_name</span>]
 <span class='kw'>end</span></code></pre>
 
-<p>Accessing a book&#39;s author:</p>
+<p>In this setup, <code>Author</code> has a composite primary key consisting of <code>[:first_name,
+:last_name]</code>, and <code>Book</code> belongs to <code>Author</code> with a composite foreign key
+<code>[:author_first_name, :author_last_name]</code>.</p>
+
+<p>Create an <code>Author</code> and a <code>Book</code> associated with it:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_author'>author</span> <span class='op'>=</span> <span class='const'>Author</span>.<span class='id identifier rubyid_create!'>create!</span>(<span class='label'>first_name:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Jane</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>last_name:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Doe</span><span class='tstring_end'>&quot;</span></span>)
-<span class='id identifier rubyid_book'>book</span> <span class='op'>=</span> <span class='id identifier rubyid_author'>author</span>.<span class='id identifier rubyid_books'>books</span>.<span class='id identifier rubyid_create!'>create!</span>(<span class='label'>title:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>A Cool Book</span><span class='tstring_end'>&quot;</span></span>)
+<span class='id identifier rubyid_book'>book</span> <span class='op'>=</span> <span class='id identifier rubyid_author'>author</span>.<span class='id identifier rubyid_books'>books</span>.<span class='id identifier rubyid_create!'>create!</span>(<span class='label'>title:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>A Cool Book</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>author_first_name:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Jane</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>author_last_name:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Doe</span><span class='tstring_end'>&quot;</span></span>)</code></pre>
 
-<span class='id identifier rubyid_book'>book</span>.<span class='id identifier rubyid_reload'>reload</span>.<span class='id identifier rubyid_author'>author</span></code></pre>
+<p>To access the book&#39;s author, we reload the association:</p>
 
-<p>will use <code>:first_name</code> <em>and</em> <code>:last_name</code> in the SQL query:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_book'>book</span>.<span class='id identifier rubyid_reload'>reload</span>.<span class='id identifier rubyid_author'>author</span></code></pre>
+
+<p>Rails will now use the <code>:first_name</code> <em>and</em> <code>:last_name</code> from the composite
+primary key in the SQL query:</p>
 
 <pre class="code sql"><code class="sql">SELECT * FROM authors WHERE first_name = &#39;Jane&#39; AND last_name = &#39;Doe&#39;
 </code></pre>
@@ -276,7 +297,7 @@ Active Record. We can leverage the <code>extract_value</code> method for this us
 
 <p>And the following route:</p>
 
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_get'>get</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>/books/:id</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='label'>to:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>books#show</span><span class='tstring_end'>&#39;</span></span></code></pre>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_get'>get</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>/books/:id</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>to:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>books#show</span><span class='tstring_end'>&quot;</span></span></code></pre>
 
 <p>When a user opens the URL <code>/books/4_2</code>, the controller will extract the
 composite key value <code>[&quot;4&quot;, &quot;2&quot;]</code> and pass it to <code>Book.find</code> to render the right
@@ -304,8 +325,8 @@ you must use the <code>composite_identify</code> method:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>BookOrder</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
   <span class='kw'>self</span>.<span class='id identifier rubyid_primary_key'>primary_key</span> <span class='op'>=</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_shop_id'>shop_id</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span>]
-  <span class='id identifier rubyid_belongs_to'>belongs_to</span> <span class='symbeg'>:</span><span class='id identifier rubyid_order'>order</span><span class='comma'>,</span> <span class='label'>query_constraints:</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_shop_id'>shop_id</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_order_id'>order_id</span>]
-  <span class='id identifier rubyid_belongs_to'>belongs_to</span> <span class='symbeg'>:</span><span class='id identifier rubyid_book'>book</span><span class='comma'>,</span> <span class='label'>query_constraints:</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_author_id'>author_id</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_book_id'>book_id</span>]
+  <span class='id identifier rubyid_belongs_to'>belongs_to</span> <span class='symbeg'>:</span><span class='id identifier rubyid_order'>order</span><span class='comma'>,</span> <span class='label'>foreign_key:</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_shop_id'>shop_id</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_order_id'>order_id</span>]
+  <span class='id identifier rubyid_belongs_to'>belongs_to</span> <span class='symbeg'>:</span><span class='id identifier rubyid_book'>book</span><span class='comma'>,</span> <span class='label'>foreign_key:</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_author_id'>author_id</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_book_id'>book_id</span>]
 <span class='kw'>end</span></code></pre>
 
 <pre class="code yml"><code class="yml"># book_orders.yml
