@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen'       content='yes'>
+<meta name='apple-mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: CertumCodeSigning &mdash; RubyInstaller2 master</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "CertumCodeSigning",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>RubyInstaller2 master</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: CertumCodeSigning&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<p><a href="RubyInstaller.html" title="RubyInstaller (module)"><code>RubyInstaller</code></a> Windows executables are signed by a Microsoft trusted certificate.
+It is issued for &quot;Open Source Developer, Lars Kanis&quot;.
+The certificate authority used is <a href="https://www.certum.eu/en/contact/">Certum</a>.
+They provide a set of card reader and cryptographic smart card for 85€ and an annually certificate for €30.
+These are reduced prices for Open Source Developers.
+The smart card stores the private key and the corresponding certificate can be downloaded after issuing.
+Issuing the certificate and signing the <a href="RubyInstaller.html" title="RubyInstaller (module)"><code>RubyInstaller</code></a> executables is currently done on Ubuntu, not on Windows.</p>
+
+<h2>Key generation and certificate issuance</h2>
+
+<p>The activation process of the ordered certificate is done with the help of a java applet that acts as a proxy from the <a href="https://cservices.certum.pl/muc-customer/CustomerOrderDetailList.seam">Certum web application</a> to the smard card.
+It requires OpenJDK-8, PCSC and the smartcard reader driver to work properly.
+So on Ubuntu the following packages are necessary. Since <code>icedtea-netx</code> defaults to OpenJDK-17, the java default version has to be changed:</p>
+
+<pre class="code sh"><code class="sh">sudo apt install openjdk-8-jdk icedtea-netx libpcsclite-dev pcscd libacsccid1
+sudo rm /usr/lib/jvm/default-java
+sudo ln -sf /usr/lib/jvm/java-8-openjdk-amd64 /usr/lib/jvm/default-java
+</code></pre>
+
+<p>Then the java applet can be started on the Certum certificate activation web page or with the downloaded applet manifest like so:</p>
+
+<pre class="code sh"><code class="sh">javaws ~/Downloads/CertumCryptoAgent_en.jnlp 
+</code></pre>
+
+<p>If everything works well, the web application can generate a RSA-4096 bit key on the smart card and start the certificate issuing process.</p>
+
+<h2>Signing the executables</h2>
+
+<p>The RubyInstaller executables are currently signed in the <a href="https://github.com/oneclick/rubyinstaller.org-website">rubyinstaller.org-website</a> project.
+It makes use of <a href="https://github.com/larskanis/osslsigncode">https://github.com/larskanis/osslsigncode</a> and the PKCS#11 library file provided by Certum.
+After installing necessary dependencies as described in the <a href="https://github.com/larskanis/osslsigncode/blob/master/README">project README</a> and <code>make install</code>, the command looks like so:</p>
+
+<pre class="code sh"><code class="sh">osslsigncode sign \
+  -verbose \
+  -pkcs11engine /usr/lib/x86_64-linux-gnu/engines-3/libpkcs11.so \
+  -pkcs11module /opt/proCertumCardManager/sc30pkcs11-3.0.6.68-MS.so \
+  -certs &lt;my-certificate&gt;.pem \
+  -key &lt;key ID on the smart card&gt; \
+  -pass &lt;smart card password&gt; \
+  -h sha256 \
+  -t http://time.certum.pl/ \
+  -in &lt;to-be-signed&gt;.exe \
+  -out &lt;signed-file&gt;.exe
+</code></pre>
+
+<p>The PKCS#11 library <code>sc30pkcs11-3.0.6.68-MS.so</code> is not available as a separate download, but it&#39;s part of the <a href="https://support.certum.eu/en/cert-offer-card-manager/">proCertumCardManager</a>.
+It is free to download and installs into <code>/opt/proCertumCardManager</code>.
+It also needs the PCSC packages and reader driver of the <code>apt install</code> command above.
+The full signing command is <a href="https://github.com/oneclick/rubyinstaller.org-website/blob/984403ddb5ef0386c4be03e2e30a79688dbfb882/Rakefile#L174">here</a>.</p>
+
+<p>The certificate pem file can be downloaded from the Certum web site after issuance and can inspected by the openssl command:</p>
+
+<pre class="code sh"><code class="sh">$ openssl x509 -in &lt;my-certificate&gt;.pem -text
+Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number:
+            3a:de:93:0a:dc:9e:8b:c4:de:42:57:b2:2c:a2:d3:f9
+        Signature Algorithm: sha256WithRSAEncryption
+        Issuer: C = PL, O = Asseco Data Systems S.A., CN = Certum Code Signing 2021 CA
+        Validity
+            Not Before: Oct 23 07:38:08 2023 GMT
+            Not After : Oct 22 07:38:07 2024 GMT
+        Subject: C = DE, ST = Thuringia, L = Greiz, O = Open Source Developer, CN = &quot;Open Source Developer, Lars Kanis&quot;, emailAddress = lars@greiz-reinsdorf.de
+        Subject Public Key Info:
+            Public Key Algorithm: rsaEncryption
+                Public-Key: (4096 bit)
+                Modulus:
+                    00:96:28:94:b2:eb:20:10:c0:49:4c:6f:2e:5b:4a:
+                    [...]
+                    45:40:70:23:c3:64:51:b5:00:a2:0b:53:fb:bd:67:
+                    c0:bf:e5
+</code></pre>
+
+<p>There&#39;s also a small helper in the <a href="https://github.com/oneclick/rubyinstaller.org-website/blob/984403ddb5ef0386c4be03e2e30a79688dbfb882/Rakefile#L273">Rakefile</a>, which prints the Key IDs on the smart card and the modulus.
+This is helpful to select the correct key corresponding to the certificate to be used.
+The output looks like so:</p>
+
+<pre class="code sh"><code class="sh">$ rake signtool:list-keys  # List keys from PKCS11 signature stick
+========== Key 0 ==========
+ID: ee96a6ada894a9ab64e47b7fec23a985c6d68d5b
+Modulus: 9b96a45f661127ee...c7fa3bbdca53b591
+========== Key 1 ==========
+ID: 948d4a78793978fbbc8f77e43c1cd30251bfb137
+Modulus: e7c40d3ff3117da7...2181fdc7dff33075
+========== Key 2 ==========
+ID: b31eefae6f8353837329fdf37d40664a1ea99937
+Modulus: 928de2c7fe41eadf...3b4e3406168df055
+========== Key 3 ==========
+ID: 739d150ea2185d25c2f7bcd34cc8b733126686cb
+Modulus: 962894b2eb2010c0...0b53fbbd67c0bfe5
+</code></pre>
+
+<p>You see &quot;Key 3&quot; is the right key for the above certificate, so that its ID has to be used for the <code>osslsigncode</code> command.
+In any case <code>osslsigncode verify</code> should be used to check the signature afterwards, as done in the <code>Rakefile</code>.</p>
+
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>
