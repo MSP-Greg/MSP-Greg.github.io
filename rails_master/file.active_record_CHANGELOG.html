@@ -62,6 +62,89 @@
   </header>
 <div id='content' class='file'>
 <ul>
+<li><p>Serialized attributes can now be marked as comparable.</p>
+
+<p>A not rare issue when working with serialized attributes is that the serialized representation of an object
+can change over time. Either because you are migrating from one serializer to the other (e.g. YAML to JSON or to msgpack),
+or because the serializer used subtly changed its output.</p>
+
+<p>One example is libyaml that used to have some extra trailing whitespaces, and recently fixed that.
+When this sorts of thing happen, you end up with lots of records that report being changed even though
+they aren&#39;t, which in the best case leads to a lot more writes to the database and in the worst case lead to nasty bugs.</p>
+
+<p>The solution is to instead compare the deserialized representation of the object, however Active Record
+can&#39;t assume the deserialized object has a working <code>==</code> method. Hence why this new functionality is opt-in.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_serialize'>serialize</span> <span class='symbeg'>:</span><span class='id identifier rubyid_config'>config</span><span class='comma'>,</span> <span class='label'>type:</span> <span class='const'><a href="Hash.html" title="Hash (class)">Hash</a></span><span class='comma'>,</span> <span class='label'>coder:</span> <span class='const'>JSON</span><span class='comma'>,</span> <span class='label'>comparable:</span> <span class='kw'>true</span></code></pre>
+
+<p><em>Jean Boussier</em></p></li>
+<li><p>Fix MySQL default functions getting dropped when changing a column&#39;s nullability.</p>
+
+<p><em>Bastian Bartmann</em></p></li>
+<li><p>SQLite extensions can be configured in <code>config/database.yml</code>.</p>
+
+<p>The database configuration option <code>extensions:</code> allows an application to load SQLite extensions
+when using <code>sqlite3</code> &gt;= v2.4.0. The array members may be filesystem paths or the names of
+modules that respond to <code>.to_path</code>:</p>
+
+<pre class="code yaml"><code class="yaml">development:
+  adapter: sqlite3
+  extensions:
+    - SQLean::UUID                     # module name responding to `.to_path`
+    - .sqlpkg/nalgeon/crypto/crypto.so # or a filesystem path
+    - &lt;%= AppExtensions.location %&gt;    # or ruby code returning a path
+</code></pre>
+
+<p><em>Mike Dalessio</em></p></li>
+<li><p><a href="ActiveRecord/Middleware/ShardSelector.html" title="ActiveRecord::Middleware::ShardSelector (class)"><code>::ActiveRecord::Middleware::ShardSelector</code></a> supports granular database connection switching.</p>
+
+<p>A new configuration option, <code>class_name:</code>, is introduced to
+<code>config.active_record.shard_selector</code> to allow an application to specify the abstract connection
+class to be switched by the shard selection middleware. The default class is
+<a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)"><code>::ActiveRecord::Base</code></a>.</p>
+
+<p>For example, this configuration tells <code>ShardSelector</code> to switch shards using
+<code>AnimalsRecord.connected_to</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_active_record'>active_record</span>.<span class='id identifier rubyid_shard_selector'>shard_selector</span> <span class='op'>=</span> { <span class='label'>class_name:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>AnimalsRecord</span><span class='tstring_end'>&quot;</span></span> }</code></pre>
+
+<p><em>Mike Dalessio</em></p></li>
+<li><p>Reset relations after <code>insert_all</code>/<code>upsert_all</code>.</p>
+
+<p>Bulk insert/upsert methods will now call <code>reset</code> if used on a relation, matching the behavior of <code>update_all</code>.</p>
+
+<p><em>Milo Winningham</em></p></li>
+<li><p>Use <code>_N</code> as a parallel tests databases suffixes</p>
+
+<p>Peviously, <code>-N</code> was used as a suffix. This can cause problems for RDBMSes
+which do not support dashes in database names.</p>
+
+<p><em>fatkodima</em></p></li>
+<li><p>Remember when a database connection has recently been verified (for
+two seconds, by default), to avoid repeated reverifications during a
+single request.</p>
+
+<p>This should recreate a similar rate of verification as in Rails 7.1,
+where connections are leased for the duration of a request, and thus
+only verified once.</p>
+
+<p><em>Matthew Draper</em></p></li>
+<li><p>Allow to reset cache counters for multiple records.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Aircraft</span>.<span class='id identifier rubyid_reset_counters'>reset_counters</span>([<span class='int'>1</span><span class='comma'>,</span> <span class='int'>2</span><span class='comma'>,</span> <span class='int'>3</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_wheels_count'>wheels_count</span>)</code></pre>
+
+<p>It produces much fewer queries compared to the custom implementation using looping over ids.
+Previously: <code>O(ids.size * counters.size)</code> queries, now: <code>O(ids.size + counters.size)</code> queries.</p>
+
+<p><em>fatkodima</em></p></li>
+<li><p>Add <code>affected_rows</code> to <code>sql.active_record</code> Notification.</p>
+
+<p><em>Hartley McGuire</em></p></li>
+<li><p>Fix <code>sum</code> when performing a grouped calculation.</p>
+
+<p><code>User.group(:friendly).sum</code> no longer worked. This is fixed.</p>
+
+<p><em>Edouard Chin</em></p></li>
 <li><p>Add support for enabling or disabling transactional tests per database.</p>
 
 <p>A test class can now override the default <code>use_transactional_tests</code> setting

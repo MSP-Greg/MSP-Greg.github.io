@@ -772,53 +772,52 @@ important business rules and application logic in callbacks that you do not want
 to bypass. Bypassing them without understanding the potential implications may
 lead to invalid data.</p>
 
-<h2>Suppressing Callbacks</h2>
+<h2>Suppressing Saving</h2>
 
-<p>In certain scenarios, you may need to temporarily prevent certain callbacks from
-being executed within your Rails application. This can be useful when you want
-to skip specific actions during certain operations without permanently disabling
-the callbacks.</p>
+<p>In certain scenarios, you may need to temporarily prevent records from being
+saved within your callbacks.
+This can be useful if you have a record with complex nested associations and want
+to skip saving specific records during certain operations without permanently disabling
+the callbacks or introducing complex conditional logic.</p>
 
-<p>Rails provides a mechanism for suppressing callbacks using the
-<a href="https://api.rubyonrails.org/classes/ActiveRecord/Suppressor.html"><a href="ActiveRecord/Suppressor.html" title="ActiveRecord::Suppressor (module)"><code>::ActiveRecord::Suppressor</code></a>
-module</a>. By
-using this module, you can wrap a block of code where you want to suppress
-callbacks, ensuring that they are not executed during that specific operation.</p>
+<p>Rails provides a mechanism to prevent saving records using the
+<a href="https://api.rubyonrails.org/classes/ActiveRecord/Suppressor.html"><a href="ActiveRecord/Suppressor.html" title="ActiveRecord::Suppressor (module)"><code>::ActiveRecord::Suppressor</code></a> module</a>.
+By using this module, you can wrap a block of code where you want to avoid
+saving records of a specific type that otherwise would be saved by the code block.</p>
 
-<p>Let&#39;s consider a scenario where we have a <code>User</code> model with a callback that
-sends a welcome email to new users after they sign up. However, there might be
-cases where we want to create a user without sending the welcome email, such as
-during seeding the database with test data.</p>
+<p>Let&#39;s consider a scenario where a user has many notifications.
+Creating a <code>User</code> will automatically create a <code>Notification</code> record as well.</p>
 
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>User</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
-  <span class='id identifier rubyid_after_create'>after_create</span> <span class='symbeg'>:</span><span class='id identifier rubyid_send_welcome_email'>send_welcome_email</span>
+  <span class='id identifier rubyid_has_many'>has_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_notifications'>notifications</span>
 
-  <span class='kw'>def</span> <span class='id identifier rubyid_send_welcome_email'>send_welcome_email</span>
-    <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Welcome email sent to </span><span class='embexpr_beg'>#{</span><span class='kw'>self</span>.<span class='id identifier rubyid_email'>email</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_after_create'>after_create</span> <span class='symbeg'>:</span><span class='id identifier rubyid_create_welcome_notification'>create_welcome_notification</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_create_welcome_notification'>create_welcome_notification</span>
+    <span class='id identifier rubyid_notifications'>notifications</span>.<span class='id identifier rubyid_create'>create</span>(<span class='label'>event:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>sign_up</span><span class='tstring_end'>&quot;</span></span>)
   <span class='kw'>end</span>
+<span class='kw'>end</span>
+
+<span class='kw'>class</span> <span class='const'>Notification</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_belongs_to'>belongs_to</span> <span class='symbeg'>:</span><span class='id identifier rubyid_user'>user</span>
 <span class='kw'>end</span></code></pre>
 
-<p>In this example, the <code>after_create</code> callback triggers the <code>send_welcome_email</code>
-method every time a new user is created.</p>
+<p>To create a user without creating a notification, we can use the
+ActiveRecord::Suppressor module as follows:</p>
 
-<p>To create a user without sending the welcome email, we can use the
-<a href="ActiveRecord/Suppressor.html" title="ActiveRecord::Suppressor (module)"><code>::ActiveRecord::Suppressor</code></a> module as follows:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='const'>User</span>.<span class='id identifier rubyid_suppress'>suppress</span> <span class='kw'>do</span>
+<pre class="code ruby"><code class="ruby"><span class='const'>Notification</span>.<span class='id identifier rubyid_suppress'>suppress</span> <span class='kw'>do</span>
   <span class='const'>User</span>.<span class='id identifier rubyid_create'>create</span>(<span class='label'>name:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Jane</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>email:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>jane@example.com</span><span class='tstring_end'>&quot;</span></span>)
 <span class='kw'>end</span></code></pre>
 
-<p>In the above code, the <code>User.suppress</code> block ensures that the
-<code>send_welcome_email</code> callback is not executed during the creation of the &quot;Jane&quot;
-user, allowing us to create the user without sending the welcome email.</p>
+<p>In the above code, the <code>Notification.suppress</code> block ensures that the
+<code>Notification</code> is not saved during the creation of the &quot;Jane&quot; user.</p>
 
-<p>WARNING: Using the Active Record Suppressor, while potentially beneficial for
-selectively controlling callback execution, can introduce complexity and
-unexpected behavior. Suppressing callbacks can obscure the intended flow of your
+<p>WARNING: Using the Active Record Suppressor can introduce complexity and
+unexpected behavior. Suppressing saving can obscure the intended flow of your
 application, leading to difficulties in understanding and maintaining the
-codebase over time. Carefully consider the implications of suppressing
-callbacks, ensuring thorough documentation and thoughtful testing to mitigate
-risks of unintended side effects, performance issues, and test failures.</p>
+codebase over time. Carefully consider the implications of using the suppressor,
+ensuring thorough documentation and thoughtful testing to mitigate
+risks of unintended side effects and test failures.</p>
 
 <h2>Halting Execution</h2>
 

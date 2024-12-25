@@ -428,31 +428,35 @@
   <h3 class='signature priv first'>
     #<strong>method_missing</strong>(name)   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L474-L492'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L475-L497'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='474' data-end='492'></pre>
+  <pre class='lines_num' data-start='475' data-end='497'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 474</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 475</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_method_missing'>method_missing</span>(<span class='id identifier rubyid_name'>name</span><span class='comma'>,</span> <span class='op'>...</span>)
-  <span class='kw'>unless</span> <span class='kw'>self</span>.<span class='id identifier rubyid_class'>class</span>.<span class='id identifier rubyid_attribute_methods_generated?'>attribute_methods_generated?</span>
-    <span class='kw'>if</span> <span class='kw'>self</span>.<span class='id identifier rubyid_class'>class</span>.<span class='id identifier rubyid_method_defined?'>method_defined?</span>(<span class='id identifier rubyid_name'>name</span>)
-      <span class='comment'># The method is explicitly defined in the model, but calls a generated
-</span>      <span class='comment'># method with super. So we must resume the call chain at the right step.
-</span>      <span class='id identifier rubyid_last_method'>last_method</span> <span class='op'>=</span> <span class='id identifier rubyid_method'>method</span>(<span class='id identifier rubyid_name'>name</span>)
-      <span class='id identifier rubyid_last_method'>last_method</span> <span class='op'>=</span> <span class='id identifier rubyid_last_method'>last_method</span>.<span class='id identifier rubyid_super_method'>super_method</span> <span class='kw'>while</span> <span class='id identifier rubyid_last_method'>last_method</span>.<span class='id identifier rubyid_super_method'>super_method</span>
-      <span class='kw'>self</span>.<span class='id identifier rubyid_class'>class</span>.<span class='id identifier rubyid_define_attribute_methods'>define_attribute_methods</span>
-      <span class='kw'>if</span> <span class='id identifier rubyid_last_method'>last_method</span>.<span class='id identifier rubyid_super_method'>super_method</span>
-        <span class='kw'>return</span> <span class='id identifier rubyid_last_method'>last_method</span>.<span class='id identifier rubyid_super_method'>super_method</span>.<span class='id identifier rubyid_call'>call</span>(<span class='op'>...</span>)
-      <span class='kw'>end</span>
-    <span class='kw'>elsif</span> <span class='kw'>self</span>.<span class='id identifier rubyid_class'>class</span>.<span class='id identifier rubyid_define_attribute_methods'>define_attribute_methods</span>
-      <span class='comment'># Some attribute methods weren&#39;t generated yet, we retry the call
-</span>      <span class='kw'>return</span> <span class='id identifier rubyid_public_send'>public_send</span>(<span class='id identifier rubyid_name'>name</span><span class='comma'>,</span> <span class='op'>...</span>)
-    <span class='kw'>end</span>
+  <span class='comment'># We can&#39;t know whether some method was defined or not because
+</span>  <span class='comment'># multiple thread might be concurrently be in this code path.
+</span>  <span class='comment'># So the first one would define the methods and the others would
+</span>  <span class='comment'># appear to already have them.
+</span>  <span class='kw'>self</span>.<span class='id identifier rubyid_class'>class</span>.<span class='id identifier rubyid_define_attribute_methods'>define_attribute_methods</span>
+
+  <span class='comment'># So in all cases we must behave as if the method was just defined.
+</span>  <span class='id identifier rubyid_method'>method</span> <span class='op'>=</span> <span class='kw'>begin</span>
+    <span class='kw'>self</span>.<span class='id identifier rubyid_class'>class</span>.<span class='id identifier rubyid_public_instance_method'>public_instance_method</span>(<span class='id identifier rubyid_name'>name</span>)
+  <span class='kw'>rescue</span> <span class='const'><a href="../NameError.html" title="NameError (class)">NameError</a></span>
+    <span class='kw'>nil</span>
   <span class='kw'>end</span>
 
-  <span class='kw'>super</span>
+  <span class='comment'># The method might be explicitly defined in the model, but call a generated
+</span>  <span class='comment'># method with super. So we must resume the call chain at the right step.
+</span>  <span class='id identifier rubyid_method'>method</span> <span class='op'>=</span> <span class='id identifier rubyid_method'>method</span>.<span class='id identifier rubyid_super_method'>super_method</span> <span class='kw'>while</span> <span class='id identifier rubyid_method'>method</span> <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='id identifier rubyid_method'>method</span>.<span class='id identifier rubyid_owner'>owner</span>.<span class='id identifier rubyid_is_a?'>is_a?</span>(<span class='const'><a href="AttributeMethods/GeneratedAttributeMethods.html" title="ActiveRecord::AttributeMethods::GeneratedAttributeMethods (class)">GeneratedAttributeMethods</a></span>)
+  <span class='kw'>if</span> <span class='id identifier rubyid_method'>method</span>
+    <span class='id identifier rubyid_method'>method</span>.<span class='id identifier rubyid_bind_call'>bind_call</span>(<span class='kw'>self</span><span class='comma'>,</span> <span class='op'>...</span>)
+  <span class='kw'>else</span>
+    <span class='kw'>super</span>
+  <span class='kw'>end</span>
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -694,11 +698,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L414-L416'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L415-L417'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='414' data-end='416'></pre>
+  <pre class='lines_num' data-start='415' data-end='417'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 414</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 415</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='op'>[]</span>(<span class='id identifier rubyid_attr_name'>attr_name</span>)
@@ -727,11 +731,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L427-L429'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L428-L430'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='427' data-end='429'></pre>
+  <pre class='lines_num' data-start='428' data-end='430'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 427</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 428</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='op'>[]=</span>(<span class='id identifier rubyid_attr_name'>attr_name</span><span class='comma'>,</span> <span class='id identifier rubyid_value'>value</span>)
@@ -757,11 +761,11 @@
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L321-L323'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L322-L324'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='321' data-end='323'></pre>
+  <pre class='lines_num' data-start='322' data-end='324'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 321</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 322</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid__has_attribute?'>_has_attribute?</span>(<span class='id identifier rubyid_attr_name'>attr_name</span>) <span class='comment'># :nodoc:
@@ -806,11 +810,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L459-L461'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L460-L462'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='459' data-end='461'></pre>
+  <pre class='lines_num' data-start='460' data-end='462'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 459</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 460</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_accessed_fields'>accessed_fields</span>
@@ -843,11 +847,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L364-L369'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L365-L370'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='364' data-end='369'></pre>
+  <pre class='lines_num' data-start='365' data-end='370'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 364</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 365</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_attribute_for_inspect'>attribute_for_inspect</span>(<span class='id identifier rubyid_attr_name'>attr_name</span>)
@@ -873,11 +877,11 @@
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L494-L496'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L499-L501'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='494' data-end='496'></pre>
+  <pre class='lines_num' data-start='499' data-end='501'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 494</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 499</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_attribute_method?'>attribute_method?</span>(<span class='id identifier rubyid_attr_name'>attr_name</span>)
@@ -906,11 +910,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L333-L335'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L334-L336'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='333' data-end='335'></pre>
+  <pre class='lines_num' data-start='334' data-end='336'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 333</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 334</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_attribute_names'>attribute_names</span>
@@ -946,11 +950,11 @@
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L386-L391'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L387-L392'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='386' data-end='391'></pre>
+  <pre class='lines_num' data-start='387' data-end='392'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 386</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 387</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_attribute_present?'>attribute_present?</span>(<span class='id identifier rubyid_attr_name'>attr_name</span>)
@@ -982,11 +986,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L345-L347'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L346-L348'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='345' data-end='347'></pre>
+  <pre class='lines_num' data-start='346' data-end='348'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 345</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 346</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_attributes'>attributes</span>
@@ -1008,11 +1012,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L514-L520'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L519-L525'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='514' data-end='520'></pre>
+  <pre class='lines_num' data-start='519' data-end='525'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 514</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 519</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_attributes_for_create'>attributes_for_create</span>(<span class='id identifier rubyid_attribute_names'><a href="#attribute_names-instance_method" title="ActiveRecord::AttributeMethods#attribute_names (method)">attribute_names</a></span>)
@@ -1038,11 +1042,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L503-L510'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L508-L515'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='503' data-end='510'></pre>
+  <pre class='lines_num' data-start='508' data-end='515'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 503</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 508</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_attributes_for_update'>attributes_for_update</span>(<span class='id identifier rubyid_attribute_names'><a href="#attribute_names-instance_method" title="ActiveRecord::AttributeMethods#attribute_names (method)">attribute_names</a></span>)
@@ -1062,11 +1066,11 @@
   <h3 class='signature priv'>
     #<strong>attributes_with_values</strong>(attribute_names)   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L498-L500'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L503-L505'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='498' data-end='500'></pre>
+  <pre class='lines_num' data-start='503' data-end='505'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 498</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 503</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_attributes_with_values'>attributes_with_values</span>(<span class='id identifier rubyid_attribute_names'><a href="#attribute_names-instance_method" title="ActiveRecord::AttributeMethods#attribute_names (method)">attribute_names</a></span>)
@@ -1081,11 +1085,11 @@
   <h3 class='signature priv'>
     #<strong>format_for_inspect</strong>(name, value)   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L522-L536'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L527-L541'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='522' data-end='536'></pre>
+  <pre class='lines_num' data-start='527' data-end='541'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 522</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 527</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_format_for_inspect'>format_for_inspect</span>(<span class='id identifier rubyid_name'>name</span><span class='comma'>,</span> <span class='id identifier rubyid_value'>value</span>)
@@ -1132,11 +1136,11 @@
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L315-L319'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L316-L320'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='315' data-end='319'></pre>
+  <pre class='lines_num' data-start='316' data-end='320'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 315</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 316</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_has_attribute?'>has_attribute?</span>(<span class='id identifier rubyid_attr_name'>attr_name</span>)
@@ -1161,11 +1165,11 @@
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L538-L540'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L543-L545'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='538' data-end='540'></pre>
+  <pre class='lines_num' data-start='543' data-end='545'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 538</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 543</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_pk_attribute?'>pk_attribute?</span>(<span class='id identifier rubyid_name'>name</span>)
@@ -1202,11 +1206,11 @@
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L290-L302'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L291-L303'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='290' data-end='302'></pre>
+  <pre class='lines_num' data-start='291' data-end='303'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 290</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 291</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_respond_to?'>respond_to?</span>(<span class='id identifier rubyid_name'>name</span><span class='comma'>,</span> <span class='id identifier rubyid_include_private'>include_private</span> <span class='op'>=</span> <span class='kw'>false</span>)
@@ -1239,11 +1243,11 @@
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L464-L472'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/attribute_methods.rb#L465-L473'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='464' data-end='472'></pre>
+  <pre class='lines_num' data-start='465' data-end='473'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 464</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/attribute_methods.rb', line 465</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_respond_to_missing?'>respond_to_missing?</span>(<span class='id identifier rubyid_name'>name</span><span class='comma'>,</span> <span class='id identifier rubyid_include_private'>include_private</span> <span class='op'>=</span> <span class='kw'>false</span>)
