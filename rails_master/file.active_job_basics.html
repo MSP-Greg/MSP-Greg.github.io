@@ -211,10 +211,9 @@ development:
 <p>NOTE: The key <code>queue</code> from the database configuration needs to match the key
 used in the configuration for <code>config.solid_queue.connects_to</code>.</p>
 
-<p>You can run the migrations for the <code>queue</code> database to ensure all the tables in
-queue database are created:</p>
+<p>You can then run <code>db:prepare</code> to ensure the <code>queue</code> database in <code>development</code> has all the required tables:</p>
 
-<pre class="code bash"><code class="bash">$ bin/rails db:migrate:queue
+<pre class="code bash"><code class="bash">$ bin/rails db:prepare
 </code></pre>
 
 <p>TIP: You can find the default generated schema for the <code>queue</code> database in
@@ -250,6 +249,11 @@ production:
     &lt;&lt;: *default
     database: storage/production_queue.sqlite3
     migrations_paths: db/queue_migrate
+</code></pre>
+
+<p>Make sure you run <code>db:prepare</code> so your database is ready to use:</p>
+
+<pre class="code bash"><code class="bash">$ bin/rails db:prepare
 </code></pre>
 
 <h3>Configuration</h3>
@@ -368,9 +372,11 @@ its own or at the end of a queue name to match all queues with the same prefix.
 You can&#39;t specify queue names such as <code>*_some_queue</code>.</p>
 
 <p>WARNING: Using wildcard queue names (e.g., <code>queues: active_storage*</code>) can slow
-down polling performance due to the need for a <code>DISTINCT</code> query to identify all
-matching queues, which can be slow on large tables. For better performance, it’s
-best to specify exact queue names instead of using wildcards.</p>
+down polling performance in SQLite and PostgreSQL due to the need for a <code>DISTINCT</code>
+query to identify all matching queues, which can be slow on large tables in these RDBMS.
+For better performance, it’s best to specify exact queue names instead of using
+wildcards. Read more about this in <a href="https://github.com/rails/solid_queue?tab=readme-ov-file#queues-specification-and-performance">Queues specification and performance in the
+Solid Queue documentation</a></p>
 
 <p>Active Job supports positive integer priorities when enqueuing jobs (see
 <a href="#priority">Priority section</a>). Within a single queue, jobs are picked based on
@@ -475,21 +481,29 @@ separately:</p>
 
 <h3>Transactional Integrity on Jobs</h3>
 
-<p>By default, Solid Queue uses a separate database from your main application.
-This avoids issues with transactional integrity, which ensures that jobs are
-only enqueued if the transaction commits.</p>
+<p>⚠️ Having your jobs in the same ACID-compliant database as your application data
+enables a powerful yet sharp tool: taking advantage of transactional integrity
+to ensure some action in your app is not committed unless your job is also committed
+and vice versa, and ensuring that your job won&#39;t be enqueued until the transaction
+within which you&#39;re enqueuing it is committed. This can be very powerful and useful,
+but it can also backfire if you base some of your logic on this behaviour,
+and in the future, you move to another active job backend, or if you simply move
+Solid Queue to its own database, and suddenly the behaviour changes under you.</p>
 
-<p>However, if you use Solid Queue in the same database as your app, you can enable
-transactional integrity with Active Job’s <code>enqueue_after_transaction_commit</code>
-option which can be enabled for individual jobs or all jobs through
-<code>ApplicationJob</code>:</p>
+<p>Because this can be quite tricky and many people shouldn&#39;t need to worry about it,
+by default Solid Queue is configured in a different database as the main app.</p>
+
+<p>However, if you use Solid Queue in the same database as your app, you can make sure you
+don&#39;t rely accidentallly on transactional integrity with Active Job’s
+<code>enqueue_after_transaction_commit</code> option which can be enabled for individual jobs or
+all jobs through <code>ApplicationJob</code>:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ApplicationJob</span> <span class='op'>&lt;</span> <span class='const'><a href="ActiveJob.html" title="ActiveJob (module)">ActiveJob</a></span><span class='op'>::</span><span class='const'><a href="ActiveJob/Base.html" title="ActiveJob::Base (class)">Base</a></span>
   <span class='kw'>self</span>.<span class='id identifier rubyid_enqueue_after_transaction_commit'>enqueue_after_transaction_commit</span> <span class='op'>=</span> <span class='kw'>true</span>
 <span class='kw'>end</span></code></pre>
 
 <p>You can also configure Solid Queue to use the same database as your app while
-avoiding transactional integrity issues by setting up a separate database
+avoiding relying on transactional integrity by setting up a separate database
 connection for Solid Queue jobs. Read more about <a href="https://github.com/rails/solid_queue?tab=readme-ov-file#jobs-and-transactional-integrity">Transactional Integrity in the
 Solid Queue
 documentation</a></p>
@@ -515,7 +529,7 @@ scheduled at specific times. Here&#39;s an example of a task configuration:</p>
 jobs, such as in the example for <code>MyJob</code> where <code>args</code> are passed. This can be
 passed as a single argument, a hash, or an array of arguments that can also
 include kwargs as the last element in the array. This allows jobs to run
-periodically or at specified times.</p>
+periodically at specified times.</p>
 
 <p>Read more about <a href="https://github.com/rails/solid_queue?tab=readme-ov-file#recurring-tasks">Recurring Tasks in the Solid Queue
 documentation</a>.</p>
