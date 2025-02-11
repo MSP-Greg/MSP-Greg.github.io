@@ -91,7 +91,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2 o'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_x509crl.c#L524'>ext/openssl/ossl_x509crl.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/lib/openssl/x509.rb#L365'>ext/openssl/lib/openssl/x509.rb</a></span>
+      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_x509crl.c#L518'>ext/openssl/ossl_x509crl.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/lib/openssl/x509.rb#L365'>ext/openssl/lib/openssl/x509.rb</a></span>
       </td>
     </tr>
   </tbody>
@@ -349,11 +349,11 @@ ossl_x509crl_initialize(int argc, VALUE *argv, VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_x509crl.c#L444-L465'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_x509crl.c#L442-L459'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='444' data-end='465'></pre>
+  <pre class='lines_num' data-start='442' data-end='459'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_x509crl.c', line 444</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_x509crl.c', line 442</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -366,11 +366,7 @@ ossl_x509crl_get_extensions(VALUE self)
 
     GetX509CRL(self, crl);
     count = X509_CRL_get_ext_count(crl);
-    if (count &lt; 0) {
-	OSSL_Debug(&quot;count &lt; 0???&quot;);
-	return rb_ary_new();
-    }
-    ary = rb_ary_new2(count);
+    ary = rb_ary_new_capa(count);
     for (i=0; i&lt;count; i++) {
 	ext = X509_CRL_get_ext(crl, i); /* NO DUP - don&#39;t free! */
 	rb_ary_push(ary, ossl_x509ext_new(ext));
@@ -394,11 +390,11 @@ ossl_x509crl_get_extensions(VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_x509crl.c#L470-L493'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_x509crl.c#L464-L487'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='470' data-end='493'></pre>
+  <pre class='lines_num' data-start='464' data-end='487'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_x509crl.c', line 470</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_x509crl.c', line 464</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -616,9 +612,9 @@ ossl_x509crl_set_next_update(VALUE self, VALUE time)
   <h3 class='signature rw'>
     #<strong>revoked</strong>   <span class="extras">(<span class='rw'>rw</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_x509crl.c#L274-L297'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_x509crl.c#L274-L295'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='274' data-end='297'></pre>
+  <pre class='lines_num' data-start='274' data-end='295'></pre>
   <div class='lines_code'>
 <pre><span class='info file'># File 'ext/openssl/ossl_x509crl.c', line 274</span></pre>
 <pre class='code cpp'>
@@ -628,21 +624,19 @@ ossl_x509crl_get_revoked(VALUE self)
 {
     X509_CRL *crl;
     int i, num;
-    X509_REVOKED *rev;
-    VALUE ary, revoked;
+    STACK_OF(X509_REVOKED) *sk;
+    VALUE ary;
 
     GetX509CRL(self, crl);
-    num = sk_X509_REVOKED_num(X509_CRL_get_REVOKED(crl));
-    if (num &lt; 0) {
-	OSSL_Debug(&quot;num &lt; 0???&quot;);
-	return rb_ary_new();
-    }
-    ary = rb_ary_new2(num);
+    sk = X509_CRL_get_REVOKED(crl);
+    if (!sk)
+        return rb_ary_new();
+
+    num = sk_X509_REVOKED_num(sk);
+    ary = rb_ary_new_capa(num);
     for(i=0; i&lt;num; i++) {
-	/* NO DUP - don&#39;t free! */
-	rev = sk_X509_REVOKED_value(X509_CRL_get_REVOKED(crl), i);
-	revoked = ossl_x509revoked_new(rev);
-	rb_ary_push(ary, revoked);
+	X509_REVOKED *rev = sk_X509_REVOKED_value(sk, i);
+	rb_ary_push(ary, ossl_x509revoked_new(rev));
     }
 
     return ary;
@@ -656,11 +650,11 @@ ossl_x509crl_get_revoked(VALUE self)
   <h3 class='signature rw'>
     #<strong>revoked=</strong>(ary)   <span class="extras">(<span class='rw'>rw</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_x509crl.c#L299-L327'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_x509crl.c#L297-L325'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='299' data-end='327'></pre>
+  <pre class='lines_num' data-start='297' data-end='325'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_x509crl.c', line 299</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_x509crl.c', line 297</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -781,11 +775,11 @@ ossl_x509crl_set_version(VALUE self, VALUE version)
   <h3 class='signature '>
     #<strong>add_extension</strong>(extension)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_x509crl.c#L495-L508'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_x509crl.c#L489-L502'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='495' data-end='508'></pre>
+  <pre class='lines_num' data-start='489' data-end='502'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_x509crl.c', line 495</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_x509crl.c', line 489</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -811,11 +805,11 @@ ossl_x509crl_add_extension(VALUE self, VALUE extension)
   <h3 class='signature '>
     #<strong>add_revoked</strong>(revoked)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_x509crl.c#L329-L344'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_x509crl.c#L327-L342'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='329' data-end='344'></pre>
+  <pre class='lines_num' data-start='327' data-end='342'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_x509crl.c', line 329</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_x509crl.c', line 327</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -876,11 +870,11 @@ ossl_x509crl_copy(VALUE self, VALUE other)
   <h3 class='signature '>
     #<strong>sign</strong>(key, digest)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_x509crl.c#L346-L365'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_x509crl.c#L344-L363'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='346' data-end='365'></pre>
+  <pre class='lines_num' data-start='344' data-end='363'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_x509crl.c', line 346</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_x509crl.c', line 344</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -949,11 +943,11 @@ ossl_x509crl_get_signature_algorithm(VALUE self)
   <h3 class='signature '>
     #<strong>to_der</strong>  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_x509crl.c#L387-L403'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_x509crl.c#L385-L401'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='387' data-end='403'></pre>
+  <pre class='lines_num' data-start='385' data-end='401'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_x509crl.c', line 387</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_x509crl.c', line 385</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -997,11 +991,11 @@ ossl_x509crl_to_der(VALUE self)
     #<strong>to_s</strong>  
     <span class='aliases'>Also known as: <span class='names'>#to_pem</span></span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_x509crl.c#L405-L421'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_x509crl.c#L403-L419'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='405' data-end='421'></pre>
+  <pre class='lines_num' data-start='403' data-end='419'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_x509crl.c', line 405</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_x509crl.c', line 403</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1030,11 +1024,11 @@ ossl_x509crl_to_pem(VALUE self)
   <h3 class='signature '>
     #<strong>to_text</strong>  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_x509crl.c#L423-L439'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_x509crl.c#L421-L437'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='423' data-end='439'></pre>
+  <pre class='lines_num' data-start='421' data-end='437'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_x509crl.c', line 423</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_x509crl.c', line 421</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1063,11 +1057,11 @@ ossl_x509crl_to_text(VALUE self)
   <h3 class='signature '>
     #<strong>verify</strong>(key)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_x509crl.c#L367-L385'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_x509crl.c#L365-L383'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='367' data-end='385'></pre>
+  <pre class='lines_num' data-start='365' data-end='383'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_x509crl.c', line 367</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_x509crl.c', line 365</span></pre>
 <pre class='code cpp'>
 
 static VALUE
