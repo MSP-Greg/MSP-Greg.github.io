@@ -8,7 +8,7 @@
 <meta name='apple-mobile-web-app-capable' content='yes'>
 <meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
 
-<title>File: Security &mdash; Rails 7-2-stable</title>
+<title>File: Security &mdash; Rails 8-0-stable</title>
 
 <link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
 <link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
@@ -50,7 +50,7 @@
   <header id='y_header'>
     <div id='y_menu'>
       <a id='home_no_xhr' href='/'>Home</a> &raquo; 
-      <a href='.'>Rails 7-2-stable</a> &raquo; 
+      <a href='.'>Rails 8-0-stable</a> &raquo; 
       <a href='_index.html'>Index</a> &raquo; 
       <span class='title'><a id='t2_doc_top' href='#'>File: Security&nbsp;&#x25B2;</a></span>
           </div>
@@ -65,11 +65,12 @@
 
 <h1>Securing Rails Applications</h1>
 
-<p>This manual describes common security problems in web applications and how to avoid them with <a href="Rails.html" title="Rails (module)"><code>Rails</code></a>.</p>
+<p>This guide describes common security problems in web applications and how to avoid them with <a href="Rails.html" title="Rails (module)"><code>Rails</code></a>.</p>
 
 <p>After reading this guide, you will know:</p>
 
 <ul>
+<li>How to use the built-in authentication generator.</li>
 <li>All countermeasures <em>that are highlighted</em>.</li>
 <li>The concept of sessions in <a href="Rails.html" title="Rails (module)"><code>Rails</code></a>, what to put in there and popular attack methods.</li>
 <li>How just visiting a site can be a security problem (with CSRF).</li>
@@ -92,6 +93,200 @@
 
 <p>In order to develop secure web applications you have to keep up to date on all layers and know your enemies. To keep up to date subscribe to security mailing lists, read security blogs, and make updating and security checks a habit (check the <a href="#additional-resources">Additional Resources</a> chapter). It is done manually because that&#39;s how you find the nasty logical security problems.</p>
 
+<h2>Authentication</h2>
+
+<p>Authentication is often one of the first features implemented in a web
+application. It serves as the foundation for securing user data and is part of
+most modern web applications.</p>
+
+<p>Starting with version 8.0, <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> comes with a default authentication generator,
+which provides a solid starting point for securing your application by only
+allowing access to verified users.</p>
+
+<p>The authentication generator adds all of the relevant models, controllers,
+views, routes, and migrations needed for basic authentication and password reset
+functionality.</p>
+
+<p>To use this feature in your application, you can run <code>rails generate
+authentication</code>. Here are all of the files the generator modifies and new files
+it adds:</p>
+
+<pre class="code bash"><code class="bash">$ rails generate authentication
+      invoke  erb
+      create    app/views/passwords/new.html.erb
+      create    app/views/passwords/edit.html.erb
+      create    app/views/sessions/new.html.erb
+      create  app/models/session.rb
+      create  app/models/user.rb
+      create  app/models/current.rb
+      create  app/controllers/sessions_controller.rb
+      create  app/controllers/concerns/authentication.rb
+      create  app/controllers/passwords_controller.rb
+      create  app/mailers/passwords_mailer.rb
+      create  app/views/passwords_mailer/reset.html.erb
+      create  app/views/passwords_mailer/reset.text.erb
+      create  test/mailers/previews/passwords_mailer_preview.rb
+        gsub  app/controllers/application_controller.rb
+       route  resources :passwords, param: :token
+       route  resource :session
+        gsub  Gemfile
+      bundle  install --quiet
+    generate  migration CreateUsers email_address:string!:uniq password_digest:string! --force
+       rails  generate migration CreateUsers email_address:string!:uniq password_digest:string! --force
+      invoke  active_record
+      create    db/migrate/20241010215312_create_users.rb
+    generate  migration CreateSessions user:references ip_address:string user_agent:string --force
+       rails  generate migration CreateSessions user:references ip_address:string user_agent:string --force
+      invoke  active_record
+      create    db/migrate/20241010215314_create_sessions.rb
+</code></pre>
+
+<p>As shown above, the authentication generator modifies the <code>Gemfile</code> to add the
+<a href="https://github.com/bcrypt-ruby/bcrypt-ruby/">bcrypt</a> gem. The generator uses
+the <code>bcrypt</code> gem to create a hash of the password, which is then stored in the
+database (instead of the plain-text password). As this process is not
+reversible, there&#39;s no way to go from the hash back to the password. The hashing
+algorithm is deterministic though, so the stored password is able to be compared
+with the hash of the user-inputted password during authentication.</p>
+
+<p>The generator adds two migration files for creating <code>user</code> and <code>session</code> tables.
+Next step is to run the migrations:</p>
+
+<pre class="code bash"><code class="bash">$ bin/rails db:migrate
+</code></pre>
+
+<p>Then, if you visit <code>/session/new</code> in your browser (you will see this route has
+been added in <code>routes.rb</code>), you&#39;ll see a form that accepts an email and a
+password with &quot;sign in&quot; button. This form routes to the <code>SessionsController</code>
+which was added by the generator. If you provide an email/password for a user
+that exists in the database, you will be able to successfully authenticate with
+those credentials and login to the application.</p>
+
+<p>NOTE: After running the Authentication generator, you do need to implement your
+own <em>sign up flow</em> and add the necessary views, routes, and controller actions.
+There is no code generated that creates new <code>user</code> records and allows users to
+&quot;sign up&quot; in the first place. This is something you&#39;ll need to wire up based on
+the requirements of your application.</p>
+
+<p>Here is a list of modified files:</p>
+
+<pre class="code bash"><code class="bash">On branch main
+Changes not staged for commit:
+  (use &quot;git add &lt;file&gt;...&quot; to update what will be committed)
+  (use &quot;git restore &lt;file&gt;...&quot; to discard changes in working directory)
+  modified:   Gemfile
+  modified:   Gemfile.lock
+  modified:   app/controllers/application_controller.rb
+  modified:   config/routes.rb
+
+Untracked files:
+  (use &quot;git add &lt;file&gt;...&quot; to include in what will be committed)
+  app/controllers/concerns/authentication.rb
+  app/controllers/passwords_controller.rb
+  app/controllers/sessions_controller.rb
+  app/mailers/passwords_mailer.rb
+  app/models/current.rb
+  app/models/session.rb
+  app/models/user.rb
+  app/views/passwords/
+  app/views/passwords_mailer/
+  app/views/sessions/
+  db/migrate/
+  db/schema.rb
+  test/mailers/previews/
+</code></pre>
+
+<h3>Reset Password</h3>
+
+<p>The authentication generator also adds reset password functionality. You can see
+a &quot;forgot password?&quot; link on the &quot;sign in&quot; page. Clicking that link navigates to
+the <code>/passwords/new</code> path and routes to the passwords controller. The <code>new</code>
+method of the <code>PasswordsController</code> class runs through the flow for sending a
+password reset email.</p>
+
+<p>The mailers for <em>reset password</em> are also set up by the generator at
+<code>app/mailers/password_mailer.rb</code> and render the following email to send to the
+user:</p>
+
+<pre class="code html+erb"><code class="html+erb"># app/views/passwords_mailer/reset.html.erb
+&lt;p&gt;
+  You can reset your password within the next 15 minutes on
+  &lt;%= link_to &quot;this password reset page&quot;, edit_password_url(@user.password_reset_token) %&gt;.
+&lt;/p&gt;
+</code></pre>
+
+<h3>Implementation Details</h3>
+
+<p>This section covers some of the implementation details around the authentication
+flow added by the authentication generator: The <code>has_secure_password</code> method,
+the <code>authenticate_by</code> method, and the <code>Authentication</code> concern.</p>
+
+<h4><code>has_secure_password</code></h4>
+
+<p>The
+<a href="https://api.rubyonrails.org/classes/ActiveModel/SecurePassword/ClassMethods.html#method-i-has_secure_password"><code>has_secure_password</code></a>
+method is added to the <code>user</code> model and takes care of storing a hashed password
+using the <code>bcrypt</code> algorithm:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>User</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_has_secure_password'>has_secure_password</span>
+  <span class='id identifier rubyid_has_many'>has_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_sessions'>sessions</span><span class='comma'>,</span> <span class='label'>dependent:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_destroy'>destroy</span>
+
+  <span class='id identifier rubyid_normalizes'>normalizes</span> <span class='symbeg'>:</span><span class='id identifier rubyid_email_address'>email_address</span><span class='comma'>,</span> <span class='label'>with:</span> <span class='tlambda'>-&gt;</span> <span class='id identifier rubyid_e'>e</span> <span class='tlambeg'>{</span> <span class='id identifier rubyid_e'>e</span>.<span class='id identifier rubyid_strip'>strip</span>.<span class='id identifier rubyid_downcase'>downcase</span> }
+<span class='kw'>end</span></code></pre>
+
+<h4><code>authenticate_by</code></h4>
+
+<p>The
+<a href="https://api.rubyonrails.org/classes/ActiveRecord/SecurePassword/ClassMethods.html"><code>authenticate_by</code></a>
+method is used in the <code>SessionsController</code> while creating a new session to
+validate that the credentials provided by the user match the credentials stored
+in the database (e.g. password) for that user:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>SessionsController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_create'>create</span>
+    <span class='kw'>if</span> <span class='id identifier rubyid_user'>user</span> <span class='op'>=</span> <span class='const'>User</span>.<span class='id identifier rubyid_authenticate_by'>authenticate_by</span>(<span class='id identifier rubyid_params'>params</span>.<span class='id identifier rubyid_permit'>permit</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_email_address'>email_address</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_password'>password</span>))
+      <span class='id identifier rubyid_start_new_session_for'>start_new_session_for</span> <span class='id identifier rubyid_user'>user</span>
+      <span class='id identifier rubyid_redirect_to'>redirect_to</span> <span class='id identifier rubyid_after_authentication_url'>after_authentication_url</span>
+    <span class='kw'>else</span>
+      <span class='id identifier rubyid_redirect_to'>redirect_to</span> <span class='id identifier rubyid_new_session_url'>new_session_url</span><span class='comma'>,</span> <span class='label'>alert:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Try another email address or password.</span><span class='tstring_end'>&quot;</span></span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+
+  <span class='comment'># ...
+</span><span class='kw'>end</span></code></pre>
+
+<p>If the credentials are valid, a new <code>Session</code> is created for that user.</p>
+
+<h4>Session Management</h4>
+
+<p>The core functionality around session management is implemented in the
+<code>Authentication</code> controller concern, which is included by the
+<code>ApplicationController</code> in your application. You can explore details of the
+<a href="https://github.com/rails/rails/blob/main/railties/lib/rails/generators/rails/authentication/templates/app/controllers/concerns/authentication.rb.tt">authentication
+concern</a>
+in the source code.</p>
+
+<p>One method to note in the <code>Authentication</code> concern is <code>authenticated?</code>, a helper
+method available in view templates. You can use this method to conditionally
+display links/buttons depending on whether a user is currently authenticated.
+For example:</p>
+
+<pre class="code xml"><code class="xml">&lt;% if authenticated? %&gt;
+  &lt;%= button_to &quot;Sign Out&quot;, session_path, method: :delete  %&gt;
+&lt;% else %&gt;
+  &lt;%= link_to &quot;Sign In&quot;, new_session_path %&gt;
+&lt;% end %&gt;
+</code></pre>
+
+<p>TIP: You can find all of the details for the Authentication generator in the
+Rails source code. You are encouraged to explore the implementation details and
+not treat authentication as a black box.</p>
+
+<p>With the authentication generator configured as above, your application is ready
+for a more secure user authentication and password recovery process in just a
+few steps.</p>
+
 <h2>Sessions</h2>
 
 <p>This chapter describes some particular attacks related to sessions, and security measures to protect your session data.</p>
@@ -102,7 +297,7 @@
 
 <p>Most applications need to keep track of state for users that interact with the application. This could be the contents of a shopping basket, or the user id of the currently logged in user. This kind of user-specific state can be stored in the session.</p>
 
-<p><a href="Rails.html" title="Rails (module)"><code>Rails</code></a> provides a session object for each user that accesses the application. If the user already has an active session, <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> uses the existing session. Otherwise a new session is created.</p>
+<p>Rails provides a session object for each user that accesses the application. If the user already has an active session, Rails uses the existing session. Otherwise a new session is created.</p>
 
 <p>NOTE: Read more about sessions and how to use them in <a href="action_controller_overview.html#session">Action Controller Overview Guide</a>.</p>
 
@@ -125,11 +320,11 @@
 
 <h3>Session Storage</h3>
 
-<p>NOTE: <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> uses <a href="ActionDispatch/Session/CookieStore.html" title="ActionDispatch::Session::CookieStore (class)"><code>::ActionDispatch::Session::CookieStore</code></a> as the default session storage.</p>
+<p>NOTE: Rails uses <a href="ActionDispatch/Session/CookieStore.html" title="ActionDispatch::Session::CookieStore (class)"><code>::ActionDispatch::Session::CookieStore</code></a> as the default session storage.</p>
 
 <p>TIP: Learn more about other session storages in <a href="action_controller_overview.html#session">Action Controller Overview Guide</a>.</p>
 
-<p><a href="Rails.html" title="Rails (module)"><code>Rails</code></a> <code>CookieStore</code> saves the session hash in a cookie on the client-side.
+<p>Rails <code>CookieStore</code> saves the session hash in a cookie on the client-side.
 The server retrieves the session hash from the cookie and
 eliminates the need for a session ID. That will greatly increase the
 speed of the application, but it is a controversial storage option and
@@ -143,7 +338,7 @@ limitations of it:</p>
 <li><p>Session cookies do not invalidate themselves and can be maliciously
 reused. It may be a good idea to have your application invalidate old
 session cookies using a stored timestamp.</p></li>
-<li><p><a href="Rails.html" title="Rails (module)"><code>Rails</code></a> encrypts cookies by default. The client cannot read or edit the contents of the cookie, without breaking encryption. If you take appropriate care of your secrets, you can consider your cookies to be generally secured.</p></li>
+<li><p>Rails encrypts cookies by default. The client cannot read or edit the contents of the cookie, without breaking encryption. If you take appropriate care of your secrets, you can consider your cookies to be generally secured.</p></li>
 </ul>
 
 <p>The <code>CookieStore</code> uses the
@@ -403,7 +598,7 @@ you could do something like:</p>
 <p>Whenever the user is allowed to pass (parts of) the URL for redirection, it is possibly vulnerable. The most obvious attack would be to redirect users to a fake web application which looks and feels exactly as the original one. This so-called phishing attack works by sending an unsuspicious link in an email to the users, injecting the link by XSS in the web application or putting the link into an external site. It is unsuspicious, because the link starts with the URL to the web application and the URL to the malicious site is hidden in the redirection parameter: <a href="http://www.example.com/site/redirect?to=www.attacker.com">http://www.example.com/site/redirect?to=www.attacker.com</a>. Here is an example of a legacy action:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_legacy'>legacy</span>
-  <span class='id identifier rubyid_redirect_to'>redirect_to</span>(<span class='id identifier rubyid_params'>params</span>.<span class='id identifier rubyid_update'>update</span>(<span class='label'>action:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>main</span><span class='tstring_end'>&#39;</span></span>))
+  <span class='id identifier rubyid_redirect_to'>redirect_to</span>(<span class='id identifier rubyid_params'>params</span>.<span class='id identifier rubyid_update'>update</span>(<span class='label'>action:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>main</span><span class='tstring_end'>&quot;</span></span>))
 <span class='kw'>end</span></code></pre>
 
 <p>This will redirect the user to the main action if they tried to access a legacy action. The intention was to preserve the URL parameters to the legacy action and pass them to the main action. However, it can be exploited by attacker if they included a host key in the URL:</p>
@@ -432,10 +627,10 @@ you could do something like:</p>
   <span class='id identifier rubyid_filename'>filename</span>.<span class='id identifier rubyid_strip'>strip</span>.<span class='id identifier rubyid_tap'>tap</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_name'>name</span><span class='op'>|</span>
     <span class='comment'># NOTE: File.basename doesn&#39;t work right with Windows paths on Unix
 </span>    <span class='comment'># get only the filename, not the whole path
-</span>    <span class='id identifier rubyid_name'>name</span>.<span class='id identifier rubyid_sub!'>sub!</span>(<span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>\A.*(\\|\/)</span><span class='regexp_end'>/</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_end'>&#39;</span></span>)
+</span>    <span class='id identifier rubyid_name'>name</span>.<span class='id identifier rubyid_sub!'>sub!</span>(<span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>\A.*(\\|\/)</span><span class='regexp_end'>/</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_end'>&quot;</span></span>)
     <span class='comment'># Finally, replace all non alphanumeric, underscore
 </span>    <span class='comment'># or periods with underscore
-</span>    <span class='id identifier rubyid_name'>name</span>.<span class='id identifier rubyid_gsub!'>gsub!</span>(<span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>[^\w.-]</span><span class='regexp_end'>/</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>_</span><span class='tstring_end'>&#39;</span></span>)
+</span>    <span class='id identifier rubyid_name'>name</span>.<span class='id identifier rubyid_gsub!'>gsub!</span>(<span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>[^\w.-]</span><span class='regexp_end'>/</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>_</span><span class='tstring_end'>&quot;</span></span>)
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
 
@@ -457,22 +652,18 @@ you could do something like:</p>
 
 <p>Just as you have to filter file names for uploads, you have to do so for downloads. The <code>send_file()</code> method sends files from the server to the client. If you use a file name, that the user entered, without filtering, any file can be downloaded:</p>
 
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_send_file'>send_file</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>/var/www/uploads/</span><span class='tstring_end'>&#39;</span></span> <span class='op'>+</span> <span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_filename'>filename</span>])</code></pre>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_send_file'>send_file</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>/var/www/uploads/</span><span class='tstring_end'>&quot;</span></span> <span class='op'>+</span> <span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_filename'>filename</span>])</code></pre>
 
 <p>Simply pass a file name like &quot;../../../etc/passwd&quot; to download the server&#39;s login information. A simple solution against this, is to <em>check that the requested file is in the expected directory</em>:</p>
 
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_basename'>basename</span> <span class='op'>=</span> <span class='const'><a href="File.html" title="File (class)">File</a></span>.<span class='id identifier rubyid_expand_path'>expand_path</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>../../files</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='id identifier rubyid___dir__'>__dir__</span>)
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_basename'>basename</span> <span class='op'>=</span> <span class='const'><a href="File.html" title="File (class)">File</a></span>.<span class='id identifier rubyid_expand_path'>expand_path</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>../../files</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid___dir__'>__dir__</span>)
 <span class='id identifier rubyid_filename'>filename</span> <span class='op'>=</span> <span class='const'><a href="File.html" title="File (class)">File</a></span>.<span class='id identifier rubyid_expand_path'>expand_path</span>(<span class='const'><a href="File.html" title="File (class)">File</a></span>.<span class='id identifier rubyid_join'>join</span>(<span class='id identifier rubyid_basename'>basename</span><span class='comma'>,</span> <span class='ivar'>@file</span>.<span class='id identifier rubyid_public_filename'>public_filename</span>))
 <span class='id identifier rubyid_raise'>raise</span> <span class='kw'>if</span> <span class='id identifier rubyid_basename'>basename</span> <span class='op'>!=</span> <span class='const'><a href="File.html" title="File (class)">File</a></span>.<span class='id identifier rubyid_expand_path'>expand_path</span>(<span class='const'><a href="File.html" title="File (class)">File</a></span>.<span class='id identifier rubyid_dirname'>dirname</span>(<span class='id identifier rubyid_filename'>filename</span>))
-<span class='id identifier rubyid_send_file'>send_file</span> <span class='id identifier rubyid_filename'>filename</span><span class='comma'>,</span> <span class='label'>disposition:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>inline</span><span class='tstring_end'>&#39;</span></span></code></pre>
+<span class='id identifier rubyid_send_file'>send_file</span> <span class='id identifier rubyid_filename'>filename</span><span class='comma'>,</span> <span class='label'>disposition:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>inline</span><span class='tstring_end'>&quot;</span></span></code></pre>
 
 <p>Another (additional) approach is to store the file names in the database and name the files on the disk after the ids in the database. This is also a good approach to avoid possible code in an uploaded file to be executed. The <code>attachment_fu</code> plugin does this in a similar way.</p>
 
 <h2>User Management</h2>
-
-<p>NOTE: <em>Almost every web application has to deal with authorization and authentication. Instead of rolling your own, it is advisable to use common plug-ins. But keep them up-to-date, too. A few additional precautions can make your application even more secure.</em></p>
-
-<p>There are a number of authentication plug-ins for Rails available. Good ones, such as the popular <a href="https://github.com/heartcombo/devise">devise</a> and <a href="https://github.com/binarylogic/authlogic">authlogic</a>, store only cryptographically hashed passwords, not plain-text passwords. Since Rails 3.1 you can also use the built-in <a href="https://api.rubyonrails.org/classes/ActiveModel/SecurePassword/ClassMethods.html#method-i-has_secure_password"><code>has_secure_password</code></a> method which supports secure password hashing, confirmation, and recovery mechanisms.</p>
 
 <h3>Brute-Forcing Accounts</h3>
 
@@ -488,7 +679,7 @@ you could do something like:</p>
 
 <h3>Account Hijacking</h3>
 
-<p>Many web applications make it easy to hijack user accounts. Why not be different and make it more difficult?.</p>
+<p>Many web applications make it easy to hijack user accounts. Why not be different and make it more difficult?</p>
 
 <h4>Passwords</h4>
 
@@ -850,12 +1041,12 @@ when using an external string in SQL</em>.</p>
 <p>For example, RedCloth translates <code>_test_</code> to <code>&lt;em&gt;test&lt;em&gt;</code>, which makes the
 text italic. However, RedCloth doesn’t filter unsafe html tags by default:</p>
 
-<pre class="code ruby"><code class="ruby"><span class='const'>RedCloth</span>.<span class='id identifier rubyid_new'>new</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>&lt;script&gt;alert(1)&lt;/script&gt;</span><span class='tstring_end'>&#39;</span></span>).<span class='id identifier rubyid_to_html'>to_html</span>
+<pre class="code ruby"><code class="ruby"><span class='const'>RedCloth</span>.<span class='id identifier rubyid_new'>new</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>&lt;script&gt;alert(1)&lt;/script&gt;</span><span class='tstring_end'>&quot;</span></span>).<span class='id identifier rubyid_to_html'>to_html</span>
 <span class='comment'># =&gt; &quot;&lt;script&gt;alert(1)&lt;/script&gt;&quot;</span></code></pre>
 
 <p>Use the <code>:filter_html</code> option to remove HTML which was not created by the Textile processor.</p>
 
-<pre class="code ruby"><code class="ruby"><span class='const'>RedCloth</span>.<span class='id identifier rubyid_new'>new</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>&lt;script&gt;alert(1)&lt;/script&gt;</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_filter_html'>filter_html</span>]).<span class='id identifier rubyid_to_html'>to_html</span>
+<pre class="code ruby"><code class="ruby"><span class='const'>RedCloth</span>.<span class='id identifier rubyid_new'>new</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>&lt;script&gt;alert(1)&lt;/script&gt;</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_filter_html'>filter_html</span>]).<span class='id identifier rubyid_to_html'>to_html</span>
 <span class='comment'># =&gt; &quot;alert(1)&quot;</span></code></pre>
 
 <p>However, this does not filter all HTML, a few tags will be left (by design), for example <code>&lt;a&gt;</code>:</p>
@@ -892,19 +1083,19 @@ text italic. However, RedCloth doesn’t filter unsafe html tags by default:</p>
 
 <p><code>Kernel#open</code> executes OS command if the argument starts with a vertical bar (<code>|</code>).</p>
 
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_open'>open</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>| ls</span><span class='tstring_end'>&#39;</span></span>) { <span class='op'>|</span><span class='id identifier rubyid_file'>file</span><span class='op'>|</span> <span class='id identifier rubyid_file'>file</span>.<span class='id identifier rubyid_read'>read</span> }
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_open'>open</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>| ls</span><span class='tstring_end'>&quot;</span></span>) { <span class='op'>|</span><span class='id identifier rubyid_file'>file</span><span class='op'>|</span> <span class='id identifier rubyid_file'>file</span>.<span class='id identifier rubyid_read'>read</span> }
 <span class='comment'># returns file list as a String via `ls` command</span></code></pre>
 
 <p>Countermeasures are to use <code>File.open</code>, <code>IO.open</code> or <code>URI#open</code> instead. They don&#39;t execute an OS command.</p>
 
-<pre class="code ruby"><code class="ruby"><span class='const'><a href="File.html" title="File (class)">File</a></span>.<span class='id identifier rubyid_open'>open</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>| ls</span><span class='tstring_end'>&#39;</span></span>) { <span class='op'>|</span><span class='id identifier rubyid_file'>file</span><span class='op'>|</span> <span class='id identifier rubyid_file'>file</span>.<span class='id identifier rubyid_read'>read</span> }
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="File.html" title="File (class)">File</a></span>.<span class='id identifier rubyid_open'>open</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>| ls</span><span class='tstring_end'>&quot;</span></span>) { <span class='op'>|</span><span class='id identifier rubyid_file'>file</span><span class='op'>|</span> <span class='id identifier rubyid_file'>file</span>.<span class='id identifier rubyid_read'>read</span> }
 <span class='comment'># doesn&#39;t execute `ls` command, just opens `| ls` file if it exists
 </span>
 <span class='const'><a href="IO.html" title="IO (class)">IO</a></span>.<span class='id identifier rubyid_open'>open</span>(<span class='int'>0</span>) { <span class='op'>|</span><span class='id identifier rubyid_file'>file</span><span class='op'>|</span> <span class='id identifier rubyid_file'>file</span>.<span class='id identifier rubyid_read'>read</span> }
 <span class='comment'># opens stdin. doesn&#39;t accept a String as the argument
 </span>
-<span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>open-uri</span><span class='tstring_end'>&#39;</span></span>
-<span class='const'>URI</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>https://example.com</span><span class='tstring_end'>&#39;</span></span>).<span class='id identifier rubyid_open'>open</span> { <span class='op'>|</span><span class='id identifier rubyid_file'>file</span><span class='op'>|</span> <span class='id identifier rubyid_file'>file</span>.<span class='id identifier rubyid_read'>read</span> }
+<span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>open-uri</span><span class='tstring_end'>&quot;</span></span>
+<span class='const'>URI</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>https://example.com</span><span class='tstring_end'>&quot;</span></span>).<span class='id identifier rubyid_open'>open</span> { <span class='op'>|</span><span class='id identifier rubyid_file'>file</span><span class='op'>|</span> <span class='id identifier rubyid_file'>file</span>.<span class='id identifier rubyid_read'>read</span> }
 <span class='comment'># opens the URI. {URI()} doesn&#39;t accept `| ls`</span></code></pre>
 
 <h3>Header Injection</h3>
@@ -937,7 +1128,7 @@ Location: http://www.malicious.tld
 
 <h4>DNS Rebinding and Host Header Attacks</h4>
 
-<p>DNS rebinding is a method of manipulating resolution of domain names that is commonly used as a form of computer attack. DNS rebinding circumvents the same-origin policy by abusing the Domain Name System (DNS) instead. It rebinds a domain to a different IP address and than compromises the system by executing random code against your Rails app from the changed IP address.</p>
+<p>DNS rebinding is a method of manipulating resolution of domain names that is commonly used as a form of computer attack. DNS rebinding circumvents the same-origin policy by abusing the Domain Name System (DNS) instead. It rebinds a domain to a different IP address and then compromises the system by executing random code against your Rails app from the changed IP address.</p>
 
 <p>It is recommended to use the <a href="ActionDispatch/HostAuthorization.html" title="ActionDispatch::HostAuthorization (class)"><code>::ActionDispatch::HostAuthorization</code></a> middleware to guard against DNS rebinding and other Host header attacks. It is enabled by default in the development environment, you have to activate it in production and other environments by setting the list of allowed hosts. You can also configure exceptions and set your own response app.</p>
 
@@ -1082,17 +1273,17 @@ full URL, such as the path and query string.</p>
 <p>These headers are configured by default as follows:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_action_dispatch'>action_dispatch</span>.<span class='id identifier rubyid_default_headers'>default_headers</span> <span class='op'>=</span> {
-  <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>X-Frame-Options</span><span class='tstring_end'>&#39;</span></span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>SAMEORIGIN</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span>
-  <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>X-XSS-Protection</span><span class='tstring_end'>&#39;</span></span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>0</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span>
-  <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>X-Content-Type-Options</span><span class='tstring_end'>&#39;</span></span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>nosniff</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span>
-  <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>X-Permitted-Cross-Domain-Policies</span><span class='tstring_end'>&#39;</span></span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>none</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span>
-  <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Referrer-Policy</span><span class='tstring_end'>&#39;</span></span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>strict-origin-when-cross-origin</span><span class='tstring_end'>&#39;</span></span>
+  <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>X-Frame-Options</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>SAMEORIGIN</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>X-XSS-Protection</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>0</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>X-Content-Type-Options</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>nosniff</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>X-Permitted-Cross-Domain-Policies</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>none</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Referrer-Policy</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>strict-origin-when-cross-origin</span><span class='tstring_end'>&quot;</span></span>
 }</code></pre>
 
 <p>You can override these or add extra headers in <code>config/application.rb</code>:</p>
 
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_action_dispatch'>action_dispatch</span>.<span class='id identifier rubyid_default_headers'>default_headers</span>[<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>X-Frame-Options</span><span class='tstring_end'>&#39;</span></span>] <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>DENY</span><span class='tstring_end'>&#39;</span></span>
-<span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_action_dispatch'>action_dispatch</span>.<span class='id identifier rubyid_default_headers'>default_headers</span>[<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Header-Name</span><span class='tstring_end'>&#39;</span></span>]     <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Value</span><span class='tstring_end'>&#39;</span></span></code></pre>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_action_dispatch'>action_dispatch</span>.<span class='id identifier rubyid_default_headers'>default_headers</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>X-Frame-Options</span><span class='tstring_end'>&quot;</span></span>] <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>DENY</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_action_dispatch'>action_dispatch</span>.<span class='id identifier rubyid_default_headers'>default_headers</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Header-Name</span><span class='tstring_end'>&quot;</span></span>]     <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Value</span><span class='tstring_end'>&quot;</span></span></code></pre>
 
 <p>Or you can remove them:</p>
 
@@ -1283,9 +1474,9 @@ steps.</p>
 <pre class="code ruby"><code class="ruby"><span class='comment'># config/initializers/cors.rb
 </span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_middleware'>middleware</span>.<span class='id identifier rubyid_insert_before'>insert_before</span> <span class='int'>0</span><span class='comma'>,</span> <span class='const'><a href="Rack.html" title="Rack (module)">Rack</a></span><span class='op'>::</span><span class='const'>Cors</span> <span class='kw'>do</span>
   <span class='id identifier rubyid_allow'>allow</span> <span class='kw'>do</span>
-    <span class='id identifier rubyid_origins'>origins</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>example.com</span><span class='tstring_end'>&#39;</span></span>
+    <span class='id identifier rubyid_origins'>origins</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>example.com</span><span class='tstring_end'>&quot;</span></span>
 
-    <span class='id identifier rubyid_resource'>resource</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>*</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span>
+    <span class='id identifier rubyid_resource'>resource</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>*</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
       <span class='label'>headers:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_any'>any</span><span class='comma'>,</span>
       <span class='label'>methods:</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_get'>get</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_post'>post</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_put'>put</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_patch'>patch</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_delete'>delete</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_options'>options</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_head'>head</span>]
   <span class='kw'>end</span>
@@ -1372,7 +1563,7 @@ version:</p>
 <ul>
 <li>Subscribe to the Rails security <a href="https://discuss.rubyonrails.org/c/security-announcements/9">mailing list</a>.</li>
 <li><a href="https://infosec.mozilla.org/guidelines/web_security.html">Mozilla&#39;s Web Security Guidelines</a> - Recommendations on topics covering Content Security Policy, HTTP headers, Cookies, TLS configuration, etc.</li>
-<li>A <a href="https://owasp.org/">good security blog</a> including the [Cross-Site scripting Cheat Sheet]).</li>
+<li>A <a href="https://owasp.org/">good set of security resources</a>, notably the <a href="https://cheatsheetseries.owasp.org/index.html">Cheat Sheet Series</a>, with for example the <a href="https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html">Cross-Site Scripting Cheat Sheet</a>.</li>
 </ul>
 
 <div id='footer'></div>

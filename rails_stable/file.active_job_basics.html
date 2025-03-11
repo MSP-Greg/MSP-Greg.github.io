@@ -8,7 +8,7 @@
 <meta name='apple-mobile-web-app-capable' content='yes'>
 <meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
 
-<title>File: Active Job Basics &mdash; Rails 7-2-stable</title>
+<title>File: Active Job Basics &mdash; Rails 8-0-stable</title>
 
 <link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
 <link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
@@ -50,7 +50,7 @@
   <header id='y_header'>
     <div id='y_menu'>
       <a id='home_no_xhr' href='/'>Home</a> &raquo; 
-      <a href='.'>Rails 7-2-stable</a> &raquo; 
+      <a href='.'>Rails 8-0-stable</a> &raquo; 
       <a href='_index.html'>Index</a> &raquo; 
       <span class='title'><a id='t2_doc_top' href='#'>File: Active Job Basics&nbsp;&#x25B2;</a></span>
           </div>
@@ -65,14 +65,14 @@
 
 <h1>Active Job Basics</h1>
 
-<p>This guide provides you with all you need to get started in creating,
-enqueuing and executing background jobs.</p>
+<p>This guide provides you with all you need to get started in creating, enqueuing
+and executing background jobs.</p>
 
 <p>After reading this guide, you will know:</p>
 
 <ul>
-<li>How to create jobs.</li>
-<li>How to enqueue jobs.</li>
+<li>How to create and enqueue jobs.</li>
+<li>How to configure and use Solid Queue.</li>
 <li>How to run jobs in the background.</li>
 <li>How to send emails from your application asynchronously.</li>
 </ul>
@@ -81,32 +81,23 @@ enqueuing and executing background jobs.</p>
 
 <h2>What is Active Job?</h2>
 
-<p>Active Job is a framework for declaring jobs and making them run on a variety
-of queuing backends. These jobs can be everything from regularly scheduled
-clean-ups, to billing charges, to mailings. Anything that can be chopped up
-into small units of work and run in parallel.</p>
-
-<h2>The Purpose of Active Job</h2>
-
-<p>The main point is to ensure that all <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> apps will have a job infrastructure
-in place. We can then have framework features and other gems build on top of that,
-without having to worry about API differences between various job runners such as
-Delayed Job and Resque. Picking your queuing backend becomes more of an operational
-concern, then. And you&#39;ll be able to switch between them without having to rewrite
-your jobs.</p>
-
-<p>NOTE: <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> by default comes with an asynchronous queuing implementation that
-runs jobs with an in-process thread pool. Jobs will run asynchronously, but any
-jobs in the queue will be dropped upon restart.</p>
+<p>Active Job is a framework in <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> designed for declaring background jobs and
+executing them on a queuing backend. It provides a standardized interface for
+tasks like sending emails, processing data, or handling regular maintenance
+activities, such as clean-ups and billing charges. By offloading these tasks
+from the main application thread to a queuing backend like the default Solid
+Queue, Active Job ensures that time-consuming operations do not block the
+request-response cycle. This can improve the performance and responsiveness of
+the application, allowing it to handle tasks in parallel.</p>
 
 <h2>Create and Enqueue Jobs</h2>
 
-<p>This section will provide a step-by-step guide to creating a job and enqueuing it.</p>
+<p>This section will provide a step-by-step guide to create a job and enqueue it.</p>
 
 <h3>Create the Job</h3>
 
-<p>Active Job provides a <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> generator to create jobs. The following will create a
-job in <code>app/jobs</code> (with an attached test case under <code>test/jobs</code>):</p>
+<p>Active Job provides a <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> generator to create jobs. The following will create
+a job in <code>app/jobs</code> (with an attached test case under <code>test/jobs</code>):</p>
 
 <pre class="code bash"><code class="bash">$ bin/rails generate job guests_cleanup
 invoke  test_unit
@@ -134,8 +125,9 @@ create  app/jobs/guests_cleanup_job.rb
 
 <p>Note that you can define <code>perform</code> with as many arguments as you want.</p>
 
-<p>If you already have an abstract class and its name differs from <code>ApplicationJob</code>, you can pass
-the <code>--parent</code> option to indicate you want a different abstract class:</p>
+<p>If you already have an abstract class and its name differs from
+<code>ApplicationJob</code>, you can pass the <code>--parent</code> option to indicate you want a
+different abstract class:</p>
 
 <pre class="code bash"><code class="bash">$ bin/rails generate job process_payment --parent=payment_job
 </code></pre>
@@ -164,78 +156,387 @@ the <code>--parent</code> option to indicate you want a different abstract class
 
 <pre class="code ruby"><code class="ruby"><span class='comment'># `perform_now` and `perform_later` will call `perform` under the hood so
 </span><span class='comment'># you can pass as many arguments as defined in the latter.
-</span><span class='const'>GuestsCleanupJob</span>.<span class='id identifier rubyid_perform_later'>perform_later</span>(<span class='id identifier rubyid_guest1'>guest1</span><span class='comma'>,</span> <span class='id identifier rubyid_guest2'>guest2</span><span class='comma'>,</span> <span class='label'>filter:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>some_filter</span><span class='tstring_end'>&#39;</span></span>)</code></pre>
+</span><span class='const'>GuestsCleanupJob</span>.<span class='id identifier rubyid_perform_later'>perform_later</span>(<span class='id identifier rubyid_guest1'>guest1</span><span class='comma'>,</span> <span class='id identifier rubyid_guest2'>guest2</span><span class='comma'>,</span> <span class='label'>filter:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>some_filter</span><span class='tstring_end'>&quot;</span></span>)</code></pre>
 
 <p>That&#39;s it!</p>
 
 <h3>Enqueue Jobs in Bulk</h3>
 
-<p>You can enqueue multiple jobs at once using <a href="https://api.rubyonrails.org/classes/ActiveJob.html#method-c-perform_all_later"><code>perform_all_later</code></a>. For more details see <a href="#bulk-enqueuing">Bulk Enqueuing</a>.</p>
+<p>You can enqueue multiple jobs at once using
+<a href="https://api.rubyonrails.org/classes/ActiveJob.html#method-c-perform_all_later"><code>perform_all_later</code></a>.
+For more details see <a href="#bulk-enqueuing">Bulk Enqueuing</a>.</p>
 
-<h2>Job Execution</h2>
+<h2>Default Backend: Solid Queue</h2>
 
-<p>For enqueuing and executing jobs in production you need to set up a queuing backend,
-that is to say, you need to decide on a 3rd-party queuing library that Rails should use.
-Rails itself only provides an in-process queuing system, which only keeps the jobs in RAM.
-If the process crashes or the machine is reset, then all outstanding jobs are lost with the
-default async backend. This may be fine for smaller apps or non-critical jobs, but most
-production apps will need to pick a persistent backend.</p>
+<p>Solid Queue, which is enabled by default from Rails version 8.0 and onward, is a
+database-backed queuing system for Active Job, allowing you to queue large
+amounts of data without requiring additional dependencies such as Redis.</p>
 
-<h3>Backends</h3>
+<p>Besides regular job enqueuing and processing, Solid Queue supports delayed jobs,
+concurrency controls, numeric priorities per job, priorities by queue order, and
+more.</p>
 
-<p>Active Job has built-in adapters for multiple queuing backends (Sidekiq,
-Resque, Delayed Job, and others). To get an up-to-date list of the adapters
-see the API Documentation for <a href="https://api.rubyonrails.org/classes/ActiveJob/QueueAdapters.html"><a href="ActiveJob/QueueAdapters.html" title="ActiveJob::QueueAdapters (module)"><code>::ActiveJob::QueueAdapters</code></a></a>.</p>
+<h3>Set Up</h3>
 
-<h3>Setting the Backend</h3>
+<h4>Development</h4>
 
-<p>You can easily set your queuing backend with <a href="configuring.html#config-active-job-queue-adapter"><code>config.active_job.queue_adapter</code></a>:</p>
+<p>In development, Rails provides an asynchronous in-process queuing system, which
+keeps the jobs in RAM. If the process crashes or the machine is reset, then all
+outstanding jobs are lost with the default async backend. This can be fine for
+smaller apps or non-critical jobs in development.</p>
 
-<pre class="code ruby"><code class="ruby"><span class='comment'># config/application.rb
-</span><span class='kw'>module</span> <span class='const'>YourApp</span>
-  <span class='kw'>class</span> <span class='const'>Application</span> <span class='op'>&lt;</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span><span class='op'>::</span><span class='const'><a href="Rails/Application.html" title="Rails::Application (class)">Application</a></span>
-    <span class='comment'># Be sure to have the adapter&#39;s gem in your Gemfile
-</span>    <span class='comment'># and follow the adapter&#39;s specific installation
-</span>    <span class='comment'># and deployment instructions.
-</span>    <span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_active_job'>active_job</span>.<span class='id identifier rubyid_queue_adapter'>queue_adapter</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_sidekiq'>sidekiq</span>
+<p>However, if you use Solid Queue instead, you can configure it in the same way as
+in the production environment:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/environments/development.rb
+</span><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_active_job'>active_job</span>.<span class='id identifier rubyid_queue_adapter'>queue_adapter</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_solid_queue'>solid_queue</span>
+<span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_solid_queue'>solid_queue</span>.<span class='id identifier rubyid_connects_to'>connects_to</span> <span class='op'>=</span> { <span class='label'>database:</span> { <span class='label'>writing:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_queue'>queue</span> } }</code></pre>
+
+<p>which sets the <code>:solid_queue</code> adapter as the default for Active Job in the
+production environment, and connects to the <code>queue</code> database for writing.</p>
+
+<p>Thereafter, you&#39;d add <code>queue</code> to the development database configuration:</p>
+
+<pre class="code yaml"><code class="yaml"># config/database.yml
+development:
+  primary:
+    &lt;&lt;: *default
+    database: storage/development.sqlite3
+  queue:
+    &lt;&lt;: *default
+    database: storage/development_queue.sqlite3
+    migrations_paths: db/queue_migrate
+</code></pre>
+
+<p>NOTE: The key <code>queue</code> from the database configuration needs to match the key
+used in the configuration for <code>config.solid_queue.connects_to</code>.</p>
+
+<p>You can run the migrations for the <code>queue</code> database to ensure all the tables in
+queue database are created:</p>
+
+<pre class="code bash"><code class="bash">$ bin/rails db:migrate:queue
+</code></pre>
+
+<p>TIP: You can find the default generated schema for the <code>queue</code> database in
+<code>db/queue_schema.rb</code>. They will contain tables like
+<code>solid_queue_ready_executions</code>, <code>solid_queue_scheduled_executions</code>, and more.</p>
+
+<p>Finally, to start the queue and start processing jobs you can run:</p>
+
+<pre class="code bash"><code class="bash">bin/jobs start
+</code></pre>
+
+<h4>Production</h4>
+
+<p>Solid Queue is already configured for the production environment. If you open
+<code>config/environments/production.rb</code>, you will see the following:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/environments/production.rb
+</span><span class='comment'># Replace the default in-process and non-durable queuing backend for Active Job.
+</span><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_active_job'>active_job</span>.<span class='id identifier rubyid_queue_adapter'>queue_adapter</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_solid_queue'>solid_queue</span>
+<span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_solid_queue'>solid_queue</span>.<span class='id identifier rubyid_connects_to'>connects_to</span> <span class='op'>=</span> { <span class='label'>database:</span> { <span class='label'>writing:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_queue'>queue</span> } }</code></pre>
+
+<p>Additionally, the database connection for the <code>queue</code> database is configured in
+<code>config/database.yml</code>:</p>
+
+<pre class="code yaml"><code class="yaml"># config/database.yml
+# Store production database in the storage/ directory, which by default
+# is mounted as a persistent Docker volume in config/deploy.yml.
+production:
+  primary:
+    &lt;&lt;: *default
+    database: storage/production.sqlite3
+  queue:
+    &lt;&lt;: *default
+    database: storage/production_queue.sqlite3
+    migrations_paths: db/queue_migrate
+</code></pre>
+
+<h3>Configuration</h3>
+
+<p>The configuration options for Solid Queue are defined in <code>config/queue.yml</code>.
+Here is an example of the default configuration:</p>
+
+<pre class="code yaml"><code class="yaml">default: &amp;default
+  dispatchers:
+    - polling_interval: 1
+      batch_size: 500
+  workers:
+    - queues: &quot;*&quot;
+      threads: 3
+      processes: &lt;%= ENV.fetch(&quot;JOB_CONCURRENCY&quot;, 1) %&gt;
+      polling_interval: 0.1
+</code></pre>
+
+<p>In order to understand the configuration options for Solid Queue, you must
+understand the different types of roles:</p>
+
+<ul>
+<li><strong>Dispatchers</strong>: They select jobs scheduled to run for the future. When it&#39;s
+time for these jobs to run, dispatchers move them from the
+<code>solid_queue_scheduled_executions</code> table to the <code>solid_queue_ready_executions</code>
+table so workers can pick them up. They also manage concurrency-related
+maintenance.</li>
+<li><strong>Workers</strong>: They pick up jobs that are ready to run. These jobs are taken
+from the <code>solid_queue_ready_executions</code> table.</li>
+<li><strong>Scheduler</strong>: This takes care of recurring tasks, adding jobs to the queue
+when they&#39;re due.</li>
+<li><strong>Supervisor</strong>: It oversees the whole system, managing workers and
+dispatchers. It starts and stops them as needed, monitors their health, and
+ensures everything runs smoothly.</li>
+</ul>
+
+<p>Everything is optional in the <code>config/queue.yml</code>. If no configuration is
+provided, Solid Queue will run with one dispatcher and one worker with default
+settings. Below are some of the configuration options you can set in
+<code>config/queue.yml</code>:</p>
+
+<table><thead>
+<tr>
+<th><strong>Option</strong></th>
+<th><strong>Description</strong></th>
+<th><strong>Default Value</strong></th>
+</tr>
+</thead><tbody>
+<tr>
+<td><strong>polling_interval</strong></td>
+<td>Time in seconds workers/dispatchers wait before checking for more jobs.</td>
+<td>1 second (dispatchers), 0.1 seconds (workers)</td>
+</tr>
+<tr>
+<td><strong>batch_size</strong></td>
+<td>Number of jobs dispatched in a batch.</td>
+<td>500</td>
+</tr>
+<tr>
+<td><strong>concurrency_maintenance_interval</strong></td>
+<td>Time in seconds the dispatcher waits before checking for blocked jobs that can be unblocked.</td>
+<td>600 seconds</td>
+</tr>
+<tr>
+<td><strong>queues</strong></td>
+<td>List of queues workers fetch jobs from. Supports <code>*</code> for all queues or queue name prefixes.</td>
+<td><code>*</code></td>
+</tr>
+<tr>
+<td><strong>threads</strong></td>
+<td>Maximum size of the thread pool for each worker. Determines how many jobs a worker fetches at once.</td>
+<td>3</td>
+</tr>
+<tr>
+<td><strong>processes</strong></td>
+<td>Number of worker processes forked by the supervisor. Each process can dedicate a CPU core.</td>
+<td>1</td>
+</tr>
+<tr>
+<td><strong>concurrency_maintenance</strong></td>
+<td>Whether the dispatcher performs concurrency maintenance work.</td>
+<td>true</td>
+</tr>
+</tbody></table>
+
+<p>You can read more about these <a href="https://github.com/rails/solid_queue?tab=readme-ov-file#configuration">configuration options in the Solid Queue
+documentation</a>.
+There are also <a href="https://github.com/rails/solid_queue?tab=readme-ov-file#other-configuration-settings">additional configuration
+options</a>
+that can be set in <code>config/&lt;environment&gt;.rb</code> to further configure Solid Queue in
+your Rails Application.</p>
+
+<h3>Queue Order</h3>
+
+<p>As per the configuration options in the <a href="#configuration">Configuration section</a>,
+the <code>queues</code> configuration option will list the queues that workers will pick
+jobs from. In a list of queues, the order matters. Workers will pick jobs from
+the first queue in the list - once there are no more jobs in the first queue,
+only then will it move onto the second, and so on.</p>
+
+<pre class="code yaml"><code class="yaml"># config/queue.yml
+production:
+  workers:
+    - queues:[active_storage*, mailers]
+      threads: 3
+      polling_interval: 5
+</code></pre>
+
+<p>In the above example, workers will fetch jobs from queues starting with
+&quot;active_storage&quot;, like  the <code>active_storage_analyse</code> queue and
+<code>active_storage_transform</code> queue. Only when no jobs remain in the
+<code>active_storage</code>-prefixed queues will workers move on to the <code>mailers</code> queue.</p>
+
+<p>NOTE: The wildcard <code>*</code> (like at the end of &quot;active_storage&quot;) is only allowed on
+its own or at the end of a queue name to match all queues with the same prefix.
+You can&#39;t specify queue names such as <code>*_some_queue</code>.</p>
+
+<p>WARNING: Using wildcard queue names (e.g., <code>queues: active_storage*</code>) can slow
+down polling performance due to the need for a <code>DISTINCT</code> query to identify all
+matching queues, which can be slow on large tables. For better performance, it’s
+best to specify exact queue names instead of using wildcards.</p>
+
+<p>Active Job supports positive integer priorities when enqueuing jobs (see
+<a href="#priority">Priority section</a>). Within a single queue, jobs are picked based on
+their priority (with lower integers being higher priority). However, when you
+have multiple queues, the order of the queues themselves takes priority.</p>
+
+<p>For example, if you have two queues, <code>production</code> and <code>background</code>, jobs in the
+<code>production</code> queue will always be processed first, even if some jobs in the
+<code>background</code> queue have a higher priority.</p>
+
+<h3>Threads, Processes, and Signals</h3>
+
+<p>In Solid Queue, parallelism is achieved through threads (configurable via the
+<a href="#configuration"><code>threads</code> parameter</a>), processes (via the <a href="#configuration"><code>processes</code>
+parameter</a>), or horizontal scaling. The supervisor manages
+processes and responds to the following signals:</p>
+
+<ul>
+<li><strong>TERM, INT</strong>: Starts graceful termination, sending a TERM signal and waiting
+up to <code>SolidQueue.shutdown_timeout</code>. If not finished, a QUIT signal forces
+processes to exit.</li>
+<li><strong>QUIT</strong>: Forces immediate termination of processes.</li>
+</ul>
+
+<p>If a worker is killed unexpectedly (e.g., with a <code>KILL</code> signal), in-flight jobs
+are marked as failed, and errors like <code>SolidQueue::Processes::ProcessExitError</code>
+or <code>SolidQueue::Processes::ProcessPrunedError</code> are raised. Heartbeat settings
+help manage and detect expired processes. Read more about <a href="https://github.com/rails/solid_queue?tab=readme-ov-file#threads-processes-and-signals">Threads, Processes
+and Signals in the Solid Queue
+documentation</a>.</p>
+
+<h3>Errors When Enqueuing</h3>
+
+<p>Solid Queue raises a <code>SolidQueue::Job::EnqueueError</code> when Active Record errors
+occur during job enqueuing. This is different from the <a href="ActiveJob/EnqueueError.html" title="ActiveJob::EnqueueError (class)"><code>::ActiveJob::EnqueueError</code></a>
+raised by Active Job, which handles the error and makes <code>perform_later</code> return
+false. This makes error handling trickier for jobs enqueued by Rails or
+third-party gems like <code>Turbo::Streams::BroadcastJob</code>.</p>
+
+<p>For recurring tasks, any errors encountered while enqueuing are logged, but they
+won’t be raised. Read more about <a href="https://github.com/rails/solid_queue?tab=readme-ov-file#errors-when-enqueuing">Errors When Enqueuing in the Solid Queue
+documentation</a>.</p>
+
+<h3>Concurrency Controls</h3>
+
+<p>Solid Queue extends Active Job with concurrency controls, allowing you to limit
+how many jobs of a certain type or with specific arguments can run at the same
+time. If a job exceeds the limit, it will be blocked until another job finishes
+or the duration expires. For example:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>MyJob</span> <span class='op'>&lt;</span> <span class='const'>ApplicationJob</span>
+  <span class='id identifier rubyid_limits_concurrency'>limits_concurrency</span> <span class='label'>to:</span> <span class='int'>2</span><span class='comma'>,</span> <span class='label'>key:</span> <span class='tlambda'>-&gt;</span>(<span class='id identifier rubyid_contact'>contact</span>) <span class='tlambeg'>{</span> <span class='id identifier rubyid_contact'>contact</span>.<span class='id identifier rubyid_account'>account</span> }<span class='comma'>,</span> <span class='label'>duration:</span> <span class='int'>5</span>.<span class='id identifier rubyid_minutes'>minutes</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_perform'>perform</span>(<span class='id identifier rubyid_contact'>contact</span>)
+    <span class='comment'># perform job logic
+</span>  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>In this example, only two <code>MyJob</code> instances for the same account will run
+concurrently. After that, other jobs will be blocked until one completes.</p>
+
+<p>The <code>group</code> parameter can be used to control concurrency across different job
+types. For instance, two different job classes that use the same group will have
+their concurrency limited together:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Box</span><span class='op'>::</span><span class='const'>MovePostingsByContactToDesignatedBoxJob</span> <span class='op'>&lt;</span> <span class='const'>ApplicationJob</span>
+  <span class='id identifier rubyid_limits_concurrency'>limits_concurrency</span> <span class='label'>key:</span> <span class='tlambda'>-&gt;</span>(<span class='id identifier rubyid_contact'>contact</span>) <span class='tlambeg'>{</span> <span class='id identifier rubyid_contact'>contact</span> }<span class='comma'>,</span> <span class='label'>duration:</span> <span class='int'>15</span>.<span class='id identifier rubyid_minutes'>minutes</span><span class='comma'>,</span> <span class='label'>group:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ContactActions</span><span class='tstring_end'>&quot;</span></span>
+<span class='kw'>end</span>
+
+<span class='kw'>class</span> <span class='const'>Bundle</span><span class='op'>::</span><span class='const'>RebundlePostingsJob</span> <span class='op'>&lt;</span> <span class='const'>ApplicationJob</span>
+  <span class='id identifier rubyid_limits_concurrency'>limits_concurrency</span> <span class='label'>key:</span> <span class='tlambda'>-&gt;</span>(<span class='id identifier rubyid_bundle'>bundle</span>) <span class='tlambeg'>{</span> <span class='id identifier rubyid_bundle'>bundle</span>.<span class='id identifier rubyid_contact'>contact</span> }<span class='comma'>,</span> <span class='label'>duration:</span> <span class='int'>15</span>.<span class='id identifier rubyid_minutes'>minutes</span><span class='comma'>,</span> <span class='label'>group:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ContactActions</span><span class='tstring_end'>&quot;</span></span>
+<span class='kw'>end</span></code></pre>
+
+<p>This ensures that only one job for a given contact can run at a time, regardless
+of the job class.</p>
+
+<p>Read more about <a href="https://github.com/rails/solid_queue?tab=readme-ov-file#concurrency-controls">Concurrency Controls in the Solid Queue
+documentation</a>.</p>
+
+<h3>Error Reporting on Jobs</h3>
+
+<p>If your error tracking service doesn’t automatically report job errors, you can
+manually hook into Active Job to report them. For example, you can add a
+<code>rescue_from</code> block in <code>ApplicationJob</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ApplicationJob</span> <span class='op'>&lt;</span> <span class='const'><a href="ActiveJob.html" title="ActiveJob (module)">ActiveJob</a></span><span class='op'>::</span><span class='const'><a href="ActiveJob/Base.html" title="ActiveJob::Base (class)">Base</a></span>
+  <span class='id identifier rubyid_rescue_from'>rescue_from</span>(<span class='const'><a href="Exception.html" title="Exception (class)">Exception</a></span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_exception'>exception</span><span class='op'>|</span>
+    <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_error'><a href="Rails.html#error-class_method" title="Rails.error (method)">error</a></span>.<span class='id identifier rubyid_report'>report</span>(<span class='id identifier rubyid_exception'>exception</span>)
+    <span class='id identifier rubyid_raise'>raise</span> <span class='id identifier rubyid_exception'>exception</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
 
-<p>You can also configure your backend on a per job basis:</p>
+<p>If you use ActionMailer, you’ll need to handle errors for <code>MailDeliveryJob</code>
+separately:</p>
 
-<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>GuestsCleanupJob</span> <span class='op'>&lt;</span> <span class='const'>ApplicationJob</span>
-  <span class='kw'>self</span>.<span class='id identifier rubyid_queue_adapter'>queue_adapter</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_resque'>resque</span>
-  <span class='comment'># ...
-</span><span class='kw'>end</span>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ApplicationMailer</span> <span class='op'>&lt;</span> <span class='const'><a href="ActionMailer.html" title="ActionMailer (module)">ActionMailer</a></span><span class='op'>::</span><span class='const'><a href="ActionMailer/Base.html" title="ActionMailer::Base (class)">Base</a></span>
+  <span class='const'><a href="ActionMailer.html" title="ActionMailer (module)">ActionMailer</a></span><span class='op'>::</span><span class='const'><a href="ActionMailer/MailDeliveryJob.html" title="ActionMailer::MailDeliveryJob (class)">MailDeliveryJob</a></span>.<span class='id identifier rubyid_rescue_from'>rescue_from</span>(<span class='const'><a href="Exception.html" title="Exception (class)">Exception</a></span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_exception'>exception</span><span class='op'>|</span>
+    <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_error'><a href="Rails.html#error-class_method" title="Rails.error (method)">error</a></span>.<span class='id identifier rubyid_report'>report</span>(<span class='id identifier rubyid_exception'>exception</span>)
+    <span class='id identifier rubyid_raise'>raise</span> <span class='id identifier rubyid_exception'>exception</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
 
-<span class='comment'># Now your job will use `resque` as its backend queue adapter, overriding what
-</span><span class='comment'># was configured in `config.active_job.queue_adapter`.</span></code></pre>
+<h3>Transactional Integrity on Jobs</h3>
 
-<h3>Starting the Backend</h3>
+<p>By default, Solid Queue uses a separate database from your main application.
+This avoids issues with transactional integrity, which ensures that jobs are
+only enqueued if the transaction commits.</p>
 
-<p>Since jobs run in parallel to your Rails application, most queuing libraries
-require that you start a library-specific queuing service (in addition to
-starting your Rails app) for the job processing to work. Refer to library
-documentation for instructions on starting your queue backend.</p>
+<p>However, if you use Solid Queue in the same database as your app, you can enable
+transactional integrity with Active Job’s <code>enqueue_after_transaction_commit</code>
+option which can be enabled for individual jobs or all jobs through
+<code>ApplicationJob</code>:</p>
 
-<p>Here is a noncomprehensive list of documentation:</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ApplicationJob</span> <span class='op'>&lt;</span> <span class='const'><a href="ActiveJob.html" title="ActiveJob (module)">ActiveJob</a></span><span class='op'>::</span><span class='const'><a href="ActiveJob/Base.html" title="ActiveJob::Base (class)">Base</a></span>
+  <span class='kw'>self</span>.<span class='id identifier rubyid_enqueue_after_transaction_commit'>enqueue_after_transaction_commit</span> <span class='op'>=</span> <span class='kw'>true</span>
+<span class='kw'>end</span></code></pre>
 
-<ul>
-<li><a href="https://github.com/mperham/sidekiq/wiki/Active-Job">Sidekiq</a></li>
-<li><a href="https://github.com/resque/resque/wiki/ActiveJob">Resque</a></li>
-<li><a href="https://github.com/jondot/sneakers/wiki/How-To:-Rails-Background-Jobs-with-ActiveJob">Sneakers</a></li>
-<li><a href="https://github.com/brandonhilkert/sucker_punch#active-job">Sucker Punch</a></li>
-<li><a href="https://github.com/QueueClassic/queue_classic#active-job">Queue Classic</a></li>
-<li><a href="https://github.com/collectiveidea/delayed_job#active-job">Delayed Job</a></li>
-<li><a href="https://github.com/que-rb/que#additional-rails-specific-setup">Que</a></li>
-<li><a href="https://github.com/bensheldon/good_job#readme">Good Job</a></li>
-<li><a href="https://github.com/rails/solid_queue?tab=readme-ov-file#solid-queue">Solid Queue</a></li>
-</ul>
+<p>You can also configure Solid Queue to use the same database as your app while
+avoiding transactional integrity issues by setting up a separate database
+connection for Solid Queue jobs. Read more about <a href="https://github.com/rails/solid_queue?tab=readme-ov-file#jobs-and-transactional-integrity">Transactional Integrity in the
+Solid Queue
+documentation</a></p>
+
+<h3>Recurring Tasks</h3>
+
+<p>Solid Queue supports recurring tasks, similar to cron jobs. These tasks are
+defined in a configuration file (by default, <code>config/recurring.yml</code>) and can be
+scheduled at specific times. Here&#39;s an example of a task configuration:</p>
+
+<pre class="code yaml"><code class="yaml">production:
+  a_periodic_job:
+    class: MyJob
+    args: [42, { status: &quot;custom_status&quot; }]
+    schedule: every second
+  a_cleanup_task:
+    command: &quot;DeletedStuff.clear_all&quot;
+    schedule: every day at 9am
+</code></pre>
+
+<p>Each task specifies a <code>class</code> or <code>command</code> and a <code>schedule</code> (parsed using
+<a href="https://github.com/floraison/fugit">Fugit</a>). You can also pass arguments to
+jobs, such as in the example for <code>MyJob</code> where <code>args</code> are passed. This can be
+passed as a single argument, a hash, or an array of arguments that can also
+include kwargs as the last element in the array. This allows jobs to run
+periodically or at specified times.</p>
+
+<p>Read more about <a href="https://github.com/rails/solid_queue?tab=readme-ov-file#recurring-tasks">Recurring Tasks in the Solid Queue
+documentation</a>.</p>
+
+<h3>Job Tracking and Management</h3>
+
+<p>A tool like
+<a href="https://github.com/rails/mission_control-jobs"><code>mission_control-jobs</code></a> can help
+centralize the monitoring and management of failed jobs. It provides insights
+into job statuses, failure reasons, and retry behaviors, enabling you to track
+and resolve issues more effectively.</p>
+
+<p>For instance, if a job fails to process a large file due to a timeout,
+<code>mission_control-jobs</code> allows you to inspect the failure, review the job’s
+arguments and execution history, and decide whether to retry, requeue, or
+discard it.</p>
 
 <h2>Queues</h2>
 
-<p>Most adapters support multiple queues. With Active Job you can schedule
-the job to run on a specific queue using <a href="https://api.rubyonrails.org/classes/ActiveJob/QueueName/ClassMethods.html#method-i-queue_as"><code>queue_as</code></a>:</p>
+<p>With Active Job you can schedule the job to run on a specific queue using
+<a href="https://api.rubyonrails.org/classes/ActiveJob/QueueName/ClassMethods.html#method-i-queue_as"><code>queue_as</code></a>:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>GuestsCleanupJob</span> <span class='op'>&lt;</span> <span class='const'>ApplicationJob</span>
   <span class='id identifier rubyid_queue_as'>queue_as</span> <span class='symbeg'>:</span><span class='id identifier rubyid_low_priority'>low_priority</span>
@@ -280,7 +581,7 @@ the job to run on a specific queue using <a href="https://api.rubyonrails.org/cl
 </span><span class='kw'>module</span> <span class='const'>YourApp</span>
   <span class='kw'>class</span> <span class='const'>Application</span> <span class='op'>&lt;</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span><span class='op'>::</span><span class='const'><a href="Rails/Application.html" title="Rails::Application (class)">Application</a></span>
     <span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_active_job'>active_job</span>.<span class='id identifier rubyid_queue_name_prefix'>queue_name_prefix</span> <span class='op'>=</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_env'><a href="Rails.html#env-class_method" title="Rails.env (method)">env</a></span>
-    <span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_active_job'>active_job</span>.<span class='id identifier rubyid_queue_name_delimiter'>queue_name_delimiter</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>.</span><span class='tstring_end'>&#39;</span></span>
+    <span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_active_job'>active_job</span>.<span class='id identifier rubyid_queue_name_delimiter'>queue_name_delimiter</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>.</span><span class='tstring_end'>&quot;</span></span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
 
@@ -320,23 +621,32 @@ option to <code>set</code>:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='const'>MyJob</span>.<span class='id identifier rubyid_set'>set</span>(<span class='label'>queue:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_another_queue'>another_queue</span>).<span class='id identifier rubyid_perform_later'>perform_later</span>(<span class='id identifier rubyid_record'>record</span>)</code></pre>
 
-<p>NOTE: Make sure your queuing backend &quot;listens&quot; on your queue name. For some
-backends you need to specify the queues to listen to.</p>
+<p>NOTE: If you choose to use an <a href="#alternate-queuing-backends">alternate queuing
+backend</a> you may need to specify the queues to
+listen to.</p>
 
 <h2>Priority</h2>
 
-<p>Some adapters support priorities at the job level, where jobs can be prioritized relative to others in the queue or across all queues.</p>
-
-<p>You can schedule a job to run with a specific priority using <a href="https://api.rubyonrails.org/classes/ActiveJob/QueuePriority/ClassMethods.html#method-i-queue_with_priority"><code>queue_with_priority</code></a>:</p>
+<p>You can schedule a job to run with a specific priority using
+<code>queue_with_priority</code>:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>GuestsCleanupJob</span> <span class='op'>&lt;</span> <span class='const'>ApplicationJob</span>
   <span class='id identifier rubyid_queue_with_priority'>queue_with_priority</span> <span class='int'>10</span>
   <span class='comment'># ...
 </span><span class='kw'>end</span></code></pre>
 
-<p>Note that this will not have any effect with adapters that do not support priorities.</p>
+<p>Solid Queue, the default queuing backend, prioritizes jobs based on the order of
+the queues.  You can read more about it in the <a href="#queue-order">Order of Queues
+section</a>. If you&#39;re using Solid Queue, and both the order of the
+queues and the priority option are used, the queue order will take precedence,
+and the priority option will only apply within each queue.</p>
 
-<p>Similar to <code>queue_as</code>, you can also pass a block to <code>queue_with_priority</code> to be evaluated in the job context:</p>
+<p>Other queuing backends may allow jobs to be prioritized relative to others
+within the same queue or across multiple queues. Refer to the documentation of
+your backend for more information.</p>
+
+<p>Similar to <code>queue_as</code>, you can also pass a block to <code>queue_with_priority</code> to be
+evaluated in the job context:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ProcessVideoJob</span> <span class='op'>&lt;</span> <span class='const'>ApplicationJob</span>
   <span class='id identifier rubyid_queue_with_priority'>queue_with_priority</span> <span class='kw'>do</span>
@@ -359,9 +669,10 @@ backends you need to specify the queues to listen to.</p>
 
 <pre class="code ruby"><code class="ruby"><span class='const'>MyJob</span>.<span class='id identifier rubyid_set'>set</span>(<span class='label'>priority:</span> <span class='int'>50</span>).<span class='id identifier rubyid_perform_later'>perform_later</span>(<span class='id identifier rubyid_record'>record</span>)</code></pre>
 
-<p>NOTE: If a lower priority number performs before or after a higher priority number depends on the
-adapter implementation. Refer to documentation of your backend for more information.
-Adapter authors are encouraged to treat a lower number as more important.</p>
+<p>NOTE: If a lower priority number performs before or after a higher priority
+number depends on the adapter implementation. Refer to documentation of your
+backend for more information. Adapter authors are encouraged to treat a lower
+number as more important.</p>
 
 <h2>Callbacks</h2>
 
@@ -485,23 +796,24 @@ can be used to find out if a given job was successfully enqueued.</p>
 
 <h3>Queue Backend Support</h3>
 
-<p>For <code>perform_all_later</code>, bulk enqueuing needs to be backed by the <a href="#backends">queue
-backend</a>.</p>
+<p>For <code>perform_all_later</code>, bulk enqueuing needs to be backed by the queue backend.
+Solid Queue, the default queue backend, supports bulk enqueuing using
+<code>enqueue_all</code>.</p>
 
-<p>For example, Sidekiq has a <code>push_bulk</code> method, which can push a large number of
-jobs to Redis and prevent the round trip network latency. GoodJob also supports
-bulk enqueuing with the <code>GoodJob::Bulk.enqueue</code> method. The new queue backend
-<a href="https://github.com/rails/solid_queue/pull/93"><code>Solid Queue</code></a> has added
-support for bulk enqueuing as well.</p>
+<p><a href="#alternate-queuing-backends">Other backends</a> like Sidekiq have a <code>push_bulk</code>
+method, which can push a large number of jobs to Redis and prevent the round
+trip network latency. GoodJob also supports bulk enqueuing with the
+<code>GoodJob::Bulk.enqueue</code> method.</p>
 
 <p>If the queue backend does <em>not</em> support bulk enqueuing, <code>perform_all_later</code> will
 enqueue jobs one by one.</p>
 
 <h2>Action Mailer</h2>
 
-<p>One of the most common jobs in a modern web application is sending emails outside
-of the request-response cycle, so the user doesn&#39;t have to wait on it. Active Job
-is integrated with Action Mailer so you can easily send emails asynchronously:</p>
+<p>One of the most common jobs in a modern web application is sending emails
+outside of the request-response cycle, so the user doesn&#39;t have to wait on it.
+Active Job is integrated with Action Mailer so you can easily send emails
+asynchronously:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='comment'># If you want to send the email now use #deliver_now
 </span><span class='const'>UserMailer</span>.<span class='id identifier rubyid_welcome'>welcome</span>(<span class='ivar'>@user</span>).<span class='id identifier rubyid_deliver_now'>deliver_now</span>
@@ -509,16 +821,16 @@ is integrated with Action Mailer so you can easily send emails asynchronously:</
 <span class='comment'># If you want to send the email through Active Job use #deliver_later
 </span><span class='const'>UserMailer</span>.<span class='id identifier rubyid_welcome'>welcome</span>(<span class='ivar'>@user</span>).<span class='id identifier rubyid_deliver_later'>deliver_later</span></code></pre>
 
-<p>NOTE: Using the asynchronous queue from a Rake task (for example, to
-send an email using <code>.deliver_later</code>) will generally not work because Rake will
-likely end, causing the in-process thread pool to be deleted, before any/all
-of the <code>.deliver_later</code> emails are processed. To avoid this problem, use
-<code>.deliver_now</code> or run a persistent queue in development.</p>
+<p>NOTE: Using the asynchronous queue from a Rake task (for example, to send an
+email using <code>.deliver_later</code>) will generally not work because Rake will likely
+end, causing the in-process thread pool to be deleted, before any/all of the
+<code>.deliver_later</code> emails are processed. To avoid this problem, use <code>.deliver_now</code>
+or run a persistent queue in development.</p>
 
 <h2>Internationalization</h2>
 
-<p>Each job uses the <code>I18n.locale</code> set when the job was created. This is useful if you send
-emails asynchronously:</p>
+<p>Each job uses the <code>I18n.locale</code> set when the job was created. This is useful if
+you send emails asynchronously:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='const'><a href="I18n.html" title="I18n (module)">I18n</a></span>.<span class='id identifier rubyid_locale'>locale</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_eo'>eo</span>
 
@@ -529,7 +841,8 @@ emails asynchronously:</p>
 <p>ActiveJob supports the following types of arguments by default:</p>
 
 <ul>
-<li>Basic types (<a href="NilClass.html" title="NilClass (class)"><code>NilClass</code></a>, <a href="String.html" title="String (class)"><code>String</code></a>, <a href="Integer.html" title="Integer (class)"><code>Integer</code></a>, <a href="Float.html" title="Float (class)"><code>Float</code></a>, <a href="BigDecimal.html" title="BigDecimal (class)"><code>BigDecimal</code></a>, <a href="TrueClass.html" title="TrueClass (class)"><code>TrueClass</code></a>, <a href="FalseClass.html" title="FalseClass (class)"><code>FalseClass</code></a>)</li>
+<li>Basic types (<a href="NilClass.html" title="NilClass (class)"><code>NilClass</code></a>, <a href="String.html" title="String (class)"><code>String</code></a>, <a href="Integer.html" title="Integer (class)"><code>Integer</code></a>, <a href="Float.html" title="Float (class)"><code>Float</code></a>, <a href="BigDecimal.html" title="BigDecimal (class)"><code>BigDecimal</code></a>,
+<a href="TrueClass.html" title="TrueClass (class)"><code>TrueClass</code></a>, <a href="FalseClass.html" title="FalseClass (class)"><code>FalseClass</code></a>)</li>
 <li><a href="Symbol.html" title="Symbol (class)"><code>Symbol</code></a></li>
 <li><a href="Date.html" title="Date (class)"><code>Date</code></a></li>
 <li><a href="Time.html" title="Time (class)"><code>Time</code></a></li>
@@ -546,9 +859,11 @@ emails asynchronously:</p>
 
 <h3>GlobalID</h3>
 
-<p>Active Job supports [GlobalID]) for parameters. This makes it possible to pass live
-Active Record objects to your job instead of class/id pairs, which you then have
-to manually deserialize. Before, jobs would look like this:</p>
+<p>Active Job supports
+[GlobalID]) for
+parameters. This makes it possible to pass live Active Record objects to your
+job instead of class/id pairs, which you then have to manually deserialize.
+Before, jobs would look like this:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>TrashableCleanupJob</span> <span class='op'>&lt;</span> <span class='const'>ApplicationJob</span>
   <span class='kw'>def</span> <span class='id identifier rubyid_perform'>perform</span>(<span class='id identifier rubyid_trashable_class'>trashable_class</span><span class='comma'>,</span> <span class='id identifier rubyid_trashable_id'>trashable_id</span><span class='comma'>,</span> <span class='id identifier rubyid_depth'>depth</span>)
@@ -565,12 +880,13 @@ to manually deserialize. Before, jobs would look like this:</p>
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
 
-<p>This works with any class that mixes in <code>GlobalID::Identification</code>, which
-by default has been mixed into Active Record classes.</p>
+<p>This works with any class that mixes in <code>GlobalID::Identification</code>, which by
+default has been mixed into Active Record classes.</p>
 
 <h3>Serializers</h3>
 
-<p>You can extend the list of supported argument types. You just need to define your own serializer:</p>
+<p>You can extend the list of supported argument types. You just need to define
+your own serializer:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='comment'># app/serializers/money_serializer.rb
 </span><span class='kw'>class</span> <span class='const'>MoneySerializer</span> <span class='op'>&lt;</span> <span class='const'><a href="ActiveJob.html" title="ActiveJob (module)">ActiveJob</a></span><span class='op'>::</span><span class='const'><a href="ActiveJob/Serializers.html" title="ActiveJob::Serializers (module)">Serializers</a></span><span class='op'>::</span><span class='const'><a href="ActiveJob/Serializers/ObjectSerializer.html" title="ActiveJob::Serializers::ObjectSerializer (class)">ObjectSerializer</a></span>
@@ -601,8 +917,9 @@ by default has been mixed into Active Record classes.</p>
 <pre class="code ruby"><code class="ruby"><span class='comment'># config/initializers/custom_serializers.rb
 </span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_active_job'>active_job</span>.<span class='id identifier rubyid_custom_serializers'>custom_serializers</span> <span class='op'>&lt;&lt;</span> <span class='const'>MoneySerializer</span></code></pre>
 
-<p>Note that autoloading reloadable code during initialization is not supported. Thus it is recommended
-to set-up serializers to be loaded only once, e.g. by amending <code>config/application.rb</code> like this:</p>
+<p>Note that autoloading reloadable code during initialization is not supported.
+Thus it is recommended to set-up serializers to be loaded only once, e.g. by
+amending <code>config/application.rb</code> like this:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='comment'># config/application.rb
 </span><span class='kw'>module</span> <span class='const'>YourApp</span>
@@ -628,7 +945,8 @@ to set-up serializers to be loaded only once, e.g. by amending <code>config/appl
 </span>  <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
 
-<p>If an exception from a job is not rescued, then the job is referred to as &quot;failed&quot;.</p>
+<p>If an exception from a job is not rescued, then the job is referred to as
+&quot;failed&quot;.</p>
 
 <h3>Retrying or Discarding Failed Jobs</h3>
 
@@ -651,18 +969,67 @@ to set-up serializers to be loaded only once, e.g. by amending <code>config/appl
 
 <p>GlobalID allows serializing full Active Record objects passed to <code>#perform</code>.</p>
 
-<p>If a passed record is deleted after the job is enqueued but before the <code>#perform</code>
-method is called Active Job will raise an <a href="https://api.rubyonrails.org/classes/ActiveJob/DeserializationError.html"><a href="ActiveJob/DeserializationError.html" title="ActiveJob::DeserializationError (class)"><code>::ActiveJob::DeserializationError</code></a></a>
-exception.</p>
+<p>If a passed record is deleted after the job is enqueued but before the
+<code>#perform</code> method is called Active Job will raise an
+<a href="https://api.rubyonrails.org/classes/ActiveJob/DeserializationError.html"><a href="ActiveJob/DeserializationError.html" title="ActiveJob::DeserializationError (class)"><code>::ActiveJob::DeserializationError</code></a></a> exception.</p>
 
 <h2>Job Testing</h2>
 
-<p>You can find detailed instructions on how to test your jobs in the
-<a href="testing.html#testing-jobs">testing guide</a>.</p>
+<p>You can find detailed instructions on how to test your jobs in the <a href="testing.html#testing-jobs">testing
+guide</a>.</p>
 
 <h2>Debugging</h2>
 
-<p>If you need help figuring out where jobs are coming from, you can enable <a href="debugging_rails_applications.html#verbose-enqueue-logs">verbose logging</a>.</p>
+<p>If you need help figuring out where jobs are coming from, you can enable
+<a href="debugging_rails_applications.html#verbose-enqueue-logs">verbose logging</a>.</p>
+
+<h2>Alternate Queuing Backends</h2>
+
+<p>Active Job has other built-in adapters for multiple queuing backends (Sidekiq,
+Resque, Delayed Job, and others). To get an up-to-date list of the adapters see
+the API Documentation for <a href="https://api.rubyonrails.org/classes/ActiveJob/QueueAdapters.html"><a href="ActiveJob/QueueAdapters.html" title="ActiveJob::QueueAdapters (module)"><code>::ActiveJob::QueueAdapters</code></a></a>.</p>
+
+<h3>Configuring the Backend</h3>
+
+<p>You can change your queuing backend with <a href="configuring.html#config-active-job-queue-adapter"><code>config.active_job.queue_adapter</code></a>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/application.rb
+</span><span class='kw'>module</span> <span class='const'>YourApp</span>
+  <span class='kw'>class</span> <span class='const'>Application</span> <span class='op'>&lt;</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span><span class='op'>::</span><span class='const'><a href="Rails/Application.html" title="Rails::Application (class)">Application</a></span>
+    <span class='comment'># Be sure to have the adapter&#39;s gem in your Gemfile
+</span>    <span class='comment'># and follow the adapter&#39;s specific installation
+</span>    <span class='comment'># and deployment instructions.
+</span>    <span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_active_job'>active_job</span>.<span class='id identifier rubyid_queue_adapter'>queue_adapter</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_sidekiq'>sidekiq</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>You can also configure your backend on a per job basis:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>GuestsCleanupJob</span> <span class='op'>&lt;</span> <span class='const'>ApplicationJob</span>
+  <span class='kw'>self</span>.<span class='id identifier rubyid_queue_adapter'>queue_adapter</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_resque'>resque</span>
+  <span class='comment'># ...
+</span><span class='kw'>end</span>
+
+<span class='comment'># Now your job will use `resque` as its backend queue adapter, overriding the default Solid Queue adapter.</span></code></pre>
+
+<h3>Starting the Backend</h3>
+
+<p>Since jobs run in parallel to your Rails application, most queuing libraries
+require that you start a library-specific queuing service (in addition to
+starting your Rails app) for the job processing to work. Refer to library
+documentation for instructions on starting your queue backend.</p>
+
+<p>Here is a noncomprehensive list of documentation:</p>
+
+<ul>
+<li><a href="https://github.com/mperham/sidekiq/wiki/Active-Job">Sidekiq</a></li>
+<li><a href="https://github.com/resque/resque/wiki/ActiveJob">Resque</a></li>
+<li><a href="https://github.com/jondot/sneakers/wiki/How-To:-Rails-Background-Jobs-with-ActiveJob">Sneakers</a></li>
+<li><a href="https://github.com/QueueClassic/queue_classic#active-job">Queue Classic</a></li>
+<li><a href="https://github.com/collectiveidea/delayed_job#active-job">Delayed Job</a></li>
+<li><a href="https://github.com/que-rb/que#additional-rails-specific-setup">Que</a></li>
+<li><a href="https://github.com/bensheldon/good_job#readme">Good Job</a></li>
+</ul>
 
 <div id='footer'></div>
 </div> <!-- content  -->
