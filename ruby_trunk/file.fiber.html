@@ -69,24 +69,23 @@
 
 <p>Fibers execute a user-provided block. During the execution, the block may call <code>Fiber.yield</code> or <code>Fiber.transfer</code> to switch to another fiber. <code>Fiber#resume</code> is used to continue execution from the point where <code>Fiber.yield</code> was called.</p>
 
-<pre class="code rb"><code class="rb">#!/usr/bin/env ruby
+<pre class="code ruby"><code class="ruby"><span class='comment'>#!/usr/bin/env ruby
+</span>
+<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>1: Start program.</span><span class='tstring_end'>&quot;</span></span>
 
-puts &quot;1: Start program.&quot;
+<span class='id identifier rubyid_f'>f</span> <span class='op'>=</span> <span class='const'>Fiber</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>3: Entered fiber.</span><span class='tstring_end'>&quot;</span></span>
+  <span class='const'>Fiber</span>.<span class='id identifier rubyid_yield'>yield</span>
+  <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>5: Resumed fiber.</span><span class='tstring_end'>&quot;</span></span>
+<span class='kw'>end</span>
 
-f = Fiber.new do
-  puts &quot;3: Entered fiber.&quot;
-  Fiber.yield
-  puts &quot;5: Resumed fiber.&quot;
-end
+<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>2: Resume fiber first time.</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_resume'>resume</span>
 
-puts &quot;2: Resume fiber first time.&quot;
-f.resume
+<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>4: Resume fiber second time.</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_resume'>resume</span>
 
-puts &quot;4: Resume fiber second time.&quot;
-f.resume
-
-puts &quot;6: Finished.&quot;
-</code></pre>
+<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>6: Finished.</span><span class='tstring_end'>&quot;</span></span></code></pre>
 
 <p>This program demonstrates the flow control of fibers.</p>
 
@@ -100,13 +99,11 @@ instrumentation.</p>
 
 <p>To set the scheduler for the current thread:</p>
 
-<pre class="code rb"><code class="rb">Fiber.set_scheduler(MyScheduler.new)
-</code></pre>
+<pre class="code ruby"><code class="ruby"><span class='const'>Fiber</span>.<span class='id identifier rubyid_set_scheduler'>set_scheduler</span>(<span class='const'>MyScheduler</span>.<span class='id identifier rubyid_new'>new</span>)</code></pre>
 
 <p>When the thread exits, there is an implicit call to <code>set_scheduler</code>:</p>
 
-<pre class="code rb"><code class="rb">Fiber.set_scheduler(nil)
-</code></pre>
+<pre class="code ruby"><code class="ruby"><span class='const'>Fiber</span>.<span class='id identifier rubyid_set_scheduler'>set_scheduler</span>(<span class='kw'>nil</span>)</code></pre>
 
 <h3>Design</h3>
 
@@ -120,96 +117,95 @@ no changes.</p>
 
 <p>This is the interface you need to implement.</p>
 
-<pre class="code rb"><code class="rb">class Scheduler
-  # Wait for the specified process ID to exit.
-  # This hook is optional.
-  # @parameter pid [Integer] The process ID to wait for.
-  # @parameter flags [Integer] A bit-mask of flags suitable for {Process::Status.wait}.
-  # @returns [Process::Status] A process status instance.
-  def process_wait(pid, flags)
-    Thread.new do
-      Process::Status.wait(pid, flags)
-    end.value
-  end
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Scheduler</span>
+  <span class='comment'># Wait for the specified process ID to exit.
+</span>  <span class='comment'># This hook is optional.
+</span>  <span class='comment'># @parameter pid [Integer] The process ID to wait for.
+</span>  <span class='comment'># @parameter flags [Integer] A bit-mask of flags suitable for {Process::Status.wait}.
+</span>  <span class='comment'># @returns [Process::Status] A process status instance.
+</span>  <span class='kw'>def</span> <span class='id identifier rubyid_process_wait'>process_wait</span>(<span class='id identifier rubyid_pid'>pid</span><span class='comma'>,</span> <span class='id identifier rubyid_flags'>flags</span>)
+    <span class='const'>Thread</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+      <span class='const'>Process</span><span class='op'>::</span><span class='const'>Status</span>.<span class='id identifier rubyid_wait'>wait</span>(<span class='id identifier rubyid_pid'>pid</span><span class='comma'>,</span> <span class='id identifier rubyid_flags'>flags</span>)
+    <span class='kw'>end</span>.<span class='id identifier rubyid_value'>value</span>
+  <span class='kw'>end</span>
 
-  # Wait for the given io readiness to match the specified events within
-  # the specified timeout.
-  # @parameter event [Integer] A bit mask of {IO::READABLE},
-  #   {IO::WRITABLE} and {IO::PRIORITY}.
-  # @parameter timeout [Numeric] The amount of time to wait for the event in seconds.
-  # @returns [Integer] The subset of events that are ready.
-  def io_wait(io, events, timeout)
-  end
+  <span class='comment'># Wait for the given io readiness to match the specified events within
+</span>  <span class='comment'># the specified timeout.
+</span>  <span class='comment'># @parameter event [Integer] A bit mask of {IO::READABLE},
+</span>  <span class='comment'>#   {IO::WRITABLE} and {IO::PRIORITY}.
+</span>  <span class='comment'># @parameter timeout [Numeric] The amount of time to wait for the event in seconds.
+</span>  <span class='comment'># @returns [Integer] The subset of events that are ready.
+</span>  <span class='kw'>def</span> <span class='id identifier rubyid_io_wait'>io_wait</span>(<span class='id identifier rubyid_io'>io</span><span class='comma'>,</span> <span class='id identifier rubyid_events'>events</span><span class='comma'>,</span> <span class='id identifier rubyid_timeout'>timeout</span>)
+  <span class='kw'>end</span>
 
-  # Read from the given io into the specified buffer.
-  # WARNING: Experimental hook! Do not use in production code!
-  # @parameter io [IO] The io to read from.
-  # @parameter buffer [IO::Buffer] The buffer to read into.
-  # @parameter length [Integer] The minimum amount to read.
-  def io_read(io, buffer, length)
-  end
+  <span class='comment'># Read from the given io into the specified buffer.
+</span>  <span class='comment'># WARNING: Experimental hook! Do not use in production code!
+</span>  <span class='comment'># @parameter io [IO] The io to read from.
+</span>  <span class='comment'># @parameter buffer [IO::Buffer] The buffer to read into.
+</span>  <span class='comment'># @parameter length [Integer] The minimum amount to read.
+</span>  <span class='kw'>def</span> <span class='id identifier rubyid_io_read'>io_read</span>(<span class='id identifier rubyid_io'>io</span><span class='comma'>,</span> <span class='id identifier rubyid_buffer'>buffer</span><span class='comma'>,</span> <span class='id identifier rubyid_length'>length</span>)
+  <span class='kw'>end</span>
 
-  # Write from the given buffer into the specified IO.
-  # WARNING: Experimental hook! Do not use in production code!
-  # @parameter io [IO] The io to write to.
-  # @parameter buffer [IO::Buffer] The buffer to write from.
-  # @parameter length [Integer] The minimum amount to write.
-  def io_write(io, buffer, length)
-  end
+  <span class='comment'># Write from the given buffer into the specified IO.
+</span>  <span class='comment'># WARNING: Experimental hook! Do not use in production code!
+</span>  <span class='comment'># @parameter io [IO] The io to write to.
+</span>  <span class='comment'># @parameter buffer [IO::Buffer] The buffer to write from.
+</span>  <span class='comment'># @parameter length [Integer] The minimum amount to write.
+</span>  <span class='kw'>def</span> <span class='id identifier rubyid_io_write'>io_write</span>(<span class='id identifier rubyid_io'>io</span><span class='comma'>,</span> <span class='id identifier rubyid_buffer'>buffer</span><span class='comma'>,</span> <span class='id identifier rubyid_length'>length</span>)
+  <span class='kw'>end</span>
 
-  # Sleep the current task for the specified duration, or forever if not
-  # specified.
-  # @parameter duration [Numeric] The amount of time to sleep in seconds.
-  def kernel_sleep(duration = nil)
-  end
+  <span class='comment'># Sleep the current task for the specified duration, or forever if not
+</span>  <span class='comment'># specified.
+</span>  <span class='comment'># @parameter duration [Numeric] The amount of time to sleep in seconds.
+</span>  <span class='kw'>def</span> <span class='id identifier rubyid_kernel_sleep'>kernel_sleep</span>(<span class='id identifier rubyid_duration'>duration</span> <span class='op'>=</span> <span class='kw'>nil</span>)
+  <span class='kw'>end</span>
 
-  # Execute the given block. If the block execution exceeds the given timeout,
-  # the specified exception `klass` will be raised. Typically, only non-blocking
-  # methods which enter the scheduler will raise such exceptions.
-  # @parameter duration [Integer] The amount of time to wait, after which an exception will be raised.
-  # @parameter klass [Class] The exception class to raise.
-  # @parameter *arguments [Array] The arguments to send to the constructor of the exception.
-  # @yields {...} The user code to execute.
-  def timeout_after(duration, klass, *arguments, &amp;block)
-  end
+  <span class='comment'># Execute the given block. If the block execution exceeds the given timeout,
+</span>  <span class='comment'># the specified exception `klass` will be raised. Typically, only non-blocking
+</span>  <span class='comment'># methods which enter the scheduler will raise such exceptions.
+</span>  <span class='comment'># @parameter duration [Integer] The amount of time to wait, after which an exception will be raised.
+</span>  <span class='comment'># @parameter klass [Class] The exception class to raise.
+</span>  <span class='comment'># @parameter *arguments [Array] The arguments to send to the constructor of the exception.
+</span>  <span class='comment'># @yields {...} The user code to execute.
+</span>  <span class='kw'>def</span> <span class='id identifier rubyid_timeout_after'>timeout_after</span>(<span class='id identifier rubyid_duration'>duration</span><span class='comma'>,</span> <span class='id identifier rubyid_klass'>klass</span><span class='comma'>,</span> <span class='op'>*</span><span class='id identifier rubyid_arguments'>arguments</span><span class='comma'>,</span> <span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span>)
+  <span class='kw'>end</span>
 
-  # Resolve hostname to an array of IP addresses.
-  # This hook is optional.
-  # @parameter hostname [String] Example: &quot;www.ruby-lang.org&quot;.
-  # @returns [Array] An array of IPv4 and/or IPv6 address strings that the hostname resolves to.
-  def address_resolve(hostname)
-  end
+  <span class='comment'># Resolve hostname to an array of IP addresses.
+</span>  <span class='comment'># This hook is optional.
+</span>  <span class='comment'># @parameter hostname [String] Example: &quot;www.ruby-lang.org&quot;.
+</span>  <span class='comment'># @returns [Array] An array of IPv4 and/or IPv6 address strings that the hostname resolves to.
+</span>  <span class='kw'>def</span> <span class='id identifier rubyid_address_resolve'>address_resolve</span>(<span class='id identifier rubyid_hostname'>hostname</span>)
+  <span class='kw'>end</span>
 
-  # Block the calling fiber.
-  # @parameter blocker [Object] What we are waiting on, informational only.
-  # @parameter timeout [Numeric | Nil] The amount of time to wait for in seconds.
-  # @returns [Boolean] Whether the blocking operation was successful or not.
-  def block(blocker, timeout = nil)
-  end
+  <span class='comment'># Block the calling fiber.
+</span>  <span class='comment'># @parameter blocker [Object] What we are waiting on, informational only.
+</span>  <span class='comment'># @parameter timeout [Numeric | Nil] The amount of time to wait for in seconds.
+</span>  <span class='comment'># @returns [Boolean] Whether the blocking operation was successful or not.
+</span>  <span class='kw'>def</span> <span class='id identifier rubyid_block'>block</span>(<span class='id identifier rubyid_blocker'>blocker</span><span class='comma'>,</span> <span class='id identifier rubyid_timeout'>timeout</span> <span class='op'>=</span> <span class='kw'>nil</span>)
+  <span class='kw'>end</span>
 
-  # Unblock the specified fiber.
-  # @parameter blocker [Object] What we are waiting on, informational only.
-  # @parameter fiber [Fiber] The fiber to unblock.
-  # @reentrant Thread safe.
-  def unblock(blocker, fiber)
-  end
+  <span class='comment'># Unblock the specified fiber.
+</span>  <span class='comment'># @parameter blocker [Object] What we are waiting on, informational only.
+</span>  <span class='comment'># @parameter fiber [Fiber] The fiber to unblock.
+</span>  <span class='comment'># @reentrant Thread safe.
+</span>  <span class='kw'>def</span> <span class='id identifier rubyid_unblock'>unblock</span>(<span class='id identifier rubyid_blocker'>blocker</span><span class='comma'>,</span> <span class='id identifier rubyid_fiber'>fiber</span>)
+  <span class='kw'>end</span>
 
-  # Intercept the creation of a non-blocking fiber.
-  # @returns [Fiber]
-  def fiber(&amp;block)
-    Fiber.new(blocking: false, &amp;block)
-  end
+  <span class='comment'># Intercept the creation of a non-blocking fiber.
+</span>  <span class='comment'># @returns [Fiber]
+</span>  <span class='kw'>def</span> <span class='id identifier rubyid_fiber'>fiber</span>(<span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span>)
+    <span class='const'>Fiber</span>.<span class='id identifier rubyid_new'>new</span>(<span class='label'>blocking:</span> <span class='kw'>false</span><span class='comma'>,</span> <span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span>)
+  <span class='kw'>end</span>
 
-  # Invoked when the thread exits.
-  def close
-    self.run
-  end
+  <span class='comment'># Invoked when the thread exits.
+</span>  <span class='kw'>def</span> <span class='id identifier rubyid_close'>close</span>
+    <span class='kw'>self</span>.<span class='id identifier rubyid_run'>run</span>
+  <span class='kw'>end</span>
 
-  def run
-    # Implement event loop here.
-  end
-end
-</code></pre>
+  <span class='kw'>def</span> <span class='id identifier rubyid_run'>run</span>
+    <span class='comment'># Implement event loop here.
+</span>  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
 
 <p>Additional hooks may be introduced in the future, we will use feature detection
 in order to enable these hooks.</p>
@@ -225,27 +221,25 @@ program.</p>
 
 <p>Fibers can be used to create non-blocking execution contexts.</p>
 
-<pre class="code rb"><code class="rb">Fiber.new do
-  puts Fiber.current.blocking? # false
+<pre class="code ruby"><code class="ruby"><span class='const'>Fiber</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_puts'>puts</span> <span class='const'>Fiber</span>.<span class='id identifier rubyid_current'>current</span>.<span class='id identifier rubyid_blocking?'>blocking?</span> <span class='comment'># false
+</span>
+  <span class='comment'># May invoke {Fiber.scheduler&amp;.io_wait}.
+</span>  <span class='id identifier rubyid_io'>io</span>.<span class='id identifier rubyid_read'>read</span>(<span class='op'>...</span>)
 
-  # May invoke {Fiber.scheduler&amp;.io_wait}.
-  io.read(...)
+  <span class='comment'># May invoke {Fiber.scheduler&amp;.io_wait}.
+</span>  <span class='id identifier rubyid_io'>io</span>.<span class='id identifier rubyid_write'>write</span>(<span class='op'>...</span>)
 
-  # May invoke {Fiber.scheduler&amp;.io_wait}.
-  io.write(...)
-
-  # Will invoke {Fiber.scheduler&amp;.kernel_sleep}.
-  sleep(n)
-end.resume
-</code></pre>
+  <span class='comment'># Will invoke {Fiber.scheduler&amp;.kernel_sleep}.
+</span>  <span class='id identifier rubyid_sleep'>sleep</span>(<span class='id identifier rubyid_n'>n</span>)
+<span class='kw'>end</span>.<span class='id identifier rubyid_resume'>resume</span></code></pre>
 
 <p>We also introduce a new method which simplifies the creation of these
 non-blocking fibers:</p>
 
-<pre class="code rb"><code class="rb">Fiber.schedule do
-  puts Fiber.current.blocking? # false
-end
-</code></pre>
+<pre class="code ruby"><code class="ruby"><span class='const'>Fiber</span>.<span class='id identifier rubyid_schedule'>schedule</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_puts'>puts</span> <span class='const'>Fiber</span>.<span class='id identifier rubyid_current'>current</span>.<span class='id identifier rubyid_blocking?'>blocking?</span> <span class='comment'># false
+</span><span class='kw'>end</span></code></pre>
 
 <p>The purpose of this method is to allow the scheduler to internally decide the
 policy for when to start the fiber, and whether to use symmetric or asymmetric
@@ -253,11 +247,10 @@ fibers.</p>
 
 <p>You can also create blocking execution contexts:</p>
 
-<pre class="code rb"><code class="rb">Fiber.new(blocking: true) do
-  # Won&#39;t use the scheduler:
-  sleep(n)
-end
-</code></pre>
+<pre class="code ruby"><code class="ruby"><span class='const'>Fiber</span>.<span class='id identifier rubyid_new'>new</span>(<span class='label'>blocking:</span> <span class='kw'>true</span>) <span class='kw'>do</span>
+  <span class='comment'># Won&#39;t use the scheduler:
+</span>  <span class='id identifier rubyid_sleep'>sleep</span>(<span class='id identifier rubyid_n'>n</span>)
+<span class='kw'>end</span></code></pre>
 
 <p>However you should generally avoid this unless you are implementing a scheduler.</p>
 
