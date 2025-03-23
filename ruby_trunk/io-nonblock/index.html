@@ -77,7 +77,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/io/nonblock/nonblock.c#L39'>ext/io/nonblock/nonblock.c</a>      </td>
+      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/io/nonblock/nonblock.c#L50'>ext/io/nonblock/nonblock.c</a>      </td>
     </tr>
   </tbody>
 </table>
@@ -134,32 +134,33 @@
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/io/nonblock/nonblock.c#L154-L173'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/io/nonblock/nonblock.c#L171-L191'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='154' data-end='173'></pre>
+  <pre class='lines_num' data-start='171' data-end='191'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/io/nonblock/nonblock.c', line 154</span></pre>
+<pre><span class='info file'># File 'ext/io/nonblock/nonblock.c', line 171</span></pre>
 <pre class='code cpp'>
 
 static VALUE
-rb_io_nonblock_block(int argc, VALUE *argv, VALUE io)
+rb_io_nonblock_block(int argc, VALUE *argv, VALUE self)
 {
     int nb = 1;
-    rb_io_t *fptr;
-    int f, restore[2];
 
-    GetOpenFile(io, fptr);
+    int descriptor = rb_io_descriptor(self);
+
     if (argc &gt; 0) {
-	VALUE v;
-	rb_scan_args(argc, argv, &quot;01&quot;, &amp;v);
-	nb = RTEST(v);
+        VALUE v;
+        rb_scan_args(argc, argv, &quot;01&quot;, &amp;v);
+        nb = RTEST(v);
     }
-    f = get_fcntl_flags(fptr-&gt;fd);
-    restore[0] = fptr-&gt;fd;
-    restore[1] = f;
-    if (!io_nonblock_set(fptr-&gt;fd, f, nb))
-	return rb_yield(io);
-    return rb_ensure(rb_yield, io, io_nonblock_restore, (VALUE)restore);
+
+    int current_flags = get_fcntl_flags(descriptor);
+    int restore[2] = {descriptor, current_flags};
+
+    if (!io_nonblock_set(descriptor, current_flags, nb))
+        return rb_yield(self);
+
+    return rb_ensure(rb_yield, self, io_nonblock_restore, (VALUE)restore);
 }
 </pre>
   </div>
@@ -202,23 +203,27 @@ STDOUT.write_nonblock(&quot;foo&quot;)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/io/nonblock/nonblock.c#L124-L134'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/io/nonblock/nonblock.c#L135-L149'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='124' data-end='134'></pre>
+  <pre class='lines_num' data-start='135' data-end='149'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/io/nonblock/nonblock.c', line 124</span></pre>
+<pre><span class='info file'># File 'ext/io/nonblock/nonblock.c', line 135</span></pre>
 <pre class='code cpp'>
 
 static VALUE
-rb_io_nonblock_set(VALUE io, VALUE nb)
+rb_io_nonblock_set(VALUE self, VALUE value)
 {
-    rb_io_t *fptr;
-    GetOpenFile(io, fptr);
-    if (RTEST(nb))
-	rb_io_set_nonblock(fptr);
-    else
-	io_nonblock_set(fptr-&gt;fd, get_fcntl_flags(fptr-&gt;fd), RTEST(nb));
-    return io;
+    if (RTEST(value)) {
+        rb_io_t *fptr;
+        GetOpenFile(self, fptr);
+        rb_io_set_nonblock(fptr);
+    }
+    else {
+        int descriptor = rb_io_descriptor(self);
+        io_nonblock_set(descriptor, get_fcntl_flags(descriptor), RTEST(value));
+    }
+
+    return self;
 }
 </pre>
   </div>
@@ -235,20 +240,18 @@ rb_io_nonblock_set(VALUE io, VALUE nb)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/io/nonblock/nonblock.c#L39-L47'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/io/nonblock/nonblock.c#L50-L56'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='39' data-end='47'></pre>
+  <pre class='lines_num' data-start='50' data-end='56'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/io/nonblock/nonblock.c', line 39</span></pre>
+<pre><span class='info file'># File 'ext/io/nonblock/nonblock.c', line 50</span></pre>
 <pre class='code cpp'>
 
 static VALUE
 rb_io_nonblock_p(VALUE io)
 {
-    rb_io_t *fptr;
-    GetOpenFile(io, fptr);
-    if (get_fcntl_flags(fptr-&gt;fd) &amp; O_NONBLOCK)
-	return Qtrue;
+    if (get_fcntl_flags(rb_io_descriptor(io)) &amp; O_NONBLOCK)
+        return Qtrue;
     return Qfalse;
 }
 </pre>

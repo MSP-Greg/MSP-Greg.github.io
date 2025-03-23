@@ -73,11 +73,12 @@
     <tr><td colspan='2'>
       <div class='box_1'>Classes:</div>
       <div class='box_11'>
-          <a href="ObjectSpace/WeakMap.html" title="ObjectSpace::WeakMap (class)"><code>WeakMap</code></a>      </div>
+          <a href="ObjectSpace/WeakKeyMap.html" title="ObjectSpace::WeakKeyMap (class)"><code>WeakKeyMap</code></a>,
+        <a href="ObjectSpace/WeakMap.html" title="ObjectSpace::WeakMap (class)"><code>WeakMap</code></a>      </div>
     </td></tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2 o'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.c#L14664'>gc.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.rb#L290'>gc.rb</a></span>
+      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.c#L4998'>gc.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.rb#L393'>gc.rb</a>,<br/> <a class='repo' href='https://github.com/ruby/ruby/blob/master/weakmap.c#L1139'>weakmap.c</a></span>
       </td>
     </tr>
   </tbody>
@@ -90,7 +91,7 @@
     
 <p>The ObjectSpace module contains a number of routines that interact with the garbage collection facility and allow you to traverse all living objects with an iterator.</p>
 
-<p><code>ObjectSpace</code> also provides support for object finalizers, procs that will be called when a specific object is about to be destroyed by garbage collection. See the documentation for <a href="#define_finalizer-class_method" title="ObjectSpace.define_finalizer (method)">.define_finalizer</a> for important information on how to use this method correctly.</p>
+<p><code>ObjectSpace</code> also provides support for object finalizers, procs that will be called after a specific object was destroyed by garbage collection.  See the documentation for <a href="#define_finalizer-class_method" title="ObjectSpace.define_finalizer (method)">.define_finalizer</a> for important information on how to use this method correctly.</p>
 
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_a'>a</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>A</span><span class='tstring_end'>&quot;</span></span>
 <span class='id identifier rubyid_b'>b</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>B</span><span class='tstring_end'>&quot;</span></span>
@@ -136,7 +137,7 @@
     </span>
     <span class='mod_func note title'>mod_func</span>
     <div class='summary_desc'>
-      <div class='inline'><p>Calls the block once for each living, nonimmediate object in this Ruby process.</p></div>
+      <div class='inline'><p>Calls the block once for each living, nonimmediate object in this <a href="Ruby.html" title="Ruby (module)"><code>::Ruby</code></a> process.</p></div>
     </div>
   </li>
   <li>
@@ -144,6 +145,9 @@
       <a href="#garbage_collect-class_method" title=".garbage_collect (class method)">.<strong>garbage_collect</strong>(full_mark: true, immediate_mark: true, immediate_sweep: true)  </a>
     </span>
     <span class='mod_func note title'>mod_func</span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Alias of <a href="GC.html#start-class_method" title="GC.start (method)">GC.start</a></p></div>
+    </div>
   </li>
   <li>
     <span class='summary_signature mf'>
@@ -171,11 +175,11 @@
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.c#L4734-L4738'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.c#L1816-L1820'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='4734' data-end='4738'></pre>
+  <pre class='lines_num' data-start='1816' data-end='1820'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'gc.c', line 4734</span></pre>
+<pre><span class='info file'># File 'gc.c', line 1816</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -221,21 +225,17 @@ os_id2ref(VALUE os, VALUE objid)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.c#L5103-L5164'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.c#L2099-L2129'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='5103' data-end='5164'></pre>
+  <pre class='lines_num' data-start='2099' data-end='2129'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'gc.c', line 5103</span></pre>
+<pre><span class='info file'># File 'gc.c', line 2099</span></pre>
 <pre class='code cpp'>
 
 static VALUE
 count_objects(int argc, VALUE *argv, VALUE os)
 {
-    rb_objspace_t *objspace = &amp;rb_objspace;
-    size_t counts[T_MASK+1];
-    size_t freed = 0;
-    size_t total = 0;
-    size_t i;
+    struct count_objects_data data = { 0 };
     VALUE hash = Qnil;
 
     if (rb_check_arity(argc, 0, 1) == 1) {
@@ -244,34 +244,7 @@ count_objects(int argc, VALUE *argv, VALUE os)
             rb_raise(rb_eTypeError, &quot;non-hash given&quot;);
     }
 
-    for (i = 0; i &lt;= T_MASK; i++) {
-        counts[i] = 0;
-    }
-
-    for (i = 0; i &lt; heap_allocated_pages; i++) {
-        struct heap_page *page = heap_pages_sorted[i];
-        short stride = page-&gt;slot_size;
-
-        uintptr_t p = (uintptr_t)page-&gt;start;
-        uintptr_t pend = p + page-&gt;total_slots * stride;
-        for (;p &lt; pend; p += stride) {
-            VALUE vp = (VALUE)p;
-            GC_ASSERT((NUM_IN_PAGE(vp) * BASE_SLOT_SIZE) % page-&gt;slot_size == 0);
-
-            void *poisoned = asan_unpoison_object_temporary(vp);
-            if (RANY(p)-&gt;as.basic.flags) {
-                counts[BUILTIN_TYPE(vp)]++;
-            }
-            else {
-                freed++;
-            }
-            if (poisoned) {
-                GC_ASSERT(BUILTIN_TYPE(vp) == T_NONE);
-                asan_poison_object(vp);
-            }
-        }
-        total += page-&gt;total_slots;
-    }
+    rb_gc_impl_each_object(rb_gc_get_objspace(), count_objects_i, &amp;data);
 
     if (NIL_P(hash)) {
         hash = rb_hash_new();
@@ -279,13 +252,13 @@ count_objects(int argc, VALUE *argv, VALUE os)
     else if (!RHASH_EMPTY_P(hash)) {
         rb_hash_stlike_foreach(hash, set_zero, hash);
     }
-    rb_hash_aset(hash, ID2SYM(rb_intern(&quot;TOTAL&quot;)), SIZET2NUM(total));
-    rb_hash_aset(hash, ID2SYM(rb_intern(&quot;FREE&quot;)), SIZET2NUM(freed));
+    rb_hash_aset(hash, ID2SYM(rb_intern(&quot;TOTAL&quot;)), SIZET2NUM(data.total));
+    rb_hash_aset(hash, ID2SYM(rb_intern(&quot;FREE&quot;)), SIZET2NUM(data.freed));
 
-    for (i = 0; i &lt;= T_MASK; i++) {
+    for (size_t i = 0; i &lt;= T_MASK; i++) {
         VALUE type = type_sym(i);
-        if (counts[i])
-            rb_hash_aset(hash, type, SIZET2NUM(counts[i]));
+        if (data.counts[i])
+            rb_hash_aset(hash, type, SIZET2NUM(data.counts[i]));
     }
 
     return hash;
@@ -350,11 +323,11 @@ count_objects(int argc, VALUE *argv, VALUE os)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.c#L4252-L4271'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.c#L1705-L1720'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='4252' data-end='4271'></pre>
+  <pre class='lines_num' data-start='1705' data-end='1720'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'gc.c', line 4252</span></pre>
+<pre><span class='info file'># File 'gc.c', line 1705</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -363,19 +336,15 @@ define_final(int argc, VALUE *argv, VALUE os)
     VALUE obj, block;
 
     rb_scan_args(argc, argv, &quot;11&quot;, &amp;obj, &amp;block);
-    should_be_finalizable(obj);
     if (argc == 1) {
         block = rb_block_proc();
-    }
-    else {
-        should_be_callable(block);
     }
 
     if (rb_callable_receiver(block) == obj) {
         rb_warn(&quot;finalizer references object to be finalized&quot;);
     }
 
-    return define_final0(obj, block);
+    return rb_define_finalizer(obj, block);
 }
 </pre>
   </div>
@@ -392,7 +361,7 @@ define_final(int argc, VALUE *argv, VALUE os)
 <div class='docstring'>
   <div class='discussion'>
     
-<p>Calls the block once for each living, nonimmediate object in this Ruby process. If <em>module</em> is specified, calls the block for only those classes or modules that match (or are a subclass of) <em>module</em>. Returns the number of objects found. Immediate objects (<code>Fixnum</code>s, <a href="Symbol.html" title="Symbol (class)"><code>::Symbol</code></a>s <code>true</code>, <code>false</code>, and <code>nil</code>) are never returned. In the example below, <a href="#each_object-instance_method" title="ObjectSpace#each_object (method)">#each_object</a> returns both the numbers we defined and several constants defined in the <a href="Math.html" title="Math (module)"><code>::Math</code></a> module.</p>
+<p>Calls the block once for each living, nonimmediate object in this <a href="Ruby.html" title="Ruby (module)"><code>::Ruby</code></a> process. If <em>module</em> is specified, calls the block for only those classes or modules that match (or are a subclass of) <em>module</em>. Returns the number of objects found. Immediate objects (<code>Fixnum</code>s, <a href="Symbol.html" title="Symbol (class)"><code>::Symbol</code></a>s <code>true</code>, <code>false</code>, and <code>nil</code>) are never returned. In the example below, <a href="#each_object-instance_method" title="ObjectSpace#each_object (method)">#each_object</a> returns both the numbers we defined and several constants defined in the <a href="Math.html" title="Math (module)"><code>::Math</code></a> module.</p>
 
 <p>If no block is given, an enumerator is returned instead.</p>
 
@@ -418,11 +387,11 @@ define_final(int argc, VALUE *argv, VALUE os)
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.c#L4136-L4144'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.c#L1584-L1592'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='4136' data-end='4144'></pre>
+  <pre class='lines_num' data-start='1584' data-end='1592'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'gc.c', line 4136</span></pre>
+<pre><span class='info file'># File 'gc.c', line 1584</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -443,11 +412,18 @@ os_each_obj(int argc, VALUE *argv, VALUE os)
   <h3 class='signature private'>
     .<strong>garbage_collect</strong>(full_mark: true, immediate_mark: true, immediate_sweep: true)   <span class="extras">(<span class='mod_func'>mod_func</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.rb#L291-L293'>GitHub</a>&#8202;]</span>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Alias of <a href="GC.html#start-class_method" title="GC.start (method)">GC.start</a></p>
+
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.rb#L395-L397'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='291' data-end='293'></pre>
+  <pre class='lines_num' data-start='395' data-end='397'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'gc.rb', line 291</span></pre>
+<pre><span class='info file'># File 'gc.rb', line 395</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_garbage_collect'>garbage_collect</span> <span class='label'>full_mark:</span> <span class='kw'>true</span><span class='comma'>,</span> <span class='label'>immediate_mark:</span> <span class='kw'>true</span><span class='comma'>,</span> <span class='label'>immediate_sweep:</span> <span class='kw'>true</span>
@@ -468,11 +444,11 @@ os_each_obj(int argc, VALUE *argv, VALUE os)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.c#L4154-L4158'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.c#L1602-L1606'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='4154' data-end='4158'></pre>
+  <pre class='lines_num' data-start='1602' data-end='1606'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'gc.c', line 4154</span></pre>
+<pre><span class='info file'># File 'gc.c', line 1602</span></pre>
 <pre class='code cpp'>
 
 static VALUE

@@ -225,7 +225,7 @@
 
 <p>The <code>case</code> expression can be used in two ways.</p>
 
-<p>The most common way is to compare an object against multiple patterns.  The patterns are matched using the <tt>===</tt> method which is aliased to <tt>==</tt> on Object.  Other classes must override it to give meaningful behavior.  See Module#=== and Regexp#=== for examples.</p>
+<p>The most common way is to compare an object against multiple patterns.  The patterns are matched using the <code>===</code> method which is aliased to <code>==</code> on Object.  Other classes must override it to give meaningful behavior.  See Module#=== and Regexp#=== for examples.</p>
 
 <p>Here is an example of using <code>case</code> to compare a String against a pattern:</p>
 
@@ -281,7 +281,7 @@
 
 <p>The result value of a <code>case</code> expression is the last value executed in the expression.</p>
 
-<p>Since Ruby 2.7, <code>case</code> expressions also provide a more powerful experimental pattern matching feature via the <code>in</code> keyword:</p>
+<p>Since Ruby 2.7, <code>case</code> expressions also provide a more powerful pattern matching feature via the <code>in</code> keyword:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='kw'>case</span> {<span class='label'>a:</span> <span class='int'>1</span><span class='comma'>,</span> <span class='label'>b:</span> <span class='int'>2</span><span class='comma'>,</span> <span class='label'>c:</span> <span class='int'>3</span>}
 <span class='kw'>in</span> <span class='label'>a:</span> <span class='const'>Integer</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_m'>m</span>
@@ -544,6 +544,57 @@
 <span class='id identifier rubyid_p'>p</span> <span class='id identifier rubyid_selected'>selected</span> <span class='comment'># prints [2, 3, 4, 5]</span></code></pre>
 
 <p>Here, the flip-flop turns on when <code>value</code> equals 2, but doesn’t turn off on the same iteration.  The ‘off’ condition isn’t evaluated until the following iteration and <code>value</code> will never be two again.</p>
+
+<h2 id="label-throw-2Fcatch">throw/catch</h2>
+
+<p><code>throw</code> and <code>catch</code> are used to implement non-local control flow in Ruby. They operate similarly to exceptions, allowing control to pass directly from the place where <code>throw</code> is called to the place where the matching <code>catch</code> is called. The main difference between <code>throw</code>/<code>catch</code> and the use of exceptions is that <code>throw</code>/<code>catch</code> are designed for expected non-local control flow, while exceptions are designed for exceptional control flow situations, such as handling unexpected errors.</p>
+
+<p>When using <code>throw</code>, you provide 1-2 arguments.  The first argument is the value for the matching <code>catch</code>.  The second argument is optional (defaults to <code>nil</code>), and will be the value that <code>catch</code> returns if there is a matching <code>throw</code> inside the <code>catch</code> block.  If no matching <code>throw</code> method is called inside a <code>catch</code> block, the <code>catch</code> method returns the return value of the block passed to it.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_a'>a</span>(<span class='id identifier rubyid_n'>n</span>)
+  <span class='id identifier rubyid_throw'>throw</span> <span class='symbeg'>:</span><span class='id identifier rubyid_d'>d</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_a'>a</span> <span class='kw'>if</span> <span class='id identifier rubyid_n'>n</span> <span class='op'>==</span> <span class='int'>0</span>
+  <span class='id identifier rubyid_b'>b</span>(<span class='id identifier rubyid_n'>n</span>)
+<span class='kw'>end</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_b'>b</span>(<span class='id identifier rubyid_n'>n</span>)
+  <span class='id identifier rubyid_throw'>throw</span> <span class='symbeg'>:</span><span class='id identifier rubyid_d'>d</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_b'>b</span> <span class='kw'>if</span> <span class='id identifier rubyid_n'>n</span> <span class='op'>==</span> <span class='int'>1</span>
+  <span class='id identifier rubyid_c'>c</span>(<span class='id identifier rubyid_n'>n</span>)
+<span class='kw'>end</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_c'>c</span>(<span class='id identifier rubyid_n'>n</span>)
+  <span class='id identifier rubyid_throw'>throw</span> <span class='symbeg'>:</span><span class='id identifier rubyid_d'>d</span> <span class='kw'>if</span> <span class='id identifier rubyid_n'>n</span> <span class='op'>==</span> <span class='int'>2</span>
+<span class='kw'>end</span>
+
+<span class='int'>4</span>.<span class='id identifier rubyid_times'>times</span>.<span class='id identifier rubyid_map'>map</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_i'>i</span><span class='op'>|</span>
+  <span class='id identifier rubyid_catch'>catch</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_d'>d</span>) <span class='kw'>do</span>
+    <span class='id identifier rubyid_a'>a</span>(<span class='id identifier rubyid_i'>i</span>)
+    <span class='symbeg'>:</span><span class='id identifier rubyid_default'>default</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+<span class='comment'># =&gt; [:a, :b, nil, :default]</span></code></pre>
+
+<p>If the first argument you pass to <code>throw</code> is not handled by a matching <code>catch</code>, an UncaughtThrowError exception will be raised.  This is because <code>throw</code>/<code>catch</code> should only be used for expected control flow changes, so using a value that is not already expected is an error.</p>
+
+<p><code>throw</code>/<code>catch</code> are implemented as Kernel methods (Kernel#throw and Kernel#catch), not as keywords. So they are not usable directly if you are in a BasicObject context.  You can use Kernel.throw and Kernel.catch in this case:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>BasicObject</span>.<span class='id identifier rubyid_new'>new</span>.<span class='id identifier rubyid_instance_exec'>instance_exec</span> <span class='kw'>do</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_a'>a</span>
+    <span class='id identifier rubyid_b'>b</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_b'>b</span>
+    <span class='id identifier rubyid_c'>c</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_c'>c</span>
+    <span class='op'>::</span><span class='const'>Kernel</span>.<span class='id identifier rubyid_throw'>throw</span> <span class='symbeg'>:</span><span class='id identifier rubyid_d'>d</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_e'>e</span>
+  <span class='kw'>end</span>
+
+  <span class='id identifier rubyid_result'>result</span> <span class='op'>=</span> <span class='op'>::</span><span class='const'>Kernel</span>.<span class='id identifier rubyid_catch'>catch</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_d'>d</span>) <span class='kw'>do</span>
+    <span class='id identifier rubyid_a'>a</span>
+  <span class='kw'>end</span>
+  <span class='id identifier rubyid_result'>result</span> <span class='comment'># =&gt; :e
+</span><span class='kw'>end</span></code></pre>
 
 <div id='footer'></div>
 </div> <!-- content  -->

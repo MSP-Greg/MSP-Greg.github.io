@@ -88,7 +88,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2 o'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.c#L14681'>gc.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.c#L14593'>gc.c</a></span>
+      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/weakmap.c#L1141'>weakmap.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/weakmap.c#L1076'>weakmap.c</a></span>
       </td>
     </tr>
   </tbody>
@@ -99,9 +99,37 @@
 <div class='docstring'>
   <div class='discussion'>
     
-<p>An <code>WeakMap</code> object holds references to any objects, but those objects can get garbage collected.</p>
+<p>An <code>WeakMap</code> is a key-value map that holds weak references to its keys and values, so they can be garbage-collected when there are no more references left.</p>
 
-<p>This class is mostly used internally by WeakRef, please use <code>lib/weakref.rb</code> for the public interface.</p>
+<p>Keys in the map are compared by identity.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_m'>m</span> <span class='op'>=</span> <span class='const'><a href="../ObjectSpace.html" title="ObjectSpace (module)">ObjectSpace</a></span><span class='op'>::</span><span class='const'>WeakMap</span>.<span class='id identifier rubyid_new'><a href="../BasicObject.html#new-class_method" title="BasicObject.new (method)">new</a></span>
+<span class='id identifier rubyid_key1'>key1</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_val1'>val1</span> <span class='op'>=</span> <span class='const'><a href="../Object.html" title="Object (class)">Object</a></span>.<span class='id identifier rubyid_new'><a href="../BasicObject.html#new-class_method" title="BasicObject.new (method)">new</a></span>
+<span class='id identifier rubyid_m'>m</span>[<span class='id identifier rubyid_key1'>key1</span>] <span class='op'>=</span> <span class='id identifier rubyid_val1'>val1</span>
+
+<span class='id identifier rubyid_key2'>key2</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>bar</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_val2'>val2</span> <span class='op'>=</span> <span class='const'><a href="../Object.html" title="Object (class)">Object</a></span>.<span class='id identifier rubyid_new'><a href="../BasicObject.html#new-class_method" title="BasicObject.new (method)">new</a></span>
+<span class='id identifier rubyid_m'>m</span>[<span class='id identifier rubyid_key2'>key2</span>] <span class='op'>=</span> <span class='id identifier rubyid_val2'>val2</span>
+
+<span class='id identifier rubyid_m'>m</span>[<span class='id identifier rubyid_key1'>key1</span>] <span class='comment'>#=&gt; #&lt;Object:0x0...&gt;
+</span><span class='id identifier rubyid_m'>m</span>[<span class='id identifier rubyid_key2'>key2</span>] <span class='comment'>#=&gt; #&lt;Object:0x0...&gt;
+</span>
+<span class='id identifier rubyid_val1'>val1</span> <span class='op'>=</span> <span class='kw'>nil</span> <span class='comment'># remove the other reference to value
+</span><span class='const'><a href="../GC.html" title="GC (module)">GC</a></span>.<span class='id identifier rubyid_start'><a href="../GC.html#start-class_method" title="GC.start (method)">start</a></span>
+
+<span class='id identifier rubyid_m'>m</span>[<span class='id identifier rubyid_key1'>key1</span>] <span class='comment'>#=&gt; nil
+</span><span class='id identifier rubyid_m'>m</span>.<span class='id identifier rubyid_keys'><a href="#keys-instance_method" title="ObjectSpace::WeakMap#keys (method)">keys</a></span> <span class='comment'>#=&gt; [&quot;bar&quot;]
+</span>
+<span class='id identifier rubyid_key2'>key2</span> <span class='op'>=</span> <span class='kw'>nil</span> <span class='comment'># remove the other reference to key
+</span><span class='const'><a href="../GC.html" title="GC (module)">GC</a></span>.<span class='id identifier rubyid_start'><a href="../GC.html#start-class_method" title="GC.start (method)">start</a></span>
+
+<span class='id identifier rubyid_m'>m</span>[<span class='id identifier rubyid_key2'>key2</span>] <span class='comment'>#=&gt; nil
+</span><span class='id identifier rubyid_m'>m</span>.<span class='id identifier rubyid_keys'><a href="#keys-instance_method" title="ObjectSpace::WeakMap#keys (method)">keys</a></span> <span class='comment'>#=&gt; []</span></code></pre>
+
+<p>(Note that <a href="../GC.html#start-class_method" title="GC.start (method)">GC.start</a> is used here only for demonstrational purposes and might not always lead to demonstrated results.)</p>
+
+<p>See also <a href="WeakKeyMap.html" title="ObjectSpace::WeakKeyMap (class)"><code>WeakKeyMap</code></a> map class, which compares keys by value, and holds weak references only to the keys.</p>
 
   </div>
 </div>
@@ -111,40 +139,48 @@
 <ul class='summary full'>
   <li>
     <span class='summary_signature '>
-      <a href="#[]-instance_method" title="#[] (instance method)">#<strong>[]</strong>(key)  </a>
+      <a href="#[]-instance_method" title="#[] (instance method)">#<strong>[]</strong>(key)  &#x21d2; value </a>
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>Retrieves a weakly referenced object with the given key.</p></div>
+      <div class='inline'><p>Returns the value associated with the given <code>key</code> if found.</p></div>
     </div>
   </li>
   <li>
     <span class='summary_signature '>
-      <a href="#[]=-instance_method" title="#[]= (instance method)">#<strong>[]=</strong>(key, value)  </a>
+      <a href="#[]=-instance_method" title="#[]= (instance method)">#<strong>[]=</strong>(key, value)  &#x21d2; value </a>
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>Creates a weak reference from the given key to the given value.</p></div>
+      <div class='inline'><p>Associates the given <code>value</code> with the given <code>key</code>.</p></div>
     </div>
   </li>
   <li>
     <span class='summary_signature '>
-      <a href="#each-instance_method" title="#each (instance method)">#<strong>each</strong>  </a>
+      <a href="#delete-instance_method" title="#delete (instance method)">#<strong>delete</strong>(key)  &#x21d2; value<sup>?</sup> </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Deletes the entry for the given <code>key</code> and returns its associated value.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#each_pair-instance_method" title="#each (instance method)">#<strong>each</strong> {|key, val| ... } &#x21d2; self </a>
       (also: #each_pair)
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>Iterates over keys and objects in a weakly referenced object.</p></div>
+      <div class='inline'><p>Iterates over keys and values.</p></div>
     </div>
   </li>
   <li>
     <span class='summary_signature '>
-      <a href="#each_key-instance_method" title="#each_key (instance method)">#<strong>each_key</strong>  </a>
+      <a href="#each_key-instance_method" title="#each_key (instance method)">#<strong>each_key</strong> {|key| ... } &#x21d2; self </a>
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>Iterates over keys and objects in a weakly referenced object.</p></div>
+      <div class='inline'><p>Iterates over keys.</p></div>
     </div>
   </li>
   <li>
     <span class='summary_signature '>
-      <a href="#each_pair-instance_method" title="#each_pair (instance method)">#<strong>each_pair</strong>  </a>
+      <a href="#each_pair-instance_method" title="#each_pair (instance method)">#<strong>each_pair</strong> {|key, val| ... } &#x21d2; self </a>
     </span>
     <div class='summary_desc'>
       <div class='inline'><p>Alias for <a href="#each-instance_method" title="ObjectSpace::WeakMap#each (method)">#each</a>.</p></div>
@@ -152,10 +188,10 @@
   </li>
   <li>
     <span class='summary_signature '>
-      <a href="#each_value-instance_method" title="#each_value (instance method)">#<strong>each_value</strong>  </a>
+      <a href="#each_value-instance_method" title="#each_value (instance method)">#<strong>each_value</strong> {|val| ... } &#x21d2; self </a>
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>Iterates over keys and objects in a weakly referenced object.</p></div>
+      <div class='inline'><p>Iterates over values.</p></div>
     </div>
   </li>
   <li>
@@ -173,24 +209,24 @@
   </li>
   <li>
     <span class='summary_signature '>
-      <a href="#key%3F-instance_method" title="#key? (instance method)">#<strong>key?</strong>(key)  </a>
+      <a href="#key%3F-instance_method" title="#key? (instance method)">#<strong>key?</strong>(key)  &#x21d2; Boolean </a>
       (also: #include?, #member?)
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>Returns <code>true</code> if <code>key</code> is registered.</p></div>
+      <div class='inline'><p>Returns <code>true</code> if <code>key</code> is a key in <code>self</code>, otherwise <code>false</code>.</p></div>
     </div>
   </li>
   <li>
     <span class='summary_signature '>
-      <a href="#keys-instance_method" title="#keys (instance method)">#<strong>keys</strong>  </a>
+      <a href="#keys-instance_method" title="#keys (instance method)">#<strong>keys</strong>  &#x21d2; Array </a>
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>Iterates over keys and objects in a weakly referenced object.</p></div>
+      <div class='inline'><p>Returns a new <a href="../Array.html" title="Array (class)"><code>::Array</code></a> containing all keys in the map.</p></div>
     </div>
   </li>
   <li>
     <span class='summary_signature '>
-      <a href="#length-instance_method" title="#length (instance method)">#<strong>length</strong>  </a>
+      <a href="#length-instance_method" title="#length (instance method)">#<strong>length</strong>  &#x21d2; Numeric </a>
       (also: #size)
     </span>
     <div class='summary_desc'>
@@ -207,7 +243,7 @@
   </li>
   <li>
     <span class='summary_signature '>
-      <a href="#size-instance_method" title="#size (instance method)">#<strong>size</strong>  </a>
+      <a href="#size-instance_method" title="#size (instance method)">#<strong>size</strong>  &#x21d2; Numeric </a>
     </span>
     <div class='summary_desc'>
       <div class='inline'><p>Alias for <a href="#length-instance_method" title="ObjectSpace::WeakMap#length (method)">#length</a>.</p></div>
@@ -215,10 +251,10 @@
   </li>
   <li>
     <span class='summary_signature '>
-      <a href="#values-instance_method" title="#values (instance method)">#<strong>values</strong>  </a>
+      <a href="#values-instance_method" title="#values (instance method)">#<strong>values</strong>  &#x21d2; Array </a>
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>Iterates over values and objects in a weakly referenced object.</p></div>
+      <div class='inline'><p>Returns a new <a href="../Array.html" title="Array (class)"><code>::Array</code></a> containing all values in the map.</p></div>
     </div>
   </li>
 </ul>
@@ -292,7 +328,7 @@
     </tr>
     <tr class='i_ds'>
       <td><a class='i_m ' href="../Enumerable.html#each_with_index-instance_method" title="Enumerable#each_with_index (method)">#each_with_index</a></td>
-      <td><div class='inline'><p>With a block given, calls the block with each element and its index; returns <code>self</code>:</p></div></td>
+      <td><div class='inline'><p>Invoke <code>self.each</code> with <code>*args</code>.</p></div></td>
     </tr>
     <tr class='i_ds'>
       <td><a class='i_m ' href="../Enumerable.html#each_with_object-instance_method" title="Enumerable#each_with_object (method)">#each_with_object</a></td>
@@ -348,7 +384,7 @@
     </tr>
     <tr class='i_ds'>
       <td><a class='i_m ' href="../Enumerable.html#inject-instance_method" title="Enumerable#inject (method)">#inject</a></td>
-      <td><div class='inline'><p>Returns an object formed from operands via either:</p></div></td>
+      <td><div class='inline'><p>Returns the result of applying a reducer to an initial value and the first element of the <a href="../Enumerable.html" title="Enumerable (module)"><code>::Enumerable</code></a>.</p></div></td>
     </tr>
     <tr class='i_ds'>
       <td><a class='i_m ' href="../Enumerable.html#lazy-instance_method" title="Enumerable#lazy (method)">#lazy</a></td>
@@ -448,7 +484,7 @@
     </tr>
     <tr class='i_ds'>
       <td><a class='i_m ' href="../Enumerable.html#tally-instance_method" title="Enumerable#tally (method)">#tally</a></td>
-      <td><div class='inline'><p>Returns a hash containing the counts of equal elements:</p></div></td>
+      <td><div class='inline'><p>When argument <code>hash</code> is not given, returns a new hash whose keys are the distinct elements in <code>self</code>; each integer value is the count of occurrences of each element:</p></div></td>
     </tr>
     <tr class='i_ds'>
       <td><a class='i_m ' href="../Enumerable.html#to_a-instance_method" title="Enumerable#to_a (method)">#to_a</a></td>
@@ -476,20 +512,21 @@
 <h2 class='y_details'>Instance Method Details</h2>
 <section class='method_details first' id="[]-instance_method">
   <h3 class='signature  first'>
-    #<strong>[]</strong>(key)  
-  </h3>
+    #<strong>[]</strong>(key)  &#x21d2; <code>value</code>   </h3>
 <div class='docstring'>
   <div class='discussion'>
     
-<p>Retrieves a weakly referenced object with the given key</p>
+<p>Returns the value associated with the given <code>key</code> if found.</p>
+
+<p>If <code>key</code> is not found, returns <code>nil</code>.</p>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.c#L13386-L13391'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/weakmap.c#L514-L519'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='13386' data-end='13391'></pre>
+  <pre class='lines_num' data-start='514' data-end='519'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'gc.c', line 13386</span></pre>
+<pre><span class='info file'># File 'weakmap.c', line 514</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -505,55 +542,118 @@ wmap_aref(VALUE self, VALUE key)
 
 <section class='method_details' id="[]=-instance_method">
   <h3 class='signature '>
-    #<strong>[]=</strong>(key, value)  
+    #<strong>[]=</strong>(key, value)  &#x21d2; <code>value</code>   </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Associates the given <code>value</code> with the given <code>key</code>.</p>
+
+<p>If the given <code>key</code> exists, replaces its value with the given <code>value</code>; the ordering is not affected.</p>
+
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/weakmap.c#L473-L487'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='473' data-end='487'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'weakmap.c', line 473</span></pre>
+<pre class='code cpp'>
+
+static VALUE
+wmap_aset(VALUE self, VALUE key, VALUE val)
+{
+    struct weakmap *w;
+    TypedData_Get_Struct(self, struct weakmap, &amp;weakmap_type, w);
+
+    VALUE pair[2] = { key, val };
+
+    st_update(w-&gt;table, (st_data_t)pair, wmap_aset_replace, (st_data_t)pair);
+
+    RB_OBJ_WRITTEN(self, Qundef, key);
+    RB_OBJ_WRITTEN(self, Qundef, val);
+
+    return Qnil;
+}
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="delete-instance_method">
+  <h3 class='signature '>
+    <div class='inline-block'>
+      <span class='overload'>#<strong>delete</strong>(key)  &#x21d2; <code>value</code><sup>?</sup> </span>
+      <span class='overload'>#<strong>delete</strong>(key) {|key| ... } &#x21d2; <a href="../Object.html" title="Object (class)">Object</a> </span>
+    </div>
   </h3>
 <div class='docstring'>
   <div class='discussion'>
     
-<p>Creates a weak reference from the given key to the given value</p>
+<p>Deletes the entry for the given <code>key</code> and returns its associated value.</p>
+
+<p>If no block is given and <code>key</code> is found, deletes the entry and returns the associated value:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_m'>m</span> <span class='op'>=</span> <span class='const'><a href="../ObjectSpace.html" title="ObjectSpace (module)">ObjectSpace</a></span><span class='op'>::</span><span class='const'>WeakMap</span>.<span class='id identifier rubyid_new'><a href="../BasicObject.html#new-class_method" title="BasicObject.new (method)">new</a></span>
+<span class='id identifier rubyid_key'>key</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_m'>m</span>[<span class='id identifier rubyid_key'>key</span>] <span class='op'>=</span> <span class='int'>1</span>
+<span class='id identifier rubyid_m'>m</span>.<span class='id identifier rubyid_delete'>delete</span>(<span class='id identifier rubyid_key'>key</span>) <span class='comment'># =&gt; 1
+</span><span class='id identifier rubyid_m'>m</span>[<span class='id identifier rubyid_key'>key</span>] <span class='comment'># =&gt; nil</span></code></pre>
+
+<p>If no block is given and <code>key</code> is not found, returns <code>nil</code>.</p>
+
+<p>If a block is given and <code>key</code> is found, ignores the block, deletes the entry, and returns the associated value:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_m'>m</span> <span class='op'>=</span> <span class='const'><a href="../ObjectSpace.html" title="ObjectSpace (module)">ObjectSpace</a></span><span class='op'>::</span><span class='const'>WeakMap</span>.<span class='id identifier rubyid_new'><a href="../BasicObject.html#new-class_method" title="BasicObject.new (method)">new</a></span>
+<span class='id identifier rubyid_key'>key</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_m'>m</span>[<span class='id identifier rubyid_key'>key</span>] <span class='op'>=</span> <span class='int'>2</span>
+<span class='id identifier rubyid_m'>m</span>.<span class='id identifier rubyid_delete'>delete</span>(<span class='id identifier rubyid_key'>key</span>) { <span class='op'>|</span><span class='id identifier rubyid_key'>key</span><span class='op'>|</span> <span class='id identifier rubyid_raise'>raise</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Will never happen</span><span class='tstring_end'>&#39;</span></span>} <span class='comment'># =&gt; 2</span></code></pre>
+
+<p>If a block is given and <code>key</code> is not found, yields the <code>key</code> to the block and returns the block’s return value:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_m'>m</span> <span class='op'>=</span> <span class='const'><a href="../ObjectSpace.html" title="ObjectSpace (module)">ObjectSpace</a></span><span class='op'>::</span><span class='const'>WeakMap</span>.<span class='id identifier rubyid_new'><a href="../BasicObject.html#new-class_method" title="BasicObject.new (method)">new</a></span>
+<span class='id identifier rubyid_m'>m</span>.<span class='id identifier rubyid_delete'>delete</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>nosuch</span><span class='tstring_end'>&quot;</span></span>) { <span class='op'>|</span><span class='id identifier rubyid_key'>key</span><span class='op'>|</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Key </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_key'>key</span><span class='embexpr_end'>}</span><span class='tstring_content'> not found</span><span class='tstring_end'>&quot;</span></span> } <span class='comment'># =&gt; &quot;Key nosuch not found&quot;</span></code></pre>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.c#L13333-L13366'>GitHub</a>&#8202;]</span>
+<div class='tags'>
+  
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/weakmap.c#L549-L578'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='13333' data-end='13366'></pre>
+  <pre class='lines_num' data-start='549' data-end='578'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'gc.c', line 13333</span></pre>
+<pre><span class='info file'># File 'weakmap.c', line 549</span></pre>
 <pre class='code cpp'>
 
 static VALUE
-wmap_aset(VALUE self, VALUE key, VALUE value)
+wmap_delete(VALUE self, VALUE key)
 {
     struct weakmap *w;
-
     TypedData_Get_Struct(self, struct weakmap, &amp;weakmap_type, w);
-    if (FL_ABLE(value)) {
-        define_final0(value, w-&gt;final);
-    }
-    if (FL_ABLE(key)) {
-        define_final0(key, w-&gt;final);
-    }
 
-    struct wmap_aset_replace_args aset_args = {
-        .new_value = value,
-        .old_value = Qundef,
-    };
-    st_update(w-&gt;wmap2obj, (st_data_t)key, wmap_aset_replace_value, (st_data_t)&amp;aset_args);
+    VALUE orig_key = key;
+    st_data_t orig_key_data = (st_data_t)&amp;orig_key;
+    st_data_t orig_val_data;
+    if (st_delete(w-&gt;table, &amp;orig_key_data, &amp;orig_val_data)) {
+        VALUE orig_val = *(VALUE *)orig_val_data;
 
-    // If the value is unchanged, we have nothing to do.
-    if (value != aset_args.old_value) {
-        if (!UNDEF_P(aset_args.old_value) &amp;&amp; FL_ABLE(aset_args.old_value)) {
-            // That key existed and had an inverse reference, we need to clear the outdated inverse reference.
-            st_update(w-&gt;obj2wmap, (st_data_t)aset_args.old_value, wmap_remove_inverse_ref, key);
-        }
+        rb_gc_remove_weak(self, (VALUE *)orig_key_data);
+        rb_gc_remove_weak(self, (VALUE *)orig_val_data);
 
-        if (FL_ABLE(value)) {
-            // If the value has no finalizer, we don&#39;t need to keep the inverse reference
-            st_update(w-&gt;obj2wmap, (st_data_t)value, wmap_aset_update, key);
+        struct weakmap_entry *entry = (struct weakmap_entry *)orig_key_data;
+        ruby_sized_xfree(entry, sizeof(struct weakmap_entry));
+
+        if (wmap_live_p(orig_val)) {
+            return orig_val;
         }
     }
 
-    return nonspecial_obj_id(value);
+    if (rb_block_given_p()) {
+        return rb_yield(key);
+    }
+    else {
+        return Qnil;
+    }
 }
 </pre>
   </div>
@@ -562,31 +662,30 @@ wmap_aset(VALUE self, VALUE key, VALUE value)
 
 <section class='method_details' id="each-instance_method">
   <h3 class='signature '>
-    #<strong>each</strong>  
-    <span class='aliases'>Also known as: <span class='names'>#each_pair</span></span>
+    #<strong>each</strong> {|key, val| ... } &#x21d2; <code>self</code>     <span class='aliases'>Also known as: <span class='names'>#each_pair</span></span>
   </h3>
 <div class='docstring'>
   <div class='discussion'>
     
-<p>Iterates over keys and objects in a weakly referenced object</p>
+<p>Iterates over keys and values. Note that unlike other collections, <code>each</code> without block isn’t supported.</p>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.c#L13163-L13172'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/weakmap.c#L319-L328'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='13163' data-end='13172'></pre>
+  <pre class='lines_num' data-start='319' data-end='328'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'gc.c', line 13163</span></pre>
+<pre><span class='info file'># File 'weakmap.c', line 319</span></pre>
 <pre class='code cpp'>
 
 static VALUE
 wmap_each(VALUE self)
 {
     struct weakmap *w;
-    rb_objspace_t *objspace = &amp;rb_objspace;
-
     TypedData_Get_Struct(self, struct weakmap, &amp;weakmap_type, w);
-    st_foreach(w-&gt;wmap2obj, wmap_each_i, (st_data_t)objspace);
+
+    wmap_foreach(w, wmap_each_i, (st_data_t)0);
+
     return self;
 }
 </pre>
@@ -596,30 +695,29 @@ wmap_each(VALUE self)
 
 <section class='method_details' id="each_key-instance_method">
   <h3 class='signature '>
-    #<strong>each_key</strong>  
-  </h3>
+    #<strong>each_key</strong> {|key| ... } &#x21d2; <code>self</code>   </h3>
 <div class='docstring'>
   <div class='discussion'>
     
-<p>Iterates over keys and objects in a weakly referenced object</p>
+<p>Iterates over keys. Note that unlike other collections, <code>each_key</code> without block isn’t supported.</p>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.c#L13189-L13198'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/weakmap.c#L346-L355'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='13189' data-end='13198'></pre>
+  <pre class='lines_num' data-start='346' data-end='355'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'gc.c', line 13189</span></pre>
+<pre><span class='info file'># File 'weakmap.c', line 346</span></pre>
 <pre class='code cpp'>
 
 static VALUE
 wmap_each_key(VALUE self)
 {
     struct weakmap *w;
-    rb_objspace_t *objspace = &amp;rb_objspace;
-
     TypedData_Get_Struct(self, struct weakmap, &amp;weakmap_type, w);
-    st_foreach(w-&gt;wmap2obj, wmap_each_key_i, (st_data_t)objspace);
+
+    wmap_foreach(w, wmap_each_key_i, (st_data_t)0);
+
     return self;
 }
 </pre>
@@ -629,7 +727,10 @@ wmap_each_key(VALUE self)
 
 <section class='method_details' id="each_pair-instance_method">
   <h3 class='signature '>
-    #<strong>each_pair</strong>  
+    <div class='inline-block'>
+      <span class='overload'>#<strong>each</strong> {|key, val| ... } &#x21d2; <code>self</code> </span>
+      <span class='overload'>#<strong>each_pair</strong> {|key, val| ... } &#x21d2; <code>self</code> </span>
+    </div>
   </h3>
 <div class='docstring'>
   <div class='discussion'>
@@ -638,35 +739,37 @@ wmap_each_key(VALUE self)
 
   </div>
 </div>
+<div class='tags'>
+  
+</div>
 
 </section>
 
 <section class='method_details' id="each_value-instance_method">
   <h3 class='signature '>
-    #<strong>each_value</strong>  
-  </h3>
+    #<strong>each_value</strong> {|val| ... } &#x21d2; <code>self</code>   </h3>
 <div class='docstring'>
   <div class='discussion'>
     
-<p>Iterates over keys and objects in a weakly referenced object</p>
+<p>Iterates over values. Note that unlike other collections, <code>each_value</code> without block isn’t supported.</p>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.c#L13215-L13224'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/weakmap.c#L373-L382'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='13215' data-end='13224'></pre>
+  <pre class='lines_num' data-start='373' data-end='382'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'gc.c', line 13215</span></pre>
+<pre><span class='info file'># File 'weakmap.c', line 373</span></pre>
 <pre class='code cpp'>
 
 static VALUE
 wmap_each_value(VALUE self)
 {
     struct weakmap *w;
-    rb_objspace_t *objspace = &amp;rb_objspace;
-
     TypedData_Get_Struct(self, struct weakmap, &amp;weakmap_type, w);
-    st_foreach(w-&gt;wmap2obj, wmap_each_value_i, (st_data_t)objspace);
+
+    wmap_foreach(w, wmap_each_value_i, (st_data_t)0);
+
     return self;
 }
 </pre>
@@ -676,7 +779,10 @@ wmap_each_value(VALUE self)
 
 <section class='method_details' id="include?-instance_method">
   <h3 class='signature '>
-    #<strong>include?</strong>(key)  &#x21d2; <code>Boolean</code> 
+    <div class='inline-block'>
+      <span class='overload'>#<strong>key?</strong>(key)  &#x21d2; <code>Boolean</code> </span>
+      <span class='overload'>#<strong>include?</strong>(key)  &#x21d2; <code>Boolean</code> </span>
+    </div>
   </h3>
 <div class='docstring'>
   <div class='discussion'>
@@ -695,30 +801,27 @@ wmap_each_value(VALUE self)
   <h3 class='signature '>
     #<strong>inspect</strong>  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.c#L13122-L13140'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/weakmap.c#L286-L301'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='13122' data-end='13140'></pre>
+  <pre class='lines_num' data-start='286' data-end='301'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'gc.c', line 13122</span></pre>
+<pre><span class='info file'># File 'weakmap.c', line 286</span></pre>
 <pre class='code cpp'>
 
 static VALUE
 wmap_inspect(VALUE self)
 {
-    VALUE str;
     VALUE c = rb_class_name(CLASS_OF(self));
     struct weakmap *w;
-    struct wmap_iter_arg args;
-
     TypedData_Get_Struct(self, struct weakmap, &amp;weakmap_type, w);
-    str = rb_sprintf(&quot;-&lt;%&quot;PRIsVALUE&quot;:%p&quot;, c, (void *)self);
-    if (w-&gt;wmap2obj) {
-        args.objspace = &amp;rb_objspace;
-        args.value = str;
-        st_foreach(w-&gt;wmap2obj, wmap_inspect_i, (st_data_t)&amp;args);
-    }
+
+    VALUE str = rb_sprintf(&quot;-&lt;%&quot;PRIsVALUE&quot;:%p&quot;, c, (void *)self);
+
+    wmap_foreach(w, wmap_inspect_i, (st_data_t)str);
+
     RSTRING_PTR(str)[0] = &#39;#&#39;;
     rb_str_cat2(str, &quot;&gt;&quot;);
+
     return str;
 }
 </pre>
@@ -728,21 +831,20 @@ wmap_inspect(VALUE self)
 
 <section class='method_details' id="key?-instance_method">
   <h3 class='signature '>
-    #<strong>key?</strong>(key)  
-    <span class='aliases'>Also known as: <span class='names'>#include?, #member?</span></span>
+    #<strong>key?</strong>(key)  &#x21d2; <code>Boolean</code>     <span class='aliases'>Also known as: <span class='names'>#include?, #member?</span></span>
   </h3>
 <div class='docstring'>
   <div class='discussion'>
     
-<p>Returns <code>true</code> if <code>key</code> is registered</p>
+<p>Returns <code>true</code> if <code>key</code> is a key in <code>self</code>, otherwise <code>false</code>.</p>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.c#L13394-L13398'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/weakmap.c#L586-L590'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='13394' data-end='13398'></pre>
+  <pre class='lines_num' data-start='586' data-end='590'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'gc.c', line 13394</span></pre>
+<pre><span class='info file'># File 'weakmap.c', line 586</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -757,33 +859,31 @@ wmap_has_key(VALUE self, VALUE key)
 
 <section class='method_details' id="keys-instance_method">
   <h3 class='signature '>
-    #<strong>keys</strong>  
-  </h3>
+    #<strong>keys</strong>  &#x21d2; <a href="../Array.html" title="Array (class)">Array</a>   </h3>
 <div class='docstring'>
   <div class='discussion'>
     
-<p>Iterates over keys and objects in a weakly referenced object</p>
+<p>Returns a new <a href="../Array.html" title="Array (class)"><code>::Array</code></a> containing all keys in the map.</p>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.c#L13243-L13254'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/weakmap.c#L401-L411'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='13243' data-end='13254'></pre>
+  <pre class='lines_num' data-start='401' data-end='411'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'gc.c', line 13243</span></pre>
+<pre><span class='info file'># File 'weakmap.c', line 401</span></pre>
 <pre class='code cpp'>
 
 static VALUE
 wmap_keys(VALUE self)
 {
     struct weakmap *w;
-    struct wmap_iter_arg args;
-
     TypedData_Get_Struct(self, struct weakmap, &amp;weakmap_type, w);
-    args.objspace = &amp;rb_objspace;
-    args.value = rb_ary_new();
-    st_foreach(w-&gt;wmap2obj, wmap_keys_i, (st_data_t)&amp;args);
-    return args.value;
+
+    VALUE ary = rb_ary_new();
+    wmap_foreach(w, wmap_keys_i, (st_data_t)ary);
+
+    return ary;
 }
 </pre>
   </div>
@@ -792,8 +892,7 @@ wmap_keys(VALUE self)
 
 <section class='method_details' id="length-instance_method">
   <h3 class='signature '>
-    #<strong>length</strong>  
-    <span class='aliases'>Also known as: <span class='names'>#size</span></span>
+    #<strong>length</strong>  &#x21d2; <a href="../Numeric.html" title="Numeric (class)">Numeric</a>     <span class='aliases'>Also known as: <span class='names'>#size</span></span>
   </h3>
 <div class='docstring'>
   <div class='discussion'>
@@ -802,21 +901,21 @@ wmap_keys(VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.c#L13401-L13414'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/weakmap.c#L598-L611'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='13401' data-end='13414'></pre>
+  <pre class='lines_num' data-start='598' data-end='611'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'gc.c', line 13401</span></pre>
+<pre><span class='info file'># File 'weakmap.c', line 598</span></pre>
 <pre class='code cpp'>
 
 static VALUE
 wmap_size(VALUE self)
 {
     struct weakmap *w;
-    st_index_t n;
-
     TypedData_Get_Struct(self, struct weakmap, &amp;weakmap_type, w);
-    n = w-&gt;wmap2obj-&gt;num_entries;
+
+    st_index_t n = st_table_size(w-&gt;table);
+
 #if SIZEOF_ST_INDEX_T &lt;= SIZEOF_LONG
     return ULONG2NUM(n);
 #else
@@ -830,7 +929,10 @@ wmap_size(VALUE self)
 
 <section class='method_details' id="member?-instance_method">
   <h3 class='signature '>
-    #<strong>member?</strong>(key)  &#x21d2; <code>Boolean</code> 
+    <div class='inline-block'>
+      <span class='overload'>#<strong>key?</strong>(key)  &#x21d2; <code>Boolean</code> </span>
+      <span class='overload'>#<strong>member?</strong>(key)  &#x21d2; <code>Boolean</code> </span>
+    </div>
   </h3>
 <div class='docstring'>
   <div class='discussion'>
@@ -847,7 +949,10 @@ wmap_size(VALUE self)
 
 <section class='method_details' id="size-instance_method">
   <h3 class='signature '>
-    #<strong>size</strong>  
+    <div class='inline-block'>
+      <span class='overload'>#<strong>length</strong>  &#x21d2; <a href="../Numeric.html" title="Numeric (class)">Numeric</a> </span>
+      <span class='overload'>#<strong>size</strong>  &#x21d2; <a href="../Numeric.html" title="Numeric (class)">Numeric</a> </span>
+    </div>
   </h3>
 <div class='docstring'>
   <div class='discussion'>
@@ -856,38 +961,39 @@ wmap_size(VALUE self)
 
   </div>
 </div>
+<div class='tags'>
+  
+</div>
 
 </section>
 
 <section class='method_details' id="values-instance_method">
   <h3 class='signature '>
-    #<strong>values</strong>  
-  </h3>
+    #<strong>values</strong>  &#x21d2; <a href="../Array.html" title="Array (class)">Array</a>   </h3>
 <div class='docstring'>
   <div class='discussion'>
     
-<p>Iterates over values and objects in a weakly referenced object</p>
+<p>Returns a new <a href="../Array.html" title="Array (class)"><code>::Array</code></a> containing all values in the map.</p>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.c#L13273-L13284'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/weakmap.c#L430-L440'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='13273' data-end='13284'></pre>
+  <pre class='lines_num' data-start='430' data-end='440'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'gc.c', line 13273</span></pre>
+<pre><span class='info file'># File 'weakmap.c', line 430</span></pre>
 <pre class='code cpp'>
 
 static VALUE
 wmap_values(VALUE self)
 {
     struct weakmap *w;
-    struct wmap_iter_arg args;
-
     TypedData_Get_Struct(self, struct weakmap, &amp;weakmap_type, w);
-    args.objspace = &amp;rb_objspace;
-    args.value = rb_ary_new();
-    st_foreach(w-&gt;wmap2obj, wmap_values_i, (st_data_t)&amp;args);
-    return args.value;
+
+    VALUE ary = rb_ary_new();
+    wmap_foreach(w, wmap_values_i, (st_data_t)ary);
+
+    return ary;
 }
 </pre>
   </div>

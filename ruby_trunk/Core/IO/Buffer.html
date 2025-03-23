@@ -98,7 +98,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2 o'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3382'>io_buffer.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3379'>io_buffer.c</a></span>
+      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3676'>io_buffer.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3673'>io_buffer.c</a></span>
       </td>
     </tr>
   </tbody>
@@ -109,20 +109,22 @@
 <div class='docstring'>
   <div class='discussion'>
     
-<p><code>Buffer</code> is a low-level efficient buffer for input/output. There are three ways of using buffer:</p>
+<p><code>Buffer</code> is a efficient zero-copy buffer for input/output. There are typical use cases:</p>
 <ul><li>
-<p>Create an empty buffer with <a href="#new-class_method" title="IO::Buffer.new (method)">.new</a>, fill it with buffer using <a href="#copy-instance_method" title="IO::Buffer#copy (method)">#copy</a> or #set_value, #set_string, get buffer with #get_string;</p>
+<p>Create an empty buffer with <a href="#new-class_method" title="IO::Buffer.new (method)">.new</a>, fill it with buffer using <a href="#copy-instance_method" title="IO::Buffer#copy (method)">#copy</a> or #set_value, #set_string, get buffer with #get_string or write it directly to some file with #write.</p>
 </li><li>
-<p>Create a buffer mapped to some string with <a href="#for-class_method" title="IO::Buffer.for (method)">.for</a>, then it could be used both for reading with #get_string or #get_value, and writing (writing will change the source string, too);</p>
+<p>Create a buffer mapped to some string with <a href="#for-class_method" title="IO::Buffer.for (method)">.for</a>, then it could be used both for reading with #get_string or #get_value, and writing (writing will change the source string, too).</p>
 </li><li>
 <p>Create a buffer mapped to some file with <a href="#map-class_method" title="IO::Buffer.map (method)">.map</a>, then it could be used for reading and writing the underlying file.</p>
+</li><li>
+<p>Create a string of a fixed size with <a href="#string-class_method" title="IO::Buffer.string (method)">.string</a>, then <a href="#read-instance_method" title="IO::Buffer#read (method)">#read</a> into it, or modify it using #set_value.</p>
 </li></ul>
 
 <p>Interaction with string and file memory is performed by efficient low-level C mechanisms like <code>memcpy</code>.</p>
 
-<p>The class is meant to be an utility for implementing more high-level mechanisms like <code>Fiber::SchedulerInterface#io_read</code> and <code>Fiber::SchedulerInterface#io_write</code>.</p>
+<p>The class is meant to be an utility for implementing more high-level mechanisms like <a href="../Fiber/Scheduler.html#io_read-instance_method" title="Fiber::Scheduler#io_read (method)">Fiber::Scheduler#io_read</a> and <a href="../Fiber/Scheduler.html#io_write-instance_method" title="Fiber::Scheduler#io_write (method)">Fiber::Scheduler#io_write</a> and parsing binary protocols.</p>
 
-<p><strong>Examples of usage:</strong></p>
+<h3 id="label-Examples+of+Usage">Examples of Usage</h3>
 
 <p>Empty buffer:</p>
 
@@ -141,30 +143,28 @@
 
 <p>Buffer from string:</p>
 
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_string'>string</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>buffer</span><span class='tstring_end'>&#39;</span></span>
-<span class='id identifier rubyid_buffer'>buffer</span> <span class='op'>=</span> <span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_for'><a href="#for-class_method" title="IO::Buffer.for (method)">for</a></span>(<span class='id identifier rubyid_string'>string</span>)
-<span class='comment'># =&gt;
-</span><span class='comment'># #&lt;IO::Buffer 0x00007f3f02be9b18+4 SLICE&gt;
-</span><span class='comment'># ...
-</span><span class='id identifier rubyid_buffer'>buffer</span>
-<span class='comment'># =&gt;
-</span><span class='comment'># #&lt;IO::Buffer 0x00007f3f02be9b18+4 SLICE&gt;
-</span><span class='comment'># 0x00000000  64 61 74 61                                     buffer
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_string'><a href="#string-class_method" title="IO::Buffer.string (method)">string</a></span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>data</span><span class='tstring_end'>&#39;</span></span>
+<span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_for'><a href="#for-class_method" title="IO::Buffer.for (method)">for</a></span>(<span class='id identifier rubyid_string'><a href="#string-class_method" title="IO::Buffer.string (method)">string</a></span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_buffer'>buffer</span><span class='op'>|</span>
+  <span class='id identifier rubyid_buffer'>buffer</span>
+  <span class='comment'># =&gt;
+</span>  <span class='comment'># #&lt;IO::Buffer 0x00007f3f02be9b18+4 SLICE&gt;
+</span>  <span class='comment'># 0x00000000  64 61 74 61                                     data
 </span>
-<span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_get_string'><a href="#get_string-instance_method" title="IO::Buffer#get_string (method)">get_string</a></span>(<span class='int'>2</span>)  <span class='comment'># read content starting from offset 2
-</span><span class='comment'># =&gt; &quot;ta&quot;
-</span><span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_set_string'><a href="#set_string-instance_method" title="IO::Buffer#set_string (method)">set_string</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>---</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='int'>1</span>) <span class='comment'># write content, starting from offset 1
-</span><span class='comment'># =&gt; 3
-</span><span class='id identifier rubyid_buffer'>buffer</span>
-<span class='comment'># =&gt;
-</span><span class='comment'># #&lt;IO::Buffer 0x00007f3f02be9b18+4 SLICE&gt;
-</span><span class='comment'># 0x00000000  64 2d 2d 2d                                     d---
-</span><span class='id identifier rubyid_string'>string</span>  <span class='comment'># original string changed, too
-</span><span class='comment'># =&gt; &quot;d---&quot;</span></code></pre>
+  <span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_get_string'><a href="#get_string-instance_method" title="IO::Buffer#get_string (method)">get_string</a></span>(<span class='int'>2</span>)  <span class='comment'># read content starting from offset 2
+</span>  <span class='comment'># =&gt; &quot;ta&quot;
+</span>  <span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_set_string'><a href="#set_string-instance_method" title="IO::Buffer#set_string (method)">set_string</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>---</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='int'>1</span>) <span class='comment'># write content, starting from offset 1
+</span>  <span class='comment'># =&gt; 3
+</span>  <span class='id identifier rubyid_buffer'>buffer</span>
+  <span class='comment'># =&gt;
+</span>  <span class='comment'># #&lt;IO::Buffer 0x00007f3f02be9b18+4 SLICE&gt;
+</span>  <span class='comment'># 0x00000000  64 2d 2d 2d                                     d---
+</span>  <span class='id identifier rubyid_string'><a href="#string-class_method" title="IO::Buffer.string (method)">string</a></span>  <span class='comment'># original string changed, too
+</span>  <span class='comment'># =&gt; &quot;d---&quot;
+</span><span class='kw'>end</span></code></pre>
 
 <p>Buffer from file:</p>
 
-<pre class="code ruby"><code class="ruby"><span class='const'><a href="../File.html" title="File (class)">File</a></span>.<span class='id identifier rubyid_write'><a href="../IO.html#write-class_method" title="IO.write (method)">write</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>test.txt</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>test buffer</span><span class='tstring_end'>&#39;</span></span>)
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="../File.html" title="File (class)">File</a></span>.<span class='id identifier rubyid_write'><a href="../IO.html#write-class_method" title="IO.write (method)">write</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>test.txt</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>test data</span><span class='tstring_end'>&#39;</span></span>)
 <span class='comment'># =&gt; 9
 </span><span class='id identifier rubyid_buffer'>buffer</span> <span class='op'>=</span> <span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_map'><a href="#map-class_method" title="IO::Buffer.map (method)">map</a></span>(<span class='const'><a href="../File.html" title="File (class)">File</a></span>.<span class='id identifier rubyid_open'><a href="../File.html#open-class_method" title="File.open (method)">open</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>test.txt</span><span class='tstring_end'>&#39;</span></span>))
 <span class='comment'># =&gt;
@@ -181,9 +181,9 @@
 <span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_set_string'><a href="#set_string-instance_method" title="IO::Buffer#set_string (method)">set_string</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>---</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='int'>1</span>)
 <span class='comment'># =&gt; 3 -- bytes written
 </span><span class='const'><a href="../File.html" title="File (class)">File</a></span>.<span class='id identifier rubyid_read'><a href="../IO.html#read-class_method" title="IO.read (method)">read</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>test.txt</span><span class='tstring_end'>&#39;</span></span>)
-<span class='comment'># =&gt; &quot;t--- buffer&quot;</span></code></pre>
+<span class='comment'># =&gt; &quot;t--- data&quot;</span></code></pre>
 
-<p><strong>The class is experimental and the interface is subject to change.</strong></p>
+<p><strong>The class is experimental and the interface is subject to change, this is especially true of file mappings which may be removed entirely in the future.</strong></p>
 
   </div>
 </div>
@@ -193,86 +193,149 @@
 <ul class='constants summary full'>
   <li>
     <span id='BIG_ENDIAN-constant' class='summary_signature'>BIG_ENDIAN =</span>
-    <br/>
-    <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3431'># File 'io_buffer.c', line 3431</a>    <pre class='code c'><span class='const'>RB_INT2NUM</span>(<span class='const'>RB_IO_BUFFER_BIG_ENDIAN</span>)</pre>
+    <div class='docstring'>
+  <div class='discussion'>
+    
+<p>Refers to big endian byte order, where the most significant byte is stored first. See <a href="#get_value-instance_method" title="IO::Buffer#get_value (method)">#get_value</a> for more details.</p>
+
+  </div>
+</div>
+    <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3752'># File 'io_buffer.c', line 3752</a>    <pre class='code c'><span class='const'>RB_INT2NUM</span>(<span class='const'>RB_IO_BUFFER_BIG_ENDIAN</span>)</pre>
   </li>
   <li>
     <span id='DEFAULT_SIZE-constant' class='summary_signature'>DEFAULT_SIZE =</span>
-    <br/>
-    <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3404'># File 'io_buffer.c', line 3404</a>    <pre class='code c'><span class='const'>SIZET2NUM</span>(<span class='const'>RUBY_IO_BUFFER_DEFAULT_SIZE</span>)</pre>
+    <div class='docstring'>
+  <div class='discussion'>
+    
+<p>The default buffer size, typically a (small) multiple of the <a href="#PAGE_SIZE-constant" title="IO::Buffer::PAGE_SIZE (constant)">PAGE_SIZE</a>.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Can</span> <span class='id identifier rubyid_be'>be</span> <span class='id identifier rubyid_explicitly'>explicitly</span> <span class='id identifier rubyid_specified'>specified</span> <span class='id identifier rubyid_by'>by</span> <span class='id identifier rubyid_setting'>setting</span> <span class='id identifier rubyid_the'>the</span> <span class='const'>RUBY_IO_BUFFER_DEFAULT_SIZE</span>
+<span class='id identifier rubyid_environment'>environment</span> <span class='id identifier rubyid_variable'>variable</span>.</code></pre>
+
+  </div>
+</div>
+    <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3713'># File 'io_buffer.c', line 3713</a>    <pre class='code c'><span class='const'>SIZET2NUM</span>(<span class='const'>RUBY_IO_BUFFER_DEFAULT_SIZE</span>)</pre>
   </li>
   <li>
     <span id='EXTERNAL-constant' class='summary_signature'>EXTERNAL =</span>
     <div class='docstring'>
   <div class='discussion'>
     
-<p>Flags:</p>
+<p>Indicates that the memory in the buffer is owned by someone else. See <a href="#external%3F-instance_method" title="IO::Buffer#external? (method)">#external?</a> for more details.</p>
 
   </div>
 </div>
-    <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3421'># File 'io_buffer.c', line 3421</a>    <pre class='code c'><span class='const'>RB_INT2NUM</span>(<span class='const'>RB_IO_BUFFER_EXTERNAL</span>)</pre>
+    <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3728'># File 'io_buffer.c', line 3728</a>    <pre class='code c'><span class='const'>RB_INT2NUM</span>(<span class='const'>RB_IO_BUFFER_EXTERNAL</span>)</pre>
   </li>
   <li>
     <span id='HOST_ENDIAN-constant' class='summary_signature'>HOST_ENDIAN =</span>
-    <br/>
-    <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3432'># File 'io_buffer.c', line 3432</a>    <pre class='code c'><span class='const'>RB_INT2NUM</span>(<span class='const'>RB_IO_BUFFER_HOST_ENDIAN</span>)</pre>
+    <div class='docstring'>
+  <div class='discussion'>
+    
+<p>Refers to the byte order of the host machine. See <a href="#get_value-instance_method" title="IO::Buffer#get_value (method)">#get_value</a> for more details.</p>
+
+  </div>
+</div>
+    <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3755'># File 'io_buffer.c', line 3755</a>    <pre class='code c'><span class='const'>RB_INT2NUM</span>(<span class='const'>RB_IO_BUFFER_HOST_ENDIAN</span>)</pre>
   </li>
   <li>
     <span id='INTERNAL-constant' class='summary_signature'>INTERNAL =</span>
-    <br/>
-    <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3422'># File 'io_buffer.c', line 3422</a>    <pre class='code c'><span class='const'>RB_INT2NUM</span>(<span class='const'>RB_IO_BUFFER_INTERNAL</span>)</pre>
+    <div class='docstring'>
+  <div class='discussion'>
+    
+<p>Indicates that the memory in the buffer is owned by the buffer. See <a href="#internal%3F-instance_method" title="IO::Buffer#internal? (method)">#internal?</a> for more details.</p>
+
+  </div>
+</div>
+    <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3731'># File 'io_buffer.c', line 3731</a>    <pre class='code c'><span class='const'>RB_INT2NUM</span>(<span class='const'>RB_IO_BUFFER_INTERNAL</span>)</pre>
   </li>
   <li>
     <span id='LITTLE_ENDIAN-constant' class='summary_signature'>LITTLE_ENDIAN =</span>
     <div class='docstring'>
   <div class='discussion'>
     
-<p>Endian:</p>
+<p>Refers to little endian byte order, where the least significant byte is stored first. See <a href="#get_value-instance_method" title="IO::Buffer#get_value (method)">#get_value</a> for more details.</p>
 
   </div>
 </div>
-    <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3430'># File 'io_buffer.c', line 3430</a>    <pre class='code c'><span class='const'>RB_INT2NUM</span>(<span class='const'>RB_IO_BUFFER_LITTLE_ENDIAN</span>)</pre>
+    <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3749'># File 'io_buffer.c', line 3749</a>    <pre class='code c'><span class='const'>RB_INT2NUM</span>(<span class='const'>RB_IO_BUFFER_LITTLE_ENDIAN</span>)</pre>
   </li>
   <li>
     <span id='LOCKED-constant' class='summary_signature'>LOCKED =</span>
-    <br/>
-    <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3425'># File 'io_buffer.c', line 3425</a>    <pre class='code c'><span class='const'>RB_INT2NUM</span>(<span class='const'>RB_IO_BUFFER_LOCKED</span>)</pre>
+    <div class='docstring'>
+  <div class='discussion'>
+    
+<p>Indicates that the memory in the buffer is locked and cannot be resized or freed. See <a href="#locked%3F-instance_method" title="IO::Buffer#locked? (method)">#locked?</a> and <a href="#locked-instance_method" title="IO::Buffer#locked (method)">#locked</a> for more details.</p>
+
+  </div>
+</div>
+    <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3740'># File 'io_buffer.c', line 3740</a>    <pre class='code c'><span class='const'>RB_INT2NUM</span>(<span class='const'>RB_IO_BUFFER_LOCKED</span>)</pre>
   </li>
   <li>
     <span id='MAPPED-constant' class='summary_signature'>MAPPED =</span>
-    <br/>
-    <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3423'># File 'io_buffer.c', line 3423</a>    <pre class='code c'><span class='const'>RB_INT2NUM</span>(<span class='const'>RB_IO_BUFFER_MAPPED</span>)</pre>
+    <div class='docstring'>
+  <div class='discussion'>
+    
+<p>Indicates that the memory in the buffer is mapped by the operating system. See <a href="#mapped%3F-instance_method" title="IO::Buffer#mapped? (method)">#mapped?</a> for more details.</p>
+
+  </div>
+</div>
+    <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3734'># File 'io_buffer.c', line 3734</a>    <pre class='code c'><span class='const'>RB_INT2NUM</span>(<span class='const'>RB_IO_BUFFER_MAPPED</span>)</pre>
   </li>
   <li>
     <span id='NETWORK_ENDIAN-constant' class='summary_signature'>NETWORK_ENDIAN =</span>
-    <br/>
-    <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3433'># File 'io_buffer.c', line 3433</a>    <pre class='code c'><span class='const'>RB_INT2NUM</span>(<span class='const'>RB_IO_BUFFER_NETWORK_ENDIAN</span>)</pre>
+    <div class='docstring'>
+  <div class='discussion'>
+    
+<p>Refers to network byte order, which is the same as big endian. See <a href="#get_value-instance_method" title="IO::Buffer#get_value (method)">#get_value</a> for more details.</p>
+
+  </div>
+</div>
+    <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3758'># File 'io_buffer.c', line 3758</a>    <pre class='code c'><span class='const'>RB_INT2NUM</span>(<span class='const'>RB_IO_BUFFER_NETWORK_ENDIAN</span>)</pre>
   </li>
   <li>
     <span id='PAGE_SIZE-constant' class='summary_signature'>PAGE_SIZE =</span>
     <div class='docstring'>
   <div class='discussion'>
     
-<p>Efficient sizing of mapped buffers:</p>
+<p>The operating system page size. Used for efficient page-aligned memory allocations.</p>
 
   </div>
 </div>
-    <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3403'># File 'io_buffer.c', line 3403</a>    <pre class='code c'><span class='const'>SIZET2NUM</span>(<span class='const'>RUBY_IO_BUFFER_PAGE_SIZE</span>)</pre>
+    <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3708'># File 'io_buffer.c', line 3708</a>    <pre class='code c'><span class='const'>SIZET2NUM</span>(<span class='const'>RUBY_IO_BUFFER_PAGE_SIZE</span>)</pre>
   </li>
   <li>
     <span id='PRIVATE-constant' class='summary_signature'>PRIVATE =</span>
-    <br/>
-    <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3426'># File 'io_buffer.c', line 3426</a>    <pre class='code c'><span class='const'>RB_INT2NUM</span>(<span class='const'>RB_IO_BUFFER_PRIVATE</span>)</pre>
+    <div class='docstring'>
+  <div class='discussion'>
+    
+<p>Indicates that the memory in the buffer is mapped privately and changes won’t be replicated to the underlying file. See <a href="#private%3F-instance_method" title="IO::Buffer#private? (method)">#private?</a> for more details.</p>
+
+  </div>
+</div>
+    <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3743'># File 'io_buffer.c', line 3743</a>    <pre class='code c'><span class='const'>RB_INT2NUM</span>(<span class='const'>RB_IO_BUFFER_PRIVATE</span>)</pre>
   </li>
   <li>
     <span id='READONLY-constant' class='summary_signature'>READONLY =</span>
-    <br/>
-    <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3427'># File 'io_buffer.c', line 3427</a>    <pre class='code c'><span class='const'>RB_INT2NUM</span>(<span class='const'>RB_IO_BUFFER_READONLY</span>)</pre>
+    <div class='docstring'>
+  <div class='discussion'>
+    
+<p>Indicates that the memory in the buffer is read only, and attempts to modify it will fail. See <a href="#readonly%3F-instance_method" title="IO::Buffer#readonly? (method)">#readonly?</a> for more details.</p>
+
+  </div>
+</div>
+    <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3746'># File 'io_buffer.c', line 3746</a>    <pre class='code c'><span class='const'>RB_INT2NUM</span>(<span class='const'>RB_IO_BUFFER_READONLY</span>)</pre>
   </li>
   <li>
     <span id='SHARED-constant' class='summary_signature'>SHARED =</span>
-    <br/>
-    <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3424'># File 'io_buffer.c', line 3424</a>    <pre class='code c'><span class='const'>RB_INT2NUM</span>(<span class='const'>RB_IO_BUFFER_SHARED</span>)</pre>
+    <div class='docstring'>
+  <div class='discussion'>
+    
+<p>Indicates that the memory in the buffer is also mapped such that it can be shared with other processes. See <a href="#shared%3F-instance_method" title="IO::Buffer#shared? (method)">#shared?</a> for more details.</p>
+
+  </div>
+</div>
+    <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3737'># File 'io_buffer.c', line 3737</a>    <pre class='code c'><span class='const'>RB_INT2NUM</span>(<span class='const'>RB_IO_BUFFER_SHARED</span>)</pre>
   </li>
 </ul>
 </div>
@@ -285,7 +348,7 @@
       <a href="#for-class_method" title="for (class method)">.<strong>for</strong>(string)  &#x21d2; Buffer </a>
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>Creates a <code>Buffer</code> from the given string’s memory.</p></div>
+      <div class='inline'><p>Creates a zero-copy <code>Buffer</code> from the given string’s memory.</p></div>
     </div>
   </li>
   <li>
@@ -313,6 +376,14 @@
       <div class='inline'><p>Returns the size of the given buffer type(s) in bytes.</p></div>
     </div>
   </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#string-class_method" title="string (class method)">.<strong>string</strong>(length) {|io_buffer| ... } &#x21d2; String </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Creates a new string of the given length and yields a zero-copy <code>Buffer</code> instance to the block which uses the string as a source.</p></div>
+    </div>
+  </li>
 </ul>
 </div>  <!-- class_method_summary -->
 
@@ -324,90 +395,66 @@
       <a href="#empty%3F-instance_method" title="#empty? (instance method)">#<strong>empty?</strong>  &#x21d2; Boolean </a>
     </span>
     <span class='note title readonly'>readonly</span>
-    <div class='summary_desc'>
-      <div class='inline'><p>If the buffer has 0 size: it is created by <a href="#new-class_method" title="IO::Buffer.new (method)">.new</a> with size 0, or with <a href="#for-class_method" title="IO::Buffer.for (method)">.for</a> from an empty string.</p></div>
-    </div>
   </li>
   <li>
     <span class='summary_signature ro'>
       <a href="#external%3F-instance_method" title="#external? (instance method)">#<strong>external?</strong>  &#x21d2; Boolean </a>
     </span>
     <span class='note title readonly'>readonly</span>
-    <div class='summary_desc'>
-      <div class='inline'><p>The buffer is <em>external</em> if it references the memory which is not allocated or mapped by the buffer itself.</p></div>
-    </div>
   </li>
   <li>
     <span class='summary_signature ro'>
       <a href="#internal%3F-instance_method" title="#internal? (instance method)">#<strong>internal?</strong>  &#x21d2; Boolean </a>
     </span>
     <span class='note title readonly'>readonly</span>
-    <div class='summary_desc'>
-      <div class='inline'><p>If the buffer is <em>internal</em>, meaning it references memory allocated by the buffer itself.</p></div>
-    </div>
   </li>
   <li>
     <span class='summary_signature ro'>
       <a href="#locked-instance_method" title="#locked (instance method)">#<strong>locked</strong>  </a>
     </span>
     <span class='note title readonly'>readonly</span>
-    <div class='summary_desc'>
-      <div class='inline'><p>Allows to process a buffer in exclusive way, for concurrency-safety.</p></div>
-    </div>
   </li>
   <li>
     <span class='summary_signature ro'>
       <a href="#locked%3F-instance_method" title="#locked? (instance method)">#<strong>locked?</strong>  &#x21d2; Boolean </a>
     </span>
     <span class='note title readonly'>readonly</span>
-    <div class='summary_desc'>
-      <div class='inline'><p>If the buffer is <em>locked</em>, meaning it is inside <a href="#locked-instance_method" title="IO::Buffer#locked (method)">#locked</a> block execution.</p></div>
-    </div>
   </li>
   <li>
     <span class='summary_signature ro'>
       <a href="#mapped%3F-instance_method" title="#mapped? (instance method)">#<strong>mapped?</strong>  &#x21d2; Boolean </a>
     </span>
     <span class='note title readonly'>readonly</span>
-    <div class='summary_desc'>
-      <div class='inline'><p>If the buffer is <em>mapped</em>, meaning it references memory mapped by the buffer.</p></div>
-    </div>
   </li>
   <li>
     <span class='summary_signature ro'>
       <a href="#null%3F-instance_method" title="#null? (instance method)">#<strong>null?</strong>  &#x21d2; Boolean </a>
     </span>
     <span class='note title readonly'>readonly</span>
-    <div class='summary_desc'>
-      <div class='inline'><p>If the buffer was freed with <a href="#free-instance_method" title="IO::Buffer#free (method)">#free</a> or was never allocated in the first place.</p></div>
-    </div>
+  </li>
+  <li>
+    <span class='summary_signature ro'>
+      <a href="#private%3F-instance_method" title="#private? (instance method)">#<strong>private?</strong>  &#x21d2; Boolean </a>
+    </span>
+    <span class='note title readonly'>readonly</span>
   </li>
   <li>
     <span class='summary_signature ro'>
       <a href="#readonly%3F-instance_method" title="#readonly? (instance method)">#<strong>readonly?</strong>  &#x21d2; Boolean </a>
     </span>
     <span class='note title readonly'>readonly</span>
-    <div class='summary_desc'>
-      <div class='inline'><p>If the buffer is <em>read only</em>, meaning the buffer cannot be modified using <a href="#set_value-instance_method" title="IO::Buffer#set_value (method)">#set_value</a>, <a href="#set_string-instance_method" title="IO::Buffer#set_string (method)">#set_string</a> or <a href="#copy-instance_method" title="IO::Buffer#copy (method)">#copy</a> and similar.</p></div>
-    </div>
   </li>
   <li>
     <span class='summary_signature ro'>
       <a href="#shared%3F-instance_method" title="#shared? (instance method)">#<strong>shared?</strong>  &#x21d2; Boolean </a>
     </span>
     <span class='note title readonly'>readonly</span>
-    <div class='summary_desc'>
-      <div class='inline'><p>If the buffer is <em>shared</em>, meaning it references memory that can be shared with other processes (and thus might change without being modified locally).</p></div>
-    </div>
   </li>
   <li>
     <span class='summary_signature ro'>
       <a href="#valid%3F-instance_method" title="#valid? (instance method)">#<strong>valid?</strong>  &#x21d2; Boolean </a>
     </span>
     <span class='note title readonly'>readonly</span>
-    <div class='summary_desc'>
-      <div class='inline'><p>Returns whether the buffer buffer is accessible.</p></div>
-    </div>
   </li>
 </ul>
 </div>  <!-- instance_attribute_summary -->
@@ -425,11 +472,8 @@
   </li>
   <li>
     <span class='summary_signature '>
-      <a href="#<=>-instance_method" title="#&lt;=&gt; (instance method)">#<strong>&lt;=&gt;</strong>(other)  &#x21d2; Boolean </a>
+      <a href="#<=>-instance_method" title="#&lt;=&gt; (instance method)">#<strong>&lt;=&gt;</strong>  </a>
     </span>
-    <div class='summary_desc'>
-      <div class='inline'><p>Buffers are compared by size and exact contents of the memory they are referencing using <code>memcmp</code>.</p></div>
-    </div>
   </li>
   <li>
     <span class='summary_signature '>
@@ -460,16 +504,13 @@
       <a href="#copy-instance_method" title="#copy (instance method)">#<strong>copy</strong>(source, [offset, [length, [source_offset]]])  &#x21d2; size </a>
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>Efficiently copy buffer from a source <code>Buffer</code> into the buffer, at <code>offset</code> using <code>memcpy</code>.</p></div>
+      <div class='inline'><p>Efficiently copy from a source <code>Buffer</code> into the buffer, at <code>offset</code> using <code>memmove</code>.</p></div>
     </div>
   </li>
   <li>
     <span class='summary_signature '>
-      <a href="#free-instance_method" title="#free (instance method)">#<strong>free</strong>  &#x21d2; self </a>
+      <a href="#free-instance_method" title="#free (instance method)">#<strong>free</strong>  </a>
     </span>
-    <div class='summary_desc'>
-      <div class='inline'><p>If the buffer references memory, release it back to the operating system.</p></div>
-    </div>
   </li>
   <li>
     <span class='summary_signature '>
@@ -526,18 +567,15 @@
   </li>
   <li>
     <span class='summary_signature '>
-      <a href="#resize-instance_method" title="#resize (instance method)">#<strong>resize</strong>(new_size)  &#x21d2; self </a>
+      <a href="#resize-instance_method" title="#resize (instance method)">#<strong>resize</strong>  </a>
     </span>
-    <div class='summary_desc'>
-      <div class='inline'><p>Resizes a buffer to a <code>new_size</code> bytes, preserving its content.</p></div>
-    </div>
   </li>
   <li>
     <span class='summary_signature '>
       <a href="#set_string-instance_method" title="#set_string (instance method)">#<strong>set_string</strong>(string, [offset, [length, [source_offset]]])  &#x21d2; size </a>
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>Efficiently copy buffer from a source <a href="../String.html" title="String (class)"><code>::String</code></a> into the buffer, at <code>offset</code> using <code>memcpy</code>.</p></div>
+      <div class='inline'><p>Efficiently copy from a source <a href="../String.html" title="String (class)"><code>::String</code></a> into the buffer, at <code>offset</code> using <code>memmove</code>.</p></div>
     </div>
   </li>
   <li>
@@ -558,35 +596,23 @@
   </li>
   <li>
     <span class='summary_signature '>
-      <a href="#size-instance_method" title="#size (instance method)">#<strong>size</strong>  &#x21d2; Integer </a>
+      <a href="#size-instance_method" title="#size (instance method)">#<strong>size</strong>  </a>
     </span>
-    <div class='summary_desc'>
-      <div class='inline'><p>Returns the size of the buffer that was explicitly set (on creation with <a href="#new-class_method" title="IO::Buffer.new (method)">.new</a> or on <a href="#resize-instance_method" title="IO::Buffer#resize (method)">#resize</a>), or deduced on buffer’s creation from string or file.</p></div>
-    </div>
   </li>
   <li>
     <span class='summary_signature '>
-      <a href="#slice-instance_method" title="#slice (instance method)">#<strong>slice</strong>([offset, [length]])  &#x21d2; Buffer </a>
+      <a href="#slice-instance_method" title="#slice (instance method)">#<strong>slice</strong>  </a>
     </span>
-    <div class='summary_desc'>
-      <div class='inline'><p>Produce another <code>Buffer</code> which is a slice (or view into) the current one starting at <code>offset</code> bytes and going for <code>length</code> bytes.</p></div>
-    </div>
   </li>
   <li>
     <span class='summary_signature '>
-      <a href="#to_s-instance_method" title="#to_s (instance method)">#<strong>to_s</strong>  &#x21d2; String </a>
+      <a href="#to_s-instance_method" title="#to_s (instance method)">#<strong>to_s</strong>  </a>
     </span>
-    <div class='summary_desc'>
-      <div class='inline'><p>Short representation of the buffer.</p></div>
-    </div>
   </li>
   <li>
     <span class='summary_signature '>
-      <a href="#transfer-instance_method" title="#transfer (instance method)">#<strong>transfer</strong>  &#x21d2; Buffer </a>
+      <a href="#transfer-instance_method" title="#transfer (instance method)">#<strong>transfer</strong>  </a>
     </span>
-    <div class='summary_desc'>
-      <div class='inline'><p>Transfers ownership to a new buffer, deallocating the current one.</p></div>
-    </div>
   </li>
   <li>
     <span class='summary_signature '>
@@ -674,8 +700,6 @@
     
 <p>Create a new zero-filled <code>Buffer</code> of <a href="#size-instance_method" title="IO::Buffer#size (method)">#size</a> bytes. By default, the buffer will be <em>internal</em>: directly allocated chunk of the memory. But if the requested <a href="#size-instance_method" title="IO::Buffer#size (method)">#size</a> is more than OS-specific <a href="#PAGE_SIZE-constant" title="IO::Buffer::PAGE_SIZE (constant)">PAGE_SIZE</a>, the buffer would be allocated using the virtual memory mechanism (anonymous <code>mmap</code> on Unix, <code>VirtualAlloc</code> on Windows). The behavior can be forced by passing <a href="#MAPPED-constant" title="IO::Buffer::MAPPED (constant)">MAPPED</a> as a second parameter.</p>
 
-<p>Examples</p>
-
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_buffer'>buffer</span> <span class='op'>=</span> <span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_new'>new</span>(<span class='int'>4</span>)
 <span class='comment'># =&gt;
 </span><span class='comment'># #&lt;IO::Buffer 0x000055b34497ea10+4 INTERNAL&gt;
@@ -691,11 +715,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L670-L699'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L754-L783'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='670' data-end='699'></pre>
+  <pre class='lines_num' data-start='754' data-end='783'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 670</span></pre>
+<pre><span class='info file'># File 'io_buffer.c', line 754</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -718,13 +742,13 @@ rb_io_buffer_initialize(int argc, VALUE *argv, VALUE self)
 
     enum rb_io_buffer_flags flags = 0;
     if (argc &gt;= 2) {
-        flags = RB_NUM2UINT(argv[1]);
+        flags = io_buffer_extract_flags(argv[1]);
     }
     else {
         flags |= io_flags_for_size(size);
     }
 
-    io_buffer_initialize(buffer, NULL, size, flags, Qnil);
+    io_buffer_initialize(self, buffer, NULL, size, flags, Qnil);
 
     return self;
 }
@@ -744,27 +768,27 @@ rb_io_buffer_initialize(int argc, VALUE *argv, VALUE self)
 <div class='docstring'>
   <div class='discussion'>
     
-<p>Creates a <code>Buffer</code> from the given string’s memory. Without a block a frozen internal copy of the string is created efficiently and used as the buffer source. When a block is provided, the buffer is associated directly with the string’s internal buffer and updating the buffer will update the string.</p>
+<p>Creates a zero-copy <code>Buffer</code> from the given string’s memory. Without a block a frozen internal copy of the string is created efficiently and used as the buffer source. When a block is provided, the buffer is associated directly with the string’s internal buffer and updating the buffer will update the string.</p>
 
 <p>Until <a href="#free-instance_method" title="IO::Buffer#free (method)">#free</a> is invoked on the buffer, either explicitly or via the garbage collector, the source string will be locked and cannot be modified.</p>
 
 <p>If the string is frozen, it will create a read-only buffer which cannot be modified. If the string is shared, it may trigger a copy-on-write when using the block form.</p>
 
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_string'>string</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>test</span><span class='tstring_end'>&#39;</span></span>
-<span class='id identifier rubyid_buffer'>buffer</span> <span class='op'>=</span> <span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_for'>for</span>(<span class='id identifier rubyid_string'>string</span>)
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_string'><a href="#string-class_method" title="IO::Buffer.string (method)">string</a></span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>test</span><span class='tstring_end'>&#39;</span></span>
+<span class='id identifier rubyid_buffer'>buffer</span> <span class='op'>=</span> <span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_for'>for</span>(<span class='id identifier rubyid_string'><a href="#string-class_method" title="IO::Buffer.string (method)">string</a></span>)
 <span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_external?'><a href="#external%3F-instance_method" title="IO::Buffer#external? (method)">external?</a></span> <span class='comment'>#=&gt; true
 </span>
 <span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_get_string'><a href="#get_string-instance_method" title="IO::Buffer#get_string (method)">get_string</a></span>(<span class='int'>0</span><span class='comma'>,</span> <span class='int'>1</span>)
 <span class='comment'># =&gt; &quot;t&quot;
-</span><span class='id identifier rubyid_string'>string</span>
+</span><span class='id identifier rubyid_string'><a href="#string-class_method" title="IO::Buffer.string (method)">string</a></span>
 <span class='comment'># =&gt; &quot;best&quot;
 </span>
 <span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_resize'><a href="#resize-instance_method" title="IO::Buffer#resize (method)">resize</a></span>(<span class='int'>100</span>)
 <span class='comment'># in `resize&#39;: Cannot resize external buffer! (IO::Buffer::AccessError)
 </span>
-<span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_for'>for</span>(<span class='id identifier rubyid_string'>string</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_buffer'>buffer</span><span class='op'>|</span>
+<span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_for'>for</span>(<span class='id identifier rubyid_string'><a href="#string-class_method" title="IO::Buffer.string (method)">string</a></span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_buffer'>buffer</span><span class='op'>|</span>
   <span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_set_string'><a href="#set_string-instance_method" title="IO::Buffer#set_string (method)">set_string</a></span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>T</span><span class='tstring_end'>&quot;</span></span>)
-  <span class='id identifier rubyid_string'>string</span>
+  <span class='id identifier rubyid_string'><a href="#string-class_method" title="IO::Buffer.string (method)">string</a></span>
   <span class='comment'># =&gt; &quot;Test&quot;
 </span><span class='kw'>end</span></code></pre>
 
@@ -773,11 +797,11 @@ rb_io_buffer_initialize(int argc, VALUE *argv, VALUE self)
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L497-L519'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L556-L578'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='497' data-end='519'></pre>
+  <pre class='lines_num' data-start='556' data-end='578'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 497</span></pre>
+<pre><span class='info file'># File 'io_buffer.c', line 556</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -820,8 +844,6 @@ rb_io_buffer_type_for(VALUE klass, VALUE string)
 
 <p>By default, the buffer would be immutable (read only); to create a writable mapping, you need to open a file in read-write mode, and explicitly pass <code>flags</code> argument without <code>IO::Buffer::IMMUTABLE</code>.</p>
 
-<p>Example:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='const'><a href="../File.html" title="File (class)">File</a></span>.<span class='id identifier rubyid_write'><a href="../IO.html#write-class_method" title="IO.write (method)">write</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>test.txt</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>test</span><span class='tstring_end'>&#39;</span></span>)
 
 <span class='id identifier rubyid_buffer'>buffer</span> <span class='op'>=</span> <span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_map'>map</span>(<span class='const'><a href="../File.html" title="File (class)">File</a></span>.<span class='id identifier rubyid_open'><a href="../File.html#open-class_method" title="File.open (method)">open</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>test.txt</span><span class='tstring_end'>&#39;</span></span>)<span class='comma'>,</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='int'>0</span><span class='comma'>,</span> <span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span><span class='op'>::</span><span class='const'><a href="#READONLY-constant" title="IO::Buffer::READONLY (constant)">READONLY</a></span>)
@@ -848,11 +870,11 @@ rb_io_buffer_type_for(VALUE klass, VALUE string)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L590-L631'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L676-L717'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='590' data-end='631'></pre>
+  <pre class='lines_num' data-start='676' data-end='717'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 590</span></pre>
+<pre><span class='info file'># File 'io_buffer.c', line 676</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -892,7 +914,7 @@ io_buffer_map(int argc, VALUE *argv, VALUE klass)
 
     enum rb_io_buffer_flags flags = 0;
     if (argc &gt;= 4) {
-        flags = RB_NUM2UINT(argv[3]);
+        flags = io_buffer_extract_flags(argv[3]);
     }
 
     return rb_io_buffer_map(io, size, offset, flags);
@@ -914,8 +936,6 @@ io_buffer_map(int argc, VALUE *argv, VALUE klass)
     
 <p>Returns the size of the given buffer type(s) in bytes.</p>
 
-<p>Example:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_size_of'>size_of</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_u32'>u32</span>) <span class='comment'># =&gt; 4
 </span><span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_size_of'>size_of</span>([<span class='symbeg'>:</span><span class='id identifier rubyid_u32'>u32</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_u32'>u32</span>]) <span class='comment'># =&gt; 8</span></code></pre>
 
@@ -924,11 +944,11 @@ io_buffer_map(int argc, VALUE *argv, VALUE klass)
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L1719-L1732'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L1936-L1949'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1719' data-end='1732'></pre>
+  <pre class='lines_num' data-start='1936' data-end='1949'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 1719</span></pre>
+<pre><span class='info file'># File 'io_buffer.c', line 1936</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -950,360 +970,135 @@ io_buffer_size_of(VALUE klass, VALUE buffer_type)
 </div>
 </section>
 
-<h2 class='y_details'>Instance Attribute Details</h2>
-<section class='method_details first' id="empty?-instance_method">
-  <h3 class='signature ro first'>
-    #<strong>empty?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='readonly'>readonly</span>)</span>  </h3>
+<section class='method_details' id="string-class_method">
+  <h3 class='signature '>
+    .<strong>string</strong>(length) {|io_buffer| ... } &#x21d2; <a href="../String.html" title="String (class)">String</a>   </h3>
 <div class='docstring'>
   <div class='discussion'>
     
-<p>If the buffer has 0 size: it is created by <a href="#new-class_method" title="IO::Buffer.new (method)">.new</a> with size 0, or with <a href="#for-class_method" title="IO::Buffer.for (method)">.for</a> from an empty string. (Note that empty files can’t be mapped, so the buffer created with <a href="#map-class_method" title="IO::Buffer.map (method)">.map</a> will never be empty.)</p>
+<p>Creates a new string of the given length and yields a zero-copy <code>Buffer</code> instance to the block which uses the string as a source. The block is expected to write to the buffer and the string will be returned.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_string'>string</span>(<span class='int'>4</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_buffer'>buffer</span><span class='op'>|</span>
+  <span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_set_string'><a href="#set_string-instance_method" title="IO::Buffer#set_string (method)">set_string</a></span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Ruby</span><span class='tstring_end'>&quot;</span></span>)
+<span class='kw'>end</span>
+<span class='comment'># =&gt; &quot;Ruby&quot;</span></code></pre>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L930-L937'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L593-L607'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='930' data-end='937'></pre>
+  <pre class='lines_num' data-start='593' data-end='607'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 930</span></pre>
+<pre><span class='info file'># File 'io_buffer.c', line 593</span></pre>
 <pre class='code cpp'>
 
-static VALUE
-rb_io_buffer_empty_p(VALUE self)
+VALUE
+rb_io_buffer_type_string(VALUE klass, VALUE length)
 {
-    struct rb_io_buffer *buffer = NULL;
-    TypedData_Get_Struct(self, struct rb_io_buffer, &amp;rb_io_buffer_type, buffer);
+    VALUE string = rb_str_new(NULL, RB_NUM2LONG(length));
 
-    return RBOOL(buffer-&gt;size == 0);
+    struct io_buffer_for_yield_instance_arguments arguments = {
+        .klass = klass,
+        .string = string,
+        .instance = Qnil,
+    };
+
+    rb_ensure(io_buffer_for_yield_instance, (VALUE)&amp;arguments, io_buffer_for_yield_instance_ensure, (VALUE)&amp;arguments);
+
+    return string;
 }
 </pre>
   </div>
 </div>
+</section>
+
+<h2 class='y_details'>Instance Attribute Details</h2>
+<section class='method_details first' id="empty?-instance_method">
+  <h3 class='signature ro first'>
+    #<strong>empty?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='readonly'>readonly</span>)</span>
+  </h3>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3761'>GitHub</a> ]</span>
+
 </section>
 
 <section class='method_details' id="external?-instance_method">
   <h3 class='signature ro'>
-    #<strong>external?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='readonly'>readonly</span>)</span>  </h3>
-<div class='docstring'>
-  <div class='discussion'>
-    
-<p>The buffer is <em>external</em> if it references the memory which is not allocated or mapped by the buffer itself.</p>
+    #<strong>external?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='readonly'>readonly</span>)</span>
+  </h3>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3762'>GitHub</a> ]</span>
 
-<p>A buffer created using <a href="#for-class_method" title="IO::Buffer.for (method)">.for</a> has an external reference to the string’s memory.</p>
-
-<p>External buffer can’t be resized.</p>
-
-  </div>
-</div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L950-L957'>GitHub</a>&#8202;]</span>
-<div class='source_code h'>
-  <pre class='lines_num' data-start='950' data-end='957'></pre>
-  <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 950</span></pre>
-<pre class='code cpp'>
-
-static VALUE
-rb_io_buffer_external_p(VALUE self)
-{
-    struct rb_io_buffer *buffer = NULL;
-    TypedData_Get_Struct(self, struct rb_io_buffer, &amp;rb_io_buffer_type, buffer);
-
-    return RBOOL(buffer-&gt;flags &amp; RB_IO_BUFFER_EXTERNAL);
-}
-</pre>
-  </div>
-</div>
 </section>
 
 <section class='method_details' id="internal?-instance_method">
   <h3 class='signature ro'>
-    #<strong>internal?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='readonly'>readonly</span>)</span>  </h3>
-<div class='docstring'>
-  <div class='discussion'>
-    
-<p>If the buffer is <em>internal</em>, meaning it references memory allocated by the buffer itself.</p>
+    #<strong>internal?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='readonly'>readonly</span>)</span>
+  </h3>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3763'>GitHub</a> ]</span>
 
-<p>An internal buffer is not associated with any external memory (e.g. string) or file mapping.</p>
-
-<p>Internal buffers are created using <a href="#new-class_method" title="IO::Buffer.new (method)">.new</a> and is the default when the requested size is less than the <a href="#PAGE_SIZE-constant" title="IO::Buffer::PAGE_SIZE (constant)">PAGE_SIZE</a> and it was not requested to be mapped on creation.</p>
-
-<p>Internal buffers can be resized, and such an operation will typically invalidate all slices, but not always.</p>
-
-  </div>
-</div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L975-L982'>GitHub</a>&#8202;]</span>
-<div class='source_code h'>
-  <pre class='lines_num' data-start='975' data-end='982'></pre>
-  <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 975</span></pre>
-<pre class='code cpp'>
-
-static VALUE
-rb_io_buffer_internal_p(VALUE self)
-{
-    struct rb_io_buffer *buffer = NULL;
-    TypedData_Get_Struct(self, struct rb_io_buffer, &amp;rb_io_buffer_type, buffer);
-
-    return RBOOL(buffer-&gt;flags &amp; RB_IO_BUFFER_INTERNAL);
-}
-</pre>
-  </div>
-</div>
 </section>
 
 <section class='method_details' id="locked-instance_method">
   <h3 class='signature ro'>
-    #<strong>locked</strong>   <span class="extras">(<span class='readonly'>readonly</span>)</span>  </h3>
-<div class='docstring'>
-  <div class='discussion'>
-    
-<p>Allows to process a buffer in exclusive way, for concurrency-safety. While the block is performed, the buffer is considered locked, and no other code can enter the lock. Also, locked buffer can’t be changed with <a href="#resize-instance_method" title="IO::Buffer#resize (method)">#resize</a> or <a href="#free-instance_method" title="IO::Buffer#free (method)">#free</a>.</p>
+    #<strong>locked</strong>   <span class="extras">(<span class='readonly'>readonly</span>)</span>
+  </h3>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3773'>GitHub</a> ]</span>
 
-<p>The following operations acquire a lock: <a href="#resize-instance_method" title="IO::Buffer#resize (method)">#resize</a>, <a href="#free-instance_method" title="IO::Buffer#free (method)">#free</a>.</p>
-
-<p>Locking is not thread safe. It is designed as a safety net around non-blocking system calls. You can only share a buffer between threads with appropriate synchronisation techniques.</p>
-
-<p>Example:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_buffer'>buffer</span> <span class='op'>=</span> <span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="IO::Buffer.new (method)">new</a></span>(<span class='int'>4</span>)
-<span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_locked?'><a href="#locked%3F-instance_method" title="IO::Buffer#locked? (method)">locked?</a></span> <span class='comment'>#=&gt; false
-</span>
-<span class='const'><a href="../Fiber.html" title="Fiber (class)">Fiber</a></span>.<span class='id identifier rubyid_schedule'><a href="../Fiber.html#schedule-class_method" title="Fiber.schedule (method)">schedule</a></span> <span class='kw'>do</span>
-  <span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_locked'>locked</span> <span class='kw'>do</span>
-    <span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_write'><a href="#write-instance_method" title="IO::Buffer#write (method)">write</a></span>(<span class='id identifier rubyid_io'>io</span>) <span class='comment'># theoretical system call interface
-</span>  <span class='kw'>end</span>
-<span class='kw'>end</span>
-
-<span class='const'><a href="../Fiber.html" title="Fiber (class)">Fiber</a></span>.<span class='id identifier rubyid_schedule'><a href="../Fiber.html#schedule-class_method" title="Fiber.schedule (method)">schedule</a></span> <span class='kw'>do</span>
-  <span class='comment'># in `locked&#39;: Buffer already locked! (IO::Buffer::LockedError)
-</span>  <span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_locked'>locked</span> <span class='kw'>do</span>
-    <span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_set_string'><a href="#set_string-instance_method" title="IO::Buffer#set_string (method)">set_string</a></span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>test</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='int'>0</span>)
-  <span class='kw'>end</span>
-<span class='kw'>end</span></code></pre>
-
-  </div>
-</div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L1158-L1175'>GitHub</a>&#8202;]</span>
-<div class='source_code h'>
-  <pre class='lines_num' data-start='1158' data-end='1175'></pre>
-  <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 1158</span></pre>
-<pre class='code cpp'>
-
-VALUE
-rb_io_buffer_locked(VALUE self)
-{
-    struct rb_io_buffer *buffer = NULL;
-    TypedData_Get_Struct(self, struct rb_io_buffer, &amp;rb_io_buffer_type, buffer);
-
-    if (buffer-&gt;flags &amp; RB_IO_BUFFER_LOCKED) {
-        rb_raise(rb_eIOBufferLockedError, &quot;Buffer already locked!&quot;);
-    }
-
-    buffer-&gt;flags |= RB_IO_BUFFER_LOCKED;
-
-    VALUE result = rb_yield(self);
-
-    buffer-&gt;flags &amp;= ~RB_IO_BUFFER_LOCKED;
-
-    return result;
-}
-</pre>
-  </div>
-</div>
 </section>
 
 <section class='method_details' id="locked?-instance_method">
   <h3 class='signature ro'>
-    #<strong>locked?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='readonly'>readonly</span>)</span>  </h3>
-<div class='docstring'>
-  <div class='discussion'>
-    
-<p>If the buffer is <em>locked</em>, meaning it is inside <a href="#locked-instance_method" title="IO::Buffer#locked (method)">#locked</a> block execution. Locked buffer can’t be resized or freed, and another lock can’t be acquired on it.</p>
+    #<strong>locked?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='readonly'>readonly</span>)</span>
+  </h3>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3766'>GitHub</a> ]</span>
 
-<p>Locking is not thread safe, but is a semantic used to ensure buffers don’t move while being used by a system call.</p>
-
-<p>Example:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_locked'><a href="#locked-instance_method" title="IO::Buffer#locked (method)">locked</a></span> <span class='kw'>do</span>
-  <span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_write'><a href="#write-instance_method" title="IO::Buffer#write (method)">write</a></span>(<span class='id identifier rubyid_io'>io</span>) <span class='comment'># theoretical system call interface
-</span><span class='kw'>end</span></code></pre>
-
-  </div>
-</div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L1038-L1045'>GitHub</a>&#8202;]</span>
-<div class='source_code h'>
-  <pre class='lines_num' data-start='1038' data-end='1045'></pre>
-  <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 1038</span></pre>
-<pre class='code cpp'>
-
-static VALUE
-rb_io_buffer_locked_p(VALUE self)
-{
-    struct rb_io_buffer *buffer = NULL;
-    TypedData_Get_Struct(self, struct rb_io_buffer, &amp;rb_io_buffer_type, buffer);
-
-    return RBOOL(buffer-&gt;flags &amp; RB_IO_BUFFER_LOCKED);
-}
-</pre>
-  </div>
-</div>
 </section>
 
 <section class='method_details' id="mapped?-instance_method">
   <h3 class='signature ro'>
-    #<strong>mapped?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='readonly'>readonly</span>)</span>  </h3>
-<div class='docstring'>
-  <div class='discussion'>
-    
-<p>If the buffer is <em>mapped</em>, meaning it references memory mapped by the buffer.</p>
+    #<strong>mapped?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='readonly'>readonly</span>)</span>
+  </h3>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3764'>GitHub</a> ]</span>
 
-<p>Mapped buffers are either anonymous, if created by <a href="#new-class_method" title="IO::Buffer.new (method)">.new</a> with the <a href="#MAPPED-constant" title="IO::Buffer::MAPPED (constant)">MAPPED</a> flag or if the size was at least <a href="#PAGE_SIZE-constant" title="IO::Buffer::PAGE_SIZE (constant)">PAGE_SIZE</a>, or backed by a file if created with <a href="#map-class_method" title="IO::Buffer.map (method)">.map</a>.</p>
-
-<p>Mapped buffers can usually be resized, and such an operation will typically invalidate all slices, but not always.</p>
-
-  </div>
-</div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L997-L1004'>GitHub</a>&#8202;]</span>
-<div class='source_code h'>
-  <pre class='lines_num' data-start='997' data-end='1004'></pre>
-  <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 997</span></pre>
-<pre class='code cpp'>
-
-static VALUE
-rb_io_buffer_mapped_p(VALUE self)
-{
-    struct rb_io_buffer *buffer = NULL;
-    TypedData_Get_Struct(self, struct rb_io_buffer, &amp;rb_io_buffer_type, buffer);
-
-    return RBOOL(buffer-&gt;flags &amp; RB_IO_BUFFER_MAPPED);
-}
-</pre>
-  </div>
-</div>
 </section>
 
 <section class='method_details' id="null?-instance_method">
   <h3 class='signature ro'>
-    #<strong>null?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='readonly'>readonly</span>)</span>  </h3>
-<div class='docstring'>
-  <div class='discussion'>
-    
-<p>If the buffer was freed with <a href="#free-instance_method" title="IO::Buffer#free (method)">#free</a> or was never allocated in the first place.</p>
+    #<strong>null?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='readonly'>readonly</span>)</span>
+  </h3>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3760'>GitHub</a> ]</span>
 
-  </div>
-</div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L914-L921'>GitHub</a>&#8202;]</span>
-<div class='source_code h'>
-  <pre class='lines_num' data-start='914' data-end='921'></pre>
-  <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 914</span></pre>
-<pre class='code cpp'>
+</section>
 
-static VALUE
-rb_io_buffer_null_p(VALUE self)
-{
-    struct rb_io_buffer *buffer = NULL;
-    TypedData_Get_Struct(self, struct rb_io_buffer, &amp;rb_io_buffer_type, buffer);
+<section class='method_details' id="private?-instance_method">
+  <h3 class='signature ro'>
+    #<strong>private?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='readonly'>readonly</span>)</span>
+  </h3>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3767'>GitHub</a> ]</span>
 
-    return RBOOL(buffer-&gt;base == NULL);
-}
-</pre>
-  </div>
-</div>
 </section>
 
 <section class='method_details' id="readonly?-instance_method">
   <h3 class='signature ro'>
-    #<strong>readonly?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='readonly'>readonly</span>)</span>  </h3>
-<div class='docstring'>
-  <div class='discussion'>
-    
-<p>If the buffer is <em>read only</em>, meaning the buffer cannot be modified using <a href="#set_value-instance_method" title="IO::Buffer#set_value (method)">#set_value</a>, <a href="#set_string-instance_method" title="IO::Buffer#set_string (method)">#set_string</a> or <a href="#copy-instance_method" title="IO::Buffer#copy (method)">#copy</a> and similar.</p>
+    #<strong>readonly?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='readonly'>readonly</span>)</span>
+  </h3>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3768'>GitHub</a> ]</span>
 
-<p>Frozen strings and read-only files create read-only buffers.</p>
-
-  </div>
-</div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L1064-L1068'>GitHub</a>&#8202;]</span>
-<div class='source_code h'>
-  <pre class='lines_num' data-start='1064' data-end='1068'></pre>
-  <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 1064</span></pre>
-<pre class='code cpp'>
-
-static VALUE
-io_buffer_readonly_p(VALUE self)
-{
-    return RBOOL(rb_io_buffer_readonly_p(self));
-}
-</pre>
-  </div>
-</div>
 </section>
 
 <section class='method_details' id="shared?-instance_method">
   <h3 class='signature ro'>
-    #<strong>shared?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='readonly'>readonly</span>)</span>  </h3>
-<div class='docstring'>
-  <div class='discussion'>
-    
-<p>If the buffer is <em>shared</em>, meaning it references memory that can be shared with other processes (and thus might change without being modified locally).</p>
+    #<strong>shared?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='readonly'>readonly</span>)</span>
+  </h3>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3765'>GitHub</a> ]</span>
 
-  </div>
-</div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L1013-L1020'>GitHub</a>&#8202;]</span>
-<div class='source_code h'>
-  <pre class='lines_num' data-start='1013' data-end='1020'></pre>
-  <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 1013</span></pre>
-<pre class='code cpp'>
-
-static VALUE
-rb_io_buffer_shared_p(VALUE self)
-{
-    struct rb_io_buffer *buffer = NULL;
-    TypedData_Get_Struct(self, struct rb_io_buffer, &amp;rb_io_buffer_type, buffer);
-
-    return RBOOL(buffer-&gt;flags &amp; RB_IO_BUFFER_SHARED);
-}
-</pre>
-  </div>
-</div>
 </section>
 
 <section class='method_details' id="valid?-instance_method">
   <h3 class='signature ro'>
-    #<strong>valid?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='readonly'>readonly</span>)</span>  </h3>
-<div class='docstring'>
-  <div class='discussion'>
-    
-<p>Returns whether the buffer buffer is accessible.</p>
+    #<strong>valid?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='readonly'>readonly</span>)</span>
+  </h3>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3723'>GitHub</a> ]</span>
 
-<p>A buffer becomes invalid if it is a slice of another buffer which has been freed.</p>
-
-  </div>
-</div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L899-L906'>GitHub</a>&#8202;]</span>
-<div class='source_code h'>
-  <pre class='lines_num' data-start='899' data-end='906'></pre>
-  <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 899</span></pre>
-<pre class='code cpp'>
-
-static VALUE
-rb_io_buffer_valid_p(VALUE self)
-{
-    struct rb_io_buffer *buffer = NULL;
-    TypedData_Get_Struct(self, struct rb_io_buffer, &amp;rb_io_buffer_type, buffer);
-
-    return RBOOL(io_buffer_validate(buffer));
-}
-</pre>
-  </div>
-</div>
 </section>
 
 <h2 class='y_details'>Instance Method Details</h2>
@@ -1322,11 +1117,11 @@ rb_io_buffer_valid_p(VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L2966-L2984'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3256-L3274'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2966' data-end='2984'></pre>
+  <pre class='lines_num' data-start='3256' data-end='3274'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 2966</span></pre>
+<pre><span class='info file'># File 'io_buffer.c', line 3256</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1355,43 +1150,10 @@ io_buffer_and(VALUE self, VALUE mask)
 
 <section class='method_details' id="<=>-instance_method">
   <h3 class='signature '>
-    #<strong>&lt;=&gt;</strong>(other)  &#x21d2; <code>Boolean</code>   </h3>
-<div class='docstring'>
-  <div class='discussion'>
-    
-<p>Buffers are compared by size and exact contents of the memory they are referencing using <code>memcmp</code>.</p>
+    #<strong>&lt;=&gt;</strong>  
+  </h3>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3777'>GitHub</a> ]</span>
 
-  </div>
-</div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L1554-L1572'>GitHub</a>&#8202;]</span>
-<div class='source_code h'>
-  <pre class='lines_num' data-start='1554' data-end='1572'></pre>
-  <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 1554</span></pre>
-<pre class='code cpp'>
-
-static VALUE
-rb_io_buffer_compare(VALUE self, VALUE other)
-{
-    const void *ptr1, *ptr2;
-    size_t size1, size2;
-
-    rb_io_buffer_get_bytes_for_reading(self, &amp;ptr1, &amp;size1);
-    rb_io_buffer_get_bytes_for_reading(other, &amp;ptr2, &amp;size2);
-
-    if (size1 &lt; size2) {
-        return RB_INT2NUM(-1);
-    }
-
-    if (size1 &gt; size2) {
-        return RB_INT2NUM(1);
-    }
-
-    return RB_INT2NUM(memcmp(ptr1, ptr2, size1));
-}
-</pre>
-  </div>
-</div>
 </section>
 
 <section class='method_details' id="^-instance_method">
@@ -1409,11 +1171,11 @@ rb_io_buffer_compare(VALUE self, VALUE other)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3046-L3064'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3336-L3354'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='3046' data-end='3064'></pre>
+  <pre class='lines_num' data-start='3336' data-end='3354'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 3046</span></pre>
+<pre><span class='info file'># File 'io_buffer.c', line 3336</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1460,11 +1222,11 @@ io_buffer_xor(VALUE self, VALUE mask)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3143-L3162'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3433-L3452'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='3143' data-end='3162'></pre>
+  <pre class='lines_num' data-start='3433' data-end='3452'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 3143</span></pre>
+<pre><span class='info file'># File 'io_buffer.c', line 3433</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1500,38 +1262,38 @@ io_buffer_and_inplace(VALUE self, VALUE mask)
     
 <p>Fill buffer with <code>value</code>, starting with <code>offset</code> and going for <code>length</code> bytes.</p>
 
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_buffer'>buffer</span> <span class='op'>=</span> <span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_for'><a href="#for-class_method" title="IO::Buffer.for (method)">for</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>test</span><span class='tstring_end'>&#39;</span></span>)
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_buffer'>buffer</span> <span class='op'>=</span> <span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_for'><a href="#for-class_method" title="IO::Buffer.for (method)">for</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>test</span><span class='tstring_end'>&#39;</span></span>).<span class='id identifier rubyid_dup'><a href="../Object.html#dup-instance_method" title="Object#dup (method)">dup</a></span>
 <span class='comment'># =&gt;
-</span><span class='comment'>#   &lt;IO::Buffer 0x00007fca40087c38+4 SLICE&gt;
+</span><span class='comment'>#   &lt;IO::Buffer 0x00007fca40087c38+4 INTERNAL&gt;
 </span><span class='comment'>#   0x00000000  74 65 73 74         test
 </span>
 <span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_clear'>clear</span>
 <span class='comment'># =&gt;
-</span><span class='comment'>#   &lt;IO::Buffer 0x00007fca40087c38+4 SLICE&gt;
+</span><span class='comment'>#   &lt;IO::Buffer 0x00007fca40087c38+4 INTERNAL&gt;
 </span><span class='comment'>#   0x00000000  00 00 00 00         ....
 </span>
 <span class='id identifier rubyid_buf'>buf</span>.<span class='id identifier rubyid_clear'>clear</span>(<span class='int'>1</span>) <span class='comment'># fill with 1
 </span><span class='comment'># =&gt;
-</span><span class='comment'>#   &lt;IO::Buffer 0x00007fca40087c38+4 SLICE&gt;
+</span><span class='comment'>#   &lt;IO::Buffer 0x00007fca40087c38+4 INTERNAL&gt;
 </span><span class='comment'>#   0x00000000  01 01 01 01         ....
 </span>
 <span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_clear'>clear</span>(<span class='int'>2</span><span class='comma'>,</span> <span class='int'>1</span><span class='comma'>,</span> <span class='int'>2</span>) <span class='comment'># fill with 2, starting from offset 1, for 2 bytes
 </span><span class='comment'># =&gt;
-</span><span class='comment'>#   &lt;IO::Buffer 0x00007fca40087c38+4 SLICE&gt;
+</span><span class='comment'>#   &lt;IO::Buffer 0x00007fca40087c38+4 INTERNAL&gt;
 </span><span class='comment'>#   0x00000000  01 02 02 01         ....
 </span>
 <span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_clear'>clear</span>(<span class='int'>2</span><span class='comma'>,</span> <span class='int'>1</span>) <span class='comment'># fill with 2, starting from offset 1
 </span><span class='comment'># =&gt;
-</span><span class='comment'>#   &lt;IO::Buffer 0x00007fca40087c38+4 SLICE&gt;
+</span><span class='comment'>#   &lt;IO::Buffer 0x00007fca40087c38+4 INTERNAL&gt;
 </span><span class='comment'>#   0x00000000  01 02 02 02         ....</span></code></pre>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L2414-L2430'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L2667-L2683'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2414' data-end='2430'></pre>
+  <pre class='lines_num' data-start='2667' data-end='2683'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 2414</span></pre>
+<pre><span class='info file'># File 'io_buffer.c', line 2667</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1562,7 +1324,7 @@ io_buffer_clear(int argc, VALUE *argv, VALUE self)
 <div class='docstring'>
   <div class='discussion'>
     
-<p>Efficiently copy buffer from a source <code>Buffer</code> into the buffer, at <code>offset</code> using <code>memcpy</code>. For copying <a href="../String.html" title="String (class)"><code>::String</code></a> instances, see <a href="#set_string-instance_method" title="IO::Buffer#set_string (method)">#set_string</a>.</p>
+<p>Efficiently copy from a source <code>Buffer</code> into the buffer, at <code>offset</code> using <code>memmove</code>. For copying <a href="../String.html" title="String (class)"><code>::String</code></a> instances, see <a href="#set_string-instance_method" title="IO::Buffer#set_string (method)">#set_string</a>.</p>
 
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_buffer'>buffer</span> <span class='op'>=</span> <span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="IO::Buffer.new (method)">new</a></span>(<span class='int'>32</span>)
 <span class='comment'># =&gt;
@@ -1580,13 +1342,14 @@ io_buffer_clear(int argc, VALUE *argv, VALUE self)
 
 <p><code>#copy</code> can be used to put buffer into strings associated with buffer:</p>
 
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_string'>string</span><span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>buffer:    </span><span class='tstring_end'>&quot;</span></span>
-<span class='comment'># =&gt; &quot;buffer:    &quot;
-</span><span class='id identifier rubyid_buffer'>buffer</span> <span class='op'>=</span> <span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_for'><a href="#for-class_method" title="IO::Buffer.for (method)">for</a></span>(<span class='id identifier rubyid_string'>string</span>)
-<span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_copy'>copy</span>(<span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_for'><a href="#for-class_method" title="IO::Buffer.for (method)">for</a></span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>test</span><span class='tstring_end'>&quot;</span></span>)<span class='comma'>,</span> <span class='int'>5</span>)
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_string'><a href="#string-class_method" title="IO::Buffer.string (method)">string</a></span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>data:    </span><span class='tstring_end'>&quot;</span></span>
+<span class='comment'># =&gt; &quot;data:    &quot;
+</span><span class='id identifier rubyid_buffer'>buffer</span> <span class='op'>=</span> <span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_for'><a href="#for-class_method" title="IO::Buffer.for (method)">for</a></span>(<span class='id identifier rubyid_string'><a href="#string-class_method" title="IO::Buffer.string (method)">string</a></span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_buffer'>buffer</span><span class='op'>|</span>
+  <span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_copy'>copy</span>(<span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_for'><a href="#for-class_method" title="IO::Buffer.for (method)">for</a></span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>test</span><span class='tstring_end'>&quot;</span></span>)<span class='comma'>,</span> <span class='int'>5</span>)
+<span class='kw'>end</span>
 <span class='comment'># =&gt; 4
-</span><span class='id identifier rubyid_string'>string</span>
-<span class='comment'># =&gt; &quot;buffer:test&quot;</span></code></pre>
+</span><span class='id identifier rubyid_string'><a href="#string-class_method" title="IO::Buffer.string (method)">string</a></span>
+<span class='comment'># =&gt; &quot;data:test&quot;</span></code></pre>
 
 <p>Attempt to copy into a read-only buffer will fail:</p>
 
@@ -1609,13 +1372,24 @@ io_buffer_clear(int argc, VALUE *argv, VALUE self)
 <span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_copy'>copy</span>(<span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_for'><a href="#for-class_method" title="IO::Buffer.for (method)">for</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>test</span><span class='tstring_end'>&#39;</span></span>)<span class='comma'>,</span> <span class='int'>0</span>)
 <span class='comment'># in `copy&#39;: Specified offset+length is bigger than the buffer size! (ArgumentError)</span></code></pre>
 
+<p>It is safe to copy between memory regions that overlaps each other. In such case, the data is copied as if the data was first copied from the source buffer to a temporary buffer, and then copied from the temporary buffer to the destination buffer.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_buffer'>buffer</span> <span class='op'>=</span> <span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="IO::Buffer.new (method)">new</a></span>(<span class='int'>10</span>)
+<span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_set_string'><a href="#set_string-instance_method" title="IO::Buffer#set_string (method)">set_string</a></span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>0123456789</span><span class='tstring_end'>&quot;</span></span>)
+<span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_copy'>copy</span>(<span class='id identifier rubyid_buffer'>buffer</span><span class='comma'>,</span> <span class='int'>3</span><span class='comma'>,</span> <span class='int'>7</span>)
+<span class='comment'># =&gt; 7
+</span><span class='id identifier rubyid_buffer'>buffer</span>
+<span class='comment'># =&gt;
+</span><span class='comment'># #&lt;IO::Buffer 0x000056494f8ce440+10 INTERNAL&gt;
+</span><span class='comment'># 0x00000000  30 31 32 30 31 32 33 34 35 36                   0120123456</span></code></pre>
+
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L2273-L2288'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L2526-L2541'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2273' data-end='2288'></pre>
+  <pre class='lines_num' data-start='2526' data-end='2541'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 2273</span></pre>
+<pre><span class='info file'># File 'io_buffer.c', line 2526</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1641,64 +1415,10 @@ io_buffer_copy(int argc, VALUE *argv, VALUE self)
 
 <section class='method_details' id="free-instance_method">
   <h3 class='signature '>
-    #<strong>free</strong>  &#x21d2; <code>self</code>   </h3>
-<div class='docstring'>
-  <div class='discussion'>
-    
-<p>If the buffer references memory, release it back to the operating system.</p>
-<ul><li>
-<p>for a <em>mapped</em> buffer (e.g. from file): unmap.</p>
-</li><li>
-<p>for a buffer created from scratch: free memory.</p>
-</li><li>
-<p>for a buffer created from string: undo the association.</p>
-</li></ul>
+    #<strong>free</strong>  
+  </h3>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3780'>GitHub</a> ]</span>
 
-<p>After the buffer is freed, no further operations can’t be performed on it.</p>
-
-<p>You can resize a freed buffer to re-allocate it.</p>
-
-<p>Example:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_buffer'>buffer</span> <span class='op'>=</span> <span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_for'><a href="#for-class_method" title="IO::Buffer.for (method)">for</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>test</span><span class='tstring_end'>&#39;</span></span>)
-<span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_free'>free</span>
-<span class='comment'># =&gt; #&lt;IO::Buffer 0x0000000000000000+0 NULL&gt;
-</span>
-<span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_get_value'><a href="#get_value-instance_method" title="IO::Buffer#get_value (method)">get_value</a></span>(<span class='symbeg'>:</span><span class='const'>U8</span><span class='comma'>,</span> <span class='int'>0</span>)
-<span class='comment'># in `get_value&#39;: The buffer is not allocated! (IO::Buffer::AllocationError)
-</span>
-<span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_get_string'><a href="#get_string-instance_method" title="IO::Buffer#get_string (method)">get_string</a></span>
-<span class='comment'># in `get_string&#39;: The buffer is not allocated! (IO::Buffer::AllocationError)
-</span>
-<span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_null?'><a href="#null%3F-instance_method" title="IO::Buffer#null? (method)">null?</a></span>
-<span class='comment'># =&gt; true</span></code></pre>
-
-  </div>
-</div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L1204-L1217'>GitHub</a>&#8202;]</span>
-<div class='source_code h'>
-  <pre class='lines_num' data-start='1204' data-end='1217'></pre>
-  <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 1204</span></pre>
-<pre class='code cpp'>
-
-VALUE
-rb_io_buffer_free(VALUE self)
-{
-    struct rb_io_buffer *buffer = NULL;
-    TypedData_Get_Struct(self, struct rb_io_buffer, &amp;rb_io_buffer_type, buffer);
-
-    if (buffer-&gt;flags &amp; RB_IO_BUFFER_LOCKED) {
-        rb_raise(rb_eIOBufferLockedError, &quot;Buffer is locked!&quot;);
-    }
-
-    io_buffer_free(buffer);
-
-    return self;
-}
-</pre>
-  </div>
-</div>
 </section>
 
 <section class='method_details' id="get_string-instance_method">
@@ -1719,11 +1439,11 @@ rb_io_buffer_free(VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L2304-L2327'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L2557-L2580'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2304' data-end='2327'></pre>
+  <pre class='lines_num' data-start='2557' data-end='2580'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 2304</span></pre>
+<pre><span class='info file'># File 'io_buffer.c', line 2557</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1802,20 +1522,18 @@ io_buffer_get_string(int argc, VALUE *argv, VALUE self)
 
 <p>A buffer type refers specifically to the type of binary buffer that is stored in the buffer. For example, a <code>:u32</code> buffer type is a 32-bit unsigned integer in little-endian format.</p>
 
-<p>Example:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_string'>string</span> <span class='op'>=</span> [<span class='float'>1.5</span>].<span class='id identifier rubyid_pack'>pack</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>f</span><span class='tstring_end'>&#39;</span></span>)
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_string'><a href="#string-class_method" title="IO::Buffer.string (method)">string</a></span> <span class='op'>=</span> [<span class='float'>1.5</span>].<span class='id identifier rubyid_pack'>pack</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>f</span><span class='tstring_end'>&#39;</span></span>)
 <span class='comment'># =&gt; &quot;\x00\x00\xC0?&quot;
-</span><span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_for'><a href="#for-class_method" title="IO::Buffer.for (method)">for</a></span>(<span class='id identifier rubyid_string'>string</span>).<span class='id identifier rubyid_get_value'>get_value</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_f32'>f32</span><span class='comma'>,</span> <span class='int'>0</span>)
+</span><span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_for'><a href="#for-class_method" title="IO::Buffer.for (method)">for</a></span>(<span class='id identifier rubyid_string'><a href="#string-class_method" title="IO::Buffer.string (method)">string</a></span>).<span class='id identifier rubyid_get_value'>get_value</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_f32'>f32</span><span class='comma'>,</span> <span class='int'>0</span>)
 <span class='comment'># =&gt; 1.5</span></code></pre>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L1801-L1811'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L2016-L2026'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1801' data-end='1811'></pre>
+  <pre class='lines_num' data-start='2016' data-end='2026'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 1801</span></pre>
+<pre><span class='info file'># File 'io_buffer.c', line 2016</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1842,19 +1560,17 @@ io_buffer_get_value(VALUE self, VALUE type, VALUE _offset)
     
 <p>Similar to <a href="#get_value-instance_method" title="IO::Buffer#get_value (method)">#get_value</a>, except that it can handle multiple buffer types and returns an array of values.</p>
 
-<p>Example:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_string'>string</span> <span class='op'>=</span> [<span class='float'>1.5</span><span class='comma'>,</span> <span class='float'>2.5</span>].<span class='id identifier rubyid_pack'>pack</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>ff</span><span class='tstring_end'>&#39;</span></span>)
-<span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_for'><a href="#for-class_method" title="IO::Buffer.for (method)">for</a></span>(<span class='id identifier rubyid_string'>string</span>).<span class='id identifier rubyid_get_values'>get_values</span>([<span class='symbeg'>:</span><span class='id identifier rubyid_f32'>f32</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_f32'>f32</span>]<span class='comma'>,</span> <span class='int'>0</span>)
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_string'><a href="#string-class_method" title="IO::Buffer.string (method)">string</a></span> <span class='op'>=</span> [<span class='float'>1.5</span><span class='comma'>,</span> <span class='float'>2.5</span>].<span class='id identifier rubyid_pack'>pack</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>ff</span><span class='tstring_end'>&#39;</span></span>)
+<span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_for'><a href="#for-class_method" title="IO::Buffer.for (method)">for</a></span>(<span class='id identifier rubyid_string'><a href="#string-class_method" title="IO::Buffer.string (method)">string</a></span>).<span class='id identifier rubyid_get_values'>get_values</span>([<span class='symbeg'>:</span><span class='id identifier rubyid_f32'>f32</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_f32'>f32</span>]<span class='comma'>,</span> <span class='int'>0</span>)
 <span class='comment'># =&gt; [1.5, 2.5]</span></code></pre>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L1825-L1847'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L2038-L2060'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1825' data-end='1847'></pre>
+  <pre class='lines_num' data-start='2038' data-end='2060'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 1825</span></pre>
+<pre><span class='info file'># File 'io_buffer.c', line 2038</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1889,32 +1605,8 @@ io_buffer_get_values(VALUE self, VALUE buffer_types, VALUE _offset)
   <h3 class='signature '>
     #<strong>hexdump</strong>  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L841-L856'>GitHub</a>&#8202;]</span>
-<div class='source_code h'>
-  <pre class='lines_num' data-start='841' data-end='856'></pre>
-  <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 841</span></pre>
-<pre class='code cpp'>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3720'>GitHub</a> ]</span>
 
-static VALUE
-rb_io_buffer_hexdump(VALUE self)
-{
-    struct rb_io_buffer *buffer = NULL;
-    TypedData_Get_Struct(self, struct rb_io_buffer, &amp;rb_io_buffer_type, buffer);
-
-    VALUE result = Qnil;
-
-    if (io_buffer_validate(buffer) &amp;&amp; buffer-&gt;base) {
-        result = rb_str_buf_new(buffer-&gt;size*3 + (buffer-&gt;size/16)*12 + 1);
-
-        io_buffer_hexdump(result, 16, buffer-&gt;base, buffer-&gt;size, 1);
-    }
-
-    return result;
-}
-</pre>
-  </div>
-</div>
 </section>
 
 <section class='method_details' id="not!-instance_method">
@@ -1937,11 +1629,11 @@ rb_io_buffer_hexdump(VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3281-L3294'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3571-L3584'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='3281' data-end='3294'></pre>
+  <pre class='lines_num' data-start='3571' data-end='3584'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 3281</span></pre>
+<pre><span class='info file'># File 'io_buffer.c', line 3571</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1983,11 +1675,11 @@ io_buffer_not_inplace(VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3189-L3208'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3479-L3498'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='3189' data-end='3208'></pre>
+  <pre class='lines_num' data-start='3479' data-end='3498'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 3189</span></pre>
+<pre><span class='info file'># File 'io_buffer.c', line 3479</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2043,11 +1735,11 @@ io_buffer_or_inplace(VALUE self, VALUE mask)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L2606-L2617'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L2862-L2873'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2606' data-end='2617'></pre>
+  <pre class='lines_num' data-start='2862' data-end='2873'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 2606</span></pre>
+<pre><span class='info file'># File 'io_buffer.c', line 2862</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2069,40 +1761,10 @@ io_buffer_read(int argc, VALUE *argv, VALUE self)
 
 <section class='method_details' id="resize-instance_method">
   <h3 class='signature '>
-    #<strong>resize</strong>(new_size)  &#x21d2; <code>self</code>   </h3>
-<div class='docstring'>
-  <div class='discussion'>
-    
-<p>Resizes a buffer to a <code>new_size</code> bytes, preserving its content. Depending on the old and new size, the memory area associated with the buffer might be either extended, or rellocated at different address with content being copied.</p>
+    #<strong>resize</strong>  
+  </h3>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3778'>GitHub</a> ]</span>
 
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_buffer'>buffer</span> <span class='op'>=</span> <span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="IO::Buffer.new (method)">new</a></span>(<span class='int'>4</span>)
-<span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_set_string'><a href="#set_string-instance_method" title="IO::Buffer#set_string (method)">set_string</a></span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>test</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='int'>0</span>)
-<span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_resize'>resize</span>(<span class='int'>8</span>) <span class='comment'># resize to 8 bytes
-</span><span class='comment'># =&gt;
-</span><span class='comment'># #&lt;IO::Buffer 0x0000555f5d1a1630+8 INTERNAL&gt;
-</span><span class='comment'># 0x00000000  74 65 73 74 00 00 00 00                         test....</span></code></pre>
-
-<p>External buffer (created with <a href="#for-class_method" title="IO::Buffer.for (method)">.for</a>), and locked buffer can not be resized.</p>
-
-  </div>
-</div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L1540-L1546'>GitHub</a>&#8202;]</span>
-<div class='source_code h'>
-  <pre class='lines_num' data-start='1540' data-end='1546'></pre>
-  <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 1540</span></pre>
-<pre class='code cpp'>
-
-static VALUE
-io_buffer_resize(VALUE self, VALUE size)
-{
-    rb_io_buffer_resize(self, io_buffer_extract_size(size));
-
-    return self;
-}
-</pre>
-  </div>
-</div>
 </section>
 
 <section class='method_details' id="set_string-instance_method">
@@ -2111,7 +1773,7 @@ io_buffer_resize(VALUE self, VALUE size)
 <div class='docstring'>
   <div class='discussion'>
     
-<p>Efficiently copy buffer from a source <a href="../String.html" title="String (class)"><code>::String</code></a> into the buffer, at <code>offset</code> using <code>memcpy</code>.</p>
+<p>Efficiently copy from a source <a href="../String.html" title="String (class)"><code>::String</code></a> into the buffer, at <code>offset</code> using <code>memmove</code>.</p>
 
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_buf'>buf</span> <span class='op'>=</span> <span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="IO::Buffer.new (method)">new</a></span>(<span class='int'>8</span>)
 <span class='comment'># =&gt;
@@ -2131,11 +1793,11 @@ io_buffer_resize(VALUE self, VALUE size)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L2352-L2366'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L2605-L2619'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2352' data-end='2366'></pre>
+  <pre class='lines_num' data-start='2605' data-end='2619'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 2352</span></pre>
+<pre><span class='info file'># File 'io_buffer.c', line 2605</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2192,11 +1854,11 @@ io_buffer_set_string(int argc, VALUE *argv, VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L2071-L2083'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L2278-L2290'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2071' data-end='2083'></pre>
+  <pre class='lines_num' data-start='2278' data-end='2290'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 2071</span></pre>
+<pre><span class='info file'># File 'io_buffer.c', line 2278</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2225,8 +1887,6 @@ io_buffer_set_value(VALUE self, VALUE type, VALUE _offset, VALUE value)
     
 <p>Write <a href="#values-instance_method" title="IO::Buffer#values (method)">#values</a> of <code>buffer_types</code> at <code>offset</code> to the buffer. <code>buffer_types</code> should be an array of symbols as described in <a href="#get_value-instance_method" title="IO::Buffer#get_value (method)">#get_value</a>. <a href="#values-instance_method" title="IO::Buffer#values (method)">#values</a> should be an array of values to write.</p>
 
-<p>Example:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_buffer'>buffer</span> <span class='op'>=</span> <span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="IO::Buffer.new (method)">new</a></span>(<span class='int'>8</span>)
 <span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_set_values'>set_values</span>([<span class='symbeg'>:</span><span class='const'>U8</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='const'>U16</span>]<span class='comma'>,</span> <span class='int'>0</span><span class='comma'>,</span> [<span class='int'>1</span><span class='comma'>,</span> <span class='int'>2</span>])
 <span class='id identifier rubyid_buffer'>buffer</span>
@@ -2236,11 +1896,11 @@ io_buffer_set_value(VALUE self, VALUE type, VALUE _offset, VALUE value)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L2101-L2129'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L2306-L2334'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2101' data-end='2129'></pre>
+  <pre class='lines_num' data-start='2306' data-end='2334'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 2101</span></pre>
+<pre><span class='info file'># File 'io_buffer.c', line 2306</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2279,238 +1939,34 @@ io_buffer_set_values(VALUE self, VALUE buffer_types, VALUE _offset, VALUE values
 
 <section class='method_details' id="size-instance_method">
   <h3 class='signature '>
-    #<strong>size</strong>  &#x21d2; <a href="../Integer.html" title="Integer (class)">Integer</a>   </h3>
-<div class='docstring'>
-  <div class='discussion'>
-    
-<p>Returns the size of the buffer that was explicitly set (on creation with <a href="#new-class_method" title="IO::Buffer.new (method)">.new</a> or on <a href="#resize-instance_method" title="IO::Buffer#resize (method)">#resize</a>), or deduced on buffer’s creation from string or file.</p>
+    #<strong>size</strong>  
+  </h3>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3722'>GitHub</a> ]</span>
 
-  </div>
-</div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L882-L889'>GitHub</a>&#8202;]</span>
-<div class='source_code h'>
-  <pre class='lines_num' data-start='882' data-end='889'></pre>
-  <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 882</span></pre>
-<pre class='code cpp'>
-
-VALUE
-rb_io_buffer_size(VALUE self)
-{
-    struct rb_io_buffer *buffer = NULL;
-    TypedData_Get_Struct(self, struct rb_io_buffer, &amp;rb_io_buffer_type, buffer);
-
-    return SIZET2NUM(buffer-&gt;size);
-}
-</pre>
-  </div>
-</div>
 </section>
 
 <section class='method_details' id="slice-instance_method">
   <h3 class='signature '>
-    #<strong>slice</strong>([offset, [length]])  &#x21d2; <code>Buffer</code>   </h3>
-<div class='docstring'>
-  <div class='discussion'>
-    
-<p>Produce another <code>Buffer</code> which is a slice (or view into) the current one starting at <code>offset</code> bytes and going for <code>length</code> bytes.</p>
+    #<strong>slice</strong>  
+  </h3>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3776'>GitHub</a> ]</span>
 
-<p>The slicing happens without copying of memory, and the slice keeps being associated with the original buffer’s source (string, or file), if any.</p>
-
-<p>If the offset is not given, it will be zero. If the offset is negative, it will raise an <a href="../ArgumentError.html" title="ArgumentError (class)"><code>::ArgumentError</code></a>.</p>
-
-<p>If the length is not given, the slice will be as long as the original buffer minus the specified offset. If the length is negative, it will raise an <a href="../ArgumentError.html" title="ArgumentError (class)"><code>::ArgumentError</code></a>.</p>
-
-<p>Raises RuntimeError if the <code>offset</code>length&lt;/tt&gt; is out of the current buffer’s bounds.</p>
-
-<p>Example:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_string'>string</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>test</span><span class='tstring_end'>&#39;</span></span>
-<span class='id identifier rubyid_buffer'>buffer</span> <span class='op'>=</span> <span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_for'><a href="#for-class_method" title="IO::Buffer.for (method)">for</a></span>(<span class='id identifier rubyid_string'>string</span>)
-
-<span class='id identifier rubyid_slice'>slice</span> <span class='op'>=</span> <span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_slice'>slice</span>
-<span class='comment'># =&gt;
-</span><span class='comment'># #&lt;IO::Buffer 0x0000000108338e68+4 SLICE&gt;
-</span><span class='comment'># 0x00000000  74 65 73 74                                     test
-</span>
-<span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_slice'>slice</span>(<span class='int'>2</span>)
-<span class='comment'># =&gt;
-</span><span class='comment'># #&lt;IO::Buffer 0x0000000108338e6a+2 SLICE&gt;
-</span><span class='comment'># 0x00000000  73 74                                           st
-</span>
-<span class='id identifier rubyid_slice'>slice</span> <span class='op'>=</span> <span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_slice'>slice</span>(<span class='int'>1</span><span class='comma'>,</span> <span class='int'>2</span>)
-<span class='comment'># =&gt;
-</span><span class='comment'># #&lt;IO::Buffer 0x00007fc3d34ebc49+2 SLICE&gt;
-</span><span class='comment'># 0x00000000  65 73                                           es
-</span>
-<span class='comment'># Put &quot;o&quot; into 0s position of the slice
-</span><span class='id identifier rubyid_slice'>slice</span>.<span class='id identifier rubyid_set_string'><a href="#set_string-instance_method" title="IO::Buffer#set_string (method)">set_string</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>o</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='int'>0</span>)
-<span class='id identifier rubyid_slice'>slice</span>
-<span class='comment'># =&gt;
-</span><span class='comment'># #&lt;IO::Buffer 0x00007fc3d34ebc49+2 SLICE&gt;
-</span><span class='comment'># 0x00000000  6f 73                                           os
-</span>
-<span class='comment'># it is also visible at position 1 of the original buffer
-</span><span class='id identifier rubyid_buffer'>buffer</span>
-<span class='comment'># =&gt;
-</span><span class='comment'># #&lt;IO::Buffer 0x00007fc3d31e2d80+4 SLICE&gt;
-</span><span class='comment'># 0x00000000  74 6f 73 74                                     tost
-</span>
-<span class='comment'># ...and original string
-</span><span class='id identifier rubyid_string'>string</span>
-<span class='comment'># =&gt; tost</span></code></pre>
-
-  </div>
-</div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L1308-L1317'>GitHub</a>&#8202;]</span>
-<div class='source_code h'>
-  <pre class='lines_num' data-start='1308' data-end='1317'></pre>
-  <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 1308</span></pre>
-<pre class='code cpp'>
-
-static VALUE
-io_buffer_slice(int argc, VALUE *argv, VALUE self)
-{
-    rb_check_arity(argc, 0, 2);
-
-    size_t offset, length;
-    struct rb_io_buffer *buffer = io_buffer_extract_offset_length(self, argc, argv, &amp;offset, &amp;length);
-
-    return rb_io_buffer_slice(buffer, self, offset, length);
-}
-</pre>
-  </div>
-</div>
 </section>
 
 <section class='method_details' id="to_s-instance_method">
   <h3 class='signature '>
-    #<strong>to_s</strong>  &#x21d2; <a href="../String.html" title="String (class)">String</a>   </h3>
-<div class='docstring'>
-  <div class='discussion'>
-    
-<p>Short representation of the buffer. It includes the address, size and symbolic flags. This format is subject to change.</p>
+    #<strong>to_s</strong>  
+  </h3>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3721'>GitHub</a> ]</span>
 
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_puts'><a href="../IO.html#puts-instance_method" title="IO#puts (method)">puts</a></span> <span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="IO::Buffer.new (method)">new</a></span>(<span class='int'>4</span>) <span class='comment'># uses to_s internally
-</span><span class='comment'># #&lt;IO::Buffer 0x000055769f41b1a0+4 INTERNAL&gt;</span></code></pre>
-
-  </div>
-</div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L751-L799'>GitHub</a>&#8202;]</span>
-<div class='source_code h'>
-  <pre class='lines_num' data-start='751' data-end='799'></pre>
-  <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 751</span></pre>
-<pre class='code cpp'>
-
-VALUE
-rb_io_buffer_to_s(VALUE self)
-{
-    struct rb_io_buffer *buffer = NULL;
-    TypedData_Get_Struct(self, struct rb_io_buffer, &amp;rb_io_buffer_type, buffer);
-
-    VALUE result = rb_str_new_cstr(&quot;#&lt;&quot;);
-
-    rb_str_append(result, rb_class_name(CLASS_OF(self)));
-    rb_str_catf(result, &quot; %p+%&quot;PRIdSIZE, buffer-&gt;base, buffer-&gt;size);
-
-    if (buffer-&gt;base == NULL) {
-        rb_str_cat2(result, &quot; NULL&quot;);
-    }
-
-    if (buffer-&gt;flags &amp; RB_IO_BUFFER_EXTERNAL) {
-        rb_str_cat2(result, &quot; EXTERNAL&quot;);
-    }
-
-    if (buffer-&gt;flags &amp; RB_IO_BUFFER_INTERNAL) {
-        rb_str_cat2(result, &quot; INTERNAL&quot;);
-    }
-
-    if (buffer-&gt;flags &amp; RB_IO_BUFFER_MAPPED) {
-        rb_str_cat2(result, &quot; MAPPED&quot;);
-    }
-
-    if (buffer-&gt;flags &amp; RB_IO_BUFFER_SHARED) {
-        rb_str_cat2(result, &quot; SHARED&quot;);
-    }
-
-    if (buffer-&gt;flags &amp; RB_IO_BUFFER_LOCKED) {
-        rb_str_cat2(result, &quot; LOCKED&quot;);
-    }
-
-    if (buffer-&gt;flags &amp; RB_IO_BUFFER_READONLY) {
-        rb_str_cat2(result, &quot; READONLY&quot;);
-    }
-
-    if (buffer-&gt;source != Qnil) {
-        rb_str_cat2(result, &quot; SLICE&quot;);
-    }
-
-    if (!io_buffer_validate(buffer)) {
-        rb_str_cat2(result, &quot; INVALID&quot;);
-    }
-
-    return rb_str_cat2(result, &quot;&gt;&quot;);
-}
-</pre>
-  </div>
-</div>
 </section>
 
 <section class='method_details' id="transfer-instance_method">
   <h3 class='signature '>
-    #<strong>transfer</strong>  &#x21d2; <code>Buffer</code>   </h3>
-<div class='docstring'>
-  <div class='discussion'>
-    
-<p>Transfers ownership to a new buffer, deallocating the current one.</p>
+    #<strong>transfer</strong>  
+  </h3>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3725'>GitHub</a> ]</span>
 
-<p>Example:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_buffer'>buffer</span> <span class='op'>=</span> <span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="IO::Buffer.new (method)">new</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>test</span><span class='tstring_end'>&#39;</span></span>)
-<span class='id identifier rubyid_other'>other</span> <span class='op'>=</span> <span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_transfer'>transfer</span>
-<span class='id identifier rubyid_other'>other</span>
-<span class='comment'># =&gt;
-</span><span class='comment'># #&lt;IO::Buffer 0x00007f136a15f7b0+4 SLICE&gt;
-</span><span class='comment'># 0x00000000  74 65 73 74                                     test
-</span><span class='id identifier rubyid_buffer'>buffer</span>
-<span class='comment'># =&gt;
-</span><span class='comment'># #&lt;IO::Buffer 0x0000000000000000+0 NULL&gt;
-</span><span class='id identifier rubyid_buffer'>buffer</span>.<span class='id identifier rubyid_null?'><a href="#null%3F-instance_method" title="IO::Buffer#null? (method)">null?</a></span>
-<span class='comment'># =&gt; true</span></code></pre>
-
-  </div>
-</div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L1416-L1434'>GitHub</a>&#8202;]</span>
-<div class='source_code h'>
-  <pre class='lines_num' data-start='1416' data-end='1434'></pre>
-  <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 1416</span></pre>
-<pre class='code cpp'>
-
-VALUE
-rb_io_buffer_transfer(VALUE self)
-{
-    struct rb_io_buffer *buffer = NULL;
-    TypedData_Get_Struct(self, struct rb_io_buffer, &amp;rb_io_buffer_type, buffer);
-
-    if (buffer-&gt;flags &amp; RB_IO_BUFFER_LOCKED) {
-        rb_raise(rb_eIOBufferLockedError, &quot;Cannot transfer ownership of locked buffer!&quot;);
-    }
-
-    VALUE instance = rb_io_buffer_type_allocate(rb_class_of(self));
-    struct rb_io_buffer *transferred;
-    TypedData_Get_Struct(instance, struct rb_io_buffer, &amp;rb_io_buffer_type, transferred);
-
-    *transferred = *buffer;
-    io_buffer_zero(buffer);
-
-    return instance;
-}
-</pre>
-  </div>
-</div>
 </section>
 
 <section class='method_details' id="values-instance_method">
@@ -2523,18 +1979,16 @@ rb_io_buffer_transfer(VALUE self)
 
 <p>If <code>count</code> is given, only <code>count</code> values will be returned.</p>
 
-<p>Example:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='const'><a href="../IO.html" title="IO (class)">IO</a></span><span class='op'>::</span><span class='const'>Buffer</span>.<span class='id identifier rubyid_for'><a href="#for-class_method" title="IO::Buffer.for (method)">for</a></span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Hello World</span><span class='tstring_end'>&quot;</span></span>).<span class='id identifier rubyid_values'>values</span>(<span class='symbeg'>:</span><span class='const'>U8</span><span class='comma'>,</span> <span class='int'>2</span><span class='comma'>,</span> <span class='int'>2</span>)
 <span class='comment'># =&gt; [108, 108]</span></code></pre>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L1943-L1970'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L2152-L2179'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1943' data-end='1970'></pre>
+  <pre class='lines_num' data-start='2152' data-end='2179'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 1943</span></pre>
+<pre><span class='info file'># File 'io_buffer.c', line 2152</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2591,11 +2045,11 @@ io_buffer_values(int argc, VALUE *argv, VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L2825-L2836'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3092-L3103'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2825' data-end='2836'></pre>
+  <pre class='lines_num' data-start='3092' data-end='3103'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 2825</span></pre>
+<pre><span class='info file'># File 'io_buffer.c', line 3092</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2635,11 +2089,11 @@ io_buffer_write(int argc, VALUE *argv, VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3235-L3254'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3525-L3544'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='3235' data-end='3254'></pre>
+  <pre class='lines_num' data-start='3525' data-end='3544'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 3235</span></pre>
+<pre><span class='info file'># File 'io_buffer.c', line 3525</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2682,11 +2136,11 @@ io_buffer_xor_inplace(VALUE self, VALUE mask)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3006-L3024'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3296-L3314'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='3006' data-end='3024'></pre>
+  <pre class='lines_num' data-start='3296' data-end='3314'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 3006</span></pre>
+<pre><span class='info file'># File 'io_buffer.c', line 3296</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2728,11 +2182,11 @@ io_buffer_or(VALUE self, VALUE mask)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3086-L3099'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/io_buffer.c#L3376-L3389'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='3086' data-end='3099'></pre>
+  <pre class='lines_num' data-start='3376' data-end='3389'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'io_buffer.c', line 3086</span></pre>
+<pre><span class='info file'># File 'io_buffer.c', line 3376</span></pre>
 <pre class='code cpp'>
 
 static VALUE

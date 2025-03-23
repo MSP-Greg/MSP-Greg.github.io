@@ -71,9 +71,14 @@
   <tbody>
     <tr><td class='box_h' colspan='2'>Namespace Children</td></tr>
     <tr><td colspan='2'>
+      <div class='box_1'>Modules:</div>
+      <div class='box_11'>
+          <a class='nodoc' href="Tempfile/PathAttr.html" title="Tempfile::PathAttr (module)"><code>PathAttr</code></a>      </div>
+    </td></tr>
+    <tr><td colspan='2'>
       <div class='box_1'>Classes:</div>
       <div class='box_11'>
-          <a class='nodoc' href="Tempfile/Remover.html" title="Tempfile::Remover (class)"><code>Remover</code></a>      </div>
+          <a class='nodoc' href="Tempfile/FinalizerManager.html" title="Tempfile::FinalizerManager (class)"><code>FinalizerManager</code></a>      </div>
     </td></tr>
     <tr><td class='box_h' colspan='2'>Super Chains via Extension / Inclusion / Inheritance</td></tr>
     <tr>
@@ -107,7 +112,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L89'>lib/tempfile.rb</a>      </td>
+      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L157'>lib/tempfile.rb</a>      </td>
     </tr>
   </tbody>
 </table>
@@ -117,13 +122,59 @@
 <div class='docstring'>
   <div class='discussion'>
     
-<p>A utility class for managing temporary files. When you create a <code>Tempfile</code> object, it will create a temporary file with a unique filename. A Tempfile objects behaves just like a File object, and you can perform all the usual file operations on it: reading data, writing data, changing its permissions, etc. So although this class does not explicitly document all instance methods supported by File, you can in fact call any File instance method on a <code>Tempfile</code> object.</p>
+<p>A utility class for managing temporary files.</p>
+
+<p>There are two kind of methods of creating a temporary file:</p>
+<ul><li>
+<p><a href="#create-class_method" title="Tempfile.create (method)">.create</a> (recommended)</p>
+</li><li>
+<p><a href="#new-class_method" title="Tempfile.new (method)">.new</a> and <a href="#open-class_method" title="Tempfile.open (method)">.open</a> (mostly for backward compatibility, not recommended)</p>
+</li></ul>
+
+<p><a href="#create-class_method" title="Tempfile.create (method)">.create</a> creates a usual File object. The timing of file deletion is predictable. Also, it supports open-and-unlink technique which removes the temporary file immediately after creation.</p>
+
+<p><a href="#new-class_method" title="Tempfile.new (method)">.new</a> and <a href="#open-class_method" title="Tempfile.open (method)">.open</a> creates a Tempfile object. The created file is removed by the GC (finalizer). The timing of file deletion is not predictable.</p>
 
 <h3 id="label-Synopsis">Synopsis</h3>
 
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>tempfile</span><span class='tstring_end'>&#39;</span></span>
 
-<span class='id identifier rubyid_file'>file</span> <span class='op'>=</span> <span class='const'>Tempfile</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Tempfile.new (method)">new</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&#39;</span></span>)
+<span class='comment'># Tempfile.create with a block
+</span><span class='comment'># The filename are choosen automatically.
+</span><span class='comment'># (You can specify the prefix and suffix of the filename by an optional argument.)
+</span><span class='const'>Tempfile</span>.<span class='id identifier rubyid_create'><a href="#create-class_method" title="Tempfile.create (method)">create</a></span> {<span class='op'>|</span><span class='id identifier rubyid_f'>f</span><span class='op'>|</span>
+  <span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_rewind'>rewind</span>
+  <span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_read'>read</span>                <span class='comment'># =&gt; &quot;foo\n&quot;
+</span>}                       <span class='comment'># The file is removed at block exit.
+</span>
+<span class='comment'># Tempfile.create without a block
+</span><span class='comment'># You need to unlink the file in non-block form.
+</span><span class='id identifier rubyid_f'>f</span> <span class='op'>=</span> <span class='const'>Tempfile</span>.<span class='id identifier rubyid_create'><a href="#create-class_method" title="Tempfile.create (method)">create</a></span>
+<span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_close'><a href="#close-instance_method" title="Tempfile#close (method)">close</a></span>
+<span class='const'>File</span>.<span class='id identifier rubyid_unlink'><a href="#unlink-instance_method" title="Tempfile#unlink (method)">unlink</a></span>(<span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>)     <span class='comment'># You need to unlink the file.
+</span>
+<span class='comment'># Tempfile.create(anonymous: true) without a block
+</span><span class='id identifier rubyid_f'>f</span> <span class='op'>=</span> <span class='const'>Tempfile</span>.<span class='id identifier rubyid_create'><a href="#create-class_method" title="Tempfile.create (method)">create</a></span>(<span class='label'>anonymous:</span> <span class='kw'>true</span>)
+<span class='comment'># The file is already removed because anonymous.
+</span><span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>                  <span class='comment'># =&gt; &quot;/tmp/&quot;  (no filename since no file)
+</span><span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_rewind'>rewind</span>
+<span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_read'>read</span>                  <span class='comment'># =&gt; &quot;foo\n&quot;
+</span><span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_close'><a href="#close-instance_method" title="Tempfile#close (method)">close</a></span>
+
+<span class='comment'># Tempfile.create(anonymous: true) with a block
+</span><span class='const'>Tempfile</span>.<span class='id identifier rubyid_create'><a href="#create-class_method" title="Tempfile.create (method)">create</a></span>(<span class='label'>anonymous:</span> <span class='kw'>true</span>) {<span class='op'>|</span><span class='id identifier rubyid_f'>f</span><span class='op'>|</span>
+  <span class='comment'># The file is already removed because anonymous.
+</span>  <span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>                <span class='comment'># =&gt; &quot;/tmp/&quot;  (no filename since no file)
+</span>  <span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_rewind'>rewind</span>
+  <span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_read'>read</span>                <span class='comment'># =&gt; &quot;foo\n&quot;
+</span>}
+
+<span class='comment'># Not recommended: Tempfile.new without a block
+</span><span class='id identifier rubyid_file'>file</span> <span class='op'>=</span> <span class='const'>Tempfile</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Tempfile.new (method)">new</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&#39;</span></span>)
 <span class='id identifier rubyid_file'>file</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>      <span class='comment'># =&gt; A unique filename in the OS&#39;s temp directory,
 </span>               <span class='comment'>#    e.g.: &quot;/tmp/foo.24722.0&quot;
 </span>               <span class='comment'>#    This filename contains &#39;foo&#39; in its basename.
@@ -133,7 +184,20 @@
 </span><span class='id identifier rubyid_file'>file</span>.<span class='id identifier rubyid_close'><a href="#close-instance_method" title="Tempfile#close (method)">close</a></span>
 <span class='id identifier rubyid_file'>file</span>.<span class='id identifier rubyid_unlink'><a href="#unlink-instance_method" title="Tempfile#unlink (method)">unlink</a></span>    <span class='comment'># deletes the temp file</span></code></pre>
 
-<h3 id="label-Good+practices">Good practices</h3>
+<h3 id="label-About+-7BTempfile.new-7D+and+-7BTempfile.open-7D">About <a href="#new-class_method" title="Tempfile.new (method)">.new</a> and <a href="#open-class_method" title="Tempfile.open (method)">.open</a></h3>
+
+<p>This section does not apply to <a href="#create-class_method" title="Tempfile.create (method)">.create</a> because it returns a File object (not a <code>Tempfile</code> object).</p>
+
+<p>When you create a <code>Tempfile</code> object, it will create a temporary file with a unique filename. A Tempfile objects behaves just like a File object, and you can perform all the usual file operations on it: reading data, writing data, changing its permissions, etc. So although this class does not explicitly document all instance methods supported by File, you can in fact call any File instance method on a <code>Tempfile</code> object.</p>
+
+<p>A Tempfile object has a finalizer to remove the temporary file. This means that the temporary file is removed via GC. This can cause several problems:</p>
+<ul><li>
+<p>Long GC intervals and conservative GC can accumulate temporary files that are not removed.</p>
+</li><li>
+<p>Temporary files are not removed if Ruby exits abnormally (such as SIGKILL, SEGV).</p>
+</li></ul>
+
+<p>There are legacy good practices for <a href="#new-class_method" title="Tempfile.new (method)">.new</a> and <a href="#open-class_method" title="Tempfile.open (method)">.open</a> as follows.</p>
 
 <h4 id="label-Explicit+close">Explicit close</h4>
 
@@ -151,7 +215,7 @@
 
 <p><a href="#create-class_method" title="Tempfile.create (method)">.create</a> { … } exists for this purpose and is more convenient to use. Note that <a href="#create-class_method" title="Tempfile.create (method)">.create</a> returns a File instance instead of a <code>Tempfile</code>, which also avoids the overhead and complications of delegation.</p>
 
-<pre class="code ruby"><code class="ruby"><span class='const'>Tempfile</span>.<span class='id identifier rubyid_open'><a href="#open-class_method" title="Tempfile.open (method)">open</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&#39;</span></span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_file'>file</span><span class='op'>|</span>
+<pre class="code ruby"><code class="ruby"><span class='const'>Tempfile</span>.<span class='id identifier rubyid_create'><a href="#create-class_method" title="Tempfile.create (method)">create</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&#39;</span></span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_file'>file</span><span class='op'>|</span>
    <span class='comment'># ...do something with file...
 </span><span class='kw'>end</span></code></pre>
 
@@ -159,9 +223,11 @@
 
 <p>On POSIX systems, it’s possible to unlink a file right after creating it, and before closing it. This removes the filesystem entry without closing the file handle, so it ensures that only the processes that already had the file handle open can access the file’s contents. It’s strongly recommended that you do this if you do not want any other processes to be able to read from or write to the <code>Tempfile</code>, and you do not need to know the Tempfile’s filename either.</p>
 
+<p>Also, this guarantees the temporary file is removed even if Ruby exits abnormally. The OS reclaims the storage for the temporary file when the file is closed or the Ruby process exits (normally or abnormally).</p>
+
 <p>For example, a practical use case for unlink-after-creation would be this: you need a large byte buffer that’s too large to comfortably fit in RAM, e.g. when you’re writing a web server and you want to buffer the client’s file upload data.</p>
 
-<p>Please refer to <a href="#unlink-instance_method" title="Tempfile#unlink (method)">#unlink</a> for more information and a code example.</p>
+<p><code>Tempfile.create(anonymous: true)</code> supports this behavior. It also works on Windows.</p>
 
 <h3 id="label-Minor+notes">Minor notes</h3>
 
@@ -172,16 +238,43 @@
   </div>
 </div>
 </div>
+<h2 id='t2_cnst' class='h2_sum'>Constant Summary</h2>
+<div>
+<ul class='constants summary full'>
+  <li>
+    <span id='VERSION-constant' class='summary_signature'>VERSION =</span>
+    <div class='docstring'>
+  <div class='discussion'>
+    
+<p>The version</p>
+
+  </div>
+</div>
+    <a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L160-L160'># File 'lib/tempfile.rb', line 160</a>    <pre class='code ruby'><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>0.3.1</span><span class='tstring_end'>&quot;</span></span></pre>
+  </li>
+</ul>
+</div>
+
 <h2 class='h2_sum' id='class_method_summary'>Class Method Summary</h2>
 <div class='div_sum'>
 <ul class='summary full'>
   <li>
     <span class='summary_signature '>
-      <a href="#create-class_method" title=".create (class method)">.<strong>create</strong>(basename = &quot;&quot;, tmpdir = nil, mode: 0, **options)  </a>
+      <a href="#create-class_method" title=".create (class method)">.<strong>create</strong>(basename = &quot;&quot;, tmpdir = nil, mode: 0, anonymous: false, **options, &amp;block)  </a>
     </span>
     <div class='summary_desc'>
       <div class='inline'><p>Creates a file in the underlying file system; returns a new File object based on that file.</p></div>
     </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#create_anonymous-class_method" title=".create_anonymous (class method)">.<strong>create_anonymous</strong>(basename = &quot;&quot;, tmpdir = nil, mode: 0, **options, &amp;block)  </a>
+    </span>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#create_with_filename-class_method" title=".create_with_filename (class method)">.<strong>create_with_filename</strong>(basename = &quot;&quot;, tmpdir = nil, mode: 0, **options)  </a>
+    </span>
   </li>
   <li>
     <span class='summary_signature '>
@@ -202,6 +295,44 @@
   </li>
 </ul>
 </div>  <!-- class_method_summary -->
+
+<h2 class='h2_sum' id='instance_attribute_summary'>Instance Attribute Summary</h2>
+<div class='div_sum'>
+<ul class='summary full'>
+  <li>
+    <span class='summary_signature ro prot nodoc'>
+      <a href="#finalizer_manager-instance_method" title="#finalizer_manager (instance method)">#<strong>finalizer_manager</strong>  </a>
+    </span>
+    <span class='note title readonly'>readonly</span>
+    <span class='note title protected'>protected</span>
+    <span class='nodoc note title'>Internal use only</span>
+  </li>
+  <li>
+    <span class='summary_signature ro prot nodoc'>
+      <a href="#mode-instance_method" title="#mode (instance method)">#<strong>mode</strong>  </a>
+    </span>
+    <span class='note title readonly'>readonly</span>
+    <span class='note title protected'>protected</span>
+    <span class='nodoc note title'>Internal use only</span>
+  </li>
+  <li>
+    <span class='summary_signature ro prot nodoc'>
+      <a href="#opts-instance_method" title="#opts (instance method)">#<strong>opts</strong>  </a>
+    </span>
+    <span class='note title readonly'>readonly</span>
+    <span class='note title protected'>protected</span>
+    <span class='nodoc note title'>Internal use only</span>
+  </li>
+  <li>
+    <span class='summary_signature ro prot nodoc'>
+      <a href="#unlinked-instance_method" title="#unlinked (instance method)">#<strong>unlinked</strong>  </a>
+    </span>
+    <span class='note title readonly'>readonly</span>
+    <span class='note title protected'>protected</span>
+    <span class='nodoc note title'>Internal use only</span>
+  </li>
+</ul>
+</div>  <!-- instance_attribute_summary -->
 
 <h2 class='h2_sum' id='instance_method_summary'>Instance Method Summary</h2>
 <div class='div_sum'>
@@ -274,15 +405,44 @@
   </li>
   <li>
     <span class='summary_signature nodoc'>
-      <a href="#inspect-instance_method" title="#inspect (instance method)">#<strong>inspect</strong>  </a>
+      <a href="#initialize_clone-instance_method" title="#initialize_clone (instance method)">#<strong>initialize_clone</strong>(other)  </a>
     </span>
     <span class='nodoc note title'>Internal use only</span>
+  </li>
+  <li>
+    <span class='summary_signature nodoc'>
+      <a href="#initialize_dup-instance_method" title="#initialize_dup (instance method)">#<strong>initialize_dup</strong>(other)  </a>
+    </span>
+    <span class='nodoc note title'>Internal use only</span>
+  </li>
+  <li>
+    <span class='summary_signature nodoc'>
+      <a href="#inspect-instance_method" title="#inspect (instance method)">#<strong>inspect</strong>  </a>
+      (also: #to_s)
+    </span>
+    <span class='nodoc note title'>Internal use only</span>
+  </li>
+  <li>
+    <span class='summary_signature nodoc'>
+      <a href="#to_s-instance_method" title="#to_s (instance method)">#<strong>to_s</strong>  </a>
+    </span>
+    <span class='nodoc note title'>Internal use only</span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Alias for <a href="#inspect-instance_method" title="Tempfile#inspect (method)">#inspect</a>.</p></div>
+    </div>
   </li>
   <li>
     <span class='summary_signature prot nodoc'>
       <a href="#_close-instance_method" title="#_close (instance method)">#<strong>_close</strong>  </a>
     </span>
     <span class='note title protected'>protected</span>
+    <span class='nodoc note title'>Internal use only</span>
+  </li>
+  <li>
+    <span class='summary_signature priv nodoc'>
+      <a href="#initialize_copy_iv-instance_method" title="#initialize_copy_iv (instance method)">#<strong>initialize_copy_iv</strong>(other)  </a>
+    </span>
+    <span class='note title private'>private</span>
     <span class='nodoc note title'>Internal use only</span>
   </li>
 </ul>
@@ -325,7 +485,7 @@
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_f'>f</span> <span class='op'>=</span> <span class='const'>Tempfile</span>.<span class='id identifier rubyid_new'>new</span> <span class='comment'># =&gt; #&lt;Tempfile:/tmp/20220505-17839-1s0kt30&gt;
 </span><span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_class'>class</span>               <span class='comment'># =&gt; Tempfile
 </span><span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>                <span class='comment'># =&gt; &quot;/tmp/20220505-17839-1s0kt30&quot;
-</span><span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_stat'>stat</span>.<span class='id identifier rubyid_mode'>mode</span>.<span class='id identifier rubyid_to_s'>to_s</span>(<span class='int'>8</span>)   <span class='comment'># =&gt; &quot;100600&quot;
+</span><span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_stat'>stat</span>.<span class='id identifier rubyid_mode'><a href="#mode-instance_method" title="Tempfile#mode (method)">mode</a></span>.<span class='id identifier rubyid_to_s'><a href="#to_s-instance_method" title="Tempfile#to_s (method)">to_s</a></span>(<span class='int'>8</span>)   <span class='comment'># =&gt; &quot;100600&quot;
 </span><span class='const'>File</span>.<span class='id identifier rubyid_exist?'>exist?</span>(<span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>)   <span class='comment'># =&gt; true
 </span><span class='const'>File</span>.<span class='id identifier rubyid_unlink'><a href="#unlink-instance_method" title="Tempfile#unlink (method)">unlink</a></span>(<span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>)   <span class='comment'>#
 </span><span class='const'>File</span>.<span class='id identifier rubyid_exist?'>exist?</span>(<span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>)   <span class='comment'># =&gt; false</span></code></pre>
@@ -345,9 +505,9 @@
 
 <pre class="code ruby"><code class="ruby"><span class='const'>Tempfile</span>.<span class='id identifier rubyid_new'>new</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>.</span><span class='tstring_end'>&#39;</span></span>) <span class='comment'># =&gt; #&lt;Tempfile:./foo20220505-17839-xfstr8&gt;</span></code></pre>
 
-<p>Keyword arguments <code>mode</code> and <code>options</code> are passed directly to method <code>{File.open</code>}:</p>
+<p>Keyword arguments <a href="#mode-instance_method" title="Tempfile#mode (method)">#mode</a> and <code>options</code> are passed directly to method <code>{File.open</code>}:</p>
 <ul><li>
-<p>The value given with <code>mode</code> must be an integer, and may be expressed as the logical OR of constants defined in <code>File::Constants</code>.</p>
+<p>The value given with <a href="#mode-instance_method" title="Tempfile#mode (method)">#mode</a> must be an integer, and may be expressed as the logical OR of constants defined in <code>File::Constants</code>.</p>
 </li><li>
 <p>For <code>options</code>, see <code>Open Options</code>.</p>
 </li></ul>
@@ -359,26 +519,29 @@
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L148-L161'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L219-L235'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='148' data-end='161'></pre>
+  <pre class='lines_num' data-start='219' data-end='235'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 148</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 219</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span>(<span class='id identifier rubyid_basename'>basename</span><span class='op'>=</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_tmpdir'>tmpdir</span><span class='op'>=</span><span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>mode:</span> <span class='int'>0</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_options'>options</span>)
   <span class='id identifier rubyid_warn'>warn</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Tempfile.new doesn&#39;t call the given block.</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>uplevel:</span> <span class='int'>1</span> <span class='kw'>if</span> <span class='id identifier rubyid_block_given?'>block_given?</span>
 
   <span class='ivar'>@unlinked</span> <span class='op'>=</span> <span class='kw'>false</span>
-  <span class='ivar'>@mode</span> <span class='op'>=</span> <span class='id identifier rubyid_mode'>mode</span><span class='op'>|</span><span class='const'>File</span><span class='op'>::</span><span class='const'>RDWR</span><span class='op'>|</span><span class='const'>File</span><span class='op'>::</span><span class='const'>CREAT</span><span class='op'>|</span><span class='const'>File</span><span class='op'>::</span><span class='const'>EXCL</span>
-  <span class='op'>::</span><span class='const'>Dir</span><span class='op'>::</span><span class='const'>Tmpname</span>.<span class='id identifier rubyid_create'><a href="#create-class_method" title="Tempfile.create (method)">create</a></span>(<span class='id identifier rubyid_basename'>basename</span><span class='comma'>,</span> <span class='id identifier rubyid_tmpdir'>tmpdir</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_options'>options</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_tmpname'>tmpname</span><span class='comma'>,</span> <span class='id identifier rubyid_n'>n</span><span class='comma'>,</span> <span class='id identifier rubyid_opts'>opts</span><span class='op'>|</span>
-    <span class='id identifier rubyid_opts'>opts</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_perm'>perm</span>] <span class='op'>=</span> <span class='int'>0600</span>
-    <span class='ivar'>@tmpfile</span> <span class='op'>=</span> <span class='const'>File</span>.<span class='id identifier rubyid_open'><a href="#open-class_method" title="Tempfile.open (method)">open</a></span>(<span class='id identifier rubyid_tmpname'>tmpname</span><span class='comma'>,</span> <span class='ivar'>@mode</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_opts'>opts</span>)
-    <span class='ivar'>@opts</span> <span class='op'>=</span> <span class='id identifier rubyid_opts'>opts</span>.<span class='id identifier rubyid_freeze'>freeze</span>
+  <span class='ivar'>@mode</span> <span class='op'>=</span> <span class='id identifier rubyid_mode'><a href="#mode-instance_method" title="Tempfile#mode (method)">mode</a></span><span class='op'>|</span><span class='const'>File</span><span class='op'>::</span><span class='const'>RDWR</span><span class='op'>|</span><span class='const'>File</span><span class='op'>::</span><span class='const'>CREAT</span><span class='op'>|</span><span class='const'>File</span><span class='op'>::</span><span class='const'>EXCL</span>
+  <span class='id identifier rubyid_tmpfile'>tmpfile</span> <span class='op'>=</span> <span class='kw'>nil</span>
+  <span class='op'>::</span><span class='const'>Dir</span><span class='op'>::</span><span class='const'>Tmpname</span>.<span class='id identifier rubyid_create'><a href="#create-class_method" title="Tempfile.create (method)">create</a></span>(<span class='id identifier rubyid_basename'>basename</span><span class='comma'>,</span> <span class='id identifier rubyid_tmpdir'>tmpdir</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_options'>options</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_tmpname'>tmpname</span><span class='comma'>,</span> <span class='id identifier rubyid_n'>n</span><span class='comma'>,</span> <span class='id identifier rubyid_opts'><a href="#opts-instance_method" title="Tempfile#opts (method)">opts</a></span><span class='op'>|</span>
+    <span class='id identifier rubyid_opts'><a href="#opts-instance_method" title="Tempfile#opts (method)">opts</a></span>[<span class='symbeg'>:</span><span class='id identifier rubyid_perm'>perm</span>] <span class='op'>=</span> <span class='int'>0600</span>
+    <span class='id identifier rubyid_tmpfile'>tmpfile</span> <span class='op'>=</span> <span class='const'>File</span>.<span class='id identifier rubyid_open'><a href="#open-class_method" title="Tempfile.open (method)">open</a></span>(<span class='id identifier rubyid_tmpname'>tmpname</span><span class='comma'>,</span> <span class='ivar'>@mode</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_opts'><a href="#opts-instance_method" title="Tempfile#opts (method)">opts</a></span>)
+    <span class='ivar'>@opts</span> <span class='op'>=</span> <span class='id identifier rubyid_opts'><a href="#opts-instance_method" title="Tempfile#opts (method)">opts</a></span>.<span class='id identifier rubyid_freeze'>freeze</span>
   <span class='kw'>end</span>
-  <span class='const'>ObjectSpace</span>.<span class='id identifier rubyid_define_finalizer'>define_finalizer</span>(<span class='kw'>self</span><span class='comma'>,</span> <span class='const'><a href="Tempfile/Remover.html" title="Tempfile::Remover (class)">Remover</a></span>.<span class='id identifier rubyid_new'><a href="Tempfile/Remover.html#new-class_method" title="Tempfile::Remover.new (method)">new</a></span>(<span class='ivar'>@tmpfile</span>))
 
-  <span class='kw'>super</span>(<span class='ivar'>@tmpfile</span>)
+  <span class='kw'>super</span>(<span class='id identifier rubyid_tmpfile'>tmpfile</span>)
+
+  <span class='ivar'>@finalizer_manager</span> <span class='op'>=</span> <span class='const'><a href="Tempfile/FinalizerManager.html" title="Tempfile::FinalizerManager (class)">FinalizerManager</a></span>.<span class='id identifier rubyid_new'><a href="Tempfile/FinalizerManager.html#new-class_method" title="Tempfile::FinalizerManager.new (method)">new</a></span>(<span class='id identifier rubyid___getobj__'>__getobj__</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>)
+  <span class='ivar'>@finalizer_manager</span>.<span class='id identifier rubyid_register'>register</span>(<span class='kw'>self</span><span class='comma'>,</span> <span class='id identifier rubyid___getobj__'>__getobj__</span>)
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -388,7 +551,7 @@
 <h2 class='y_details'>Class Method Details</h2>
 <section class='method_details first' id="create-class_method">
   <h3 class='signature  first'>
-    .<strong>create</strong>(basename = &quot;&quot;, tmpdir = nil, mode: 0, **options)  
+    .<strong>create</strong>(basename = &quot;&quot;, tmpdir = nil, mode: 0, anonymous: false, **options, &amp;block)  
   </h3>
 <div class='docstring'>
   <div class='discussion'>
@@ -408,19 +571,44 @@
 <p>Mode is <code>&#39;w+&#39;</code> (read/write mode, positioned at the end).</p>
 </li></ul>
 
-<p>With no block, the file is not removed automatically, and so should be explicitly removed.</p>
+<p>The temporary file removal depends on the keyword argument <code>anonymous</code> and whether a block is given or not. See the description about the <code>anonymous</code> keyword argument later.</p>
 
 <p>Example:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_f'>f</span> <span class='op'>=</span> <span class='const'>Tempfile</span>.<span class='id identifier rubyid_create'>create</span>     <span class='comment'># =&gt; #&lt;File:/tmp/20220505-9795-17ky6f6&gt;
 </span><span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_class'>class</span>                 <span class='comment'># =&gt; File
 </span><span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>                  <span class='comment'># =&gt; &quot;/tmp/20220505-9795-17ky6f6&quot;
-</span><span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_stat'>stat</span>.<span class='id identifier rubyid_mode'>mode</span>.<span class='id identifier rubyid_to_s'>to_s</span>(<span class='int'>8</span>)     <span class='comment'># =&gt; &quot;100600&quot;
-</span><span class='const'>File</span>.<span class='id identifier rubyid_exist?'>exist?</span>(<span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>)     <span class='comment'># =&gt; true
+</span><span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_stat'>stat</span>.<span class='id identifier rubyid_mode'><a href="#mode-instance_method" title="Tempfile#mode (method)">mode</a></span>.<span class='id identifier rubyid_to_s'><a href="#to_s-instance_method" title="Tempfile#to_s (method)">to_s</a></span>(<span class='int'>8</span>)     <span class='comment'># =&gt; &quot;100600&quot;
+</span><span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_close'><a href="#close-instance_method" title="Tempfile#close (method)">close</a></span>
+<span class='const'>File</span>.<span class='id identifier rubyid_exist?'>exist?</span>(<span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>)     <span class='comment'># =&gt; true
 </span><span class='const'>File</span>.<span class='id identifier rubyid_unlink'><a href="#unlink-instance_method" title="Tempfile#unlink (method)">unlink</a></span>(<span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>)
-<span class='const'>File</span>.<span class='id identifier rubyid_exist?'>exist?</span>(<span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>)     <span class='comment'># =&gt; false</span></code></pre>
+<span class='const'>File</span>.<span class='id identifier rubyid_exist?'>exist?</span>(<span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>)     <span class='comment'># =&gt; false
+</span>
+<span class='const'>Tempfile</span>.<span class='id identifier rubyid_create'>create</span> {<span class='op'>|</span><span class='id identifier rubyid_f'>f</span><span class='op'>|</span>
+  <span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_rewind'>rewind</span>
+  <span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_read'>read</span>                <span class='comment'># =&gt; &quot;foo\n&quot;
+</span>  <span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>                <span class='comment'># =&gt; &quot;/tmp/20240524-380207-oma0ny&quot;
+</span>  <span class='const'>File</span>.<span class='id identifier rubyid_exist?'>exist?</span>(<span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>)   <span class='comment'># =&gt; true
+</span>}                       <span class='comment'># The file is removed at block exit.
+</span>
+<span class='id identifier rubyid_f'>f</span> <span class='op'>=</span> <span class='const'>Tempfile</span>.<span class='id identifier rubyid_create'>create</span>(<span class='label'>anonymous:</span> <span class='kw'>true</span>)
+<span class='comment'># The file is already removed because anonymous
+</span><span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>                  <span class='comment'># =&gt; &quot;/tmp/&quot;  (no filename since no file)
+</span><span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_rewind'>rewind</span>
+<span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_read'>read</span>                  <span class='comment'># =&gt; &quot;foo\n&quot;
+</span><span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_close'><a href="#close-instance_method" title="Tempfile#close (method)">close</a></span>
 
-<p>Argument <code>basename</code>, if given, may be one of:</p>
+<span class='const'>Tempfile</span>.<span class='id identifier rubyid_create'>create</span>(<span class='label'>anonymous:</span> <span class='kw'>true</span>) {<span class='op'>|</span><span class='id identifier rubyid_f'>f</span><span class='op'>|</span>
+  <span class='comment'># The file is already removed because anonymous
+</span>  <span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>                <span class='comment'># =&gt; &quot;/tmp/&quot;  (no filename since no file)
+</span>  <span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_rewind'>rewind</span>
+  <span class='id identifier rubyid_f'>f</span>.<span class='id identifier rubyid_read'>read</span>                <span class='comment'># =&gt; &quot;foo\n&quot;
+</span>}</code></pre>
+
+<p>The argument <code>basename</code>, if given, may be one of the following:</p>
 <ul><li>
 <p>A string: the generated filename begins with <code>basename</code>:</p>
 
@@ -431,38 +619,130 @@
 <pre class="code ruby"><code class="ruby"><span class='const'>Tempfile</span>.<span class='id identifier rubyid_create'>create</span>(<span class='qwords'><span class='qwords_beg'>%w/</span><span class='tstring_content'>foo</span><span class='words_sep'> </span><span class='tstring_content'>.jpg</span><span class='tstring_end'>/</span></span>) <span class='comment'># =&gt; #&lt;File:/tmp/foo20220505-17839-tnjchh.jpg&gt;</span></code></pre>
 </li></ul>
 
-<p>With arguments <code>basename</code> and <code>tmpdir</code>, the file is created in directory <code>tmpdir</code>:</p>
+<p>With arguments <code>basename</code> and <code>tmpdir</code>, the file is created in the directory <code>tmpdir</code>:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='const'>Tempfile</span>.<span class='id identifier rubyid_create'>create</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>.</span><span class='tstring_end'>&#39;</span></span>) <span class='comment'># =&gt; #&lt;File:./foo20220505-9795-1emu6g8&gt;</span></code></pre>
 
-<p>Keyword arguments <code>mode</code> and <code>options</code> are passed directly to method <code>{File.open</code>}:</p>
+<p>Keyword arguments <a href="#mode-instance_method" title="Tempfile#mode (method)">#mode</a> and <code>options</code> are passed directly to the method <code>{File.open</code>}:</p>
 <ul><li>
-<p>The value given with <code>mode</code> must be an integer, and may be expressed as the logical OR of constants defined in <code>File::Constants</code>.</p>
+<p>The value given for <a href="#mode-instance_method" title="Tempfile#mode (method)">#mode</a> must be an integer and may be expressed as the logical OR of constants defined in <code>File::Constants</code>.</p>
 </li><li>
 <p>For <code>options</code>, see <code>Open Options</code>.</p>
 </li></ul>
 
-<p>With a block given, creates the file as above, passes it to the block, and returns the block’s value; before the return, the file object is closed and the underlying file is removed:</p>
+<p>The keyword argument <code>anonymous</code> specifies when the file is removed.</p>
+<ul><li>
+<p><code>anonymous=false</code> (default) without a block: the file is not removed.</p>
+</li><li>
+<p><code>anonymous=false</code> (default) with a block: the file is removed after the block exits.</p>
+</li><li>
+<p><code>anonymous=true</code> without a block: the file is removed before returning.</p>
+</li><li>
+<p><code>anonymous=true</code> with a block: the file is removed before the block is called.</p>
+</li></ul>
+
+<p>In the first case (<code>anonymous=false</code> without a block), the file is not removed automatically. It should be explicitly closed. It can be used to rename to the desired filename. If the file is not needed, it should be explicitly removed.</p>
+
+<p>The <code>File#path</code> method of the created file object returns the temporary directory with a trailing slash when <code>anonymous</code> is true.</p>
+
+<p>When a block is given, it creates the file as described above, passes it to the block, and returns the block’s value. Before the returning, the file object is closed and the underlying file is removed:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='const'>Tempfile</span>.<span class='id identifier rubyid_create'>create</span> {<span class='op'>|</span><span class='id identifier rubyid_file'>file</span><span class='op'>|</span> <span class='id identifier rubyid_file'>file</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span> } <span class='comment'># =&gt; &quot;/tmp/20220505-9795-rkists&quot;</span></code></pre>
+
+<p>Implementation note:</p>
+
+<p>The keyword argument <code>anonymous=true</code> is implemented using FILE_SHARE_DELETE on Windows. O_TMPFILE is used on Linux.</p>
 
 <p>Related: <a href="#new-class_method" title="Tempfile.new (method)">.new</a>.</p>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L398-L425'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L558-L564'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='398' data-end='425'></pre>
+  <pre class='lines_num' data-start='558' data-end='564'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 398</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 558</span></pre>
 <pre class='code ruby'>
 
-<span class='kw'>def</span> <span class='const'>Tempfile</span>.<span class='id identifier rubyid_create'>create</span>(<span class='id identifier rubyid_basename'>basename</span><span class='op'>=</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_tmpdir'>tmpdir</span><span class='op'>=</span><span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>mode:</span> <span class='int'>0</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_options'>options</span>)
+<span class='kw'>def</span> <span class='const'>Tempfile</span>.<span class='id identifier rubyid_create'>create</span>(<span class='id identifier rubyid_basename'>basename</span><span class='op'>=</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_tmpdir'>tmpdir</span><span class='op'>=</span><span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>mode:</span> <span class='int'>0</span><span class='comma'>,</span> <span class='label'>anonymous:</span> <span class='kw'>false</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_options'>options</span><span class='comma'>,</span> <span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span>)
+  <span class='kw'>if</span> <span class='id identifier rubyid_anonymous'>anonymous</span>
+    <span class='id identifier rubyid_create_anonymous'><a href="#create_anonymous-class_method" title="Tempfile.create_anonymous (method)">create_anonymous</a></span>(<span class='id identifier rubyid_basename'>basename</span><span class='comma'>,</span> <span class='id identifier rubyid_tmpdir'>tmpdir</span><span class='comma'>,</span> <span class='label'>mode:</span> <span class='id identifier rubyid_mode'><a href="#mode-instance_method" title="Tempfile#mode (method)">mode</a></span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_options'>options</span><span class='comma'>,</span> <span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span>)
+  <span class='kw'>else</span>
+    <span class='id identifier rubyid_create_with_filename'><a href="#create_with_filename-class_method" title="Tempfile.create_with_filename (method)">create_with_filename</a></span>(<span class='id identifier rubyid_basename'>basename</span><span class='comma'>,</span> <span class='id identifier rubyid_tmpdir'>tmpdir</span><span class='comma'>,</span> <span class='label'>mode:</span> <span class='id identifier rubyid_mode'><a href="#mode-instance_method" title="Tempfile#mode (method)">mode</a></span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_options'>options</span><span class='comma'>,</span> <span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="create_anonymous-class_method">
+  <h3 class='signature '>
+    .<strong>create_anonymous</strong>(basename = &quot;&quot;, tmpdir = nil, mode: 0, **options, &amp;block)  
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L606-L639'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='606' data-end='639'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 606</span></pre>
+<pre class='code ruby'>
+
+<span class='id identifier rubyid_private'>private</span> <span class='kw'>def</span> <span class='id identifier rubyid_create_anonymous'>create_anonymous</span>(<span class='id identifier rubyid_basename'>basename</span><span class='op'>=</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_tmpdir'>tmpdir</span><span class='op'>=</span><span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>mode:</span> <span class='int'>0</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_options'>options</span><span class='comma'>,</span> <span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span>)
   <span class='id identifier rubyid_tmpfile'>tmpfile</span> <span class='op'>=</span> <span class='kw'>nil</span>
-  <span class='const'>Dir</span><span class='op'>::</span><span class='const'>Tmpname</span>.<span class='id identifier rubyid_create'>create</span>(<span class='id identifier rubyid_basename'>basename</span><span class='comma'>,</span> <span class='id identifier rubyid_tmpdir'>tmpdir</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_options'>options</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_tmpname'>tmpname</span><span class='comma'>,</span> <span class='id identifier rubyid_n'>n</span><span class='comma'>,</span> <span class='id identifier rubyid_opts'>opts</span><span class='op'>|</span>
-    <span class='id identifier rubyid_mode'>mode</span> <span class='op'>|=</span> <span class='const'>File</span><span class='op'>::</span><span class='const'>RDWR</span><span class='op'>|</span><span class='const'>File</span><span class='op'>::</span><span class='const'>CREAT</span><span class='op'>|</span><span class='const'>File</span><span class='op'>::</span><span class='const'>EXCL</span>
-    <span class='id identifier rubyid_opts'>opts</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_perm'>perm</span>] <span class='op'>=</span> <span class='int'>0600</span>
-    <span class='id identifier rubyid_tmpfile'>tmpfile</span> <span class='op'>=</span> <span class='const'>File</span>.<span class='id identifier rubyid_open'><a href="#open-class_method" title="Tempfile.open (method)">open</a></span>(<span class='id identifier rubyid_tmpname'>tmpname</span><span class='comma'>,</span> <span class='id identifier rubyid_mode'>mode</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_opts'>opts</span>)
+  <span class='id identifier rubyid_tmpdir'>tmpdir</span> <span class='op'>=</span> <span class='const'>Dir</span>.<span class='id identifier rubyid_tmpdir'>tmpdir</span>() <span class='kw'>if</span> <span class='id identifier rubyid_tmpdir'>tmpdir</span>.<span class='id identifier rubyid_nil?'>nil?</span>
+  <span class='kw'>if</span> <span class='kw'>defined?</span>(<span class='const'>File</span><span class='op'>::</span><span class='const'>TMPFILE</span>) <span class='comment'># O_TMPFILE since Linux 3.11
+</span>    <span class='kw'>begin</span>
+      <span class='id identifier rubyid_tmpfile'>tmpfile</span> <span class='op'>=</span> <span class='const'>File</span>.<span class='id identifier rubyid_open'><a href="#open-class_method" title="Tempfile.open (method)">open</a></span>(<span class='id identifier rubyid_tmpdir'>tmpdir</span><span class='comma'>,</span> <span class='const'>File</span><span class='op'>::</span><span class='const'>RDWR</span> <span class='op'>|</span> <span class='const'>File</span><span class='op'>::</span><span class='const'>TMPFILE</span><span class='comma'>,</span> <span class='int'>0600</span>)
+    <span class='kw'>rescue</span> <span class='const'>Errno</span><span class='op'>::</span><span class='const'>EISDIR</span><span class='comma'>,</span> <span class='const'>Errno</span><span class='op'>::</span><span class='const'>ENOENT</span><span class='comma'>,</span> <span class='const'>Errno</span><span class='op'>::</span><span class='const'>EOPNOTSUPP</span>
+      <span class='comment'># kernel or the filesystem does not support O_TMPFILE
+</span>      <span class='comment'># fallback to create-and-unlink
+</span>    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+  <span class='kw'>if</span> <span class='id identifier rubyid_tmpfile'>tmpfile</span>.<span class='id identifier rubyid_nil?'>nil?</span>
+    <span class='id identifier rubyid_mode'><a href="#mode-instance_method" title="Tempfile#mode (method)">mode</a></span> <span class='op'>|=</span> <span class='const'>File</span><span class='op'>::</span><span class='const'>SHARE_DELETE</span> <span class='op'>|</span> <span class='const'>File</span><span class='op'>::</span><span class='const'>BINARY</span> <span class='comment'># Windows needs them to unlink the opened file.
+</span>    <span class='id identifier rubyid_tmpfile'>tmpfile</span> <span class='op'>=</span> <span class='id identifier rubyid_create_with_filename'><a href="#create_with_filename-class_method" title="Tempfile.create_with_filename (method)">create_with_filename</a></span>(<span class='id identifier rubyid_basename'>basename</span><span class='comma'>,</span> <span class='id identifier rubyid_tmpdir'>tmpdir</span><span class='comma'>,</span> <span class='label'>mode:</span> <span class='id identifier rubyid_mode'><a href="#mode-instance_method" title="Tempfile#mode (method)">mode</a></span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_options'>options</span>)
+    <span class='const'>File</span>.<span class='id identifier rubyid_unlink'><a href="#unlink-instance_method" title="Tempfile#unlink (method)">unlink</a></span>(<span class='id identifier rubyid_tmpfile'>tmpfile</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>)
+    <span class='id identifier rubyid_tmppath'>tmppath</span> <span class='op'>=</span> <span class='id identifier rubyid_tmpfile'>tmpfile</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>
+  <span class='kw'>end</span>
+  <span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span> <span class='op'>=</span> <span class='const'>File</span>.<span class='id identifier rubyid_join'>join</span>(<span class='id identifier rubyid_tmpdir'>tmpdir</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_end'>&#39;</span></span>)
+  <span class='kw'>unless</span> <span class='id identifier rubyid_tmppath'>tmppath</span> <span class='op'>==</span> <span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>
+    <span class='comment'># clear path.
+</span>    <span class='id identifier rubyid_tmpfile'>tmpfile</span>.<span class='id identifier rubyid_autoclose'>autoclose</span> <span class='op'>=</span> <span class='kw'>false</span>
+    <span class='id identifier rubyid_tmpfile'>tmpfile</span> <span class='op'>=</span> <span class='const'>File</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Tempfile.new (method)">new</a></span>(<span class='id identifier rubyid_tmpfile'>tmpfile</span>.<span class='id identifier rubyid_fileno'>fileno</span><span class='comma'>,</span> <span class='label'>mode:</span> <span class='const'>File</span><span class='op'>::</span><span class='const'>RDWR</span><span class='comma'>,</span> <span class='label'>path:</span> <span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>)
+    <span class='const'><a href="Tempfile/PathAttr.html" title="Tempfile::PathAttr (module)">PathAttr</a></span>.<span class='id identifier rubyid_set_path'><a href="Tempfile/PathAttr.html#set_path-class_method" title="Tempfile::PathAttr.set_path (method)">set_path</a></span>(<span class='id identifier rubyid_tmpfile'>tmpfile</span><span class='comma'>,</span> <span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>) <span class='kw'>if</span> <span class='kw'>defined?</span>(<span class='const'><a href="Tempfile/PathAttr.html" title="Tempfile::PathAttr (module)">PathAttr</a></span>)
+  <span class='kw'>end</span>
+  <span class='kw'>if</span> <span class='id identifier rubyid_block'>block</span>
+    <span class='kw'>begin</span>
+      <span class='kw'>yield</span> <span class='id identifier rubyid_tmpfile'>tmpfile</span>
+    <span class='kw'>ensure</span>
+      <span class='id identifier rubyid_tmpfile'>tmpfile</span>.<span class='id identifier rubyid_close'><a href="#close-instance_method" title="Tempfile#close (method)">close</a></span>
+    <span class='kw'>end</span>
+  <span class='kw'>else</span>
+    <span class='id identifier rubyid_tmpfile'>tmpfile</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="create_with_filename-class_method">
+  <h3 class='signature '>
+    .<strong>create_with_filename</strong>(basename = &quot;&quot;, tmpdir = nil, mode: 0, **options)  
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L567-L594'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='567' data-end='594'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 567</span></pre>
+<pre class='code ruby'>
+
+<span class='id identifier rubyid_private'>private</span> <span class='kw'>def</span> <span class='id identifier rubyid_create_with_filename'>create_with_filename</span>(<span class='id identifier rubyid_basename'>basename</span><span class='op'>=</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_tmpdir'>tmpdir</span><span class='op'>=</span><span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>mode:</span> <span class='int'>0</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_options'>options</span>)
+  <span class='id identifier rubyid_tmpfile'>tmpfile</span> <span class='op'>=</span> <span class='kw'>nil</span>
+  <span class='const'>Dir</span><span class='op'>::</span><span class='const'>Tmpname</span>.<span class='id identifier rubyid_create'><a href="#create-class_method" title="Tempfile.create (method)">create</a></span>(<span class='id identifier rubyid_basename'>basename</span><span class='comma'>,</span> <span class='id identifier rubyid_tmpdir'>tmpdir</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_options'>options</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_tmpname'>tmpname</span><span class='comma'>,</span> <span class='id identifier rubyid_n'>n</span><span class='comma'>,</span> <span class='id identifier rubyid_opts'><a href="#opts-instance_method" title="Tempfile#opts (method)">opts</a></span><span class='op'>|</span>
+    <span class='id identifier rubyid_mode'><a href="#mode-instance_method" title="Tempfile#mode (method)">mode</a></span> <span class='op'>|=</span> <span class='const'>File</span><span class='op'>::</span><span class='const'>RDWR</span><span class='op'>|</span><span class='const'>File</span><span class='op'>::</span><span class='const'>CREAT</span><span class='op'>|</span><span class='const'>File</span><span class='op'>::</span><span class='const'>EXCL</span>
+    <span class='id identifier rubyid_opts'><a href="#opts-instance_method" title="Tempfile#opts (method)">opts</a></span>[<span class='symbeg'>:</span><span class='id identifier rubyid_perm'>perm</span>] <span class='op'>=</span> <span class='int'>0600</span>
+    <span class='id identifier rubyid_tmpfile'>tmpfile</span> <span class='op'>=</span> <span class='const'>File</span>.<span class='id identifier rubyid_open'><a href="#open-class_method" title="Tempfile.open (method)">open</a></span>(<span class='id identifier rubyid_tmpname'>tmpname</span><span class='comma'>,</span> <span class='id identifier rubyid_mode'><a href="#mode-instance_method" title="Tempfile#mode (method)">mode</a></span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_opts'><a href="#opts-instance_method" title="Tempfile#opts (method)">opts</a></span>)
   <span class='kw'>end</span>
   <span class='kw'>if</span> <span class='id identifier rubyid_block_given?'>block_given?</span>
     <span class='kw'>begin</span>
@@ -470,11 +750,11 @@
     <span class='kw'>ensure</span>
       <span class='kw'>unless</span> <span class='id identifier rubyid_tmpfile'>tmpfile</span>.<span class='id identifier rubyid_closed?'>closed?</span>
         <span class='kw'>if</span> <span class='const'>File</span>.<span class='id identifier rubyid_identical?'>identical?</span>(<span class='id identifier rubyid_tmpfile'>tmpfile</span><span class='comma'>,</span> <span class='id identifier rubyid_tmpfile'>tmpfile</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>)
-          <span class='id identifier rubyid_unlinked'>unlinked</span> <span class='op'>=</span> <span class='const'>File</span>.<span class='id identifier rubyid_unlink'><a href="#unlink-instance_method" title="Tempfile#unlink (method)">unlink</a></span> <span class='id identifier rubyid_tmpfile'>tmpfile</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span> <span class='kw'>rescue</span> <span class='kw'>nil</span>
+          <span class='id identifier rubyid_unlinked'><a href="#unlinked-instance_method" title="Tempfile#unlinked (method)">unlinked</a></span> <span class='op'>=</span> <span class='const'>File</span>.<span class='id identifier rubyid_unlink'><a href="#unlink-instance_method" title="Tempfile#unlink (method)">unlink</a></span> <span class='id identifier rubyid_tmpfile'>tmpfile</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span> <span class='kw'>rescue</span> <span class='kw'>nil</span>
         <span class='kw'>end</span>
         <span class='id identifier rubyid_tmpfile'>tmpfile</span>.<span class='id identifier rubyid_close'><a href="#close-instance_method" title="Tempfile#close (method)">close</a></span>
       <span class='kw'>end</span>
-      <span class='kw'>unless</span> <span class='id identifier rubyid_unlinked'>unlinked</span>
+      <span class='kw'>unless</span> <span class='id identifier rubyid_unlinked'><a href="#unlinked-instance_method" title="Tempfile#unlinked (method)">unlinked</a></span>
         <span class='kw'>begin</span>
           <span class='const'>File</span>.<span class='id identifier rubyid_unlink'><a href="#unlink-instance_method" title="Tempfile#unlink (method)">unlink</a></span> <span class='id identifier rubyid_tmpfile'>tmpfile</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>
         <span class='kw'>rescue</span> <span class='const'>Errno</span><span class='op'>::</span><span class='const'>ENOENT</span>
@@ -525,11 +805,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L326-L338'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L439-L451'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='326' data-end='338'></pre>
+  <pre class='lines_num' data-start='439' data-end='451'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 326</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 439</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_open'>open</span>(<span class='op'>*</span><span class='id identifier rubyid_args'>args</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_kw'>kw</span>)
@@ -550,6 +830,87 @@
 </div>
 </section>
 
+<h2 class='y_details'>Instance Attribute Details</h2>
+<section class='method_details first' id="finalizer_manager-instance_method">
+  <h3 class='signature ro prot  nodoc first'>
+    #<strong>finalizer_manager</strong>   <span class="extras">(<span class='readonly'>readonly</span>, <span class='prot'>protected</span>)</span>
+  </h3>
+  <div class='note nodoc inline-block'>
+    <strong>This method is for internal use only.</strong>
+  </div><div></div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L368-L368'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='368' data-end='368'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 368</span></pre>
+<pre class='code ruby'>
+
+<span class='id identifier rubyid_attr_reader'>attr_reader</span> <span class='symbeg'>:</span><span class='id identifier rubyid_unlinked'><a href="#unlinked-instance_method" title="Tempfile#unlinked (method)">unlinked</a></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_mode'><a href="#mode-instance_method" title="Tempfile#mode (method)">mode</a></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_opts'><a href="#opts-instance_method" title="Tempfile#opts (method)">opts</a></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_finalizer_manager'>finalizer_manager</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="mode-instance_method">
+  <h3 class='signature ro prot  nodoc'>
+    #<strong>mode</strong>   <span class="extras">(<span class='readonly'>readonly</span>, <span class='prot'>protected</span>)</span>
+  </h3>
+  <div class='note nodoc inline-block'>
+    <strong>This method is for internal use only.</strong>
+  </div><div></div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L368-L368'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='368' data-end='368'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 368</span></pre>
+<pre class='code ruby'>
+
+<span class='id identifier rubyid_attr_reader'>attr_reader</span> <span class='symbeg'>:</span><span class='id identifier rubyid_unlinked'><a href="#unlinked-instance_method" title="Tempfile#unlinked (method)">unlinked</a></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_mode'>mode</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_opts'><a href="#opts-instance_method" title="Tempfile#opts (method)">opts</a></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_finalizer_manager'><a href="#finalizer_manager-instance_method" title="Tempfile#finalizer_manager (method)">finalizer_manager</a></span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="opts-instance_method">
+  <h3 class='signature ro prot  nodoc'>
+    #<strong>opts</strong>   <span class="extras">(<span class='readonly'>readonly</span>, <span class='prot'>protected</span>)</span>
+  </h3>
+  <div class='note nodoc inline-block'>
+    <strong>This method is for internal use only.</strong>
+  </div><div></div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L368-L368'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='368' data-end='368'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 368</span></pre>
+<pre class='code ruby'>
+
+<span class='id identifier rubyid_attr_reader'>attr_reader</span> <span class='symbeg'>:</span><span class='id identifier rubyid_unlinked'><a href="#unlinked-instance_method" title="Tempfile#unlinked (method)">unlinked</a></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_mode'><a href="#mode-instance_method" title="Tempfile#mode (method)">mode</a></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_opts'>opts</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_finalizer_manager'><a href="#finalizer_manager-instance_method" title="Tempfile#finalizer_manager (method)">finalizer_manager</a></span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="unlinked-instance_method">
+  <h3 class='signature ro prot  nodoc'>
+    #<strong>unlinked</strong>   <span class="extras">(<span class='readonly'>readonly</span>, <span class='prot'>protected</span>)</span>
+  </h3>
+  <div class='note nodoc inline-block'>
+    <strong>This method is for internal use only.</strong>
+  </div><div></div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L368-L368'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='368' data-end='368'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 368</span></pre>
+<pre class='code ruby'>
+
+<span class='id identifier rubyid_attr_reader'>attr_reader</span> <span class='symbeg'>:</span><span class='id identifier rubyid_unlinked'>unlinked</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_mode'><a href="#mode-instance_method" title="Tempfile#mode (method)">mode</a></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_opts'><a href="#opts-instance_method" title="Tempfile#opts (method)">opts</a></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_finalizer_manager'><a href="#finalizer_manager-instance_method" title="Tempfile#finalizer_manager (method)">finalizer_manager</a></span>
+</pre>
+  </div>
+</div>
+</section>
+
 <h2 class='y_details'>Instance Method Details</h2>
 <section class='method_details first' id="_close-instance_method">
   <h3 class='signature prot  nodoc first'>
@@ -558,15 +919,15 @@
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L171-L173'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L268-L270'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='171' data-end='173'></pre>
+  <pre class='lines_num' data-start='268' data-end='270'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 171</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 268</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid__close'>_close</span>    <span class='comment'># :nodoc:
-</span>  <span class='ivar'>@tmpfile</span>.<span class='id identifier rubyid_close'><a href="#close-instance_method" title="Tempfile#close (method)">close</a></span>
+</span>  <span class='id identifier rubyid___getobj__'>__getobj__</span>.<span class='id identifier rubyid_close'><a href="#close-instance_method" title="Tempfile#close (method)">close</a></span>
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -586,11 +947,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L182-L185'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L279-L282'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='182' data-end='185'></pre>
+  <pre class='lines_num' data-start='279' data-end='282'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 182</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 279</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_close'>close</span>(<span class='id identifier rubyid_unlink_now'>unlink_now</span><span class='op'>=</span><span class='kw'>false</span>)
@@ -613,11 +974,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L189-L191'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L286-L288'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='189' data-end='191'></pre>
+  <pre class='lines_num' data-start='286' data-end='288'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 189</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 286</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_close!'>close!</span>
@@ -639,11 +1000,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L238-L238'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L337-L337'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='238' data-end='238'></pre>
+  <pre class='lines_num' data-start='337' data-end='337'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 238</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 337</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>alias</span> <span class='id identifier rubyid_delete'>delete</span> <span class='id identifier rubyid_unlink'><a href="#unlink-instance_method" title="Tempfile#unlink (method)">unlink</a></span>
@@ -652,22 +1013,96 @@
 </div>
 </section>
 
-<section class='method_details' id="inspect-instance_method">
+<section class='method_details' id="initialize_clone-instance_method">
   <h3 class='signature nodoc'>
-    #<strong>inspect</strong>  
+    #<strong>initialize_clone</strong>(other)  
   </h3>
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L258-L264'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L243-L247'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='258' data-end='264'></pre>
+  <pre class='lines_num' data-start='243' data-end='247'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 258</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 243</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_initialize_clone'>initialize_clone</span>(<span class='id identifier rubyid_other'>other</span>) <span class='comment'># :nodoc:
+</span>  <span class='id identifier rubyid_initialize_copy_iv'><a href="#initialize_copy_iv-instance_method" title="Tempfile#initialize_copy_iv (method)">initialize_copy_iv</a></span>(<span class='id identifier rubyid_other'>other</span>)
+  <span class='kw'>super</span>(<span class='id identifier rubyid_other'>other</span>)
+  <span class='ivar'>@finalizer_manager</span>.<span class='id identifier rubyid_register'>register</span>(<span class='kw'>self</span><span class='comma'>,</span> <span class='id identifier rubyid___getobj__'>__getobj__</span>)
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="initialize_copy_iv-instance_method">
+  <h3 class='signature priv  nodoc'>
+    #<strong>initialize_copy_iv</strong>(other)   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+  <div class='note nodoc inline-block'>
+    <strong>This method is for internal use only.</strong>
+  </div><div></div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L249-L254'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='249' data-end='254'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 249</span></pre>
+<pre class='code ruby'>
+
+<span class='id identifier rubyid_private'>private</span> <span class='kw'>def</span> <span class='id identifier rubyid_initialize_copy_iv'>initialize_copy_iv</span>(<span class='id identifier rubyid_other'>other</span>) <span class='comment'># :nodoc:
+</span>  <span class='ivar'>@unlinked</span> <span class='op'>=</span> <span class='id identifier rubyid_other'>other</span>.<span class='id identifier rubyid_unlinked'><a href="#unlinked-instance_method" title="Tempfile#unlinked (method)">unlinked</a></span>
+  <span class='ivar'>@mode</span> <span class='op'>=</span> <span class='id identifier rubyid_other'>other</span>.<span class='id identifier rubyid_mode'><a href="#mode-instance_method" title="Tempfile#mode (method)">mode</a></span>
+  <span class='ivar'>@opts</span> <span class='op'>=</span> <span class='id identifier rubyid_other'>other</span>.<span class='id identifier rubyid_opts'><a href="#opts-instance_method" title="Tempfile#opts (method)">opts</a></span>
+  <span class='ivar'>@finalizer_manager</span> <span class='op'>=</span> <span class='id identifier rubyid_other'>other</span>.<span class='id identifier rubyid_finalizer_manager'><a href="#finalizer_manager-instance_method" title="Tempfile#finalizer_manager (method)">finalizer_manager</a></span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="initialize_dup-instance_method">
+  <h3 class='signature nodoc'>
+    #<strong>initialize_dup</strong>(other)  
+  </h3>
+  <div class='note nodoc inline-block'>
+    <strong>This method is for internal use only.</strong>
+  </div><div></div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L237-L241'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='237' data-end='241'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 237</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_initialize_dup'>initialize_dup</span>(<span class='id identifier rubyid_other'>other</span>) <span class='comment'># :nodoc:
+</span>  <span class='id identifier rubyid_initialize_copy_iv'><a href="#initialize_copy_iv-instance_method" title="Tempfile#initialize_copy_iv (method)">initialize_copy_iv</a></span>(<span class='id identifier rubyid_other'>other</span>)
+  <span class='kw'>super</span>(<span class='id identifier rubyid_other'>other</span>)
+  <span class='ivar'>@finalizer_manager</span>.<span class='id identifier rubyid_register'>register</span>(<span class='kw'>self</span><span class='comma'>,</span> <span class='id identifier rubyid___getobj__'>__getobj__</span>)
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="inspect-instance_method">
+  <h3 class='signature nodoc'>
+    #<strong>inspect</strong>  
+    <span class='aliases'>Also known as: <span class='names'>#to_s</span></span>
+  </h3>
+  <div class='note nodoc inline-block'>
+    <strong>This method is for internal use only.</strong>
+  </div><div></div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L357-L363'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='357' data-end='363'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 357</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_inspect'>inspect</span>
-  <span class='kw'>if</span> <span class='ivar'>@tmpfile</span>.<span class='id identifier rubyid_closed?'>closed?</span>
+  <span class='kw'>if</span> <span class='id identifier rubyid___getobj__'>__getobj__</span>.<span class='id identifier rubyid_closed?'>closed?</span>
     <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>#&lt;</span><span class='embexpr_beg'>#{</span><span class='kw'>self</span>.<span class='id identifier rubyid_class'>class</span><span class='embexpr_end'>}</span><span class='tstring_content'>:</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span><span class='embexpr_end'>}</span><span class='tstring_content'> (closed)&gt;</span><span class='tstring_end'>&quot;</span></span>
   <span class='kw'>else</span>
     <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>#&lt;</span><span class='embexpr_beg'>#{</span><span class='kw'>self</span>.<span class='id identifier rubyid_class'>class</span><span class='embexpr_end'>}</span><span class='tstring_content'>:</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span><span class='embexpr_end'>}</span><span class='tstring_content'>&gt;</span><span class='tstring_end'>&quot;</span></span>
@@ -689,11 +1124,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L255-L255'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L354-L354'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='255' data-end='255'></pre>
+  <pre class='lines_num' data-start='354' data-end='354'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 255</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 354</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>alias</span> <span class='id identifier rubyid_length'>length</span> <span class='id identifier rubyid_size'><a href="#size-instance_method" title="Tempfile#size (method)">size</a></span>
@@ -713,18 +1148,22 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L164-L169'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L257-L266'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='164' data-end='169'></pre>
+  <pre class='lines_num' data-start='257' data-end='266'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 164</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 257</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_open'>open</span>
   <span class='id identifier rubyid__close'><a href="#_close-instance_method" title="Tempfile#_close (method)">_close</a></span>
-  <span class='id identifier rubyid_mode'>mode</span> <span class='op'>=</span> <span class='ivar'>@mode</span> <span class='op'>&amp;</span> <span class='op'>~</span>(<span class='const'>File</span><span class='op'>::</span><span class='const'>CREAT</span><span class='op'>|</span><span class='const'>File</span><span class='op'>::</span><span class='const'>EXCL</span>)
-  <span class='ivar'>@tmpfile</span> <span class='op'>=</span> <span class='const'>File</span>.<span class='id identifier rubyid_open'>open</span>(<span class='ivar'>@tmpfile</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span><span class='comma'>,</span> <span class='id identifier rubyid_mode'>mode</span><span class='comma'>,</span> <span class='op'>**</span><span class='ivar'>@opts</span>)
-  <span class='id identifier rubyid___setobj__'>__setobj__</span>(<span class='ivar'>@tmpfile</span>)
+
+  <span class='id identifier rubyid_mode'><a href="#mode-instance_method" title="Tempfile#mode (method)">mode</a></span> <span class='op'>=</span> <span class='ivar'>@mode</span> <span class='op'>&amp;</span> <span class='op'>~</span>(<span class='const'>File</span><span class='op'>::</span><span class='const'>CREAT</span><span class='op'>|</span><span class='const'>File</span><span class='op'>::</span><span class='const'>EXCL</span>)
+  <span class='id identifier rubyid___setobj__'>__setobj__</span>(<span class='const'>File</span>.<span class='id identifier rubyid_open'>open</span>(<span class='id identifier rubyid___getobj__'>__getobj__</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span><span class='comma'>,</span> <span class='id identifier rubyid_mode'><a href="#mode-instance_method" title="Tempfile#mode (method)">mode</a></span><span class='comma'>,</span> <span class='op'>**</span><span class='ivar'>@opts</span>))
+
+  <span class='ivar'>@finalizer_manager</span>.<span class='id identifier rubyid_register'>register</span>(<span class='kw'>self</span><span class='comma'>,</span> <span class='id identifier rubyid___getobj__'>__getobj__</span>)
+
+  <span class='id identifier rubyid___getobj__'>__getobj__</span>
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -742,15 +1181,15 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L242-L244'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L341-L343'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='242' data-end='244'></pre>
+  <pre class='lines_num' data-start='341' data-end='343'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 242</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 341</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_path'>path</span>
-  <span class='ivar'>@unlinked</span> <span class='op'>?</span> <span class='kw'>nil</span> <span class='op'>:</span> <span class='ivar'>@tmpfile</span>.<span class='id identifier rubyid_path'>path</span>
+  <span class='ivar'>@unlinked</span> <span class='op'>?</span> <span class='kw'>nil</span> <span class='op'>:</span> <span class='id identifier rubyid___getobj__'>__getobj__</span>.<span class='id identifier rubyid_path'>path</span>
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -769,20 +1208,47 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L248-L254'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L347-L353'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='248' data-end='254'></pre>
+  <pre class='lines_num' data-start='347' data-end='353'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 248</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 347</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_size'>size</span>
-  <span class='kw'>if</span> <span class='op'>!</span><span class='ivar'>@tmpfile</span>.<span class='id identifier rubyid_closed?'>closed?</span>
-    <span class='ivar'>@tmpfile</span>.<span class='id identifier rubyid_size'>size</span> <span class='comment'># File#size calls rb_io_flush_raw()
+  <span class='kw'>if</span> <span class='op'>!</span><span class='id identifier rubyid___getobj__'>__getobj__</span>.<span class='id identifier rubyid_closed?'>closed?</span>
+    <span class='id identifier rubyid___getobj__'>__getobj__</span>.<span class='id identifier rubyid_size'>size</span> <span class='comment'># File#size calls rb_io_flush_raw()
 </span>  <span class='kw'>else</span>
-    <span class='const'>File</span>.<span class='id identifier rubyid_size'>size</span>(<span class='ivar'>@tmpfile</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>)
+    <span class='const'>File</span>.<span class='id identifier rubyid_size'>size</span>(<span class='id identifier rubyid___getobj__'>__getobj__</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>)
   <span class='kw'>end</span>
 <span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="to_s-instance_method">
+  <h3 class='signature nodoc'>
+    #<strong>to_s</strong>  
+  </h3>
+  <div class='note nodoc inline-block'>
+    <strong>This method is for internal use only.</strong>
+  </div><div></div>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Alias for <a href="#inspect-instance_method" title="Tempfile#inspect (method)">#inspect</a>.</p>
+
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L364-L364'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='364' data-end='364'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 364</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>alias</span> <span class='id identifier rubyid_to_s'>to_s</span> <span class='id identifier rubyid_inspect'><a href="#inspect-instance_method" title="Tempfile#inspect (method)">inspect</a></span>
 </pre>
   </div>
 </div>
@@ -824,23 +1290,25 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L226-L237'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/tempfile.rb#L323-L336'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='226' data-end='237'></pre>
+  <pre class='lines_num' data-start='323' data-end='336'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/tempfile.rb', line 226</span></pre>
+<pre><span class='info file'># File 'lib/tempfile.rb', line 323</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_unlink'>unlink</span>
   <span class='kw'>return</span> <span class='kw'>if</span> <span class='ivar'>@unlinked</span>
   <span class='kw'>begin</span>
-    <span class='const'>File</span>.<span class='id identifier rubyid_unlink'>unlink</span>(<span class='ivar'>@tmpfile</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>)
+    <span class='const'>File</span>.<span class='id identifier rubyid_unlink'>unlink</span>(<span class='id identifier rubyid___getobj__'>__getobj__</span>.<span class='id identifier rubyid_path'><a href="#path-instance_method" title="Tempfile#path (method)">path</a></span>)
   <span class='kw'>rescue</span> <span class='const'>Errno</span><span class='op'>::</span><span class='const'>ENOENT</span>
   <span class='kw'>rescue</span> <span class='const'>Errno</span><span class='op'>::</span><span class='const'>EACCES</span>
     <span class='comment'># may not be able to unlink on Windows; just ignore
 </span>    <span class='kw'>return</span>
   <span class='kw'>end</span>
-  <span class='const'>ObjectSpace</span>.<span class='id identifier rubyid_undefine_finalizer'>undefine_finalizer</span>(<span class='kw'>self</span>)
+
+  <span class='ivar'>@finalizer_manager</span>.<span class='id identifier rubyid_unlinked'><a href="#unlinked-instance_method" title="Tempfile#unlinked (method)">unlinked</a></span> <span class='op'>=</span> <span class='kw'>true</span>
+
   <span class='ivar'>@unlinked</span> <span class='op'>=</span> <span class='kw'>true</span>
 <span class='kw'>end</span>
 </pre>

@@ -147,13 +147,14 @@
   </li>
   <li>
     <span class='summary_signature '>
-      <a href="#initialize_copy-instance_method" title="#initialize_copy (instance method)">#<strong>initialize_copy</strong>(other)  </a>
+      <a href="#to_der-instance_method" title="#to_der (instance method)">#<strong>to_der</strong>  &#x21d2; String </a>
     </span>
   </li>
   <li>
-    <span class='summary_signature '>
-      <a href="#to_der-instance_method" title="#to_der (instance method)">#<strong>to_der</strong>  &#x21d2; String </a>
+    <span class='summary_signature nodoc'>
+      <a href="#initialize_copy-instance_method" title="#initialize_copy (instance method)">#<strong>initialize_copy</strong>(other)  </a>
     </span>
+    <span class='nodoc note title'>Internal use only</span>
   </li>
 </ul>
 
@@ -218,11 +219,11 @@ ossl_x509attr_initialize(int argc, VALUE *argv, VALUE self)
 <section class='method_details first' id="oid-instance_method">
   <h3 class='signature rw first'>
     #<strong>oid</strong>  &#x21d2; <code>String</code>  <span class="extras">(<span class='rw'>rw</span>)</span>  </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_x509attr.c#L173-L194'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_x509attr.c#L174-L195'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='173' data-end='194'></pre>
+  <pre class='lines_num' data-start='174' data-end='195'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_x509attr.c', line 173</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_x509attr.c', line 174</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -260,11 +261,11 @@ ossl_x509attr_get_oid(VALUE self)
     
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_x509attr.c#L149-L167'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_x509attr.c#L150-L168'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='149' data-end='167'></pre>
+  <pre class='lines_num' data-start='150' data-end='168'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_x509attr.c', line 149</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_x509attr.c', line 150</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -347,48 +348,47 @@ ossl_x509attr_get_value(VALUE self)
     
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_x509attr.c#L200-L237'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_x509attr.c#L201-L237'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='200' data-end='237'></pre>
+  <pre class='lines_num' data-start='201' data-end='237'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_x509attr.c', line 200</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_x509attr.c', line 201</span></pre>
 <pre class='code cpp'>
 
 static VALUE
 ossl_x509attr_set_value(VALUE self, VALUE value)
 {
     X509_ATTRIBUTE *attr;
-    VALUE asn1_value;
-    int i, asn1_tag;
+    GetX509Attr(self, attr);
 
     OSSL_Check_Kind(value, cASN1Data);
-    asn1_tag = NUM2INT(rb_attr_get(value, rb_intern(&quot;@tag&quot;)));
-    asn1_value = rb_attr_get(value, rb_intern(&quot;@value&quot;));
-    if (asn1_tag != V_ASN1_SET)
-	ossl_raise(eASN1Error, &quot;argument must be ASN1::Set&quot;);
-    if (!RB_TYPE_P(asn1_value, T_ARRAY))
-	ossl_raise(eASN1Error, &quot;ASN1::Set has non-array value&quot;);
+    VALUE der = ossl_to_der(value);
+    const unsigned char *p = (const unsigned char *)RSTRING_PTR(der);
+    STACK_OF(ASN1_TYPE) *sk = d2i_ASN1_SET_ANY(NULL, &amp;p, RSTRING_LEN(der));
+    if (!sk)
+        ossl_raise(eX509AttrError, &quot;attribute value must be ASN1::Set&quot;);
 
-    GetX509Attr(self, attr);
     if (X509_ATTRIBUTE_count(attr)) { /* populated, reset first */
-	ASN1_OBJECT *obj = X509_ATTRIBUTE_get0_object(attr);
-	X509_ATTRIBUTE *new_attr = X509_ATTRIBUTE_create_by_OBJ(NULL, obj, 0, NULL, -1);
-	if (!new_attr)
-	    ossl_raise(eX509AttrError, NULL);
-	SetX509Attr(self, new_attr);
-	X509_ATTRIBUTE_free(attr);
-	attr = new_attr;
+        ASN1_OBJECT *obj = X509_ATTRIBUTE_get0_object(attr);
+        X509_ATTRIBUTE *new_attr = X509_ATTRIBUTE_create_by_OBJ(NULL, obj, 0, NULL, -1);
+        if (!new_attr) {
+            sk_ASN1_TYPE_pop_free(sk, ASN1_TYPE_free);
+            ossl_raise(eX509AttrError, &quot;X509_ATTRIBUTE_create_by_OBJ&quot;);
+        }
+        SetX509Attr(self, new_attr);
+        X509_ATTRIBUTE_free(attr);
+        attr = new_attr;
     }
 
-    for (i = 0; i &lt; RARRAY_LEN(asn1_value); i++) {
-	ASN1_TYPE *a1type = ossl_asn1_get_asn1type(RARRAY_AREF(asn1_value, i));
-	if (!X509_ATTRIBUTE_set1_data(attr, ASN1_TYPE_get(a1type),
-				      a1type-&gt;value.ptr, -1)) {
-	    ASN1_TYPE_free(a1type);
-	    ossl_raise(eX509AttrError, NULL);
-	}
-	ASN1_TYPE_free(a1type);
+    for (int i = 0; i &lt; sk_ASN1_TYPE_num(sk); i++) {
+        ASN1_TYPE *a1type = sk_ASN1_TYPE_value(sk, i);
+        if (!X509_ATTRIBUTE_set1_data(attr, ASN1_TYPE_get(a1type),
+                                      a1type-&gt;value.ptr, -1)) {
+            sk_ASN1_TYPE_pop_free(sk, ASN1_TYPE_free);
+            ossl_raise(eX509AttrError, &quot;X509_ATTRIBUTE_set1_data&quot;);
+        }
     }
+    sk_ASN1_TYPE_pop_free(sk, ASN1_TYPE_free);
 
     return value;
 }
@@ -419,14 +419,17 @@ ossl_x509attr_set_value(VALUE self, VALUE value)
 </section>
 
 <section class='method_details' id="initialize_copy-instance_method">
-  <h3 class='signature '>
+  <h3 class='signature nodoc'>
     #<strong>initialize_copy</strong>(other)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_x509attr.c#L126-L143'>GitHub</a>&#8202;]</span>
+  <div class='note nodoc inline-block'>
+    <strong>This method is for internal use only.</strong>
+  </div><div></div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_x509attr.c#L127-L144'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='126' data-end='143'></pre>
+  <pre class='lines_num' data-start='127' data-end='144'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_x509attr.c', line 126</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_x509attr.c', line 127</span></pre>
 <pre class='code cpp'>
 
 static VALUE
