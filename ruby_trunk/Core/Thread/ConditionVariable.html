@@ -78,7 +78,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2 o'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/thread_sync.c#L1608'>thread_sync.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/thread_sync.c#L1455'>thread_sync.c</a></span>
+      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/thread_sync.c#L1664'>thread_sync.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/thread_sync.c#L1509'>thread_sync.c</a></span>
       </td>
     </tr>
   </tbody>
@@ -89,27 +89,66 @@
 <div class='docstring'>
   <div class='discussion'>
     
-<p><code>ConditionVariable</code> objects augment class <a href="Mutex.html" title="Thread::Mutex (class)"><code>Mutex</code></a>. Using condition variables, it is possible to suspend while in the middle of a critical section until a resource becomes available.</p>
+<p><code>ConditionVariable</code> objects augment class <a href="Mutex.html" title="Thread::Mutex (class)"><code>Mutex</code></a>. Using condition variables, it is possible to suspend while in the middle of a critical section until a condition is met, such as a resource becomes available.</p>
+
+<p>Due to non-deterministic scheduling and spurious wake-ups, users of condition variables should always use a separate boolean predicate (such as reading from a boolean variable) to check if the condition is actually met before starting to wait, and should wait in a loop, re-checking the condition every time the <code>ConditionVariable</code> is waken up.  The idiomatic way of using condition variables is calling the <a href="#wait-instance_method" title="Thread::ConditionVariable#wait (method)">#wait</a> method in an <code>until</code> loop with the predicate as the loop condition.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_condvar'>condvar</span>.<span class='id identifier rubyid_wait'><a href="#wait-instance_method" title="Thread::ConditionVariable#wait (method)">wait</a></span>(<span class='id identifier rubyid_mutex'>mutex</span>) <span class='kw'>until</span> <span class='id identifier rubyid_condition_is_met'>condition_is_met</span></code></pre>
+
+<p>In the example below, we use the boolean variable <code>resource_available</code> (which is protected by <code>mutex</code>) to indicate the availability of the resource, and use <code>condvar</code> to wait for that variable to become true.  Note that:</p>
+<ol><li>
+<p><a href="../Thread.html" title="Thread (class)"><code>::Thread</code></a> <code>b</code> may be scheduled before thread <code>a1</code> and <code>a2</code>, and may run so fast that it have already made the resource available before either <code>a1</code> or <code>a2</code> starts. Therefore, <code>a1</code> and <code>a2</code> should check if <code>resource_available</code> is already true before starting to wait.</p>
+</li><li>
+<p>The <a href="#wait-instance_method" title="Thread::ConditionVariable#wait (method)">#wait</a> method may spuriously wake up without signalling. Therefore, thread <code>a1</code> and <code>a2</code> should recheck <code>resource_available</code> after the <a href="#wait-instance_method" title="Thread::ConditionVariable#wait (method)">#wait</a> method returns, and go back to wait if the condition is not actually met.</p>
+</li><li>
+<p>It is possible that thread <code>a2</code> starts right after thread <code>a1</code> is waken up by <code>b</code>.  Thread <code>a2</code> may have acquired the <code>mutex</code> and consumed the resource before thread <code>a1</code> acquires the <code>mutex</code>.  This necessitates rechecking after <a href="#wait-instance_method" title="Thread::ConditionVariable#wait (method)">#wait</a>, too.</p>
+</li></ol>
 
 <p>Example:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_mutex'>mutex</span> <span class='op'>=</span> <span class='const'><a href="../Thread.html" title="Thread (class)">Thread</a></span><span class='op'>::</span><span class='const'><a href="Mutex.html" title="Thread::Mutex (class)">Mutex</a></span>.<span class='id identifier rubyid_new'><a href="Mutex.html#new-class_method" title="Thread::Mutex.new (method)">new</a></span>
-<span class='id identifier rubyid_resource'>resource</span> <span class='op'>=</span> <span class='const'><a href="../Thread.html" title="Thread (class)">Thread</a></span><span class='op'>::</span><span class='const'>ConditionVariable</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Thread::ConditionVariable.new (method)">new</a></span>
 
-<span class='id identifier rubyid_a'>a</span> <span class='op'>=</span> <span class='const'><a href="../Thread.html" title="Thread (class)">Thread</a></span>.<span class='id identifier rubyid_new'><a href="../Thread.html#new-class_method" title="Thread.new (method)">new</a></span> {
-   <span class='id identifier rubyid_mutex'>mutex</span>.<span class='id identifier rubyid_synchronize'>synchronize</span> {
-     <span class='comment'># Thread &#39;a&#39; now needs the resource
-</span>     <span class='id identifier rubyid_resource'>resource</span>.<span class='id identifier rubyid_wait'><a href="#wait-instance_method" title="Thread::ConditionVariable#wait (method)">wait</a></span>(<span class='id identifier rubyid_mutex'>mutex</span>)
-     <span class='comment'># &#39;a&#39; can now have the resource
-</span>   }
+<span class='id identifier rubyid_resource_available'>resource_available</span> <span class='op'>=</span> <span class='kw'>false</span>
+<span class='id identifier rubyid_condvar'>condvar</span> <span class='op'>=</span> <span class='const'><a href="../Thread.html" title="Thread (class)">Thread</a></span><span class='op'>::</span><span class='const'>ConditionVariable</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Thread::ConditionVariable.new (method)">new</a></span>
+
+<span class='id identifier rubyid_a1'>a1</span> <span class='op'>=</span> <span class='const'><a href="../Thread.html" title="Thread (class)">Thread</a></span>.<span class='id identifier rubyid_new'><a href="../Thread.html#new-class_method" title="Thread.new (method)">new</a></span> {
+  <span class='comment'># Thread &#39;a1&#39; waits for the resource to become available and consumes
+</span>  <span class='comment'># the resource.
+</span>  <span class='id identifier rubyid_mutex'>mutex</span>.<span class='id identifier rubyid_synchronize'>synchronize</span> {
+    <span class='id identifier rubyid_condvar'>condvar</span>.<span class='id identifier rubyid_wait'><a href="#wait-instance_method" title="Thread::ConditionVariable#wait (method)">wait</a></span>(<span class='id identifier rubyid_mutex'>mutex</span>) <span class='kw'>until</span> <span class='id identifier rubyid_resource_available'>resource_available</span>
+    <span class='comment'># After the loop, &#39;resource_available&#39; is guaranteed to be true.
+</span>
+    <span class='id identifier rubyid_resource_available'>resource_available</span> <span class='op'>=</span> <span class='kw'>false</span>
+    <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>a1 consumed the resource</span><span class='tstring_end'>&quot;</span></span>
+  }
+}
+
+<span class='id identifier rubyid_a2'>a2</span> <span class='op'>=</span> <span class='const'><a href="../Thread.html" title="Thread (class)">Thread</a></span>.<span class='id identifier rubyid_new'><a href="../Thread.html#new-class_method" title="Thread.new (method)">new</a></span> {
+  <span class='comment'># Thread &#39;a2&#39; behaves like &#39;a1&#39;.
+</span>  <span class='id identifier rubyid_mutex'>mutex</span>.<span class='id identifier rubyid_synchronize'>synchronize</span> {
+    <span class='id identifier rubyid_condvar'>condvar</span>.<span class='id identifier rubyid_wait'><a href="#wait-instance_method" title="Thread::ConditionVariable#wait (method)">wait</a></span>(<span class='id identifier rubyid_mutex'>mutex</span>) <span class='kw'>until</span> <span class='id identifier rubyid_resource_available'>resource_available</span>
+    <span class='id identifier rubyid_resource_available'>resource_available</span> <span class='op'>=</span> <span class='kw'>false</span>
+    <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>a2 consumed the resource</span><span class='tstring_end'>&quot;</span></span>
+  }
 }
 
 <span class='id identifier rubyid_b'>b</span> <span class='op'>=</span> <span class='const'><a href="../Thread.html" title="Thread (class)">Thread</a></span>.<span class='id identifier rubyid_new'><a href="../Thread.html#new-class_method" title="Thread.new (method)">new</a></span> {
-   <span class='id identifier rubyid_mutex'>mutex</span>.<span class='id identifier rubyid_synchronize'>synchronize</span> {
-     <span class='comment'># Thread &#39;b&#39; has finished using the resource
-</span>     <span class='id identifier rubyid_resource'>resource</span>.<span class='id identifier rubyid_signal'><a href="#signal-instance_method" title="Thread::ConditionVariable#signal (method)">signal</a></span>
-   }
-}</code></pre>
+  <span class='comment'># Thread &#39;b&#39; periodically makes the resource available.
+</span>  <span class='id identifier rubyid_loop'>loop</span> {
+    <span class='id identifier rubyid_mutex'>mutex</span>.<span class='id identifier rubyid_synchronize'>synchronize</span> {
+      <span class='id identifier rubyid_resource_available'>resource_available</span> <span class='op'>=</span> <span class='kw'>true</span>
+
+      <span class='comment'># Notify one waiting thread if any.  It is possible that neither
+</span>      <span class='comment'># &#39;a1&#39; nor &#39;a2 is waiting on &#39;condvar&#39; at this moment.  That&#39;s OK.
+</span>      <span class='id identifier rubyid_condvar'>condvar</span>.<span class='id identifier rubyid_signal'><a href="#signal-instance_method" title="Thread::ConditionVariable#signal (method)">signal</a></span>
+    }
+    <span class='id identifier rubyid_sleep'>sleep</span> <span class='int'>1</span>
+  }
+}
+
+<span class='comment'># Eventually both &#39;a1&#39; and &#39;a2&#39; will have their resources, albeit in an
+</span><span class='comment'># unspecified order.
+</span>[<span class='id identifier rubyid_a1'>a1</span><span class='comma'>,</span> <span class='id identifier rubyid_a2'>a2</span>].<span class='id identifier rubyid_each'>each</span> {<span class='op'>|</span><span class='id identifier rubyid_th'>th</span><span class='op'>|</span> <span class='id identifier rubyid_th'>th</span>.<span class='id identifier rubyid_join'><a href="../Thread.html#join-instance_method" title="Thread#join (method)">join</a></span>}</code></pre>
 
   </div>
 </div>
@@ -180,11 +219,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/thread_sync.c#L1503-L1509'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/thread_sync.c#L1557-L1563'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1503' data-end='1509'></pre>
+  <pre class='lines_num' data-start='1557' data-end='1563'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'thread_sync.c', line 1503</span></pre>
+<pre><span class='info file'># File 'thread_sync.c', line 1557</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -211,11 +250,11 @@ rb_condvar_initialize(VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/thread_sync.c#L1577-L1583'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/thread_sync.c#L1633-L1639'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1577' data-end='1583'></pre>
+  <pre class='lines_num' data-start='1633' data-end='1639'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'thread_sync.c', line 1577</span></pre>
+<pre><span class='info file'># File 'thread_sync.c', line 1633</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -258,11 +297,11 @@ rb_condvar_broadcast(VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/thread_sync.c#L1563-L1569'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/thread_sync.c#L1619-L1625'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1563' data-end='1569'></pre>
+  <pre class='lines_num' data-start='1619' data-end='1625'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'thread_sync.c', line 1563</span></pre>
+<pre><span class='info file'># File 'thread_sync.c', line 1619</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -287,15 +326,17 @@ rb_condvar_signal(VALUE self)
 
 <p>If <code>timeout</code> is given, this method returns after <code>timeout</code> seconds passed, even if no other thread doesn’t signal.</p>
 
+<p>This method may wake up spuriously due to underlying implementation details.</p>
+
 <p>Returns the slept result on <code>mutex</code>.</p>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/thread_sync.c#L1537-L1555'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/thread_sync.c#L1593-L1611'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1537' data-end='1555'></pre>
+  <pre class='lines_num' data-start='1593' data-end='1611'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'thread_sync.c', line 1537</span></pre>
+<pre><span class='info file'># File 'thread_sync.c', line 1593</span></pre>
 <pre class='code cpp'>
 
 static VALUE
