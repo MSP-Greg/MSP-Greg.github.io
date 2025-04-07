@@ -62,6 +62,78 @@
   </header>
 <div id='content' class='file'>
 <ul>
+<li><p>Model generator no longer needs a database connection to validate column types.</p>
+
+<p><em>Mike Dalessio</em></p></li>
+<li><p>Allow signed ID verifiers to be configurable via <code>Rails.application.message_verifiers</code></p>
+
+<p>Prior to this change, the primary way to configure signed ID verifiers was
+to set <code>signed_id_verifier</code> on each model class:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Post</span>.<span class='id identifier rubyid_signed_id_verifier'>signed_id_verifier</span> <span class='op'>=</span> <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/MessageVerifier.html" title="ActiveSupport::MessageVerifier (class)">MessageVerifier</a></span>.<span class='id identifier rubyid_new'><a href="ActiveSupport/MessageVerifier.html#new-class_method" title="ActiveSupport::MessageVerifier.new (method)">new</a></span>(<span class='op'>...</span>)
+<span class='const'>Comment</span>.<span class='id identifier rubyid_signed_id_verifier'>signed_id_verifier</span> <span class='op'>=</span> <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/MessageVerifier.html" title="ActiveSupport::MessageVerifier (class)">MessageVerifier</a></span>.<span class='id identifier rubyid_new'><a href="ActiveSupport/MessageVerifier.html#new-class_method" title="ActiveSupport::MessageVerifier.new (method)">new</a></span>(<span class='op'>...</span>)</code></pre>
+
+<p>And if the developer did not set <code>signed_id_verifier</code>, a verifier would be
+instantiated with a secret derived from <code>secret_key_base</code> and the following
+options:</p>
+
+<pre class="code ruby"><code class="ruby">{ <span class='label'>digest:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>SHA256</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>serializer:</span> <span class='const'>JSON</span><span class='comma'>,</span> <span class='label'>url_safe:</span> <span class='kw'>true</span> }</code></pre>
+
+<p>Thus it was cumbersome to rotate configuration for all verifiers.</p>
+
+<p>This change defines a new Rails config: [<code>config.active_record.use_legacy_signed_id_verifier</code>][].
+The default value is <code>:generate_and_verify</code>, which preserves the previous
+behavior. However, when set to <code>:verify</code>, signed ID verifiers will use
+configuration from <code>Rails.application.message_verifiers</code> (specifically,
+<code>Rails.application.message_verifiers["active_record/signed_id"]</code>) to
+generate and verify signed IDs, but will also verify signed IDs using the
+older configuration.</p>
+
+<p>To avoid complication, the new behavior only applies when <code>signed_id_verifier_secret</code>
+is not set on a model class or any of its ancestors. Additionally,
+<code>signed_id_verifier_secret</code> is now deprecated. If you are currently setting
+<code>signed_id_verifier_secret</code> on a model class, you can set <code>signed_id_verifier</code>
+instead:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># BEFORE
+</span><span class='const'>Post</span>.<span class='id identifier rubyid_signed_id_verifier_secret'>signed_id_verifier_secret</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>my secret</span><span class='tstring_end'>&quot;</span></span>
+
+<span class='comment'># AFTER
+</span><span class='const'>Post</span>.<span class='id identifier rubyid_signed_id_verifier'>signed_id_verifier</span> <span class='op'>=</span> <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/MessageVerifier.html" title="ActiveSupport::MessageVerifier (class)">MessageVerifier</a></span>.<span class='id identifier rubyid_new'><a href="ActiveSupport/MessageVerifier.html#new-class_method" title="ActiveSupport::MessageVerifier.new (method)">new</a></span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>my secret</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>digest:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>SHA256</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>serializer:</span> <span class='const'>JSON</span><span class='comma'>,</span> <span class='label'>url_safe:</span> <span class='kw'>true</span>)</code></pre>
+
+<p>To ease migration, <code>signed_id_verifier</code> has also been changed to behave as a
+<code>class_attribute</code> (i.e. inheritable), but <em>only when <code>signed_id_verifier_secret</code>
+is not set</em>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># BEFORE
+</span><span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)">Base</a></span>.<span class='id identifier rubyid_signed_id_verifier'>signed_id_verifier</span> <span class='op'>=</span> <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/MessageVerifier.html" title="ActiveSupport::MessageVerifier (class)">MessageVerifier</a></span>.<span class='id identifier rubyid_new'><a href="ActiveSupport/MessageVerifier.html#new-class_method" title="ActiveSupport::MessageVerifier.new (method)">new</a></span>(<span class='op'>...</span>)
+<span class='const'>Post</span>.<span class='id identifier rubyid_signed_id_verifier'>signed_id_verifier</span> <span class='op'>==</span> <span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)">Base</a></span>.<span class='id identifier rubyid_signed_id_verifier'>signed_id_verifier</span> <span class='comment'># =&gt; false
+</span>
+<span class='comment'># AFTER
+</span><span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)">Base</a></span>.<span class='id identifier rubyid_signed_id_verifier'>signed_id_verifier</span> <span class='op'>=</span> <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/MessageVerifier.html" title="ActiveSupport::MessageVerifier (class)">MessageVerifier</a></span>.<span class='id identifier rubyid_new'><a href="ActiveSupport/MessageVerifier.html#new-class_method" title="ActiveSupport::MessageVerifier.new (method)">new</a></span>(<span class='op'>...</span>)
+<span class='const'>Post</span>.<span class='id identifier rubyid_signed_id_verifier'>signed_id_verifier</span> <span class='op'>==</span> <span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)">Base</a></span>.<span class='id identifier rubyid_signed_id_verifier'>signed_id_verifier</span> <span class='comment'># =&gt; true
+</span>
+<span class='const'>Post</span>.<span class='id identifier rubyid_signed_id_verifier_secret'>signed_id_verifier_secret</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>my secret</span><span class='tstring_end'>&quot;</span></span> <span class='comment'># =&gt; deprecation warning
+</span><span class='const'>Post</span>.<span class='id identifier rubyid_signed_id_verifier'>signed_id_verifier</span> <span class='op'>==</span> <span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)">Base</a></span>.<span class='id identifier rubyid_signed_id_verifier'>signed_id_verifier</span> <span class='comment'># =&gt; false</span></code></pre>
+
+<p>Note, however, that it is recommended to eventually migrate from
+model-specific verifiers to a unified configuration managed by
+<code>Rails.application.message_verifiers</code>. <code>ActiveSupport::MessageVerifier#rotate</code>
+can facilitate that transition. For example:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># BEFORE
+</span><span class='comment'># Generate and verify signed Post IDs using Post-specific configuration
+</span><span class='const'>Post</span>.<span class='id identifier rubyid_signed_id_verifier'>signed_id_verifier</span> <span class='op'>=</span> <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/MessageVerifier.html" title="ActiveSupport::MessageVerifier (class)">MessageVerifier</a></span>.<span class='id identifier rubyid_new'><a href="ActiveSupport/MessageVerifier.html#new-class_method" title="ActiveSupport::MessageVerifier.new (method)">new</a></span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>post secret</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='op'>...</span>)
+
+<span class='comment'># AFTER
+</span><span class='comment'># Generate and verify signed Post IDs using the unified configuration
+</span><span class='const'>Post</span>.<span class='id identifier rubyid_signed_id_verifier'>signed_id_verifier</span> <span class='op'>=</span> <span class='const'>Post</span>.<span class='id identifier rubyid_signed_id_verifier'>signed_id_verifier</span>.<span class='id identifier rubyid_dup'>dup</span>
+<span class='comment'># Fall back to Post-specific configuration when verifying signed IDs
+</span><span class='const'>Post</span>.<span class='id identifier rubyid_signed_id_verifier'>signed_id_verifier</span>.<span class='id identifier rubyid_rotate'>rotate</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>post secret</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='op'>...</span>)</code></pre>
+
+<p>[<code>config.active_record.use_legacy_signed_id_verifier</code>]: <a href="https://guides.rubyonrails.org/v8.1/configuring.html#config-active-record-use-legacy-signed-id-verifier">https://guides.rubyonrails.org/v8.1/configuring.html#config-active-record-use-legacy-signed-id-verifier</a></p>
+
+<p><em>Ali Sepehri</em>, <em>Jonathan Hefner</em></p></li>
 <li><p>Prepend <code>extra_flags</code> in postgres&#39; <code>structure_load</code></p>
 
 <p>When specifying <code>structure_load_flags</code> with a postgres adapter, the flags
