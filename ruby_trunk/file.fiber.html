@@ -268,6 +268,63 @@ I/O. Windows is a notable example where socket I/O can be non-blocking but pipe
 I/O is blocking. Provided that there <em>is</em> a scheduler and the current thread <em>is
 non-blocking</em>, the operation will invoke the scheduler.</p>
 
+<h5><code>IO#close</code></h5>
+
+<p>Closing an IO interrupts all blocking operations on that IO. When a thread calls <code>IO#close</code>, it first attempts to interrupt any threads or fibers that are blocked on that IO. The closing thread waits until all blocked threads and fibers have been properly interrupted and removed from the IO&#39;s blocking list. Each interrupted thread or fiber receives an <code>IOError</code> and is cleanly removed from the blocking operation. Only after all blocking operations have been interrupted and cleaned up will the actual file descriptor be closed, ensuring proper resource cleanup and preventing potential race conditions.</p>
+
+<p>For fibers managed by a scheduler, the interruption process involves calling <code>rb_fiber_scheduler_fiber_interrupt</code> on the scheduler. This allows the scheduler to handle the interruption in a way that&#39;s appropriate for its event loop implementation. The scheduler can then notify the fiber, which will receive an <code>IOError</code> and be removed from the blocking operation. This mechanism ensures that fiber-based concurrency works correctly with IO operations, even when those operations are interrupted by <code>IO#close</code>.</p>
+
+<pre class="code mermaid"><code class="mermaid">sequenceDiagram
+    participant ThreadB
+    participant ThreadA
+    participant Scheduler
+    participant IO
+    participant Fiber1
+    participant Fiber2
+
+    Note over ThreadA: Thread A has a fiber scheduler
+    activate Scheduler
+    ThreadA-&gt;&gt;Fiber1: Schedule Fiber 1
+    activate Fiber1
+    Fiber1-&gt;&gt;IO: IO.read
+    IO-&gt;&gt;Scheduler: rb_thread_io_blocking_region
+    deactivate Fiber1
+
+    ThreadA-&gt;&gt;Fiber2: Schedule Fiber 2
+    activate Fiber2
+    Fiber2-&gt;&gt;IO: IO.read
+    IO-&gt;&gt;Scheduler: rb_thread_io_blocking_region
+    deactivate Fiber2
+
+    Note over Fiber1,Fiber2: Both fibers blocked on same IO
+
+    Note over ThreadB: IO.close
+    activate ThreadB
+    ThreadB-&gt;&gt;IO: thread_io_close_notify_all
+    Note over ThreadB: rb_mutex_sleep
+
+    IO-&gt;&gt;Scheduler: rb_fiber_scheduler_fiber_interrupt(Fiber1)
+    Scheduler-&gt;&gt;Fiber1: fiber_interrupt with IOError
+    activate Fiber1
+    Note over IO: fiber_interrupt causes removal from blocking list
+    Fiber1-&gt;&gt;IO: rb_io_blocking_operation_exit()
+    IO--&gt;&gt;ThreadB: Wakeup thread
+    deactivate Fiber1
+
+    IO-&gt;&gt;Scheduler: rb_fiber_scheduler_fiber_interrupt(Fiber2)
+    Scheduler-&gt;&gt;Fiber2: fiber_interrupt with IOError
+    activate Fiber2
+    Note over IO: fiber_interrupt causes removal from blocking list
+    Fiber2-&gt;&gt;IO: rb_io_blocking_operation_exit()
+    IO--&gt;&gt;ThreadB: Wakeup thread
+    deactivate Fiber2
+    deactivate Scheduler
+
+    Note over ThreadB: Blocking operations list empty
+    ThreadB-&gt;&gt;IO: close(fd)
+    deactivate ThreadB
+</code></pre>
+
 <h4>Mutex</h4>
 
 <p>The <code>Mutex</code> class can be used in a non-blocking context and is fiber specific.</p>
