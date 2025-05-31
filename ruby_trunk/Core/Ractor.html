@@ -74,6 +74,7 @@
       <div class='box_1'>Classes:</div>
       <div class='box_11'>
           <a href="Ractor/MovedObject.html" title="Ractor::MovedObject (class)"><code>MovedObject</code></a>,
+        <a href="Ractor/Port.html" title="Ractor::Port (class)"><code>Port</code></a>,
         <a class='nodoc' href="Ractor/Selector.html" title="Ractor::Selector (class)"><code>Selector</code></a>      </div>
     </td></tr>
     <tr><td colspan='2'>
@@ -93,8 +94,9 @@
       </td>
     </tr>
     <tr class='single'>
-      <td id='t2_defined_in' class='box_2'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L239'>ractor.rb</a>      </td>
+      <td id='t2_defined_in' class='box_2 o'>Defined in:</td>
+      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L197'>ractor.rb</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.c#L966'>ractor.c</a></span>
+      </td>
     </tr>
   </tbody>
 </table>
@@ -110,7 +112,7 @@
 
 <pre class="code ruby"><code class="ruby"><span class='comment'># The simplest ractor
 </span><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span> {<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>I am in Ractor!</span><span class='tstring_end'>&quot;</span></span>}
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'><a href="#take-instance_method" title="Ractor#take (method)">take</a></span> <span class='comment'># wait for it to finish
+<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_join'><a href="#join-instance_method" title="Ractor#join (method)">join</a></span> <span class='comment'># wait for it to finish
 </span><span class='comment'># Here, &quot;I am in Ractor!&quot; is printed</span></code></pre>
 
 <p>Ractors do not share all objects with each other. There are two main benefits to this: across ractors, thread-safety concerns such as data-races and race-conditions are not possible. The other benefit is parallelism.</p>
@@ -137,50 +139,10 @@
 </span>  <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>I am in Ractor! a=</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_a_in_ractor'>a_in_ractor</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
 <span class='kw'>end</span>
 <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'><a href="#send-instance_method" title="Ractor#send (method)">send</a></span>(<span class='id identifier rubyid_a'>a</span>)  <span class='comment'># pass it
-</span><span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'><a href="#take-instance_method" title="Ractor#take (method)">take</a></span>
+</span><span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_join'><a href="#join-instance_method" title="Ractor#join (method)">join</a></span>
 <span class='comment'># Here, &quot;I am in Ractor! a=1&quot; is printed</span></code></pre>
 
-<p>There are two pairs of methods for sending/receiving messages:</p>
-<ul><li>
-<p><a href="#send-instance_method" title="Ractor#send (method)">#send</a> and <a href="#receive-class_method" title="Ractor.receive (method)">.receive</a> for when the <em>sender</em> knows the receiver (push);</p>
-</li><li>
-<p><a href="#yield-class_method" title="Ractor.yield (method)">.yield</a> and <a href="#take-instance_method" title="Ractor#take (method)">#take</a> for when the <em>receiver</em> knows the sender (pull);</p>
-</li></ul>
-
-<p>In addition to that, any arguments passed to <a href="#new-class_method" title="Ractor.new (method)">.new</a> are passed to the block and available there as if received by <a href="#receive-class_method" title="Ractor.receive (method)">.receive</a>, and the last block value is sent outside of the ractor as if sent by <a href="#yield-class_method" title="Ractor.yield (method)">.yield</a>.</p>
-
-<p>A little demonstration of a classic ping-pong:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_server'>server</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span>(<span class='label'>name:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>server</span><span class='tstring_end'>&quot;</span></span>) <span class='kw'>do</span>
-  <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Server starts: </span><span class='embexpr_beg'>#{</span><span class='kw'>self</span>.<span class='id identifier rubyid_inspect'><a href="#inspect-instance_method" title="Ractor#inspect (method)">inspect</a></span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
-  <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Server sends: ping</span><span class='tstring_end'>&quot;</span></span>
-  <span class='const'>Ractor</span>.<span class='id identifier rubyid_yield'><a href="#yield-class_method" title="Ractor.yield (method)">yield</a></span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>ping</span><span class='tstring_end'>&#39;</span></span>                       <span class='comment'># The server doesn&#39;t know the receiver and sends to whoever interested
-</span>  <span class='id identifier rubyid_received'>received</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive'><a href="#receive-class_method" title="Ractor.receive (method)">receive</a></span>                 <span class='comment'># The server doesn&#39;t know the sender and receives from whoever sent
-</span>  <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Server received: </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_received'>received</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
-<span class='kw'>end</span>
-
-<span class='id identifier rubyid_client'>client</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span>(<span class='id identifier rubyid_server'>server</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_srv'>srv</span><span class='op'>|</span>        <span class='comment'># The server is sent to the client, and available as srv
-</span>  <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Client starts: </span><span class='embexpr_beg'>#{</span><span class='kw'>self</span>.<span class='id identifier rubyid_inspect'><a href="#inspect-instance_method" title="Ractor#inspect (method)">inspect</a></span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
-  <span class='id identifier rubyid_received'>received</span> <span class='op'>=</span> <span class='id identifier rubyid_srv'>srv</span>.<span class='id identifier rubyid_take'><a href="#take-instance_method" title="Ractor#take (method)">take</a></span>                       <span class='comment'># The client takes a message from the server
-</span>  <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Client received from </span><span class='tstring_end'>&quot;</span></span> \
-       <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_srv'>srv</span>.<span class='id identifier rubyid_inspect'><a href="#inspect-instance_method" title="Ractor#inspect (method)">inspect</a></span><span class='embexpr_end'>}</span><span class='tstring_content'>: </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_received'>received</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
-  <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Client sends to </span><span class='tstring_end'>&quot;</span></span> \
-       <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_srv'>srv</span>.<span class='id identifier rubyid_inspect'><a href="#inspect-instance_method" title="Ractor#inspect (method)">inspect</a></span><span class='embexpr_end'>}</span><span class='tstring_content'>: pong</span><span class='tstring_end'>&quot;</span></span>
-  <span class='id identifier rubyid_srv'>srv</span>.<span class='id identifier rubyid_send'><a href="#send-instance_method" title="Ractor#send (method)">send</a></span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>pong</span><span class='tstring_end'>&#39;</span></span>                           <span class='comment'># The client sends a message to the server
-</span><span class='kw'>end</span>
-
-[<span class='id identifier rubyid_client'>client</span><span class='comma'>,</span> <span class='id identifier rubyid_server'>server</span>].<span class='id identifier rubyid_each'>each</span>(<span class='op'>&amp;</span><span class='symbeg'>:</span><span class='id identifier rubyid_take'><a href="#take-instance_method" title="Ractor#take (method)">take</a></span>)               <span class='comment'># Wait until they both finish</span></code></pre>
-
-<p>This will output something like:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='const'>Server</span> <span class='label'>starts:</span> <span class='comment'>#&lt;Ractor:#2 server test.rb:1 running&gt;
-</span><span class='const'>Server</span> <span class='label'>sends:</span> <span class='id identifier rubyid_ping'>ping</span>
-<span class='const'>Client</span> <span class='label'>starts:</span> <span class='comment'>#&lt;Ractor:#3 test.rb:8 running&gt;
-</span><span class='const'>Client</span> <span class='id identifier rubyid_received'>received</span> <span class='id identifier rubyid_from'>from</span> <span class='comment'>#&lt;Ractor:#2 server test.rb:1 blocking&gt;: ping
-</span><span class='const'>Client</span> <span class='id identifier rubyid_sends'>sends</span> <span class='id identifier rubyid_to'>to</span> <span class='comment'>#&lt;Ractor:#2 server test.rb:1 blocking&gt;: pong
-</span><span class='const'>Server</span> <span class='label'>received:</span> <span class='id identifier rubyid_pong'>pong</span></code></pre>
-
-<p>Ractors receive their messages via the <em>incoming port</em>, and send them to the <em>outgoing port</em>. Either one can be disabled with <a href="#close_incoming-instance_method" title="Ractor#close_incoming (method)">#close_incoming</a> and <a href="#close_outgoing-instance_method" title="Ractor#close_outgoing (method)">#close_outgoing</a>, respectively. When a ractor terminates, its ports are closed automatically.</p>
+<p>In addition to that, any arguments passed to <a href="#new-class_method" title="Ractor.new (method)">.new</a> are passed to the block and available there as if received by <a href="#receive-class_method" title="Ractor.receive (method)">.receive</a>, and the last block value can be received with <a href="#value-instance_method" title="Ractor#value (method)">#value</a>.</p>
 
 <h3 id="label-Shareable+and+unshareable+objects">Shareable and unshareable objects</h3>
 
@@ -201,7 +163,7 @@
 </span><span class='id identifier rubyid_ary'>ary</span>[<span class='int'>0</span>].<span class='id identifier rubyid_frozen?'>frozen?</span>              <span class='comment'>#=&gt; true
 </span><span class='id identifier rubyid_ary'>ary</span>[<span class='int'>1</span>].<span class='id identifier rubyid_frozen?'>frozen?</span>              <span class='comment'>#=&gt; true</span></code></pre>
 
-<p>When a shareable object is sent (via <a href="#send-instance_method" title="Ractor#send (method)">#send</a> or <a href="#yield-class_method" title="Ractor.yield (method)">.yield</a>), no additional processing occurs on it. It just becomes usable by both ractors. When an unshareable object is sent, it can be either <em>copied</em> or <em>moved</em>. The first is the default, and it copies the object fully by deep cloning (Object#clone) the non-shareable parts of its structure.</p>
+<p>When a shareable object is sent (via <a href="#send-instance_method" title="Ractor#send (method)">#send</a> or <code>Ractor.yield</code>), no additional processing occurs on it. It just becomes usable by both ractors. When an unshareable object is sent, it can be either <em>copied</em> or <em>moved</em>. The first is the default, and it copies the object fully by deep cloning (Object#clone) the non-shareable parts of its structure.</p>
 
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_data'>data</span> <span class='op'>=</span> [<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>bar</span><span class='tstring_end'>&#39;</span></span>.<span class='id identifier rubyid_freeze'>freeze</span>]
 <span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span> <span class='kw'>do</span>
@@ -209,7 +171,7 @@
   <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>In ractor: </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_data2'>data2</span>.<span class='id identifier rubyid_object_id'>object_id</span><span class='embexpr_end'>}</span><span class='tstring_content'>, </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_data2'>data2</span>[<span class='int'>0</span>].<span class='id identifier rubyid_object_id'>object_id</span><span class='embexpr_end'>}</span><span class='tstring_content'>, </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_data2'>data2</span>[<span class='int'>1</span>].<span class='id identifier rubyid_object_id'>object_id</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
 <span class='kw'>end</span>
 <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'><a href="#send-instance_method" title="Ractor#send (method)">send</a></span>(<span class='id identifier rubyid_data'>data</span>)
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'><a href="#take-instance_method" title="Ractor#take (method)">take</a></span>
+<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span>
 <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Outside  : </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_data'>data</span>.<span class='id identifier rubyid_object_id'>object_id</span><span class='embexpr_end'>}</span><span class='tstring_content'>, </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_data'>data</span>[<span class='int'>0</span>].<span class='id identifier rubyid_object_id'>object_id</span><span class='embexpr_end'>}</span><span class='tstring_content'>, </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_data'>data</span>[<span class='int'>1</span>].<span class='id identifier rubyid_object_id'>object_id</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span></code></pre>
 
 <p>This will output something like:</p>
@@ -227,7 +189,7 @@
   <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>In ractor: </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_data_in_ractor'>data_in_ractor</span>.<span class='id identifier rubyid_object_id'>object_id</span><span class='embexpr_end'>}</span><span class='tstring_content'>, </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_data_in_ractor'>data_in_ractor</span>[<span class='int'>0</span>].<span class='id identifier rubyid_object_id'>object_id</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
 <span class='kw'>end</span>
 <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'><a href="#send-instance_method" title="Ractor#send (method)">send</a></span>(<span class='id identifier rubyid_data'>data</span><span class='comma'>,</span> <span class='label'>move:</span> <span class='kw'>true</span>)
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'><a href="#take-instance_method" title="Ractor#take (method)">take</a></span>
+<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span>
 <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Outside: moved? </span><span class='embexpr_beg'>#{</span><span class='const'>Ractor</span><span class='op'>::</span><span class='const'><a href="Ractor/MovedObject.html" title="Ractor::MovedObject (class)">MovedObject</a></span> <span class='op'>===</span> <span class='id identifier rubyid_data'>data</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
 <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Outside: </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_data'>data</span>.<span class='id identifier rubyid_inspect'><a href="#inspect-instance_method" title="Ractor#inspect (method)">inspect</a></span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span></code></pre>
 
@@ -256,7 +218,7 @@
   <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>I can&#39;t see </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_cls'>cls</span>.<span class='id identifier rubyid_tricky'>tricky</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
   <span class='id identifier rubyid_cls'>cls</span>.<span class='id identifier rubyid_tricky'>tricky</span> <span class='op'>=</span> <span class='kw'>true</span> <span class='comment'># doesn&#39;t get here, but this would also raise an error
 </span><span class='kw'>end</span>
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'><a href="#take-instance_method" title="Ractor#take (method)">take</a></span>
+<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span>
 <span class='comment'># I see C
 </span><span class='comment'># can not access instance variables of classes/modules from non-main Ractors (RuntimeError)</span></code></pre>
 
@@ -269,7 +231,7 @@
   <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>GOOD=</span><span class='embexpr_beg'>#{</span><span class='const'>GOOD</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
   <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>BAD=</span><span class='embexpr_beg'>#{</span><span class='const'>BAD</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
 <span class='kw'>end</span>
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'><a href="#take-instance_method" title="Ractor#take (method)">take</a></span>
+<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span>
 <span class='comment'># GOOD=good
 </span><span class='comment'># can not access non-shareable objects in constant Object::BAD by non-main Ractor. (NameError)
 </span>
@@ -279,7 +241,7 @@
   <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>I see </span><span class='embexpr_beg'>#{</span><span class='const'>C</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
   <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>I can&#39;t see </span><span class='embexpr_beg'>#{</span><span class='const'>C</span>.<span class='id identifier rubyid_tricky'>tricky</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
 <span class='kw'>end</span>
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'><a href="#take-instance_method" title="Ractor#take (method)">take</a></span>
+<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span>
 <span class='comment'># I see C
 </span><span class='comment'># can not access instance variables of classes/modules from non-main Ractors (RuntimeError)</span></code></pre>
 
@@ -291,9 +253,9 @@
 
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span> <span class='kw'>do</span>
   <span class='id identifier rubyid_a'>a</span> <span class='op'>=</span> <span class='int'>1</span>
-  <span class='const'><a href="Thread.html" title="Thread (class)">Thread</a></span>.<span class='id identifier rubyid_new'><a href="Thread.html#new-class_method" title="Thread.new (method)">new</a></span> {<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Thread in ractor: a=</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_a'>a</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>}.<span class='id identifier rubyid_join'>join</span>
+  <span class='const'><a href="Thread.html" title="Thread (class)">Thread</a></span>.<span class='id identifier rubyid_new'><a href="Thread.html#new-class_method" title="Thread.new (method)">new</a></span> {<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Thread in ractor: a=</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_a'>a</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>}.<span class='id identifier rubyid_join'><a href="#join-instance_method" title="Ractor#join (method)">join</a></span>
 <span class='kw'>end</span>
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'><a href="#take-instance_method" title="Ractor#take (method)">take</a></span>
+<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span>
 <span class='comment'># Here &quot;Thread in ractor: a=1&quot; will be printed</span></code></pre>
 
 <h3 id="label-Note+on+code+examples">Note on code examples</h3>
@@ -304,7 +266,7 @@
   <span class='id identifier rubyid_sleep'>sleep</span>(<span class='float'>0.1</span>)
 <span class='kw'>end</span></code></pre>
 
-<p>It is **only for demonstration purposes** and shouldn’t be used in a real code. Most of the time, <a href="#take-instance_method" title="Ractor#take (method)">#take</a> is used to wait for ractors to finish.</p>
+<p>It is **only for demonstration purposes** and shouldn’t be used in a real code. Most of the time, <code>#take</code> is used to wait for ractors to finish.</p>
 
 <h3 id="label-Reference">Reference</h3>
 
@@ -391,19 +353,11 @@
   </li>
   <li>
     <span class='summary_signature '>
-      <a href="#receive-class_method" title="receive (class method)">.<strong>receive</strong>  &#x21d2; msg </a>
+      <a href="#receive-class_method" title="receive (class method)">.<strong>receive</strong>  &#x21d2; Object </a>
       (also: .recv)
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>Receive a message from the incoming port of the current ractor (which was sent there by <a href="#send-instance_method" title="Ractor#send (method)">#send</a> from another ractor).</p></div>
-    </div>
-  </li>
-  <li>
-    <span class='summary_signature '>
-      <a href="#receive_if-class_method" title="receive_if (class method)">.<strong>receive_if</strong> {|msg| ... } &#x21d2; msg </a>
-    </span>
-    <div class='summary_desc'>
-      <div class='inline'><p>Receive only a specific message.</p></div>
+      <div class='inline'><p>Receive a message from the default port.</p></div>
     </div>
   </li>
   <li>
@@ -416,10 +370,10 @@
   </li>
   <li>
     <span class='summary_signature '>
-      <a href="#select-class_method" title="select (class method)">.<strong>select</strong>(*ractors, [yield_value:, move: false])  &#x21d2; Ractor, ... </a>
+      <a href="#select-class_method" title="select (class method)">.<strong>select</strong>(*ports)  &#x21d2; Array </a>
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>Wait for any ractor to have something in its outgoing port, read from this ractor, and then return that ractor and the object received.</p></div>
+      <div class='inline'><p>TBD.</p></div>
     </div>
   </li>
   <li>
@@ -436,14 +390,6 @@
     </span>
     <div class='summary_desc'>
       <div class='inline'><p>If the corresponding value is not set, yield a value with init_block and store the value in thread-safe manner.</p></div>
-    </div>
-  </li>
-  <li>
-    <span class='summary_signature '>
-      <a href="#yield-class_method" title="yield (class method)">.<strong>yield</strong>(msg, move: false)  &#x21d2; nil </a>
-    </span>
-    <div class='summary_desc'>
-      <div class='inline'><p>Send a message to the current ractor’s outgoing port to be accepted by <a href="#take-instance_method" title="Ractor#take (method)">#take</a>.</p></div>
     </div>
   </li>
   <li>
@@ -473,7 +419,7 @@
 <ul class='summary full'>
   <li>
     <span class='summary_signature '>
-      <a href="#<<-instance_method" title="#&lt;&lt; (instance method)">#<strong>&lt;&lt;</strong>(obj, move: false)  </a>
+      <a href="#<<-instance_method" title="#&lt;&lt; (instance method)">#<strong>&lt;&lt;</strong>  </a>
     </span>
     <div class='summary_desc'>
       <div class='inline'><p>Alias for <a href="#send-instance_method" title="Ractor#send (method)">#send</a>.</p></div>
@@ -497,18 +443,18 @@
   </li>
   <li>
     <span class='summary_signature '>
-      <a href="#close_incoming-instance_method" title="#close_incoming (instance method)">#<strong>close_incoming</strong>  &#x21d2; Boolean </a>
+      <a href="#close-instance_method" title="#close (instance method)">#<strong>close</strong>  </a>
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>Closes the incoming port and returns whether it was already closed.</p></div>
+      <div class='inline'><p>Closes default_port.</p></div>
     </div>
   </li>
   <li>
     <span class='summary_signature '>
-      <a href="#close_outgoing-instance_method" title="#close_outgoing (instance method)">#<strong>close_outgoing</strong>  &#x21d2; Boolean </a>
+      <a href="#default_port-instance_method" title="#default_port (instance method)">#<strong>default_port</strong>  &#x21d2; port object </a>
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>Closes the outgoing port and returns whether it was already closed.</p></div>
+      <div class='inline'><p>return default port of the <code>Ractor</code>.</p></div>
     </div>
   </li>
   <li>
@@ -516,6 +462,22 @@
       <a href="#inspect-instance_method" title="#inspect (instance method)">#<strong>inspect</strong>  </a>
       (also: #to_s)
     </span>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#join-instance_method" title="#join (instance method)">#<strong>join</strong>  &#x21d2; self </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Wait for the termination of the <code>Ractor</code>.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#monitor-instance_method" title="#monitor (instance method)">#<strong>monitor</strong>(port)  &#x21d2; self </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Register port as a monitoring port.</p></div>
+    </div>
   </li>
   <li>
     <span class='summary_signature '>
@@ -535,19 +497,11 @@
   </li>
   <li>
     <span class='summary_signature '>
-      <a href="#send-instance_method" title="#send (instance method)">#<strong>send</strong>(msg, move: false)  &#x21d2; self </a>
+      <a href="#send-instance_method" title="#send (instance method)">#<strong>send</strong>(msg)  &#x21d2; self </a>
       (also: #&lt;&lt;)
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>Send a message to a Ractor’s incoming queue to be accepted by <a href="#receive-class_method" title="Ractor.receive (method)">.receive</a>.</p></div>
-    </div>
-  </li>
-  <li>
-    <span class='summary_signature '>
-      <a href="#take-instance_method" title="#take (instance method)">#<strong>take</strong>  &#x21d2; msg </a>
-    </span>
-    <div class='summary_desc'>
-      <div class='inline'><p>Get a message from the ractor’s outgoing port, which was put there by <a href="#yield-class_method" title="Ractor.yield (method)">.yield</a> or at ractor’s termination.</p></div>
+      <div class='inline'><p>It is equivalent to default_port.send(msg).</p></div>
     </div>
   </li>
   <li>
@@ -559,6 +513,22 @@
     </div>
   </li>
   <li>
+    <span class='summary_signature '>
+      <a href="#unmonitor-instance_method" title="#unmonitor (instance method)">#<strong>unmonitor</strong>(port)  &#x21d2; self </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Unregister port from the monitoring ports.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#value-instance_method" title="#value (instance method)">#<strong>value</strong>  &#x21d2; Object </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Waits for <code>ractor</code> to complete, using <a href="#join-instance_method" title="Ractor#join (method)">#join</a>, and return its value or raise the exception which terminated the <code>Ractor</code>.</p></div>
+    </div>
+  </li>
+  <li>
     <span class='summary_signature priv'>
       <a href="#receive-instance_method" title="#receive (instance method)">#<strong>receive</strong>  </a>
       (also: #recv)
@@ -566,15 +536,6 @@
     <span class='note title private'>private</span>
     <div class='summary_desc'>
       <div class='inline'><p>same as <a href="#receive-class_method" title="Ractor.receive (method)">.receive</a></p></div>
-    </div>
-  </li>
-  <li>
-    <span class='summary_signature priv'>
-      <a href="#receive_if-instance_method" title="#receive_if (instance method)">#<strong>receive_if</strong>(&amp;b)  </a>
-    </span>
-    <span class='note title private'>private</span>
-    <div class='summary_desc'>
-      <div class='inline'><p>same as <a href="#receive_if-class_method" title="Ractor.receive_if (method)">.receive_if</a></p></div>
     </div>
   </li>
 </ul>
@@ -592,7 +553,7 @@
 <p>The given block (Proc) will be isolated (can’t access any outer variables). <code>self</code> inside the block will refer to the current Ractor.</p>
 
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> { <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Hi, I am </span><span class='embexpr_beg'>#{</span><span class='kw'>self</span>.<span class='id identifier rubyid_inspect'><a href="#inspect-instance_method" title="Ractor#inspect (method)">inspect</a></span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span> }
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'><a href="#take-instance_method" title="Ractor#take (method)">take</a></span>
+<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span>
 <span class='comment'># Prints &quot;Hi, I am #&lt;Ractor:#2 test.rb:1 running&gt;&quot;</span></code></pre>
 
 <p>Any <code>args</code> passed are propagated to the block arguments by the same rules as objects sent via #send/Ractor.receive. If an argument in <code>args</code> is not shareable, it will be copied (via deep cloning, which might be inefficient).</p>
@@ -602,14 +563,14 @@
 <span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span>(<span class='id identifier rubyid_arg'>arg</span>) {<span class='op'>|</span><span class='id identifier rubyid_received_arg'>received_arg</span><span class='op'>|</span>
   <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Received: </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_received_arg'>received_arg</span><span class='embexpr_end'>}</span><span class='tstring_content'> (#</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_received_arg'>received_arg</span>.<span class='id identifier rubyid_object_id'>object_id</span><span class='embexpr_end'>}</span><span class='tstring_content'>)</span><span class='tstring_end'>&quot;</span></span>
 }
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'><a href="#take-instance_method" title="Ractor#take (method)">take</a></span>
+<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span>
 <span class='comment'># Prints:
 </span><span class='comment'>#   Passing: [1, 2, 3] (#280)
 </span><span class='comment'>#   Received: [1, 2, 3] (#300)</span></code></pre>
 
 <p>Ractor’s <a href="#name-instance_method" title="Ractor#name (method)">#name</a> can be set for debugging purposes:</p>
 
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span>(<span class='label'>name:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>my ractor</span><span class='tstring_end'>&#39;</span></span>) {}<span class='semicolon'>;</span> <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'><a href="#take-instance_method" title="Ractor#take (method)">take</a></span>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span>(<span class='label'>name:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>my ractor</span><span class='tstring_end'>&#39;</span></span>) {}<span class='semicolon'>;</span> <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span>
 <span class='id identifier rubyid_p'>p</span> <span class='id identifier rubyid_r'>r</span>
 <span class='comment'>#=&gt; #&lt;Ractor:#3 my ractor test.rb:1 terminated&gt;</span></code></pre>
 
@@ -624,11 +585,11 @@
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L273-L283'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L231-L241'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='273' data-end='283'></pre>
+  <pre class='lines_num' data-start='231' data-end='241'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 273</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 231</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_new'>new</span>(<span class='op'>*</span><span class='id identifier rubyid_args'>args</span><span class='comma'>,</span> <span class='label'>name:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span>)
@@ -659,11 +620,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L885-L889'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L481-L485'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='885' data-end='889'></pre>
+  <pre class='lines_num' data-start='481' data-end='485'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 885</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 481</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_main'>main</span>
@@ -690,11 +651,11 @@
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L892-L896'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L488-L492'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='892' data-end='896'></pre>
+  <pre class='lines_num' data-start='488' data-end='492'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 892</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 488</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_main?'>main?</span>
@@ -719,11 +680,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L857-L859'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L453-L455'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='857' data-end='859'></pre>
+  <pre class='lines_num' data-start='453' data-end='455'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 857</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 453</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='op'>[]</span>(<span class='id identifier rubyid_sym'>sym</span>)
@@ -745,11 +706,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L862-L864'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L458-L460'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='862' data-end='864'></pre>
+  <pre class='lines_num' data-start='458' data-end='460'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 862</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 458</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='op'>[]=</span>(<span class='id identifier rubyid_sym'>sym</span><span class='comma'>,</span> <span class='id identifier rubyid_val'>val</span>)
@@ -774,11 +735,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L911-L923'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L507-L519'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='911' data-end='923'></pre>
+  <pre class='lines_num' data-start='507' data-end='519'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 911</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 507</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid__activated'>_activated</span> <span class='comment'># :nodoc:
@@ -813,11 +774,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L899-L905'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L495-L501'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='899' data-end='905'></pre>
+  <pre class='lines_num' data-start='495' data-end='501'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 899</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 495</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid__require'>_require</span> <span class='id identifier rubyid_feature'>feature</span> <span class='comment'># :nodoc:
@@ -842,19 +803,19 @@
 <p>Returns the number of Ractors currently running or blocking (waiting).</p>
 
 <pre class="code ruby"><code class="ruby"><span class='const'>Ractor</span>.<span class='id identifier rubyid_count'>count</span>                   <span class='comment'>#=&gt; 1
-</span><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span>(<span class='label'>name:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>example</span><span class='tstring_end'>&#39;</span></span>) { <span class='const'>Ractor</span>.<span class='id identifier rubyid_yield'><a href="#yield-class_method" title="Ractor.yield (method)">yield</a></span>(<span class='int'>1</span>) }
+</span><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span>(<span class='label'>name:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>example</span><span class='tstring_end'>&#39;</span></span>) { <span class='const'>Ractor</span>.<span class='id identifier rubyid_yield'>yield</span>(<span class='int'>1</span>) }
 <span class='const'>Ractor</span>.<span class='id identifier rubyid_count'>count</span>                   <span class='comment'>#=&gt; 2 (main + example ractor)
-</span><span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'><a href="#take-instance_method" title="Ractor#take (method)">take</a></span>                         <span class='comment'># wait for Ractor.yield(1)
-</span><span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'><a href="#take-instance_method" title="Ractor#take (method)">take</a></span>                         <span class='comment'># wait until r will finish
+</span><span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span>                         <span class='comment'># wait for Ractor.yield(1)
+</span><span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span>                         <span class='comment'># wait until r will finish
 </span><span class='const'>Ractor</span>.<span class='id identifier rubyid_count'>count</span>                   <span class='comment'>#=&gt; 1</span></code></pre>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L302-L306'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L260-L264'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='302' data-end='306'></pre>
+  <pre class='lines_num' data-start='260' data-end='264'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 302</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 260</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_count'>count</span>
@@ -880,11 +841,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L288-L292'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L246-L250'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='288' data-end='292'></pre>
+  <pre class='lines_num' data-start='246' data-end='250'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 288</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 246</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_current'>current</span>
@@ -934,11 +895,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L826-L836'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L422-L432'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='826' data-end='836'></pre>
+  <pre class='lines_num' data-start='422' data-end='432'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 826</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 422</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_make_shareable'>make_shareable</span> <span class='id identifier rubyid_obj'>obj</span><span class='comma'>,</span> <span class='label'>copy:</span> <span class='kw'>false</span>
@@ -959,150 +920,24 @@
 
 <section class='method_details' id="receive-class_method">
   <h3 class='signature '>
-    .<strong>receive</strong>  &#x21d2; <code>msg</code>     <span class='aliases'>Also known as: <span class='names'>.recv</span></span>
+    .<strong>receive</strong>  &#x21d2; <a href="Object.html" title="Object (class)">Object</a>     <span class='aliases'>Also known as: <span class='names'>.recv</span></span>
   </h3>
 <div class='docstring'>
   <div class='discussion'>
     
-<p>Receive a message from the incoming port of the current ractor (which was sent there by <a href="#send-instance_method" title="Ractor#send (method)">#send</a> from another ractor).</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span> <span class='kw'>do</span>
-  <span class='id identifier rubyid_v1'>v1</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive'>receive</span>
-  <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Received: </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_v1'>v1</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
-<span class='kw'>end</span>
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'><a href="#send-instance_method" title="Ractor#send (method)">send</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>message1</span><span class='tstring_end'>&#39;</span></span>)
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'><a href="#take-instance_method" title="Ractor#take (method)">take</a></span>
-<span class='comment'># Here will be printed: &quot;Received: message1&quot;</span></code></pre>
-
-<p>Alternatively, the private instance method <code>receive</code> may be used:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span> <span class='kw'>do</span>
-  <span class='id identifier rubyid_v1'>v1</span> <span class='op'>=</span> <span class='id identifier rubyid_receive'>receive</span>
-  <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Received: </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_v1'>v1</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
-<span class='kw'>end</span>
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'><a href="#send-instance_method" title="Ractor#send (method)">send</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>message1</span><span class='tstring_end'>&#39;</span></span>)
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'><a href="#take-instance_method" title="Ractor#take (method)">take</a></span>
-<span class='comment'># This prints: &quot;Received: message1&quot;</span></code></pre>
-
-<p>The method blocks if the queue is empty.</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span> <span class='kw'>do</span>
-  <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Before first receive</span><span class='tstring_end'>&quot;</span></span>
-  <span class='id identifier rubyid_v1'>v1</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive'>receive</span>
-  <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Received: </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_v1'>v1</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
-  <span class='id identifier rubyid_v2'>v2</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive'>receive</span>
-  <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Received: </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_v2'>v2</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
-<span class='kw'>end</span>
-<span class='id identifier rubyid_wait'>wait</span>
-<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Still not received</span><span class='tstring_end'>&quot;</span></span>
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'><a href="#send-instance_method" title="Ractor#send (method)">send</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>message1</span><span class='tstring_end'>&#39;</span></span>)
-<span class='id identifier rubyid_wait'>wait</span>
-<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Still received only one</span><span class='tstring_end'>&quot;</span></span>
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'><a href="#send-instance_method" title="Ractor#send (method)">send</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>message2</span><span class='tstring_end'>&#39;</span></span>)
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'><a href="#take-instance_method" title="Ractor#take (method)">take</a></span></code></pre>
-
-<p>Output:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='const'>Before</span> <span class='id identifier rubyid_first'>first</span> <span class='id identifier rubyid_receive'>receive</span>
-<span class='const'>Still</span> <span class='kw'>not</span> <span class='id identifier rubyid_received'>received</span>
-<span class='const'>Received</span><span class='op'>:</span> <span class='id identifier rubyid_message1'>message1</span>
-<span class='const'>Still</span> <span class='id identifier rubyid_received'>received</span> <span class='id identifier rubyid_only'>only</span> <span class='id identifier rubyid_one'>one</span>
-<span class='const'>Received</span><span class='op'>:</span> <span class='id identifier rubyid_message2'>message2</span></code></pre>
-
-<p>If close_incoming was called on the ractor, the method raises <a href="Ractor/ClosedError.html" title="Ractor::ClosedError (class)"><code>::Ractor::ClosedError</code></a> if there are no more messages in the incoming queue:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span> <span class='kw'>do</span>
-  <span class='id identifier rubyid_close_incoming'><a href="#close_incoming-instance_method" title="Ractor#close_incoming (method)">close_incoming</a></span>
-  <span class='id identifier rubyid_receive'>receive</span>
-<span class='kw'>end</span>
-<span class='id identifier rubyid_wait'>wait</span>
-<span class='comment'># in `receive&#39;: The incoming port is already closed =&gt; #&lt;Ractor:#2 test.rb:1 running&gt; (Ractor::ClosedError)</span></code></pre>
+<p>Receive a message from the default port.</p>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L430-L434'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L312-L314'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='430' data-end='434'></pre>
+  <pre class='lines_num' data-start='312' data-end='314'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 430</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 312</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_receive'>receive</span>
-  <span class='id identifier rubyid___builtin_cexpr!'>__builtin_cexpr!</span> <span class='tstring'><span class='tstring_beg'>%q{</span><span class='tstring_content'>
-    ractor_receive(ec, rb_ec_ractor_ptr(ec))
-  </span><span class='tstring_end'>}</span></span>
-<span class='kw'>end</span>
-</pre>
-  </div>
-</div>
-</section>
-
-<section class='method_details' id="receive_if-class_method">
-  <h3 class='signature '>
-    .<strong>receive_if</strong> {|msg| ... } &#x21d2; <code>msg</code>   </h3>
-<div class='docstring'>
-  <div class='discussion'>
-    
-<p>Receive only a specific message.</p>
-
-<p>Instead of <a href="#receive-class_method" title="Ractor.receive (method)">.receive</a>, <code>receive_if</code> can be given a pattern (or any filter) in a block and you can choose the messages to accept that are available in your ractor’s incoming queue.</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span> <span class='kw'>do</span>
-  <span class='id identifier rubyid_p'>p</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive_if'>receive_if</span>{<span class='op'>|</span><span class='id identifier rubyid_msg'>msg</span><span class='op'>|</span> <span class='id identifier rubyid_msg'>msg</span>.<span class='id identifier rubyid_match?'>match?</span>(<span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>foo</span><span class='regexp_end'>/</span></span>)} <span class='comment'>#=&gt; &quot;foo3&quot;
-</span>  <span class='id identifier rubyid_p'>p</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive_if'>receive_if</span>{<span class='op'>|</span><span class='id identifier rubyid_msg'>msg</span><span class='op'>|</span> <span class='id identifier rubyid_msg'>msg</span>.<span class='id identifier rubyid_match?'>match?</span>(<span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>bar</span><span class='regexp_end'>/</span></span>)} <span class='comment'>#=&gt; &quot;bar1&quot;
-</span>  <span class='id identifier rubyid_p'>p</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive_if'>receive_if</span>{<span class='op'>|</span><span class='id identifier rubyid_msg'>msg</span><span class='op'>|</span> <span class='id identifier rubyid_msg'>msg</span>.<span class='id identifier rubyid_match?'>match?</span>(<span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>baz</span><span class='regexp_end'>/</span></span>)} <span class='comment'>#=&gt; &quot;baz2&quot;
-</span><span class='kw'>end</span>
-<span class='id identifier rubyid_r'>r</span> <span class='op'>&lt;&lt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>bar1</span><span class='tstring_end'>&quot;</span></span>
-<span class='id identifier rubyid_r'>r</span> <span class='op'>&lt;&lt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>baz2</span><span class='tstring_end'>&quot;</span></span>
-<span class='id identifier rubyid_r'>r</span> <span class='op'>&lt;&lt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foo3</span><span class='tstring_end'>&quot;</span></span>
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'><a href="#take-instance_method" title="Ractor#take (method)">take</a></span></code></pre>
-
-<p>This will output:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_foo3'>foo3</span>
-<span class='id identifier rubyid_bar1'>bar1</span>
-<span class='id identifier rubyid_baz2'>baz2</span></code></pre>
-
-<p>If the block returns a truthy value, the message is removed from the incoming queue and returned. Otherwise, the message remains in the incoming queue and the next messages are checked by the given block.</p>
-
-<p>If there are no messages left in the incoming queue, the method will block until new messages arrive.</p>
-
-<p>If the block is escaped by break/return/exception/throw, the message is removed from the incoming queue as if a truthy value had been returned.</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span> <span class='kw'>do</span>
-  <span class='id identifier rubyid_val'>val</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive_if'>receive_if</span>{<span class='op'>|</span><span class='id identifier rubyid_msg'>msg</span><span class='op'>|</span> <span class='id identifier rubyid_msg'>msg</span>.<span class='id identifier rubyid_is_a?'>is_a?</span>(<span class='const'><a href="Array.html" title="Array (class)">Array</a></span>)}
-  <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Received successfully: </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_val'>val</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
-<span class='kw'>end</span>
-
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'><a href="#send-instance_method" title="Ractor#send (method)">send</a></span>(<span class='int'>1</span>)
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'><a href="#send-instance_method" title="Ractor#send (method)">send</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>test</span><span class='tstring_end'>&#39;</span></span>)
-<span class='id identifier rubyid_wait'>wait</span>
-<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>2 non-matching sent, nothing received</span><span class='tstring_end'>&quot;</span></span>
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'><a href="#send-instance_method" title="Ractor#send (method)">send</a></span>([<span class='int'>1</span><span class='comma'>,</span> <span class='int'>2</span><span class='comma'>,</span> <span class='int'>3</span>])
-<span class='id identifier rubyid_wait'>wait</span></code></pre>
-
-<p>Prints:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='int'>2</span> <span class='id identifier rubyid_non'>non</span><span class='op'>-</span><span class='id identifier rubyid_matching'>matching</span> <span class='id identifier rubyid_sent'>sent</span><span class='comma'>,</span> <span class='id identifier rubyid_nothing'>nothing</span> <span class='id identifier rubyid_received'>received</span>
-<span class='const'>Received</span> <span class='label'>successfully:</span> [<span class='int'>1</span><span class='comma'>,</span> <span class='int'>2</span><span class='comma'>,</span> <span class='int'>3</span>]</code></pre>
-
-<p>Note that you can not call receive/receive_if in the given block recursively. You should not do any tasks in the block other than message filtration.</p>
-
-<pre class="code ruby"><code class="ruby"><span class='const'>Ractor</span>.<span class='id identifier rubyid_current'><a href="#current-class_method" title="Ractor.current (method)">current</a></span> <span class='op'>&lt;&lt;</span> <span class='kw'>true</span>
-<span class='const'>Ractor</span>.<span class='id identifier rubyid_receive_if'>receive_if</span>{<span class='op'>|</span><span class='id identifier rubyid_msg'>msg</span><span class='op'>|</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive'><a href="#receive-class_method" title="Ractor.receive (method)">receive</a></span>}
-<span class='comment'>#=&gt; `receive&#39;: can not call receive/receive_if recursively (Ractor::Error)</span></code></pre>
-
-  </div>
-</div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L509-L511'>GitHub</a>&#8202;]</span>
-<div class='source_code h'>
-  <pre class='lines_num' data-start='509' data-end='511'></pre>
-  <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 509</span></pre>
-<pre class='code ruby'>
-
-<span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_receive_if'>receive_if</span> <span class='op'>&amp;</span><span class='id identifier rubyid_b'>b</span>
-  <span class='const'>Primitive</span>.<span class='id identifier rubyid_ractor_receive_if'>ractor_receive_if</span> <span class='id identifier rubyid_b'>b</span>
+  <span class='const'>Ractor</span>.<span class='id identifier rubyid_current'><a href="#current-class_method" title="Ractor.current (method)">current</a></span>.<span class='id identifier rubyid_default_port'><a href="#default_port-instance_method" title="Ractor#default_port (method)">default_port</a></span>.<span class='id identifier rubyid_receive'>receive</span>
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -1120,11 +955,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L437-L437'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L317-L317'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='437' data-end='437'></pre>
+  <pre class='lines_num' data-start='317' data-end='317'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 437</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 317</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>alias</span> <span class='id identifier rubyid_recv'>recv</span> <span class='id identifier rubyid_receive'><a href="#receive-class_method" title="Ractor.receive (method)">receive</a></span>
@@ -1135,53 +970,11 @@
 
 <section class='method_details' id="select-class_method">
   <h3 class='signature '>
-    .<strong>select</strong>(*ractors, [yield_value:, move: false])  &#x21d2; <code>Ractor</code>, ...   </h3>
+    .<strong>select</strong>(*ports)  &#x21d2; <a href="Array.html" title="Array (class)">Array</a>   </h3>
 <div class='docstring'>
   <div class='discussion'>
     
-<p>Wait for any ractor to have something in its outgoing port, read from this ractor, and then return that ractor and the object received.</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r1'>r1</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span> {<span class='const'>Ractor</span>.<span class='id identifier rubyid_yield'><a href="#yield-class_method" title="Ractor.yield (method)">yield</a></span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>from 1</span><span class='tstring_end'>&#39;</span></span>}
-<span class='id identifier rubyid_r2'>r2</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span> {<span class='const'>Ractor</span>.<span class='id identifier rubyid_yield'><a href="#yield-class_method" title="Ractor.yield (method)">yield</a></span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>from 2</span><span class='tstring_end'>&#39;</span></span>}
-
-<span class='id identifier rubyid_r'>r</span><span class='comma'>,</span> <span class='id identifier rubyid_obj'>obj</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_select'>select</span>(<span class='id identifier rubyid_r1'>r1</span><span class='comma'>,</span> <span class='id identifier rubyid_r2'>r2</span>)
-
-<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>received </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_obj'>obj</span>.<span class='id identifier rubyid_inspect'><a href="#inspect-instance_method" title="Ractor#inspect (method)">inspect</a></span><span class='embexpr_end'>}</span><span class='tstring_content'> from </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_inspect'><a href="#inspect-instance_method" title="Ractor#inspect (method)">inspect</a></span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
-<span class='comment'># Prints: received &quot;from 1&quot; from #&lt;Ractor:#2 test.rb:1 running&gt;
-</span><span class='comment'># But could just as well print &quot;from r2&quot; here, either prints could be first.</span></code></pre>
-
-<p>If one of the given ractors is the current ractor, and it is selected, <code>r</code> will contain the <code>:receive</code> symbol instead of the ractor object.</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r1'>r1</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span>(<span class='const'>Ractor</span>.<span class='id identifier rubyid_current'><a href="#current-class_method" title="Ractor.current (method)">current</a></span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_main'><a href="#main-class_method" title="Ractor.main (method)">main</a></span><span class='op'>|</span>
-  <span class='id identifier rubyid_main'><a href="#main-class_method" title="Ractor.main (method)">main</a></span>.<span class='id identifier rubyid_send'><a href="#send-instance_method" title="Ractor#send (method)">send</a></span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>to main</span><span class='tstring_end'>&#39;</span></span>
-  <span class='const'>Ractor</span>.<span class='id identifier rubyid_yield'><a href="#yield-class_method" title="Ractor.yield (method)">yield</a></span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>from 1</span><span class='tstring_end'>&#39;</span></span>
-<span class='kw'>end</span>
-<span class='id identifier rubyid_r2'>r2</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span> <span class='kw'>do</span>
-  <span class='const'>Ractor</span>.<span class='id identifier rubyid_yield'><a href="#yield-class_method" title="Ractor.yield (method)">yield</a></span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>from 2</span><span class='tstring_end'>&#39;</span></span>
-<span class='kw'>end</span>
-
-<span class='id identifier rubyid_r'>r</span><span class='comma'>,</span> <span class='id identifier rubyid_obj'>obj</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_select'>select</span>(<span class='id identifier rubyid_r1'>r1</span><span class='comma'>,</span> <span class='id identifier rubyid_r2'>r2</span><span class='comma'>,</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_current'><a href="#current-class_method" title="Ractor.current (method)">current</a></span>)
-<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>received </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_obj'>obj</span>.<span class='id identifier rubyid_inspect'><a href="#inspect-instance_method" title="Ractor#inspect (method)">inspect</a></span><span class='embexpr_end'>}</span><span class='tstring_content'> from </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_inspect'><a href="#inspect-instance_method" title="Ractor#inspect (method)">inspect</a></span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
-<span class='comment'># Could print: received &quot;to main&quot; from :receive</span></code></pre>
-
-<p>If <code>yield_value</code> is provided, that value may be yielded if another ractor is calling <a href="#take-instance_method" title="Ractor#take (method)">#take</a>. In this case, the pair <code>[:yield, nil]</code> is returned:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r1'>r1</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span>(<span class='const'>Ractor</span>.<span class='id identifier rubyid_current'><a href="#current-class_method" title="Ractor.current (method)">current</a></span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_main'><a href="#main-class_method" title="Ractor.main (method)">main</a></span><span class='op'>|</span>
-  <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Received from main: </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_main'><a href="#main-class_method" title="Ractor.main (method)">main</a></span>.<span class='id identifier rubyid_take'><a href="#take-instance_method" title="Ractor#take (method)">take</a></span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
-<span class='kw'>end</span>
-
-<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Trying to select</span><span class='tstring_end'>&quot;</span></span>
-<span class='id identifier rubyid_r'>r</span><span class='comma'>,</span> <span class='id identifier rubyid_obj'>obj</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_select'>select</span>(<span class='id identifier rubyid_r1'>r1</span><span class='comma'>,</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_current'><a href="#current-class_method" title="Ractor.current (method)">current</a></span><span class='comma'>,</span> <span class='label'>yield_value:</span> <span class='int'>123</span>)
-<span class='id identifier rubyid_wait'>wait</span>
-<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Received </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_obj'>obj</span>.<span class='id identifier rubyid_inspect'><a href="#inspect-instance_method" title="Ractor#inspect (method)">inspect</a></span><span class='embexpr_end'>}</span><span class='tstring_content'> from </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_inspect'><a href="#inspect-instance_method" title="Ractor#inspect (method)">inspect</a></span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span></code></pre>
-
-<p>This will print:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='const'>Trying</span> <span class='id identifier rubyid_to'>to</span> <span class='id identifier rubyid_select'>select</span>
-<span class='const'>Received</span> <span class='id identifier rubyid_from'>from</span> <span class='label'>main:</span> <span class='int'>123</span>
-<span class='const'>Received</span> <span class='kw'>nil</span> <span class='id identifier rubyid_from'>from</span> <span class='symbeg'>:</span><span class='kw'>yield</span></code></pre>
-
-<p><code>move</code> boolean flag defines whether yielded value will be copied (default) or moved.</p>
+<p>TBD</p>
 
   </div>
 </div>
@@ -1194,23 +987,47 @@
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L358-L368'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L271-L305'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='358' data-end='368'></pre>
+  <pre class='lines_num' data-start='271' data-end='305'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 358</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 271</span></pre>
 <pre class='code ruby'>
 
-<span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_select'>select</span>(<span class='op'>*</span><span class='id identifier rubyid_ractors'>ractors</span><span class='comma'>,</span> <span class='label'>yield_value:</span> <span class='id identifier rubyid_yield_unspecified'>yield_unspecified</span> <span class='op'>=</span> <span class='kw'>true</span><span class='comma'>,</span> <span class='label'>move:</span> <span class='kw'>false</span>)
-  <span class='id identifier rubyid_raise'>raise</span> <span class='const'><a href="ArgumentError.html" title="ArgumentError (class)">ArgumentError</a></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>specify at least one ractor or `yield_value`</span><span class='tstring_end'>&#39;</span></span> <span class='kw'>if</span> <span class='id identifier rubyid_yield_unspecified'>yield_unspecified</span> <span class='op'>&amp;&amp;</span> <span class='id identifier rubyid_ractors'>ractors</span>.<span class='id identifier rubyid_empty?'>empty?</span>
+<span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_select'>select</span>(<span class='op'>*</span><span class='id identifier rubyid_ports'>ports</span>)
+  <span class='id identifier rubyid_raise'>raise</span> <span class='const'><a href="ArgumentError.html" title="ArgumentError (class)">ArgumentError</a></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>specify at least one ractor or `yield_value`</span><span class='tstring_end'>&#39;</span></span> <span class='kw'>if</span> <span class='id identifier rubyid_ports'>ports</span>.<span class='id identifier rubyid_empty?'>empty?</span>
 
-  <span class='kw'>if</span> <span class='id identifier rubyid_ractors'>ractors</span>.<span class='id identifier rubyid_delete'>delete</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_current'><a href="#current-class_method" title="Ractor.current (method)">current</a></span>
-    <span class='id identifier rubyid_do_receive'>do_receive</span> <span class='op'>=</span> <span class='kw'>true</span>
-  <span class='kw'>else</span>
-    <span class='id identifier rubyid_do_receive'>do_receive</span> <span class='op'>=</span> <span class='kw'>false</span>
+  <span class='id identifier rubyid_monitors'>monitors</span> <span class='op'>=</span> {} <span class='comment'># Ractor::Port =&gt; Ractor
+</span>
+  <span class='id identifier rubyid_ports'>ports</span> <span class='op'>=</span> <span class='id identifier rubyid_ports'>ports</span>.<span class='id identifier rubyid_map'>map</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_arg'>arg</span><span class='op'>|</span>
+    <span class='kw'>case</span> <span class='id identifier rubyid_arg'>arg</span>
+    <span class='kw'>when</span> <span class='const'>Ractor</span>
+      <span class='id identifier rubyid_port'>port</span> <span class='op'>=</span> <span class='const'>Ractor</span><span class='op'>::</span><span class='const'><a href="Ractor/Port.html" title="Ractor::Port (class)">Port</a></span>.<span class='id identifier rubyid_new'><a href="Ractor/Port.html#new-class_method" title="Ractor::Port.new (method)">new</a></span>
+      <span class='id identifier rubyid_monitors'>monitors</span>[<span class='id identifier rubyid_port'>port</span>] <span class='op'>=</span> <span class='id identifier rubyid_arg'>arg</span>
+      <span class='id identifier rubyid_arg'>arg</span>.<span class='id identifier rubyid_monitor'><a href="#monitor-instance_method" title="Ractor#monitor (method)">monitor</a></span> <span class='id identifier rubyid_port'>port</span>
+      <span class='id identifier rubyid_port'>port</span>
+    <span class='kw'>when</span> <span class='const'>Ractor</span><span class='op'>::</span><span class='const'><a href="Ractor/Port.html" title="Ractor::Port (class)">Port</a></span>
+      <span class='id identifier rubyid_arg'>arg</span>
+    <span class='kw'>else</span>
+      <span class='id identifier rubyid_raise'>raise</span> <span class='const'><a href="ArgumentError.html" title="ArgumentError (class)">ArgumentError</a></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>should be Ractor::Port or Ractor</span><span class='tstring_end'>&quot;</span></span>
+    <span class='kw'>end</span>
   <span class='kw'>end</span>
 
-  <span class='id identifier rubyid___builtin_ractor_select_internal'>__builtin_ractor_select_internal</span> <span class='id identifier rubyid_ractors'>ractors</span><span class='comma'>,</span> <span class='id identifier rubyid_do_receive'>do_receive</span><span class='comma'>,</span> <span class='op'>!</span><span class='id identifier rubyid_yield_unspecified'>yield_unspecified</span><span class='comma'>,</span> <span class='id identifier rubyid_yield_value'>yield_value</span><span class='comma'>,</span> <span class='id identifier rubyid_move'>move</span>
+  <span class='kw'>begin</span>
+    <span class='id identifier rubyid_result_port'>result_port</span><span class='comma'>,</span> <span class='id identifier rubyid_obj'>obj</span> <span class='op'>=</span> <span class='id identifier rubyid___builtin_ractor_select_internal'>__builtin_ractor_select_internal</span>(<span class='id identifier rubyid_ports'>ports</span>)
+
+    <span class='kw'>if</span> <span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='id identifier rubyid_monitors'>monitors</span>[<span class='id identifier rubyid_result_port'>result_port</span>]
+      [<span class='id identifier rubyid_r'>r</span><span class='comma'>,</span> <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_value'><a href="#value-instance_method" title="Ractor#value (method)">value</a></span>]
+    <span class='kw'>else</span>
+      [<span class='id identifier rubyid_result_port'>result_port</span><span class='comma'>,</span> <span class='id identifier rubyid_obj'>obj</span>]
+    <span class='kw'>end</span>
+  <span class='kw'>ensure</span>
+    <span class='comment'># close all ports for join
+</span>    <span class='id identifier rubyid_monitors'>monitors</span>.<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_port'>port</span><span class='comma'>,</span> <span class='id identifier rubyid_r'>r</span><span class='op'>|</span>
+      <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_unmonitor'><a href="#unmonitor-instance_method" title="Ractor#unmonitor (method)">unmonitor</a></span> <span class='id identifier rubyid_port'>port</span>
+      <span class='id identifier rubyid_port'>port</span>.<span class='id identifier rubyid_close'><a href="#close-instance_method" title="Ractor#close (method)">close</a></span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -1233,11 +1050,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L785-L789'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L381-L385'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='785' data-end='789'></pre>
+  <pre class='lines_num' data-start='381' data-end='385'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 785</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 381</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_shareable?'>shareable?</span> <span class='id identifier rubyid_obj'>obj</span>
@@ -1263,15 +1080,15 @@
     <span class='const'>Ractor</span>.<span class='id identifier rubyid_store_if_absent'>store_if_absent</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_s'>s</span>){ <span class='id identifier rubyid_f'>f</span>()<span class='semicolon'>;</span> <span class='id identifier rubyid_i'>i</span> }
     <span class='comment'>#=&gt; return stored value of key :s
 </span>  }
-}.<span class='id identifier rubyid_map'>map</span>(<span class='op'>&amp;</span><span class='symbeg'>:</span><span class='id identifier rubyid_value'>value</span>).<span class='id identifier rubyid_uniq'>uniq</span>.<span class='id identifier rubyid_size'>size</span> <span class='comment'>#=&gt; 1 and f() is called only once</span></code></pre>
+}.<span class='id identifier rubyid_map'>map</span>(<span class='op'>&amp;</span><span class='symbeg'>:</span><span class='id identifier rubyid_value'><a href="#value-instance_method" title="Ractor#value (method)">value</a></span>).<span class='id identifier rubyid_uniq'>uniq</span>.<span class='id identifier rubyid_size'>size</span> <span class='comment'>#=&gt; 1 and f() is called only once</span></code></pre>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L880-L882'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L476-L478'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='880' data-end='882'></pre>
+  <pre class='lines_num' data-start='476' data-end='478'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 880</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 476</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_store_if_absent'>store_if_absent</span>(<span class='id identifier rubyid_sym'>sym</span>)
@@ -1282,68 +1099,10 @@
 </div>
 </section>
 
-<section class='method_details' id="yield-class_method">
-  <h3 class='signature '>
-    .<strong>yield</strong>(msg, move: false)  &#x21d2; <code>nil</code>   </h3>
-<div class='docstring'>
-  <div class='discussion'>
-    
-<p>Send a message to the current ractor’s outgoing port to be accepted by <a href="#take-instance_method" title="Ractor#take (method)">#take</a>.</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span> {<span class='const'>Ractor</span>.<span class='id identifier rubyid_yield'>yield</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Hello from ractor</span><span class='tstring_end'>&#39;</span></span>}
-<span class='id identifier rubyid_puts'>puts</span> <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'><a href="#take-instance_method" title="Ractor#take (method)">take</a></span>
-<span class='comment'># Prints: &quot;Hello from ractor&quot;</span></code></pre>
-
-<p>This method is blocking, and will return only when somebody consumes the sent message.</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span> <span class='kw'>do</span>
-  <span class='const'>Ractor</span>.<span class='id identifier rubyid_yield'>yield</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Hello from ractor</span><span class='tstring_end'>&#39;</span></span>
-  <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Ractor: after yield</span><span class='tstring_end'>&quot;</span></span>
-<span class='kw'>end</span>
-<span class='id identifier rubyid_wait'>wait</span>
-<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Still not taken</span><span class='tstring_end'>&quot;</span></span>
-<span class='id identifier rubyid_puts'>puts</span> <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'><a href="#take-instance_method" title="Ractor#take (method)">take</a></span></code></pre>
-
-<p>This will print:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='const'>Still</span> <span class='kw'>not</span> <span class='id identifier rubyid_taken'>taken</span>
-<span class='const'>Hello</span> <span class='id identifier rubyid_from'>from</span> <span class='id identifier rubyid_ractor'>ractor</span>
-<span class='const'>Ractor</span><span class='op'>:</span> <span class='id identifier rubyid_after'>after</span> <span class='kw'>yield</span></code></pre>
-
-<p>If the outgoing port was closed with <a href="#close_outgoing-instance_method" title="Ractor#close_outgoing (method)">#close_outgoing</a>, the method will raise:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span> <span class='kw'>do</span>
-  <span class='id identifier rubyid_close_outgoing'><a href="#close_outgoing-instance_method" title="Ractor#close_outgoing (method)">close_outgoing</a></span>
-  <span class='const'>Ractor</span>.<span class='id identifier rubyid_yield'>yield</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Hello from ractor</span><span class='tstring_end'>&#39;</span></span>
-<span class='kw'>end</span>
-<span class='id identifier rubyid_wait'>wait</span>
-<span class='comment'># `yield&#39;: The outgoing-port is already closed (Ractor::ClosedError)</span></code></pre>
-
-<p>The meaning of the <code>move</code> argument is the same as for <a href="#send-instance_method" title="Ractor#send (method)">#send</a>.</p>
-
-  </div>
-</div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L643-L647'>GitHub</a>&#8202;]</span>
-<div class='source_code h'>
-  <pre class='lines_num' data-start='643' data-end='647'></pre>
-  <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 643</span></pre>
-<pre class='code ruby'>
-
-<span class='kw'>def</span> <span class='kw'>self</span>.<span class='kw'>yield</span>(<span class='id identifier rubyid_obj'>obj</span><span class='comma'>,</span> <span class='label'>move:</span> <span class='kw'>false</span>)
-  <span class='id identifier rubyid___builtin_cexpr!'>__builtin_cexpr!</span> <span class='tstring'><span class='tstring_beg'>%q{</span><span class='tstring_content'>
-    ractor_yield(ec, rb_ec_ractor_ptr(ec), obj, move)
-  </span><span class='tstring_end'>}</span></span>
-<span class='kw'>end</span>
-</pre>
-  </div>
-</div>
-</section>
-
 <h2 class='y_details'>Instance Method Details</h2>
 <section class='method_details first' id="<<-instance_method">
   <h3 class='signature  first'>
-    #<strong>&lt;&lt;</strong>(obj, move: false)  
+    #<strong>&lt;&lt;</strong>  
   </h3>
 <div class='docstring'>
   <div class='discussion'>
@@ -1352,11 +1111,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L604-L604'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L335-L335'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='604' data-end='604'></pre>
+  <pre class='lines_num' data-start='335' data-end='335'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 604</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 335</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>alias</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_send'><a href="#send-instance_method" title="Ractor#send (method)">send</a></span>
@@ -1376,11 +1135,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L840-L845'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L436-L441'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='840' data-end='845'></pre>
+  <pre class='lines_num' data-start='436' data-end='441'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 840</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 436</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='op'>[]</span>(<span class='id identifier rubyid_sym'>sym</span>)
@@ -1405,11 +1164,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L849-L854'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L445-L450'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='849' data-end='854'></pre>
+  <pre class='lines_num' data-start='445' data-end='450'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 849</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 445</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='op'>[]=</span>(<span class='id identifier rubyid_sym'>sym</span><span class='comma'>,</span> <span class='id identifier rubyid_val'>val</span>)
@@ -1423,65 +1182,52 @@
 </div>
 </section>
 
-<section class='method_details' id="close_incoming-instance_method">
+<section class='method_details' id="close-instance_method">
   <h3 class='signature '>
-    #<strong>close_incoming</strong>  &#x21d2; <code>Boolean</code>   </h3>
+    #<strong>close</strong>  
+  </h3>
 <div class='docstring'>
   <div class='discussion'>
     
-<p>Closes the incoming port and returns whether it was already closed. All further attempts to <a href="#receive-class_method" title="Ractor.receive (method)">.receive</a> in the ractor, and <a href="#send-instance_method" title="Ractor#send (method)">#send</a> to the ractor will fail with <a href="Ractor/ClosedError.html" title="Ractor::ClosedError (class)"><code>::Ractor::ClosedError</code></a>.</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span> {<span class='id identifier rubyid_sleep'>sleep</span>(<span class='int'>500</span>)}
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_close_incoming'>close_incoming</span>  <span class='comment'>#=&gt; false
-</span><span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_close_incoming'>close_incoming</span>  <span class='comment'>#=&gt; true
-</span><span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'><a href="#send-instance_method" title="Ractor#send (method)">send</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>test</span><span class='tstring_end'>&#39;</span></span>)
-<span class='comment'># Ractor::ClosedError (The incoming-port is already closed)</span></code></pre>
+<p>Closes default_port. Closing port is allowed only by the ractor which creates this port. So this close method also allowed by the current <code>Ractor</code>.</p>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L750-L754'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L366-L368'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='750' data-end='754'></pre>
+  <pre class='lines_num' data-start='366' data-end='368'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 750</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 366</span></pre>
 <pre class='code ruby'>
 
-<span class='kw'>def</span> <span class='id identifier rubyid_close_incoming'>close_incoming</span>
-  <span class='id identifier rubyid___builtin_cexpr!'>__builtin_cexpr!</span> <span class='tstring'><span class='tstring_beg'>%q{</span><span class='tstring_content'>
-    ractor_close_incoming(ec, RACTOR_PTR(self));
-  </span><span class='tstring_end'>}</span></span>
+<span class='kw'>def</span> <span class='id identifier rubyid_close'>close</span>
+  <span class='id identifier rubyid_default_port'><a href="#default_port-instance_method" title="Ractor#default_port (method)">default_port</a></span>.<span class='id identifier rubyid_close'>close</span>
 <span class='kw'>end</span>
 </pre>
   </div>
 </div>
 </section>
 
-<section class='method_details' id="close_outgoing-instance_method">
+<section class='method_details' id="default_port-instance_method">
   <h3 class='signature '>
-    #<strong>close_outgoing</strong>  &#x21d2; <code>Boolean</code>   </h3>
+    #<strong>default_port</strong>  &#x21d2; <code>port</code> <code>object</code>   </h3>
 <div class='docstring'>
   <div class='discussion'>
     
-<p>Closes the outgoing port and returns whether it was already closed. All further attempts to <a href="#yield-class_method" title="Ractor.yield (method)">.yield</a> in the ractor, and <a href="#take-instance_method" title="Ractor#take (method)">#take</a> from the ractor will fail with <a href="Ractor/ClosedError.html" title="Ractor::ClosedError (class)"><code>::Ractor::ClosedError</code></a>.</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span> {<span class='id identifier rubyid_sleep'>sleep</span>(<span class='int'>500</span>)}
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_close_outgoing'>close_outgoing</span>  <span class='comment'>#=&gt; false
-</span><span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_close_outgoing'>close_outgoing</span>  <span class='comment'>#=&gt; true
-</span><span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'><a href="#take-instance_method" title="Ractor#take (method)">take</a></span>
-<span class='comment'># Ractor::ClosedError (The outgoing-port is already closed)</span></code></pre>
+<p>return default port of the <code>Ractor</code>.</p>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L768-L772'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L528-L532'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='768' data-end='772'></pre>
+  <pre class='lines_num' data-start='528' data-end='532'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 768</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 528</span></pre>
 <pre class='code ruby'>
 
-<span class='kw'>def</span> <span class='id identifier rubyid_close_outgoing'>close_outgoing</span>
+<span class='kw'>def</span> <span class='id identifier rubyid_default_port'>default_port</span>
   <span class='id identifier rubyid___builtin_cexpr!'>__builtin_cexpr!</span> <span class='tstring'><span class='tstring_beg'>%q{</span><span class='tstring_content'>
-    ractor_close_outgoing(ec, RACTOR_PTR(self));
+    ractor_default_port_value(RACTOR_PTR(self))
   </span><span class='tstring_end'>}</span></span>
 <span class='kw'>end</span>
 </pre>
@@ -1494,11 +1240,11 @@
     #<strong>inspect</strong>  
     <span class='aliases'>Also known as: <span class='names'>#to_s</span></span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L716-L724'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L337-L345'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='716' data-end='724'></pre>
+  <pre class='lines_num' data-start='337' data-end='345'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 716</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 337</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_inspect'>inspect</span>
@@ -1509,6 +1255,78 @@
     rb_str_new2(ractor_status_str(RACTOR_PTR(self)-&gt;status_))
   </span><span class='tstring_end'>}</span></span>
   <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>#&lt;Ractor:#</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_id'>id</span><span class='embexpr_end'>}</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_name'><a href="#name-instance_method" title="Ractor#name (method)">name</a></span> <span class='op'>?</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'> </span><span class='tstring_end'>&#39;</span></span><span class='op'>+</span><span class='id identifier rubyid_name'><a href="#name-instance_method" title="Ractor#name (method)">name</a></span> <span class='op'>:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_end'>&#39;</span></span><span class='embexpr_end'>}</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_loc'>loc</span> <span class='op'>?</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'> </span><span class='tstring_end'>&quot;</span></span> <span class='op'>+</span> <span class='id identifier rubyid_loc'>loc</span> <span class='op'>:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_end'>&#39;</span></span><span class='embexpr_end'>}</span><span class='tstring_content'> </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_status'>status</span><span class='embexpr_end'>}</span><span class='tstring_content'>&gt;</span><span class='tstring_end'>&quot;</span></span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="join-instance_method">
+  <h3 class='signature '>
+    #<strong>join</strong>  &#x21d2; <code>self</code>   </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Wait for the termination of the <code>Ractor</code>. If the <code>Ractor</code> was aborted (terminated with an exception), <a href="#value-instance_method" title="Ractor#value (method)">#value</a> is called to raise an exception.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span>{}.<span class='id identifier rubyid_join'>join</span> <span class='comment'>#=&gt; ractor
+</span>
+<span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span>{ <span class='id identifier rubyid_raise'>raise</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&quot;</span></span> }.<span class='id identifier rubyid_join'>join</span>
+<span class='comment'>#=&gt; raise an exception &quot;foo (RuntimeError)&quot;</span></code></pre>
+
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L547-L558'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='547' data-end='558'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'ractor.rb', line 547</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_join'>join</span>
+  <span class='id identifier rubyid_port'>port</span> <span class='op'>=</span> <span class='const'><a href="Ractor/Port.html" title="Ractor::Port (class)">Port</a></span>.<span class='id identifier rubyid_new'><a href="Ractor/Port.html#new-class_method" title="Ractor::Port.new (method)">new</a></span>
+
+  <span class='kw'>self</span>.<span class='id identifier rubyid_monitor'><a href="#monitor-instance_method" title="Ractor#monitor (method)">monitor</a></span> <span class='id identifier rubyid_port'>port</span>
+  <span class='kw'>if</span> <span class='id identifier rubyid_port'>port</span>.<span class='id identifier rubyid_receive'><a href="#receive-class_method" title="Ractor.receive (method)">receive</a></span> <span class='op'>==</span> <span class='symbeg'>:</span><span class='id identifier rubyid_aborted'>aborted</span>
+    <span class='id identifier rubyid___builtin_ractor_value'>__builtin_ractor_value</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>self</span>
+<span class='kw'>ensure</span>
+  <span class='id identifier rubyid_port'>port</span>.<span class='id identifier rubyid_close'><a href="#close-instance_method" title="Ractor#close (method)">close</a></span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="monitor-instance_method">
+  <h3 class='signature '>
+    #<strong>monitor</strong>(port)  &#x21d2; <code>self</code>   </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Register port as a monitoring port. If the ractor terminated, the port received a <a href="Symbol.html" title="Symbol (class)"><code>::Symbol</code></a> object. <code>:exited</code> will be sent if the ractor terminated without an exception. <code>:aborted</code> will be sent if the ractor terminated with a exception.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span>{ <span class='id identifier rubyid_some_task'>some_task</span>() }
+<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_monitor'>monitor</span>(<span class='id identifier rubyid_port'>port</span> <span class='op'>=</span> <span class='const'>Ractor</span><span class='op'>::</span><span class='const'><a href="Ractor/Port.html" title="Ractor::Port (class)">Port</a></span>.<span class='id identifier rubyid_new'><a href="Ractor/Port.html#new-class_method" title="Ractor::Port.new (method)">new</a></span>)
+<span class='id identifier rubyid_port'>port</span>.<span class='id identifier rubyid_receive'><a href="#receive-class_method" title="Ractor.receive (method)">receive</a></span> <span class='comment'>#=&gt; :exited and r is terminated
+</span>
+<span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span>{ <span class='id identifier rubyid_raise'>raise</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&quot;</span></span> }
+<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_monitor'>monitor</span>(<span class='id identifier rubyid_port'>port</span> <span class='op'>=</span> <span class='const'>Ractor</span><span class='op'>::</span><span class='const'><a href="Ractor/Port.html" title="Ractor::Port (class)">Port</a></span>.<span class='id identifier rubyid_new'><a href="Ractor/Port.html#new-class_method" title="Ractor::Port.new (method)">new</a></span>)
+<span class='id identifier rubyid_port'>port</span>.<span class='id identifier rubyid_receive'><a href="#receive-class_method" title="Ractor.receive (method)">receive</a></span> <span class='comment'>#=&gt; :terminated and r is terminated with an exception &quot;foo&quot;</span></code></pre>
+
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L595-L597'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='595' data-end='597'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'ractor.rb', line 595</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_monitor'>monitor</span> <span class='id identifier rubyid_port'>port</span>
+  <span class='id identifier rubyid___builtin_ractor_monitor'>__builtin_ractor_monitor</span>(<span class='id identifier rubyid_port'>port</span>)
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -1526,11 +1344,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L729-L731'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L350-L352'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='729' data-end='731'></pre>
+  <pre class='lines_num' data-start='350' data-end='352'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 729</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 350</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_name'>name</span>
@@ -1553,43 +1371,15 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L441-L445'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L321-L323'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='441' data-end='445'></pre>
+  <pre class='lines_num' data-start='321' data-end='323'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 441</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 321</span></pre>
 <pre class='code ruby'>
 
 <span class='id identifier rubyid_private'>private</span> <span class='kw'>def</span> <span class='id identifier rubyid_receive'>receive</span>
-  <span class='id identifier rubyid___builtin_cexpr!'>__builtin_cexpr!</span> <span class='tstring'><span class='tstring_beg'>%q{</span><span class='tstring_content'>
-    ractor_receive(ec, rb_ec_ractor_ptr(ec))
-  </span><span class='tstring_end'>}</span></span>
-<span class='kw'>end</span>
-</pre>
-  </div>
-</div>
-</section>
-
-<section class='method_details' id="receive_if-instance_method">
-  <h3 class='signature priv'>
-    #<strong>receive_if</strong>(&amp;b)   <span class="extras">(<span class='priv'>private</span>)</span>
-  </h3>
-<div class='docstring'>
-  <div class='discussion'>
-    
-<p>same as <a href="#receive_if-class_method" title="Ractor.receive_if (method)">.receive_if</a></p>
-
-  </div>
-</div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L514-L516'>GitHub</a>&#8202;]</span>
-<div class='source_code h'>
-  <pre class='lines_num' data-start='514' data-end='516'></pre>
-  <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 514</span></pre>
-<pre class='code ruby'>
-
-<span class='id identifier rubyid_private'>private</span> <span class='kw'>def</span> <span class='id identifier rubyid_receive_if'>receive_if</span> <span class='op'>&amp;</span><span class='id identifier rubyid_b'>b</span>
-  <span class='const'>Primitive</span>.<span class='id identifier rubyid_ractor_receive_if'>ractor_receive_if</span> <span class='id identifier rubyid_b'>b</span>
+  <span class='id identifier rubyid_default_port'><a href="#default_port-instance_method" title="Ractor#default_port (method)">default_port</a></span>.<span class='id identifier rubyid_receive'>receive</span>
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -1607,11 +1397,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L446-L446'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L324-L324'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='446' data-end='446'></pre>
+  <pre class='lines_num' data-start='324' data-end='324'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 446</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 324</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>alias</span> <span class='id identifier rubyid_recv'>recv</span> <span class='id identifier rubyid_receive'><a href="#receive-class_method" title="Ractor.receive (method)">receive</a></span>
@@ -1622,176 +1412,25 @@
 
 <section class='method_details' id="send-instance_method">
   <h3 class='signature '>
-    #<strong>send</strong>(msg, move: false)  &#x21d2; <code>self</code>     <span class='aliases'>Also known as: <span class='names'>#&lt;&lt;</span></span>
+    #<strong>send</strong>(msg)  &#x21d2; <code>self</code>     <span class='aliases'>Also known as: <span class='names'>#&lt;&lt;</span></span>
   </h3>
 <div class='docstring'>
   <div class='discussion'>
     
-<p>Send a message to a Ractor’s incoming queue to be accepted by <a href="#receive-class_method" title="Ractor.receive (method)">.receive</a>.</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span> <span class='kw'>do</span>
-  <span class='id identifier rubyid_value'>value</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive'><a href="#receive-class_method" title="Ractor.receive (method)">receive</a></span>
-  <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Received </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_value'>value</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
-<span class='kw'>end</span>
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'>send</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>message</span><span class='tstring_end'>&#39;</span></span>
-<span class='comment'># Prints: &quot;Received: message&quot;</span></code></pre>
-
-<p>The method is non-blocking (will return immediately even if the ractor is not ready to receive anything):</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span> {<span class='id identifier rubyid_sleep'>sleep</span>(<span class='int'>5</span>)}
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'>send</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>test</span><span class='tstring_end'>&#39;</span></span>)
-<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Sent successfully</span><span class='tstring_end'>&quot;</span></span>
-<span class='comment'># Prints: &quot;Sent successfully&quot; immediately</span></code></pre>
-
-<p>An attempt to send to a ractor which already finished its execution will raise <a href="Ractor/ClosedError.html" title="Ractor::ClosedError (class)"><code>::Ractor::ClosedError</code></a>.</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span> {}
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'><a href="#take-instance_method" title="Ractor#take (method)">take</a></span>
-<span class='id identifier rubyid_p'>p</span> <span class='id identifier rubyid_r'>r</span>
-<span class='comment'># &quot;#&lt;Ractor:#6 (irb):23 terminated&gt;&quot;
-</span><span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'>send</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>test</span><span class='tstring_end'>&#39;</span></span>)
-<span class='comment'># Ractor::ClosedError (The incoming-port is already closed)</span></code></pre>
-
-<p>If close_incoming was called on the ractor, the method also raises <a href="Ractor/ClosedError.html" title="Ractor::ClosedError (class)"><code>::Ractor::ClosedError</code></a>.</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span>  <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span> <span class='kw'>do</span>
-  <span class='id identifier rubyid_sleep'>sleep</span>(<span class='int'>500</span>)
-  <span class='id identifier rubyid_receive'><a href="#receive-class_method" title="Ractor.receive (method)">receive</a></span>
-<span class='kw'>end</span>
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_close_incoming'><a href="#close_incoming-instance_method" title="Ractor#close_incoming (method)">close_incoming</a></span>
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'>send</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>test</span><span class='tstring_end'>&#39;</span></span>)
-<span class='comment'># Ractor::ClosedError (The incoming-port is already closed)
-</span><span class='comment'># The error is raised immediately, not when the ractor tries to receive</span></code></pre>
-
-<p>If the <code>obj</code> is unshareable, by default it will be copied into the receiving ractor by deep cloning. If <code>move: true</code> is passed, the object is <em>moved</em> into the receiving ractor and becomes inaccessible to the sender.</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span> {<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Received: </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_receive'><a href="#receive-class_method" title="Ractor.receive (method)">receive</a></span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>}
-<span class='id identifier rubyid_msg'>msg</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>message</span><span class='tstring_end'>&#39;</span></span>
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'>send</span>(<span class='id identifier rubyid_msg'>msg</span><span class='comma'>,</span> <span class='label'>move:</span> <span class='kw'>true</span>)
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'><a href="#take-instance_method" title="Ractor#take (method)">take</a></span>
-<span class='id identifier rubyid_p'>p</span> <span class='id identifier rubyid_msg'>msg</span></code></pre>
-
-<p>This prints:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='const'>Received</span><span class='op'>:</span> <span class='id identifier rubyid_message'>message</span>
-<span class='kw'>in</span> <span class='backtick'>`</span><span class='tstring_content'>p&#39;: undefined method </span><span class='tstring_end'>`</span></span><span class='id identifier rubyid_inspect'><a href="#inspect-instance_method" title="Ractor#inspect (method)">inspect</a></span><span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'> for #&lt;Ractor::MovedObject:0x000055c99b9b69b8&gt;</span></code></pre>
-
-<p>All references to the object and its parts will become invalid to the sender.</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span> {<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Received: </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_receive'><a href="#receive-class_method" title="Ractor.receive (method)">receive</a></span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>}
-<span class='id identifier rubyid_s'>s</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>message</span><span class='tstring_end'>&#39;</span></span>
-<span class='id identifier rubyid_ary'>ary</span> <span class='op'>=</span> [<span class='id identifier rubyid_s'>s</span>]
-<span class='id identifier rubyid_copy'>copy</span> <span class='op'>=</span> <span class='id identifier rubyid_ary'>ary</span>.<span class='id identifier rubyid_dup'>dup</span>
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'>send</span>(<span class='id identifier rubyid_ary'>ary</span><span class='comma'>,</span> <span class='label'>move:</span> <span class='kw'>true</span>)
-
-<span class='id identifier rubyid_s'>s</span>.<span class='id identifier rubyid_inspect'><a href="#inspect-instance_method" title="Ractor#inspect (method)">inspect</a></span>
-<span class='comment'># Ractor::MovedError (can not send any methods to a moved object)
-</span><span class='id identifier rubyid_ary'>ary</span>.<span class='id identifier rubyid_class'>class</span>
-<span class='comment'># Ractor::MovedError (can not send any methods to a moved object)
-</span><span class='id identifier rubyid_copy'>copy</span>.<span class='id identifier rubyid_class'>class</span>
-<span class='comment'># =&gt; Array, it is different object
-</span><span class='id identifier rubyid_copy'>copy</span>[<span class='int'>0</span>].<span class='id identifier rubyid_inspect'><a href="#inspect-instance_method" title="Ractor#inspect (method)">inspect</a></span>
-<span class='comment'># Ractor::MovedError (can not send any methods to a moved object)
-</span><span class='comment'># ...but its item was still a reference to {s}, which was moved</span></code></pre>
-
-<p>If the object is shareable, <code>move: true</code> has no effect on it:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span> {<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Received: </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_receive'><a href="#receive-class_method" title="Ractor.receive (method)">receive</a></span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>}
-<span class='id identifier rubyid_s'>s</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>message</span><span class='tstring_end'>&#39;</span></span>.<span class='id identifier rubyid_freeze'>freeze</span>
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'>send</span>(<span class='id identifier rubyid_s'>s</span><span class='comma'>,</span> <span class='label'>move:</span> <span class='kw'>true</span>)
-<span class='id identifier rubyid_s'>s</span>.<span class='id identifier rubyid_inspect'><a href="#inspect-instance_method" title="Ractor#inspect (method)">inspect</a></span> <span class='comment'>#=&gt; &quot;message&quot;, still available</span></code></pre>
+<p>It is equivalent to default_port.send(msg)</p>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L599-L603'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L331-L334'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='599' data-end='603'></pre>
+  <pre class='lines_num' data-start='331' data-end='334'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 599</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 331</span></pre>
 <pre class='code ruby'>
 
-<span class='kw'>def</span> <span class='id identifier rubyid_send'>send</span>(<span class='id identifier rubyid_obj'>obj</span><span class='comma'>,</span> <span class='label'>move:</span> <span class='kw'>false</span>)
-  <span class='id identifier rubyid___builtin_cexpr!'>__builtin_cexpr!</span> <span class='tstring'><span class='tstring_beg'>%q{</span><span class='tstring_content'>
-    ractor_send(ec, RACTOR_PTR(self), obj, move)
-  </span><span class='tstring_end'>}</span></span>
-<span class='kw'>end</span>
-</pre>
-  </div>
-</div>
-</section>
-
-<section class='method_details' id="take-instance_method">
-  <h3 class='signature '>
-    #<strong>take</strong>  &#x21d2; <code>msg</code>   </h3>
-<div class='docstring'>
-  <div class='discussion'>
-    
-<p>Get a message from the ractor’s outgoing port, which was put there by <a href="#yield-class_method" title="Ractor.yield (method)">.yield</a> or at ractor’s termination.</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span> <span class='kw'>do</span>
-  <span class='const'>Ractor</span>.<span class='id identifier rubyid_yield'><a href="#yield-class_method" title="Ractor.yield (method)">yield</a></span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>explicit yield</span><span class='tstring_end'>&#39;</span></span>
-  <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>last value</span><span class='tstring_end'>&#39;</span></span>
-<span class='kw'>end</span>
-<span class='id identifier rubyid_puts'>puts</span> <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span> <span class='comment'>#=&gt; &#39;explicit yield&#39;
-</span><span class='id identifier rubyid_puts'>puts</span> <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span> <span class='comment'>#=&gt; &#39;last value&#39;
-</span><span class='id identifier rubyid_puts'>puts</span> <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span> <span class='comment'># Ractor::ClosedError (The outgoing-port is already closed)</span></code></pre>
-
-<p>The fact that the last value is also sent to the outgoing port means that <code>take</code> can be used as an analog of <a href="Thread.html#join-instance_method" title="Thread#join (method)">Thread#join</a> (“just wait until ractor finishes”). However, it will raise if somebody has already consumed that message.</p>
-
-<p>If the outgoing port was closed with <a href="#close_outgoing-instance_method" title="Ractor#close_outgoing (method)">#close_outgoing</a>, the method will raise <a href="Ractor/ClosedError.html" title="Ractor::ClosedError (class)"><code>::Ractor::ClosedError</code></a>.</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span> <span class='kw'>do</span>
-  <span class='id identifier rubyid_sleep'>sleep</span>(<span class='int'>500</span>)
-  <span class='const'>Ractor</span>.<span class='id identifier rubyid_yield'><a href="#yield-class_method" title="Ractor.yield (method)">yield</a></span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Hello from ractor</span><span class='tstring_end'>&#39;</span></span>
-<span class='kw'>end</span>
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_close_outgoing'><a href="#close_outgoing-instance_method" title="Ractor#close_outgoing (method)">close_outgoing</a></span>
-<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span>
-<span class='comment'># Ractor::ClosedError (The outgoing-port is already closed)
-</span><span class='comment'># The error would be raised immediately, not when ractor will try to receive</span></code></pre>
-
-<p>If an uncaught exception is raised in the <code>Ractor</code>, it is propagated by take as a <a href="Ractor/RemoteError.html" title="Ractor::RemoteError (class)"><code>::Ractor::RemoteError</code></a>.</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span> {<span class='id identifier rubyid_raise'>raise</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Something weird happened</span><span class='tstring_end'>&quot;</span></span>}
-
-<span class='kw'>begin</span>
-  <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span>
-<span class='kw'>rescue</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
-  <span class='id identifier rubyid_p'>p</span> <span class='id identifier rubyid_e'>e</span>              <span class='comment'>#  =&gt; #&lt;Ractor::RemoteError: thrown by remote Ractor.&gt;
-</span>  <span class='id identifier rubyid_p'>p</span> <span class='id identifier rubyid_e'>e</span>.<span class='id identifier rubyid_ractor'>ractor</span> <span class='op'>==</span> <span class='id identifier rubyid_r'>r</span>  <span class='comment'># =&gt; true
-</span>  <span class='id identifier rubyid_p'>p</span> <span class='id identifier rubyid_e'>e</span>.<span class='id identifier rubyid_cause'>cause</span>        <span class='comment'># =&gt; #&lt;RuntimeError: Something weird happened&gt;
-</span><span class='kw'>end</span></code></pre>
-
-<p><a href="Ractor/ClosedError.html" title="Ractor::ClosedError (class)"><code>::Ractor::ClosedError</code></a> is a descendant of <a href="StopIteration.html" title="StopIteration (class)"><code>::StopIteration</code></a>, so the termination of the ractor will break out of any loops that receive this message without propagating the error:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span> <span class='kw'>do</span>
-  <span class='int'>3</span>.<span class='id identifier rubyid_times'>times</span> {<span class='op'>|</span><span class='id identifier rubyid_i'>i</span><span class='op'>|</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_yield'><a href="#yield-class_method" title="Ractor.yield (method)">yield</a></span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>message </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_i'>i</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>}
-  <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>finishing</span><span class='tstring_end'>&quot;</span></span>
-<span class='kw'>end</span>
-
-<span class='id identifier rubyid_loop'>loop</span> {<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Received: </span><span class='tstring_end'>&quot;</span></span> <span class='op'>+</span> <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span>}
-<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Continue successfully</span><span class='tstring_end'>&quot;</span></span></code></pre>
-
-<p>This will print:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='const'>Received</span><span class='op'>:</span> <span class='id identifier rubyid_message'>message</span> <span class='int'>0</span>
-<span class='const'>Received</span><span class='op'>:</span> <span class='id identifier rubyid_message'>message</span> <span class='int'>1</span>
-<span class='const'>Received</span><span class='op'>:</span> <span class='id identifier rubyid_message'>message</span> <span class='int'>2</span>
-<span class='const'>Received</span><span class='op'>:</span> <span class='id identifier rubyid_finishing'>finishing</span>
-<span class='const'>Continue</span> <span class='id identifier rubyid_successfully'>successfully</span></code></pre>
-
-  </div>
-</div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L710-L714'>GitHub</a>&#8202;]</span>
-<div class='source_code h'>
-  <pre class='lines_num' data-start='710' data-end='714'></pre>
-  <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 710</span></pre>
-<pre class='code ruby'>
-
-<span class='kw'>def</span> <span class='id identifier rubyid_take'>take</span>
-  <span class='id identifier rubyid___builtin_cexpr!'>__builtin_cexpr!</span> <span class='tstring'><span class='tstring_beg'>%q{</span><span class='tstring_content'>
-    ractor_take(ec, RACTOR_PTR(self))
-  </span><span class='tstring_end'>}</span></span>
+<span class='kw'>def</span> <span class='id identifier rubyid_send'>send</span>(<span class='op'>...</span>)
+  <span class='id identifier rubyid_default_port'><a href="#default_port-instance_method" title="Ractor#default_port (method)">default_port</a></span>.<span class='id identifier rubyid_send'>send</span>(<span class='op'>...</span>)
+  <span class='kw'>self</span>
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -1809,14 +1448,70 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L726-L726'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L347-L347'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='726' data-end='726'></pre>
+  <pre class='lines_num' data-start='347' data-end='347'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 726</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 347</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>alias</span> <span class='id identifier rubyid_to_s'>to_s</span> <span class='id identifier rubyid_inspect'><a href="#inspect-instance_method" title="Ractor#inspect (method)">inspect</a></span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="unmonitor-instance_method">
+  <h3 class='signature '>
+    #<strong>unmonitor</strong>(port)  &#x21d2; <code>self</code>   </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Unregister port from the monitoring ports.</p>
+
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L605-L607'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='605' data-end='607'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'ractor.rb', line 605</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_unmonitor'>unmonitor</span> <span class='id identifier rubyid_port'>port</span>
+  <span class='id identifier rubyid___builtin_ractor_unmonitor'>__builtin_ractor_unmonitor</span>(<span class='id identifier rubyid_port'>port</span>)
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="value-instance_method">
+  <h3 class='signature '>
+    #<strong>value</strong>  &#x21d2; <a href="Object.html" title="Object (class)">Object</a>   </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Waits for <code>ractor</code> to complete, using <a href="#join-instance_method" title="Ractor#join (method)">#join</a>, and return its value or raise the exception which terminated the <code>Ractor</code>. The value will not be copied even if it is unshareable object. Therefore at most 1 <code>Ractor</code> can get a value.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span>{ [<span class='int'>1</span><span class='comma'>,</span> <span class='int'>2</span>] }
+<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_value'>value</span> <span class='comment'>#=&gt; [1, 2] (unshareable object)
+</span>
+<span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span>(<span class='id identifier rubyid_r'>r</span>){<span class='op'>|</span><span class='id identifier rubyid_r'>r</span><span class='op'>|</span> <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_value'>value</span>} <span class='comment'>#=&gt; Ractor::Error</span></code></pre>
+
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L573-L576'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='573' data-end='576'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'ractor.rb', line 573</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_value'>value</span>
+  <span class='kw'>self</span>.<span class='id identifier rubyid_join'><a href="#join-instance_method" title="Ractor#join (method)">join</a></span>
+  <span class='id identifier rubyid___builtin_ractor_value'>__builtin_ractor_value</span>
+<span class='kw'>end</span>
 </pre>
   </div>
 </div>
