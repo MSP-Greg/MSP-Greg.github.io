@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen'       content='yes'>
+<meta name='apple-mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Final report &mdash; Concurrent Ruby master</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "ruby-association-final-report",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>Concurrent</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Final report&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<h1>Final report</h1>
+
+<p>I started working on the project 6. Dec
+and I have continued working on the project until 8. February as planned. 
+I have worked on following abstractions Throttle, Cancellation, Channel, and ErlangActor.</p>
+
+<p>The code developed during this project is available in 
+<a href="https://github.com/ruby-concurrency/concurrent-ruby/pull/791">https://github.com/ruby-concurrency/concurrent-ruby/pull/791</a>.
+The documentation is available at
+<a href="http://ruby-concurrency.github.io/concurrent-ruby/master/index.html">http://ruby-concurrency.github.io/concurrent-ruby/master/index.html</a>. </p>
+
+<h2>Throttle</h2>
+
+<p>The Throttle implementation originally had special APIs 
+to interact with other abstractions like promises. 
+However it was impractical and the API felt cumbersome.
+Therefore the Throttle was finalized with much smaller API surface.
+Capacity can be still directly acquired from the Throttle 
+and then released.</p>
+
+<p>The more common usage of the Throttle is with a proxy executor 
+<code>a_throttle.on(Concurrent.global_io_executor)</code>. 
+Anything executed on the proxy executor will be throttled and 
+execute on the given executor. There can be more than one proxy executors.
+All abstractions which execute tasks have option to specify executor, 
+therefore the proxy executor can be injected to any abstraction 
+throttling its concurrency level.</p>
+
+<p>The abstraction is released in <code>concurrent-ruby-edge-0.5.0</code>. 
+For more details see the documentation 
+<a href="http://ruby-concurrency.github.io/concurrent-ruby/master/Concurrent/Throttle.html">http://ruby-concurrency.github.io/concurrent-ruby/master/Concurrent/Throttle.html</a>.</p>
+
+<h2>Cancellation</h2>
+
+<p>The Cancellation abstraction provides cooperative cancellation.</p>
+
+<p>The Cancellation abstraction was originally consisting of 2 classes,
+during its finalization it was however simplified 
+to be just a combination of Cancellation object 
+and an origin which is regular Event or Future,
+which improves compose-ability greatly. 
+Any Event or Future can be easily turned into cancellation.    </p>
+
+<p>The standard methods <code>Thread#raise</code> of <code>Thread#kill</code> available in Ruby
+are very dangerous (see linked the blog posts bellow).
+Therefore concurrent-ruby provides an alternative.</p>
+
+<ul>
+<li><a href="https://jvns.ca/blog/2015/11/27/why-rubys-timeout-is-dangerous-and-thread-dot-raise-is-terrifying/">https://jvns.ca/blog/2015/11/27/why-rubys-timeout-is-dangerous-and-thread-dot-raise-is-terrifying/</a></li>
+<li><a href="http://www.mikeperham.com/2015/05/08/timeout-rubys-most-dangerous-api/">http://www.mikeperham.com/2015/05/08/timeout-rubys-most-dangerous-api/</a></li>
+<li><a href="http://blog.headius.com/2008/02/rubys-threadraise-threadkill-timeoutrb.html">http://blog.headius.com/2008/02/rubys-threadraise-threadkill-timeoutrb.html</a></li>
+</ul>
+
+<p>It provides an object which represents a cancellation event 
+which can be shared between tasks.
+The task has to get the reference to the object 
+and periodically cooperatively check that it is not cancelled.</p>
+
+<p>The abstraction is released in <code>concurrent-ruby-edge-0.5.0</code>. 
+For more details see the documentation 
+<a href="http://ruby-concurrency.github.io/concurrent-ruby/master/Concurrent/Cancellation.html">http://ruby-concurrency.github.io/concurrent-ruby/master/Concurrent/Cancellation.html</a>.</p>
+
+<h2>Channel</h2>
+
+<p>The channel implementation is inspired by Go. 
+However this implementation is more flexible. 
+It has 3 major operations pop, push and select as expected.
+Where each operation has 3 variants. 
+<code>try_(pop|push|select)</code> which never blocks and returns always immediately.
+<code>(pop|push|select)</code> which blocks current thread until it can be done 
+or until it times out.
+<code>(pop|push|select)_op</code> which returns Future representing the operation,
+which can be easily composed with other asynchronous tasks.</p>
+
+<p>The abstraction is released in <code>concurrent-ruby-edge-0.5.0</code>. 
+For more details see the documentation
+<a href="http://ruby-concurrency.github.io/concurrent-ruby/master/Concurrent/Promises/Channel.html">http://ruby-concurrency.github.io/concurrent-ruby/master/Concurrent/Promises/Channel.html</a>. </p>
+
+<h2>Erlang actors</h2>
+
+<p>The actor implementation matches the Erlang&#39;s implementation.
+The Erlang compatible implementation was chosen for two reasons. 
+First reason was to make porting of the Erlang&#39;s
+<a href="https://learnyousomeerlang.com/what-is-otp">OTP</a> library possible.
+OTP is time proven library and even a philosophy how to write reliable concurrent applications. 
+Second reason was 
+that there is an intersection between Ruby and Elixir programmers.
+Elixir runs on Erlang&#39;s VM and the programmers are familiar with OTP,
+therefore they will be able to reuse their knowledge in Ruby.    </p>
+
+<p>Mainly: </p>
+
+<ul>
+<li><p>The <code>exit/1</code> and <code>exit/2</code> 
+functions are reimplemented with the same arguments and effects. 
+Even though the methods are named <code>terminate</code> to avoid collision with <code>Kernel#exit</code>.r
+This re-implementation adds that the termination event not only sends signals to linked actors 
+but it is represented as a Future 
+which is fulfilled with the final value of the actor or rejected with the reason of abnormal termination.</p></li>
+<li><p>The linking and monitoring between actors (called processes in Erlang) is re-implemented.
+Functions <code>link</code>, <code>unlink</code>, <code>spawn_link</code>, <code>monitor</code>, <code>demonitor</code>, <code>spawn_monitor</code>
+have equivalent counterparts 
+<code>link</code>, <code>unlink</code>, <code>spawn link:true</code>, <code>monitor</code>, <code>demonitor</code>, <code>spawn monitor: true</code>.
+All the options applicable in this implementation are supported, 
+they effects are the same 
+and the ordering of signal and messages is the same as on Erlang.</p></li>
+<li><p>This implementation has two functionally equivalent types of actors
+<code>spawn type: on_thread, ...</code> and <code>spawn type: on_pool, ...</code>. 
+They differ in the execution mode. 
+First requires its own thread second runs on shared thread pool
+therefore allowing to have millions of short or long lived actors if required.</p></li>
+<li><p>Message and signal ordering of messages between two actors has same guarantee as in Erlang.
+Messages and signals from A are always received by B in the order they were send. 
+(Signals are internal messages produced by methods like <code>link</code>.)
+The ordering guarantee does not scale up to more than 2 actors in Erlang nor in this implementation.</p></li>
+<li><p>Even though Ruby does not have pattern matching, this implementation provides <code>receive</code>
+which is functionally equivalent. 
+(It is sometimes more cumbersome to use though.)</p></li>
+</ul>
+
+<p>Exit behaviour, linking, and monitoring is very well described by 
+<a href="https://learnyousomeerlang.com/errors-and-processes">the chapter of the book &quot;learn you some Erlang&quot;</a>.
+This implementation matches the behaviours described there.</p>
+
+<p>Erlang method documentation can be found at 
+<a href="http://erlang.org/documentation/doc-10.3/erts-10.3/doc/html/erlang.html">http://erlang.org/documentation/doc-10.3/erts-10.3/doc/html/erlang.html</a>. </p>
+
+<h3>Actor execution modes - types</h3>
+
+<p>The actors can be written in 2 modes. First will require it&#39;s own thread, 
+second will run on a thread pool. 
+Please see 
+<a href="http://ruby-concurrency.github.io/concurrent-ruby/master/Concurrent/ErlangActor.html">Actor types section</a>
+for more details.</p>
+
+<h3>Ordering</h3>
+
+<p>Especially ordering guarantees are not easy to get correct. 
+As an example lets have a look at the reasoning behind implementation of monitoring. 
+Understanding of the monitors in Erlang actors is necessary for the following part.</p>
+
+<p>When <code>#monitor</code> is called in actor A it sends a Monitor signal to actor B.
+The actor B will then send a Down signal to A when it terminates.
+Actor is not processing any messages or signals when after it terminates.
+Therefore the monitor method needs to also check if B terminated.</p>
+
+<p>Lets reason about the ordering between sending the signal Monitor and checking termination of B.
+If A first checks termination of B sending Monitor signal only if B is not terminated
+then A can never get a reply if B terminates after A checks its termination and before A sends Monitor signal.
+Therefore A needs to first optimistically send a Monitor signal and then check if B terminated.
+If B already terminated then we do not expect it to send a Down signal, 
+instead the <code>#monitor</code> places Down message with reason NoActor immediately into A&#39;s mailbox.</p>
+
+<p>We will now move our focus to B considering the case when A send the signal
+and the termination check of B was false.
+The normal case is that B gets the Monitor signal and processes it 
+remembering it is monitored.
+Then on termination B sends a Down signal with the reason for termination to A.
+The more interesting case is when the actor B gets the Monitor signal into its mailbox
+but it is terminated before it can process it. 
+In that case,
+since we know that A did no see B terminated,
+we have to process the Monitor signal even if terminated and send a corresponding Down signal to A.
+Therefore the B actor termination does two main operations in the following order:
+it resolves its termination future (terminates) which is used by A in monitor to do the check,
+it drains its mailbox looking for signals which have to be replied to.
+The mailbox draining has to happen after termination is resolved 
+otherwise it could happen before A sends its Monitor signal which could then go unanswered.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>B</span> <span class='id identifier rubyid_drains'>drains</span> <span class='op'>&gt;</span> <span class='const'>A</span> <span class='id identifier rubyid_sends'>sends</span> <span class='const'>Monitor</span> <span class='id identifier rubyid_signal'>signal</span> <span class='op'>&gt;</span> <span class='const'>A</span> <span class='id identifier rubyid_termination'>termination</span> <span class='id identifier rubyid_check'>check</span> <span class='kw'>false</span> <span class='op'>&gt;</span> <span class='const'>B</span> <span class='id identifier rubyid_terminates'>terminates</span>
+<span class='comment'># the Monitor signal is never processed by B</span></code></pre>
+
+<p>Therefore we have concluded that A has send the monitor signal first 
+then check B&#39;s termination and B has to terminate first 
+(resolve its termination future) then drain signals from mailbox.
+With this ordering following cases can happen:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>A</span> <span class='id identifier rubyid_sends'>sends</span> <span class='const'>Monitor</span> <span class='id identifier rubyid_signal'>signal</span> <span class='op'>&gt;</span> <span class='const'>A</span> <span class='id identifier rubyid_termination'>termination</span> <span class='id identifier rubyid_check'>check</span> <span class='kw'>false</span> <span class='op'>&gt;</span> <span class='const'>B</span> <span class='id identifier rubyid_terminates'>terminates</span> <span class='op'>&gt;</span> <span class='const'>B</span> <span class='id identifier rubyid_drains'>drains</span> <span class='kw'>and</span> <span class='id identifier rubyid_replies'>replies</span>    
+<span class='const'>A</span> <span class='id identifier rubyid_sends'>sends</span> <span class='const'>Monitor</span> <span class='id identifier rubyid_signal'>signal</span> <span class='op'>&gt;</span> <span class='const'>B</span> <span class='id identifier rubyid_terminates'>terminates</span> <span class='op'>&gt;</span> <span class='const'>A</span> <span class='id identifier rubyid_termination'>termination</span> <span class='id identifier rubyid_check'>check</span> <span class='kw'>true</span> <span class='id identifier rubyid_therefore'>therefore</span> <span class='const'>A</span> <span class='id identifier rubyid_places'>places</span> <span class='const'>Down</span> <span class='id identifier rubyid_itself'>itself</span>
+<span class='const'>B</span> <span class='id identifier rubyid_terminates'>terminates</span> <span class='op'>&gt;</span> <span class='const'>A</span> <span class='id identifier rubyid_sends'>sends</span> <span class='const'>Monitor</span> <span class='id identifier rubyid_signal'>signal</span> <span class='op'>&gt;</span> <span class='const'>A</span> <span class='id identifier rubyid_termination'>termination</span> <span class='id identifier rubyid_check'>check</span> <span class='kw'>true</span> <span class='id identifier rubyid_therefore'>therefore</span> <span class='const'>A</span> <span class='id identifier rubyid_places'>places</span> <span class='const'>Down</span> <span class='id identifier rubyid_itself'>itself</span></code></pre>
+
+<p>Where in each case A gets the Down message.</p>
+
+<p>There is one last problem which could happen, 
+the Down message could be received twice by A.
+It could happen in the last two sequences 
+where A detects B&#39;s termination 
+and where we did not consider B&#39;s drain for simplicity.
+The last two sequences should actually be: </p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>A</span> <span class='id identifier rubyid_sends'>sends</span> <span class='const'>Monitor</span> <span class='id identifier rubyid_signal'>signal</span> <span class='op'>&gt;</span> <span class='const'>B</span> <span class='id identifier rubyid_terminates'>terminates</span> <span class='op'>&gt;</span> <span class='const'>A</span> <span class='id identifier rubyid_termination'>termination</span> <span class='id identifier rubyid_check'>check</span> <span class='kw'>true</span> <span class='id identifier rubyid_therefore'>therefore</span> <span class='const'>A</span> <span class='id identifier rubyid_places'>places</span> <span class='const'>Down</span> <span class='id identifier rubyid_itself'>itself</span> <span class='op'>&gt;</span> <span class='const'>B</span> <span class='id identifier rubyid_drains'>drains</span> <span class='kw'>and</span> <span class='id identifier rubyid_replies'>replies</span>
+<span class='const'>B</span> <span class='id identifier rubyid_terminates'>terminates</span> <span class='op'>&gt;</span> <span class='const'>A</span> <span class='id identifier rubyid_sends'>sends</span> <span class='const'>Monitor</span> <span class='id identifier rubyid_signal'>signal</span> <span class='op'>&gt;</span> <span class='const'>A</span> <span class='id identifier rubyid_termination'>termination</span> <span class='id identifier rubyid_check'>check</span> <span class='kw'>true</span> <span class='id identifier rubyid_therefore'>therefore</span> <span class='const'>A</span> <span class='id identifier rubyid_places'>places</span> <span class='const'>Down</span> <span class='id identifier rubyid_itself'>itself</span> <span class='op'>&gt;</span> <span class='const'>B</span> <span class='id identifier rubyid_drains'>drains</span> <span class='kw'>and</span> <span class='id identifier rubyid_replies'>replies</span>    
+<span class='const'>A</span> <span class='id identifier rubyid_sends'>sends</span> <span class='const'>Monitor</span> <span class='id identifier rubyid_signal'>signal</span> <span class='op'>&gt;</span> <span class='const'>B</span> <span class='id identifier rubyid_terminates'>terminates</span> <span class='op'>&gt;</span> <span class='const'>B</span> <span class='id identifier rubyid_drains'>drains</span> <span class='kw'>and</span> <span class='id identifier rubyid_replies'>replies</span> <span class='op'>&gt;</span> <span class='const'>A</span> <span class='id identifier rubyid_termination'>termination</span> <span class='id identifier rubyid_check'>check</span> <span class='kw'>true</span> <span class='id identifier rubyid_therefore'>therefore</span> <span class='const'>A</span> <span class='id identifier rubyid_places'>places</span> <span class='const'>Down</span> <span class='id identifier rubyid_itself'>itself</span> 
+<span class='const'>B</span> <span class='id identifier rubyid_terminates'>terminates</span> <span class='op'>&gt;</span> <span class='const'>A</span> <span class='id identifier rubyid_sends'>sends</span> <span class='const'>Monitor</span> <span class='id identifier rubyid_signal'>signal</span> <span class='op'>&gt;</span> <span class='const'>B</span> <span class='id identifier rubyid_drains'>drains</span> <span class='kw'>and</span> <span class='id identifier rubyid_replies'>replies</span> <span class='op'>&gt;</span> <span class='const'>A</span> <span class='id identifier rubyid_termination'>termination</span> <span class='id identifier rubyid_check'>check</span> <span class='kw'>true</span> <span class='id identifier rubyid_therefore'>therefore</span> <span class='const'>A</span> <span class='id identifier rubyid_places'>places</span> <span class='const'>Down</span> <span class='id identifier rubyid_itself'>itself</span>     
+<span class='const'>B</span> <span class='id identifier rubyid_terminates'>terminates</span> <span class='op'>&gt;</span> <span class='const'>B</span> <span class='id identifier rubyid_drains'>drains</span> <span class='op'>&gt;</span> <span class='const'>A</span> <span class='id identifier rubyid_sends'>sends</span> <span class='const'>Monitor</span> <span class='id identifier rubyid_signal'>signal</span> <span class='op'>&gt;</span> <span class='const'>A</span> <span class='id identifier rubyid_termination'>termination</span> <span class='id identifier rubyid_check'>check</span> <span class='kw'>true</span> <span class='id identifier rubyid_therefore'>therefore</span> <span class='const'>A</span> <span class='id identifier rubyid_places'>places</span> <span class='const'>Down</span> <span class='id identifier rubyid_itself'>itself</span></code></pre>
+
+<p>In the first four orderings the drain is happening after monitor call sends Monitor signal in A
+therefore the draining will send Down signal 
+because it cannot know if A send itself Down message about B&#39;s termination.
+The A actor has to prevent the duplication.
+In its state it stores an information about the active monitors (set by the <code>#monitor</code>),
+when a Down message arrives it is deleted
+therefore any subsequent Down messages are ignored.
+Both monitor call in A and the draining in B sends Down signal with a NoActor reason
+so it does not matter which arrives first.</p>
+
+<p>This was a reasoning for the actor monitoring implementation. 
+Other actor features like linking, demonitoring, etc. required similar approach.</p>
+
+<p>The abstraction is ready for release. 
+For more details about usage see the API documentation 
+<a href="http://ruby-concurrency.github.io/concurrent-ruby/master/Concurrent/ErlangActor.html">http://ruby-concurrency.github.io/concurrent-ruby/master/Concurrent/ErlangActor.html</a>.</p>
+
+<h2>Integration</h2>
+
+<p>Integration of concurrency abstractions was a motivation of the project.
+I&#39;ve added Promises library to the concurrent-ruby in the past
+which can represent future computations and values 
+and therefore can be used as a connecting element between abstractions.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_an_actor'>an_actor</span>.<span class='id identifier rubyid_ask_op'>ask_op</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_payload'>payload</span>).<span class='id identifier rubyid_then_flat'>then_flat</span> { <span class='op'>|</span><span class='id identifier rubyid_reply'>reply</span><span class='op'>|</span> <span class='id identifier rubyid_a_channel'>a_channel</span>.<span class='id identifier rubyid_push_op'>push_op</span> <span class='id identifier rubyid_reply'>reply</span> }</code></pre>
+
+<p>In the example above an actor is asked with a payload, 
+which is represented as a Future object. 
+When the Future is resolved with a reply 
+it executes the block with the reply argument
+usually defined by <code>then</code> method.
+In this case <code>then_flat</code> needs to be used
+because we want a Future representing the value of the inner push operation 
+pushing the reply into a channel.
+All the operations in this example are done asynchronously on a thread pool.</p>
+
+<p>Usual direct thread blocking mode is also always supported. 
+The following example does the same but uses the current Thread to do the work. </p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_reply'>reply</span> <span class='op'>=</span> <span class='id identifier rubyid_an_actor'>an_actor</span>.<span class='id identifier rubyid_ask'>ask</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_payload'>payload</span>) <span class='comment'># blocks until it replies
+</span><span class='id identifier rubyid_a_channel'>a_channel</span>.<span class='id identifier rubyid_push'>push</span> <span class='id identifier rubyid_reply'>reply</span> <span class='comment'># blocks if there is no space in the channel.</span></code></pre>
+
+<p>In addition all blocking operations support timeouts, 
+since it is a good practice to give each blocking operation a timeout 
+and try to recover if it takes too long.
+It usually prevents the whole application from hitting a deadlock, 
+or at least it can give developer idea what is going wrong 
+if timeouts are logged.</p>
+
+<p>Promises are also used instead of state flags.
+So for example termination of actor is not implemented as simple <code>#terminated? #=&gt; true or false</code> method
+but <code>#terminated</code> returns a future which is resolved when the Actor terminates.
+More over if it is fulfilled it means actor terminated normally with a <code>actor.terminated.value</code>
+and when it is rejected it means that the actor terminated abnormally because of <code>actor.terminated.reason</code>.
+That again allows to integrate with other abstractions, e.g.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_actor'>actor</span>.<span class='id identifier rubyid_terminated'>terminated</span>.<span class='id identifier rubyid_value!'>value!</span> <span class='comment'># block current thread until actor terminates or raise reason if any
+</span><span class='id identifier rubyid_actor'>actor</span>.<span class='id identifier rubyid_terminated'>terminated</span>.<span class='id identifier rubyid_then'>then</span>(<span class='id identifier rubyid_actor'>actor</span>) { <span class='op'>|</span><span class='id identifier rubyid_value'>value</span><span class='comma'>,</span> <span class='id identifier rubyid_actor'>actor</span><span class='op'>|</span> <span class='id identifier rubyid_a_logger'>a_logger</span>.<span class='id identifier rubyid_debug'>debug</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_actor'>actor</span><span class='embexpr_end'>}</span><span class='tstring_content'> terminated with </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_value'>value</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span> }</code></pre>
+
+<p>Besides chaining and connecting abstractions together,
+concurrency level of all abstractions executing tasks can be manages with the Throttle abstraction.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_throttle'>throttle</span> <span class='op'>=</span> <span class='const'><a href="Concurrent.html" title="Concurrent (module)">Concurrent</a></span><span class='op'>::</span><span class='const'><a href="Concurrent/Throttle.html" title="Concurrent::Throttle (class)">Throttle</a></span>.<span class='id identifier rubyid_new'><a href="Concurrent/Throttle.html#new-class_method" title="Concurrent::Throttle.new (method)">new</a></span> <span class='int'>10</span>
+<span class='int'>1000</span>.<span class='id identifier rubyid_times'>times</span> <span class='kw'>do</span>
+  <span class='const'>Thread</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_actor'>actor</span> <span class='op'>=</span> <span class='const'><a href="Concurrent.html" title="Concurrent (module)">Concurrent</a></span><span class='op'>::</span><span class='const'><a href="Concurrent/ErlangActor.html" title="Concurrent::ErlangActor (module)">ErlangActor</a></span>.<span class='id identifier rubyid_spawn_actor'><a href="Concurrent/ErlangActor/Functions.html#spawn_actor-instance_method" title="Concurrent::ErlangActor::Functions#spawn_actor (method)">spawn_actor</a></span> <span class='label'>type:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_on_pool'>on_pool</span><span class='comma'>,</span> <span class='label'>executor:</span> <span class='id identifier rubyid_throttle'>throttle</span>.<span class='id identifier rubyid_on'>on</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_io'>io</span>) <span class='kw'>do</span>
+      <span class='id identifier rubyid_receive'>receive</span>(<span class='label'>keep:</span> <span class='kw'>true</span>) { <span class='op'>|</span><span class='id identifier rubyid_m'>m</span><span class='op'>|</span> <span class='id identifier rubyid_reply'>reply</span> <span class='id identifier rubyid_m'>m</span> }  
+    <span class='kw'>end</span>
+    <span class='id identifier rubyid_actor'>actor</span>.<span class='id identifier rubyid_ask'>ask</span> <span class='symbeg'>:</span><span class='id identifier rubyid_ping'>ping</span> 
+    <span class='const'><a href="Concurrent.html" title="Concurrent (module)">Concurrent</a></span><span class='op'>::</span><span class='const'><a href="Concurrent/Promises.html" title="Concurrent::Promises (module)">Promises</a></span>.<span class='id identifier rubyid_future_on'><a href="Concurrent/Promises/FactoryMethods.html#future_on-instance_method" title="Concurrent::Promises::FactoryMethods#future_on (method)">future_on</a></span>(<span class='id identifier rubyid_throttle'>throttle</span>.<span class='id identifier rubyid_on'>on</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_fast'>fast</span>)) { <span class='int'>1</span> <span class='op'>+</span> <span class='int'>1</span> }.<span class='id identifier rubyid_then'>then</span>(<span class='op'>&amp;</span><span class='symbeg'>:</span><span class='id identifier rubyid_succ'>succ</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>In the example above the throttle ensures that
+there is at most 10 actors or futures processing message or executing their bodies.
+Notice that this works not only across abstractions but also across thread pools.
+The actor is running on the global thread pool for blocking operations - <code>:io</code>
+and the futures are executing on the global thread poll for <code>:fast</code> non-blocking operations.</p>
+
+<p>This is of course not an exhaustive list of possible ways how the abstractions can be integrated
+but rather few examples to give a feeling what is possible.
+Please also see an executable 
+<a href="http://ruby-concurrency.github.io/concurrent-ruby/master/file.medium-example.out.html">example</a>
+using the integrations.</p>
+
+<h2>What was not finished</h2>
+
+<p>The original proposal also contained a work steeling thread pool 
+which would improve performance of small non-blocking tasks.
+It would not provide any new functionality to the users. 
+Therefore for lack of time I decided to postpone this for some later time. </p>
+
+<h2>Release</h2>
+
+<p>All the work done during the project is released in <code>concurrent-ruby-edge</code> version 0.5.0 to Ruby users. 
+After some time when feedback is gathered the abstractions will be released in the stable core - <code>concurrent-ruby</code>.
+This is necessary because anything released in the core has to stay backward compatible,
+therefore it would prevent even minor improvements to the API.
+No big changes to the APIs are expected.</p>
+
+<h2>After the project</h2>
+
+<p>During the project it become apparent that there will not be much time left 
+to focus on propagation of the new abstractions. 
+I&#39;ve rather decided to focus on the abstraction development<br>
+and completion of all their API documentation.</p>
+
+<p>I plan to turn my attention 
+to letting Ruby community know about the project and the new features after the project ends.
+I will record four introductory videos for each abstraction, 
+since it appears to me that it become a better platform to reach wider audience then writing blog posts.</p>
+
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>
