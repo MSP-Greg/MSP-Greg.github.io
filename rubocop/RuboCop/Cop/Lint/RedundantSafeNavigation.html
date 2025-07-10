@@ -112,7 +112,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/rubocop-hq/rubocop/blob/master/lib/rubocop/cop/lint/redundant_safe_navigation.rb#L84'>lib/rubocop/cop/lint/redundant_safe_navigation.rb</a>      </td>
+      <td class='box_rel'><a class='repo' href='https://github.com/rubocop-hq/rubocop/blob/master/lib/rubocop/cop/lint/redundant_safe_navigation.rb#L131'>lib/rubocop/cop/lint/redundant_safe_navigation.rb</a>      </td>
     </tr>
   </tbody>
 </table>
@@ -141,6 +141,17 @@ for which to suppress (allow) this cop&#8217;s check.</p>
 <div class="paragraph">
 <p>In the example below, the safe navigation operator (<code>&amp;.</code>) is unnecessary
 because <code>NilClass</code> has methods like <code>respond_to?</code> and <code>is_a?</code>.</p>
+</div>
+<div class="paragraph">
+<p>The <code>InferNonNilReceiver</code> option specifies whether to look into previous code
+paths to infer if the receiver can&#8217;t be nil. This check is unsafe because the receiver
+can be redefined between the safe navigation call and previous regular method call.
+It does the inference only in the current scope, e.g. within the same method definition etc.</p>
+</div>
+<div class="paragraph">
+<p>The <code>AdditionalNilMethods</code> option specifies additional custom methods which are
+defined on <code>NilClass</code>. When <code>InferNonNilReceiver</code> is set, they are used to determine
+whether the receiver can be nil.</p>
 </div>
   </div>
 </div>
@@ -202,6 +213,47 @@ because <code>NilClass</code> has methods like <code>respond_to?</code> and <cod
 <span class='comment'># good
 </span><span class='id identifier rubyid_do_something'>do_something</span> <span class='kw'>if</span> <span class='id identifier rubyid_attrs'>attrs</span>.<span class='id identifier rubyid_nil_safe_method'>nil_safe_method</span>(<span class='symbeg'>:</span><span class='op'>[]</span>)
 <span class='id identifier rubyid_do_something'>do_something</span> <span class='kw'>if</span> <span class='id identifier rubyid_attrs'>attrs</span><span class='op'>&amp;.</span><span class='id identifier rubyid_not_nil_safe_method'>not_nil_safe_method</span>(<span class='symbeg'>:</span><span class='op'>[]</span>)</code></pre>
+        <p class='example_title'><div class='inline'><div class="paragraph">
+<p>InferNonNilReceiver: false (default)</p>
+</div></div></p>
+      <pre class='example code "#{object.source_type}"'><code><span class='comment'># good
+</span><span class='id identifier rubyid_foo'>foo</span>.<span class='id identifier rubyid_bar'>bar</span>
+<span class='id identifier rubyid_foo'>foo</span><span class='op'>&amp;.</span><span class='id identifier rubyid_baz'>baz</span></code></pre>
+        <p class='example_title'><div class='inline'><div class="paragraph">
+<p>InferNonNilReceiver: true</p>
+</div></div></p>
+      <pre class='example code "#{object.source_type}"'><code><span class='comment'># bad
+</span><span class='id identifier rubyid_foo'>foo</span>.<span class='id identifier rubyid_bar'>bar</span>
+<span class='id identifier rubyid_foo'>foo</span><span class='op'>&amp;.</span><span class='id identifier rubyid_baz'>baz</span> <span class='comment'># would raise on previous line if {foo} is nil
+</span>
+<span class='comment'># good
+</span><span class='id identifier rubyid_foo'>foo</span>.<span class='id identifier rubyid_bar'>bar</span>
+<span class='id identifier rubyid_foo'>foo</span>.<span class='id identifier rubyid_baz'>baz</span>
+
+<span class='comment'># bad
+</span><span class='kw'>if</span> <span class='id identifier rubyid_foo'>foo</span>.<span class='id identifier rubyid_condition?'><a href="#condition%3F-instance_method" title="RuboCop::Cop::Lint::RedundantSafeNavigation#condition? (method)">condition?</a></span>
+  <span class='id identifier rubyid_foo'>foo</span><span class='op'>&amp;.</span><span class='id identifier rubyid_bar'>bar</span>
+<span class='kw'>end</span>
+
+<span class='comment'># good
+</span><span class='kw'>if</span> <span class='id identifier rubyid_foo'>foo</span>.<span class='id identifier rubyid_condition?'><a href="#condition%3F-instance_method" title="RuboCop::Cop::Lint::RedundantSafeNavigation#condition? (method)">condition?</a></span>
+  <span class='id identifier rubyid_foo'>foo</span>.<span class='id identifier rubyid_bar'>bar</span>
+<span class='kw'>end</span>
+
+<span class='comment'># good (different scopes)
+</span><span class='kw'>def</span> <span class='id identifier rubyid_method1'>method1</span>
+  <span class='id identifier rubyid_foo'>foo</span>.<span class='id identifier rubyid_bar'>bar</span>
+<span class='kw'>end</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_method2'>method2</span>
+  <span class='id identifier rubyid_foo'>foo</span><span class='op'>&amp;.</span><span class='id identifier rubyid_bar'>bar</span>
+<span class='kw'>end</span></code></pre>
+        <p class='example_title'><div class='inline'><div class="paragraph">
+<p>AdditionalNilMethods: [present?]</p>
+</div></div></p>
+      <pre class='example code "#{object.source_type}"'><code><span class='comment'># good
+</span><span class='id identifier rubyid_foo'>foo</span>.<span class='id identifier rubyid_present?'>present?</span>
+<span class='id identifier rubyid_foo'>foo</span><span class='op'>&amp;.</span><span class='id identifier rubyid_bar'>bar</span></code></pre>
   </div>
 <p class='tag_title'>Cop Safety Information:</p>
 <ul class='safety'>
@@ -222,22 +274,28 @@ will be autocorrected to never return <code>nil</code>.</p>
   <li>
     <span id='MSG-constant' class='summary_signature'>MSG =</span>
     <br/>
-    <a class='repo' href='https://github.com/rubocop-hq/rubocop/blob/master/lib/rubocop/cop/lint/redundant_safe_navigation.rb#L88-L88'># File 'lib/rubocop/cop/lint/redundant_safe_navigation.rb', line 88</a>    <pre class='code ruby'><span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Redundant safe navigation detected, use `.` instead.</span><span class='tstring_end'>&#39;</span></span></pre>
+    <a class='repo' href='https://github.com/rubocop-hq/rubocop/blob/master/lib/rubocop/cop/lint/redundant_safe_navigation.rb#L135-L135'># File 'lib/rubocop/cop/lint/redundant_safe_navigation.rb', line 135</a>    <pre class='code ruby'><span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Redundant safe navigation detected, use `.` instead.</span><span class='tstring_end'>&#39;</span></span></pre>
   </li>
   <li>
     <span id='MSG_LITERAL-constant' class='summary_signature'>MSG_LITERAL =</span>
     <br/>
-    <a class='repo' href='https://github.com/rubocop-hq/rubocop/blob/master/lib/rubocop/cop/lint/redundant_safe_navigation.rb#L89-L89'># File 'lib/rubocop/cop/lint/redundant_safe_navigation.rb', line 89</a>    <pre class='code ruby'><span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Redundant safe navigation with default literal detected.</span><span class='tstring_end'>&#39;</span></span></pre>
+    <a class='repo' href='https://github.com/rubocop-hq/rubocop/blob/master/lib/rubocop/cop/lint/redundant_safe_navigation.rb#L136-L136'># File 'lib/rubocop/cop/lint/redundant_safe_navigation.rb', line 136</a>    <pre class='code ruby'><span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Redundant safe navigation with default literal detected.</span><span class='tstring_end'>&#39;</span></span></pre>
+  </li>
+  <li>
+    <span id='MSG_NON_NIL-constant' class='summary_signature'>MSG_NON_NIL =</span>
+    <br/>
+    <a class='repo' href='https://github.com/rubocop-hq/rubocop/blob/master/lib/rubocop/cop/lint/redundant_safe_navigation.rb#L137-L138'># File 'lib/rubocop/cop/lint/redundant_safe_navigation.rb', line 137</a>    <pre class='code ruby'><span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Redundant safe navigation on non-nil receiver (detected by analyzing </span><span class='tstring_end'>&#39;</span></span> \
+<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>previous code/method invocations).</span><span class='tstring_end'>&#39;</span></span></pre>
   </li>
   <li>
     <span id='NIL_SPECIFIC_METHODS-constant' class='summary_signature'>NIL_SPECIFIC_METHODS =</span>
     <br/>
-    <a class='repo' href='https://github.com/rubocop-hq/rubocop/blob/master/lib/rubocop/cop/lint/redundant_safe_navigation.rb#L91-L91'># File 'lib/rubocop/cop/lint/redundant_safe_navigation.rb', line 91</a>    <pre class='code ruby'>(<span class='kw'>nil</span>.<span class='id identifier rubyid_methods'>methods</span> <span class='op'>-</span> <span class='const'>Object</span>.<span class='id identifier rubyid_new'>new</span>.<span class='id identifier rubyid_methods'>methods</span>).<span class='id identifier rubyid_to_set'>to_set</span>.<span class='id identifier rubyid_freeze'>freeze</span></pre>
+    <a class='repo' href='https://github.com/rubocop-hq/rubocop/blob/master/lib/rubocop/cop/lint/redundant_safe_navigation.rb#L140-L140'># File 'lib/rubocop/cop/lint/redundant_safe_navigation.rb', line 140</a>    <pre class='code ruby'>(<span class='kw'>nil</span>.<span class='id identifier rubyid_methods'>methods</span> <span class='op'>-</span> <span class='const'>Object</span>.<span class='id identifier rubyid_new'>new</span>.<span class='id identifier rubyid_methods'>methods</span>).<span class='id identifier rubyid_to_set'>to_set</span>.<span class='id identifier rubyid_freeze'>freeze</span></pre>
   </li>
   <li>
     <span id='SNAKE_CASE-constant' class='summary_signature'>SNAKE_CASE =</span>
     <br/>
-    <a class='repo' href='https://github.com/rubocop-hq/rubocop/blob/master/lib/rubocop/cop/lint/redundant_safe_navigation.rb#L93-L93'># File 'lib/rubocop/cop/lint/redundant_safe_navigation.rb', line 93</a>    <pre class='code ruby'><span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>\A[[:digit:][:upper:]_]+\z</span><span class='regexp_end'>/</span></span>.<span class='id identifier rubyid_freeze'>freeze</span></pre>
+    <a class='repo' href='https://github.com/rubocop-hq/rubocop/blob/master/lib/rubocop/cop/lint/redundant_safe_navigation.rb#L142-L142'># File 'lib/rubocop/cop/lint/redundant_safe_navigation.rb', line 142</a>    <pre class='code ruby'><span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>\A[[:digit:][:upper:]_]+\z</span><span class='regexp_end'>/</span></span>.<span class='id identifier rubyid_freeze'>freeze</span></pre>
   </li>
 </ul>
   <h3 class='inherited'><a href="../Base.html" title="RuboCop::Cop::Base (class)"><code>::RuboCop::Cop::Base</code></a> - Inherited</h3>
@@ -357,8 +415,17 @@ will be autocorrected to never return <code>nil</code>.</p>
 </table></div>
 </div>  <!-- class_method_summary -->
 
-<h2 class='h2_sum' id='instance_Attribute_summary'>Instance Attribute Summary</h2>
+<h2 class='h2_sum' id='instance_attribute_summary'>Instance Attribute Summary</h2>
 <div class='div_sum'>
+<ul class='summary full'>
+  <li>
+    <span class='summary_signature ro priv'>
+      <a href="#infer_non_nil_receiver%3F-instance_method" title="#infer_non_nil_receiver? (instance method)">#<strong>infer_non_nil_receiver?</strong>  &#x21d2; Boolean </a>
+    </span>
+    <span class='note title readonly'>readonly</span>
+    <span class='note title private'>private</span>
+  </li>
+</ul>
 
 <h3 class='inherited'><a href="../AllowedMethods.html" title="RuboCop::Cop::AllowedMethods (module)"><code>::RuboCop::Cop::AllowedMethods</code></a> - Included</h3>
 <div class='inherited'><table class='inherited'>
@@ -430,6 +497,12 @@ will be autocorrected to never return <code>nil</code>.</p>
     <span class='summary_signature '>
       <a href="#respond_to_nil_specific_method%3F-instance_method" title="#respond_to_nil_specific_method? (instance method)">#<strong>respond_to_nil_specific_method?</strong>(node)  </a>
     </span>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
+      <a href="#additional_nil_methods-instance_method" title="#additional_nil_methods (instance method)">#<strong>additional_nil_methods</strong>  </a>
+    </span>
+    <span class='note title private'>private</span>
   </li>
   <li>
     <span class='summary_signature priv'>
@@ -655,9 +728,49 @@ will be autocorrected to never return <code>nil</code>.</p>
 <h2 id='Constructor_Details' class='y_details'>Constructor Details</h2>
 
   <p class='notice'>This class inherits a constructor from <a href="../Base.html#new-class_method" title="RuboCop::Cop::Base.new (method)">RuboCop::Cop::Base</a></p>
+<h2 class='y_details'>Instance Attribute Details</h2>
+<section class='method_details first' id="infer_non_nil_receiver?-instance_method">
+  <h3 class='signature ro priv first'>
+    #<strong>infer_non_nil_receiver?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='readonly'>readonly</span>, <span class='priv'>private</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop-hq/rubocop/blob/master/lib/rubocop/cop/lint/redundant_safe_navigation.rb#L217-L219'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='217' data-end='219'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/rubocop/cop/lint/redundant_safe_navigation.rb', line 217</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_infer_non_nil_receiver?'>infer_non_nil_receiver?</span>
+  <span class='id identifier rubyid_cop_config'>cop_config</span>[<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>InferNonNilReceiver</span><span class='tstring_end'>&#39;</span></span>]
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
 <h2 class='y_details'>Instance Method Details</h2>
-<section class='method_details first' id="assume_receiver_instance_exists?-instance_method">
+<section class='method_details first' id="additional_nil_methods-instance_method">
   <h3 class='signature priv first'>
+    #<strong>additional_nil_methods</strong>   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop-hq/rubocop/blob/master/lib/rubocop/cop/lint/redundant_safe_navigation.rb#L221-L224'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='221' data-end='224'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/rubocop/cop/lint/redundant_safe_navigation.rb', line 221</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_additional_nil_methods'>additional_nil_methods</span>
+  <span class='ivar'>@additional_nil_methods</span> <span class='op'>||=</span>
+    <span class='const'>Array</span>(<span class='id identifier rubyid_cop_config'>cop_config</span>.<span class='id identifier rubyid_fetch'>fetch</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>AdditionalNilMethods</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> []).<span class='id identifier rubyid_map'>map</span>(<span class='op'>&amp;</span><span class='symbeg'>:</span><span class='id identifier rubyid_to_sym'>to_sym</span>))
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="assume_receiver_instance_exists?-instance_method">
+  <h3 class='signature priv'>
     #<strong>assume_receiver_instance_exists?</strong>(receiver)  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
 <div class='docstring'>
@@ -668,11 +781,11 @@ will be autocorrected to never return <code>nil</code>.</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop-hq/rubocop/blob/master/lib/rubocop/cop/lint/redundant_safe_navigation.rb#L139-L143'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop-hq/rubocop/blob/master/lib/rubocop/cop/lint/redundant_safe_navigation.rb#L198-L202'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='139' data-end='143'></pre>
+  <pre class='lines_num' data-start='198' data-end='202'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/lint/redundant_safe_navigation.rb', line 139</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/lint/redundant_safe_navigation.rb', line 198</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_assume_receiver_instance_exists?'>assume_receiver_instance_exists?</span>(<span class='id identifier rubyid_receiver'>receiver</span>)
@@ -697,11 +810,11 @@ will be autocorrected to never return <code>nil</code>.</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop-hq/rubocop/blob/master/lib/rubocop/cop/lint/redundant_safe_navigation.rb#L145-L152'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop-hq/rubocop/blob/master/lib/rubocop/cop/lint/redundant_safe_navigation.rb#L204-L211'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='145' data-end='152'></pre>
+  <pre class='lines_num' data-start='204' data-end='211'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/lint/redundant_safe_navigation.rb', line 145</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/lint/redundant_safe_navigation.rb', line 204</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_check?'>check?</span>(<span class='id identifier rubyid_node'>node</span>)
@@ -729,11 +842,11 @@ will be autocorrected to never return <code>nil</code>.</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop-hq/rubocop/blob/master/lib/rubocop/cop/lint/redundant_safe_navigation.rb#L154-L156'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop-hq/rubocop/blob/master/lib/rubocop/cop/lint/redundant_safe_navigation.rb#L213-L215'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='154' data-end='156'></pre>
+  <pre class='lines_num' data-start='213' data-end='215'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/lint/redundant_safe_navigation.rb', line 154</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/lint/redundant_safe_navigation.rb', line 213</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_condition?'>condition?</span>(<span class='id identifier rubyid_parent'>parent</span><span class='comma'>,</span> <span class='id identifier rubyid_node'>node</span>)
@@ -748,11 +861,11 @@ will be autocorrected to never return <code>nil</code>.</p>
   <h3 class='signature '>
     #<strong>conversion_with_default?</strong>(node)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop-hq/rubocop/blob/master/lib/rubocop/cop/lint/redundant_safe_navigation.rb#L101-L110'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop-hq/rubocop/blob/master/lib/rubocop/cop/lint/redundant_safe_navigation.rb#L150-L159'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='101' data-end='110'></pre>
+  <pre class='lines_num' data-start='150' data-end='159'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/lint/redundant_safe_navigation.rb', line 101</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/lint/redundant_safe_navigation.rb', line 150</span></pre>
 <pre class='code ruby'>
 
 <span class='id identifier rubyid_def_node_matcher'>def_node_matcher</span> <span class='symbeg'>:</span><span class='id identifier rubyid_conversion_with_default?'>conversion_with_default?</span><span class='comma'>,</span> <span class='heredoc_beg'>&lt;&lt;~PATTERN</span>
@@ -774,20 +887,30 @@ will be autocorrected to never return <code>nil</code>.</p>
   <h3 class='signature '>
     #<strong>on_csend</strong>(node)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop-hq/rubocop/blob/master/lib/rubocop/cop/lint/redundant_safe_navigation.rb#L113-L121'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop-hq/rubocop/blob/master/lib/rubocop/cop/lint/redundant_safe_navigation.rb#L162-L180'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='113' data-end='121'></pre>
+  <pre class='lines_num' data-start='162' data-end='180'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/lint/redundant_safe_navigation.rb', line 113</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/lint/redundant_safe_navigation.rb', line 162</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_on_csend'>on_csend</span>(<span class='id identifier rubyid_node'>node</span>)
+  <span class='id identifier rubyid_range'>range</span> <span class='op'>=</span> <span class='id identifier rubyid_node'>node</span>.<span class='id identifier rubyid_loc'>loc</span>.<span class='id identifier rubyid_dot'>dot</span>
+
+  <span class='kw'>if</span> <span class='id identifier rubyid_infer_non_nil_receiver?'><a href="#infer_non_nil_receiver%3F-instance_method" title="RuboCop::Cop::Lint::RedundantSafeNavigation#infer_non_nil_receiver? (method)">infer_non_nil_receiver?</a></span>
+    <span class='id identifier rubyid_checker'>checker</span> <span class='op'>=</span> <span class='const'><a href="../Lint.html" title="RuboCop::Cop::Lint (module)">Lint</a></span><span class='op'>::</span><span class='const'><a href="Utils.html" title="RuboCop::Cop::Lint::Utils (module)">Utils</a></span><span class='op'>::</span><span class='const'><a href="Utils/NilReceiverChecker.html" title="RuboCop::Cop::Lint::Utils::NilReceiverChecker (class)">NilReceiverChecker</a></span>.<span class='id identifier rubyid_new'><a href="Utils/NilReceiverChecker.html#new-class_method" title="RuboCop::Cop::Lint::Utils::NilReceiverChecker.new (method)">new</a></span>(<span class='id identifier rubyid_node'>node</span>.<span class='id identifier rubyid_receiver'>receiver</span><span class='comma'>,</span> <span class='id identifier rubyid_additional_nil_methods'><a href="#additional_nil_methods-instance_method" title="RuboCop::Cop::Lint::RedundantSafeNavigation#additional_nil_methods (method)">additional_nil_methods</a></span>)
+
+    <span class='kw'>if</span> <span class='id identifier rubyid_checker'>checker</span>.<span class='id identifier rubyid_cant_be_nil?'>cant_be_nil?</span>
+      <span class='id identifier rubyid_add_offense'>add_offense</span>(<span class='id identifier rubyid_range'>range</span><span class='comma'>,</span> <span class='label'>message:</span> <span class='const'><a href="#MSG_NON_NIL-constant" title="RuboCop::Cop::Lint::RedundantSafeNavigation::MSG_NON_NIL (constant)">MSG_NON_NIL</a></span>) { <span class='op'>|</span><span class='id identifier rubyid_corrector'>corrector</span><span class='op'>|</span> <span class='id identifier rubyid_corrector'>corrector</span>.<span class='id identifier rubyid_replace'>replace</span>(<span class='id identifier rubyid_range'>range</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>.</span><span class='tstring_end'>&#39;</span></span>) }
+      <span class='kw'>return</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+
   <span class='kw'>unless</span> <span class='id identifier rubyid_assume_receiver_instance_exists?'><a href="#assume_receiver_instance_exists%3F-instance_method" title="RuboCop::Cop::Lint::RedundantSafeNavigation#assume_receiver_instance_exists? (method)">assume_receiver_instance_exists?</a></span>(<span class='id identifier rubyid_node'>node</span>.<span class='id identifier rubyid_receiver'>receiver</span>)
     <span class='kw'>return</span> <span class='kw'>unless</span> <span class='id identifier rubyid_check?'><a href="#check%3F-instance_method" title="RuboCop::Cop::Lint::RedundantSafeNavigation#check? (method)">check?</a></span>(<span class='id identifier rubyid_node'>node</span>) <span class='op'>&amp;&amp;</span> <span class='id identifier rubyid_allowed_method?'>allowed_method?</span>(<span class='id identifier rubyid_node'>node</span>.<span class='id identifier rubyid_method_name'>method_name</span>)
     <span class='kw'>return</span> <span class='kw'>if</span> <span class='id identifier rubyid_respond_to_nil_specific_method?'><a href="#respond_to_nil_specific_method%3F-instance_method" title="RuboCop::Cop::Lint::RedundantSafeNavigation#respond_to_nil_specific_method? (method)">respond_to_nil_specific_method?</a></span>(<span class='id identifier rubyid_node'>node</span>)
   <span class='kw'>end</span>
 
-  <span class='id identifier rubyid_range'>range</span> <span class='op'>=</span> <span class='id identifier rubyid_node'>node</span>.<span class='id identifier rubyid_loc'>loc</span>.<span class='id identifier rubyid_dot'>dot</span>
   <span class='id identifier rubyid_add_offense'>add_offense</span>(<span class='id identifier rubyid_range'>range</span>) { <span class='op'>|</span><span class='id identifier rubyid_corrector'>corrector</span><span class='op'>|</span> <span class='id identifier rubyid_corrector'>corrector</span>.<span class='id identifier rubyid_replace'>replace</span>(<span class='id identifier rubyid_range'>range</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>.</span><span class='tstring_end'>&#39;</span></span>) }
 <span class='kw'>end</span>
 </pre>
@@ -799,11 +922,11 @@ will be autocorrected to never return <code>nil</code>.</p>
   <h3 class='signature '>
     #<strong>on_or</strong>(node)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop-hq/rubocop/blob/master/lib/rubocop/cop/lint/redundant_safe_navigation.rb#L123-L134'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop-hq/rubocop/blob/master/lib/rubocop/cop/lint/redundant_safe_navigation.rb#L182-L193'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='123' data-end='134'></pre>
+  <pre class='lines_num' data-start='182' data-end='193'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/lint/redundant_safe_navigation.rb', line 123</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/lint/redundant_safe_navigation.rb', line 182</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_on_or'>on_or</span>(<span class='id identifier rubyid_node'>node</span>)
@@ -827,11 +950,11 @@ will be autocorrected to never return <code>nil</code>.</p>
   <h3 class='signature '>
     #<strong>respond_to_nil_specific_method?</strong>(node)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop-hq/rubocop/blob/master/lib/rubocop/cop/lint/redundant_safe_navigation.rb#L96-L98'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop-hq/rubocop/blob/master/lib/rubocop/cop/lint/redundant_safe_navigation.rb#L145-L147'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='96' data-end='98'></pre>
+  <pre class='lines_num' data-start='145' data-end='147'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/lint/redundant_safe_navigation.rb', line 96</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/lint/redundant_safe_navigation.rb', line 145</span></pre>
 <pre class='code ruby'>
 
 <span class='id identifier rubyid_def_node_matcher'>def_node_matcher</span> <span class='symbeg'>:</span><span class='id identifier rubyid_respond_to_nil_specific_method?'>respond_to_nil_specific_method?</span><span class='comma'>,</span> <span class='heredoc_beg'>&lt;&lt;~PATTERN</span>
