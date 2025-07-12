@@ -376,9 +376,9 @@
   <h3 class='signature priv'>
     #<strong>batch_on_unloaded_relation</strong>(relation:, start:, finish:, load:, cursor:, order:, use_ranges:, remaining:, batch_limit:)   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/relation/batches.rb#L426-L489'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/relation/batches.rb#L426-L503'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='426' data-end='489'></pre>
+  <pre class='lines_num' data-start='426' data-end='503'></pre>
   <div class='lines_code'>
 <pre><span class='info file'># File 'activerecord/lib/active_record/relation/batches.rb', line 426</span></pre>
 <pre class='code ruby'>
@@ -395,35 +395,49 @@
     <span class='kw'>if</span> <span class='id identifier rubyid_load'>load</span>
       <span class='id identifier rubyid_records'>records</span> <span class='op'>=</span> <span class='id identifier rubyid_batch_relation'>batch_relation</span>.<span class='id identifier rubyid_records'>records</span>
       <span class='id identifier rubyid_values'>values</span> <span class='op'>=</span> <span class='id identifier rubyid_records'>records</span>.<span class='id identifier rubyid_pluck'>pluck</span>(<span class='op'>*</span><span class='id identifier rubyid_cursor'>cursor</span>)
+      <span class='id identifier rubyid_values_size'>values_size</span> <span class='op'>=</span> <span class='id identifier rubyid_values'>values</span>.<span class='id identifier rubyid_size'>size</span>
+      <span class='id identifier rubyid_values_last'>values_last</span> <span class='op'>=</span> <span class='id identifier rubyid_values'>values</span>.<span class='id identifier rubyid_last'>last</span>
       <span class='id identifier rubyid_yielded_relation'>yielded_relation</span> <span class='op'>=</span> <span class='id identifier rubyid_where'>where</span>(<span class='id identifier rubyid_cursor'>cursor</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_values'>values</span>).<span class='id identifier rubyid_order'>order</span>(<span class='id identifier rubyid_batch_orders'>batch_orders</span>.<span class='id identifier rubyid_to_h'>to_h</span>)
       <span class='id identifier rubyid_yielded_relation'>yielded_relation</span>.<span class='id identifier rubyid_load_records'>load_records</span>(<span class='id identifier rubyid_records'>records</span>)
     <span class='kw'>elsif</span> (<span class='id identifier rubyid_empty_scope'>empty_scope</span> <span class='op'>&amp;&amp;</span> <span class='id identifier rubyid_use_ranges'>use_ranges</span> <span class='op'>!=</span> <span class='kw'>false</span>) <span class='op'>||</span> <span class='id identifier rubyid_use_ranges'>use_ranges</span>
-      <span class='id identifier rubyid_values'>values</span> <span class='op'>=</span> <span class='id identifier rubyid_batch_relation'>batch_relation</span>.<span class='id identifier rubyid_pluck'>pluck</span>(<span class='op'>*</span><span class='id identifier rubyid_cursor'>cursor</span>)
+      <span class='comment'># Efficiently peak at the last value for the next batch using offset and limit.
+</span>      <span class='id identifier rubyid_values_size'>values_size</span> <span class='op'>=</span> <span class='id identifier rubyid_batch_limit'>batch_limit</span>
+      <span class='id identifier rubyid_values_last'>values_last</span> <span class='op'>=</span> <span class='id identifier rubyid_batch_relation'>batch_relation</span>.<span class='id identifier rubyid_offset'>offset</span>(<span class='id identifier rubyid_batch_limit'>batch_limit</span> <span class='op'>-</span> <span class='int'>1</span>).<span class='id identifier rubyid_pick'>pick</span>(<span class='op'>*</span><span class='id identifier rubyid_cursor'>cursor</span>)
 
-      <span class='id identifier rubyid_finish'>finish</span> <span class='op'>=</span> <span class='id identifier rubyid_values'>values</span>.<span class='id identifier rubyid_last'>last</span>
-      <span class='kw'>if</span> <span class='id identifier rubyid_finish'>finish</span>
-        <span class='id identifier rubyid_yielded_relation'>yielded_relation</span> <span class='op'>=</span> <span class='id identifier rubyid_apply_finish_limit'><a href="#apply_finish_limit-instance_method" title="ActiveRecord::Batches#apply_finish_limit (method)">apply_finish_limit</a></span>(<span class='id identifier rubyid_batch_relation'>batch_relation</span><span class='comma'>,</span> <span class='id identifier rubyid_cursor'>cursor</span><span class='comma'>,</span> <span class='id identifier rubyid_finish'>finish</span><span class='comma'>,</span> <span class='id identifier rubyid_batch_orders'>batch_orders</span>)
+      <span class='comment'># If the last value is not found using offset, there is at most one more batch of size &lt; batch_limit.
+</span>      <span class='comment'># Retry by getting the whole list of remaining values so that we have the exact size and last value.
+</span>      <span class='kw'>unless</span> <span class='id identifier rubyid_values_last'>values_last</span>
+        <span class='id identifier rubyid_values'>values</span> <span class='op'>=</span> <span class='id identifier rubyid_batch_relation'>batch_relation</span>.<span class='id identifier rubyid_pluck'>pluck</span>(<span class='op'>*</span><span class='id identifier rubyid_cursor'>cursor</span>)
+        <span class='id identifier rubyid_values_size'>values_size</span> <span class='op'>=</span> <span class='id identifier rubyid_values'>values</span>.<span class='id identifier rubyid_size'>size</span>
+        <span class='id identifier rubyid_values_last'>values_last</span> <span class='op'>=</span> <span class='id identifier rubyid_values'>values</span>.<span class='id identifier rubyid_last'>last</span>
+      <span class='kw'>end</span>
+
+      <span class='comment'># Finally, build the yielded relation if at least one value found.
+</span>      <span class='kw'>if</span> <span class='id identifier rubyid_values_last'>values_last</span>
+        <span class='id identifier rubyid_yielded_relation'>yielded_relation</span> <span class='op'>=</span> <span class='id identifier rubyid_apply_finish_limit'><a href="#apply_finish_limit-instance_method" title="ActiveRecord::Batches#apply_finish_limit (method)">apply_finish_limit</a></span>(<span class='id identifier rubyid_batch_relation'>batch_relation</span><span class='comma'>,</span> <span class='id identifier rubyid_cursor'>cursor</span><span class='comma'>,</span> <span class='id identifier rubyid_values_last'>values_last</span><span class='comma'>,</span> <span class='id identifier rubyid_batch_orders'>batch_orders</span>)
         <span class='id identifier rubyid_yielded_relation'>yielded_relation</span> <span class='op'>=</span> <span class='id identifier rubyid_yielded_relation'>yielded_relation</span>.<span class='id identifier rubyid_except'>except</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_limit'>limit</span>).<span class='id identifier rubyid_reorder'>reorder</span>(<span class='id identifier rubyid_batch_orders'>batch_orders</span>.<span class='id identifier rubyid_to_h'>to_h</span>)
         <span class='id identifier rubyid_yielded_relation'>yielded_relation</span>.<span class='id identifier rubyid_skip_query_cache!'>skip_query_cache!</span>(<span class='kw'>false</span>)
       <span class='kw'>end</span>
     <span class='kw'>else</span>
       <span class='id identifier rubyid_values'>values</span> <span class='op'>=</span> <span class='id identifier rubyid_batch_relation'>batch_relation</span>.<span class='id identifier rubyid_pluck'>pluck</span>(<span class='op'>*</span><span class='id identifier rubyid_cursor'>cursor</span>)
+      <span class='id identifier rubyid_values_size'>values_size</span> <span class='op'>=</span> <span class='id identifier rubyid_values'>values</span>.<span class='id identifier rubyid_size'>size</span>
+      <span class='id identifier rubyid_values_last'>values_last</span> <span class='op'>=</span> <span class='id identifier rubyid_values'>values</span>.<span class='id identifier rubyid_last'>last</span>
       <span class='id identifier rubyid_yielded_relation'>yielded_relation</span> <span class='op'>=</span> <span class='id identifier rubyid_where'>where</span>(<span class='id identifier rubyid_cursor'>cursor</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_values'>values</span>).<span class='id identifier rubyid_order'>order</span>(<span class='id identifier rubyid_batch_orders'>batch_orders</span>.<span class='id identifier rubyid_to_h'>to_h</span>)
     <span class='kw'>end</span>
 
-    <span class='kw'>break</span> <span class='kw'>if</span> <span class='id identifier rubyid_values'>values</span>.<span class='id identifier rubyid_empty?'>empty?</span>
+    <span class='kw'>break</span> <span class='kw'>if</span> <span class='id identifier rubyid_values_size'>values_size</span> <span class='op'>==</span> <span class='int'>0</span>
 
-    <span class='kw'>if</span> <span class='id identifier rubyid_values'>values</span>.<span class='id identifier rubyid_flatten'>flatten</span>.<span class='id identifier rubyid_any?'>any?</span>(<span class='kw'>nil</span>)
+    <span class='kw'>if</span> [<span class='id identifier rubyid_values_last'>values_last</span>].<span class='id identifier rubyid_flatten'>flatten</span>.<span class='id identifier rubyid_any?'>any?</span>(<span class='kw'>nil</span>)
       <span class='id identifier rubyid_raise'>raise</span> <span class='const'>ArgumentError</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Not all of the batch cursor columns were included in the custom select clause </span><span class='tstring_end'>&quot;</span></span>\
                             <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>or some columns contain nil.</span><span class='tstring_end'>&quot;</span></span>
     <span class='kw'>end</span>
 
     <span class='kw'>yield</span> <span class='id identifier rubyid_yielded_relation'>yielded_relation</span>
 
-    <span class='kw'>break</span> <span class='kw'>if</span> <span class='id identifier rubyid_values'>values</span>.<span class='id identifier rubyid_length'>length</span> <span class='op'>&lt;</span> <span class='id identifier rubyid_batch_limit'>batch_limit</span>
+    <span class='kw'>break</span> <span class='kw'>if</span> <span class='id identifier rubyid_values_size'>values_size</span> <span class='op'>&lt;</span> <span class='id identifier rubyid_batch_limit'>batch_limit</span>
 
     <span class='kw'>if</span> <span class='id identifier rubyid_limit_value'>limit_value</span>
-      <span class='id identifier rubyid_remaining'>remaining</span> <span class='op'>-=</span> <span class='id identifier rubyid_values'>values</span>.<span class='id identifier rubyid_length'>length</span>
+      <span class='id identifier rubyid_remaining'>remaining</span> <span class='op'>-=</span> <span class='id identifier rubyid_values_size'>values_size</span>
 
       <span class='kw'>if</span> <span class='id identifier rubyid_remaining'>remaining</span> <span class='op'>==</span> <span class='int'>0</span>
         <span class='comment'># Saves a useless iteration when the limit is a multiple of the
@@ -441,7 +455,7 @@
     <span class='kw'>end</span>
     <span class='id identifier rubyid_operators'>operators</span> <span class='op'>&lt;&lt;</span> (<span class='id identifier rubyid_last_order'>last_order</span> <span class='op'>==</span> <span class='symbeg'>:</span><span class='id identifier rubyid_desc'>desc</span> <span class='op'>?</span> <span class='symbeg'>:</span><span class='id identifier rubyid_lt'>lt</span> <span class='op'>:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_gt'>gt</span>)
 
-    <span class='id identifier rubyid_cursor_value'>cursor_value</span> <span class='op'>=</span> <span class='id identifier rubyid_values'>values</span>.<span class='id identifier rubyid_last'>last</span>
+    <span class='id identifier rubyid_cursor_value'>cursor_value</span> <span class='op'>=</span> <span class='id identifier rubyid_values_last'>values_last</span>
     <span class='id identifier rubyid_batch_relation'>batch_relation</span> <span class='op'>=</span> <span class='id identifier rubyid_batch_condition'><a href="#batch_condition-instance_method" title="ActiveRecord::Batches#batch_condition (method)">batch_condition</a></span>(<span class='id identifier rubyid_relation'>relation</span><span class='comma'>,</span> <span class='id identifier rubyid_cursor'>cursor</span><span class='comma'>,</span> <span class='id identifier rubyid_cursor_value'>cursor_value</span><span class='comma'>,</span> <span class='id identifier rubyid_operators'>operators</span>)
   <span class='kw'>end</span>
 
