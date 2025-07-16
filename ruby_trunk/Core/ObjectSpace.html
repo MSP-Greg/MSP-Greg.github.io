@@ -78,7 +78,7 @@
     </td></tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2 o'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.c#L5526'>gc.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.rb#L393'>gc.rb</a>,<br/> <a class='repo' href='https://github.com/ruby/ruby/blob/master/weakmap.c#L1139'>weakmap.c</a></span>
+      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.c#L5534'>gc.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.rb#L393'>gc.rb</a>,<br/> <a class='repo' href='https://github.com/ruby/ruby/blob/master/weakmap.c#L1139'>weakmap.c</a></span>
       </td>
     </tr>
   </tbody>
@@ -226,9 +226,9 @@ os_id2ref(VALUE os, VALUE objid)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.c#L2496-L2526'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/gc.c#L2496-L2534'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2496' data-end='2526'></pre>
+  <pre class='lines_num' data-start='2496' data-end='2534'></pre>
   <div class='lines_code'>
 <pre><span class='info file'># File 'gc.c', line 2496</span></pre>
 <pre class='code cpp'>
@@ -238,11 +238,19 @@ count_objects(int argc, VALUE *argv, VALUE os)
 {
     struct count_objects_data data = { 0 };
     VALUE hash = Qnil;
+    VALUE types[T_MASK + 1];
 
     if (rb_check_arity(argc, 0, 1) == 1) {
         hash = argv[0];
         if (!RB_TYPE_P(hash, T_HASH))
             rb_raise(rb_eTypeError, &quot;non-hash given&quot;);
+    }
+
+    for (size_t i = 0; i &lt;= T_MASK; i++) {
+        // type_sym can allocate an object,
+        // so we need to create all key symbols in advance
+        // not to disturb the result
+        types[i] = type_sym(i);
     }
 
     rb_gc_impl_each_object(rb_gc_get_objspace(), count_objects_i, &amp;data);
@@ -257,9 +265,9 @@ count_objects(int argc, VALUE *argv, VALUE os)
     rb_hash_aset(hash, ID2SYM(rb_intern(&quot;FREE&quot;)), SIZET2NUM(data.freed));
 
     for (size_t i = 0; i &lt;= T_MASK; i++) {
-        VALUE type = type_sym(i);
-        if (data.counts[i])
-            rb_hash_aset(hash, type, SIZET2NUM(data.counts[i]));
+        if (data.counts[i]) {
+            rb_hash_aset(hash, types[i], SIZET2NUM(data.counts[i]));
+        }
     }
 
     return hash;
