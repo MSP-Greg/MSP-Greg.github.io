@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen'       content='yes'>
+<meta name='apple-mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: DESIGN &mdash; Unicorn master</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "DESIGN",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>Unicorn master</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: DESIGN&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+
+<h2 id="label-Design">Design</h2>
+
+<p><a href="Unicorn.html" title="Unicorn (module)"><code>Unicorn</code></a> was designed to support poorly-written codebases back in 2008. Its unfortunate popularity has only proliferated the existence of poorly-written code ever since…</p>
+<ul><li>
+<p>Simplicity: <a href="Unicorn.html" title="Unicorn (module)"><code>Unicorn</code></a> is a traditional UNIX prefork web server. No threads are used at all, this makes applications easier to debug and fix.  When your application goes awry, a BOFH can just “kill -9” the runaway worker process without worrying about tearing all clients down, just one.  Only UNIX-like systems supporting fork() and file descriptor inheritance are supported.</p>
+</li><li>
+<p>The Ragel+C HTTP parser is taken from Mongrel.</p>
+</li><li>
+<p>All HTTP parsing and I/O is done much like Mongrel:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='int'>1</span>. <span class='id identifier rubyid_read'>read</span><span class='op'>/</span><span class='id identifier rubyid_parse'>parse</span> <span class='const'>HTTP</span> <span class='id identifier rubyid_request'>request</span> <span class='id identifier rubyid_headers'>headers</span> <span class='kw'>in</span> <span class='id identifier rubyid_full'>full</span>
+<span class='int'>2</span>. <span class='id identifier rubyid_call'>call</span> <span class='const'>Rack</span> <span class='id identifier rubyid_application'>application</span>
+<span class='int'>3</span>. <span class='id identifier rubyid_write'>write</span> <span class='const'>HTTP</span> <span class='id identifier rubyid_response'>response</span> <span class='id identifier rubyid_back'>back</span> <span class='id identifier rubyid_to'>to</span> <span class='id identifier rubyid_the'>the</span> <span class='id identifier rubyid_client'>client</span></code></pre>
+</li><li>
+<p>Like Mongrel, neither keepalive nor pipelining are supported. These aren’t needed since Unicorn is only designed to serve fast, low-latency clients directly.  Do one thing, do it well; let nginx handle slow clients.</p>
+</li><li>
+<p>Configuration is purely in Ruby and eval().  Ruby is less ambiguous than YAML and lets lambdas for before_fork/after_fork/before_exec hooks be defined inline.  An optional, separate config_file may be used to modify supported configuration changes (and also gives you plenty of rope if you RTFS :&gt;)</p>
+</li><li>
+<p>One master process spawns and reaps worker processes.  The Rack application itself is called only within the worker process (but can be loaded within the master).  A copy-on-write friendly garbage collector like the one found in mainline Ruby 2.0.0 and later can be used to minimize memory usage along with the “preload_app true” directive (see Unicorn::Configurator).</p>
+</li><li>
+<p>The number of worker processes should be scaled to the number of CPUs, memory or even spindles you have.  If you have an existing Mongrel cluster on a single-threaded app, using the same amount of processes should work.  Let a full-HTTP-request-buffering reverse proxy like nginx manage concurrency to thousands of slow clients for you.  Unicorn scaling should only be concerned about limits of your backend system(s).</p>
+</li><li>
+<p>Load balancing between worker processes is done by the OS kernel. All workers share a common set of listener sockets and does non-blocking accept() on them.  The kernel will decide which worker process to give a socket to and workers will sleep if there is nothing to accept().</p>
+</li><li>
+<p>Since non-blocking accept() is used, there can be a thundering herd when an occasional client connects when application *is not busy*.  The thundering herd problem should not affect applications that are running all the time since worker processes will only select()/accept() outside of the application dispatch.</p>
+</li><li>
+<p>Additionally, thundering herds are much smaller than with configurations using existing prefork servers.  Process counts should only be scaled to backend resources, <em>never</em> to the number of expected clients like is typical with blocking prefork servers.  So while we’ve seen instances of popular prefork servers configured to run many hundreds of worker processes, Unicorn deployments are typically only 2-4 processes per-core.</p>
+</li><li>
+<p>On-demand scaling of worker processes never happens automatically. Again, Unicorn is concerned about scaling to backend limits and should never configured in a fashion where it could be waiting on slow clients.  For extremely rare circumstances, we provide TTIN and TTOU signal handlers to increment/decrement your process counts without reloading.  Think of it as driving a car with manual transmission: you have a lot more control if you know what you’re doing.</p>
+</li><li>
+<p>Blocking I/O is used for clients.  This allows a simpler code path to be followed within the Ruby interpreter and fewer syscalls. Applications that use threads continue to work if Unicorn is only serving LAN or localhost clients.</p>
+</li><li>
+<p>SIGKILL is used to terminate the timed-out workers from misbehaving apps as reliably as possible on a UNIX system.  The default timeout is a generous 60 seconds (same default as in Mongrel).</p>
+</li><li>
+<p>The poor performance of select() on large FD sets is avoided as few file descriptors are used in each worker. There should be no gain from moving to highly scalable but unportable event notification solutions for watching few file descriptors.</p>
+</li><li>
+<p>If the master process dies unexpectedly for any reason, workers will notice within :timeout/2 seconds and follow the master to its death.</p>
+</li><li>
+<p>There is never any explicit real-time dependency or communication between the worker processes nor to the master process. Synchronization is handled entirely by the OS kernel and shared resources are never accessed by the worker when it is servicing a client.</p>
+</li></ul>
+
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>
