@@ -7941,7 +7941,7 @@ they are already loaded. e.g. Ruby 2.2:</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock">No</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Always (Unsafe)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">0.93</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">-</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1.79</p></td>
 </tr>
 </tbody>
 </table>
@@ -7966,6 +7966,17 @@ for which to suppress (allow) this cop&#8217;s check.</p>
 <p>In the example below, the safe navigation operator (<code>&amp;.</code>) is unnecessary
 because <code>NilClass</code> has methods like <code>respond_to?</code> and <code>is_a?</code>.</p>
 </div>
+<div class="paragraph">
+<p>The <code>InferNonNilReceiver</code> option specifies whether to look into previous code
+paths to infer if the receiver can&#8217;t be nil. This check is unsafe because the receiver
+can be redefined between the safe navigation call and previous regular method call.
+It does the inference only in the current scope, e.g. within the same method definition etc.</p>
+</div>
+<div class="paragraph">
+<p>The <code>AdditionalNilMethods</code> option specifies additional custom methods which are
+defined on <code>NilClass</code>. When <code>InferNonNilReceiver</code> is set, they are used to determine
+whether the receiver can be nil.</p>
+</div>
 <div class="sect2">
 <h3 id="safety-lintredundantsafenavigation">Safety</h3>
 <div class="paragraph">
@@ -7983,6 +7994,20 @@ will be autocorrected to never return <code>nil</code>.</p>
 
 <span class='comment'># good
 </span><span class='const'>CamelCaseConst</span>.<span class='id identifier rubyid_do_something'>do_something</span>
+
+<span class='comment'># bad
+</span><span class='id identifier rubyid_foo'>foo</span>.<span class='id identifier rubyid_to_s'>to_s</span><span class='op'>&amp;.</span><span class='id identifier rubyid_strip'>strip</span>
+<span class='id identifier rubyid_foo'>foo</span>.<span class='id identifier rubyid_to_i'>to_i</span><span class='op'>&amp;.</span><span class='id identifier rubyid_zero?'>zero?</span>
+<span class='id identifier rubyid_foo'>foo</span>.<span class='id identifier rubyid_to_f'>to_f</span><span class='op'>&amp;.</span><span class='id identifier rubyid_zero?'>zero?</span>
+<span class='id identifier rubyid_foo'>foo</span>.<span class='id identifier rubyid_to_a'>to_a</span><span class='op'>&amp;.</span><span class='id identifier rubyid_size'>size</span>
+<span class='id identifier rubyid_foo'>foo</span>.<span class='id identifier rubyid_to_h'>to_h</span><span class='op'>&amp;.</span><span class='id identifier rubyid_size'>size</span>
+
+<span class='comment'># good
+</span><span class='id identifier rubyid_foo'>foo</span>.<span class='id identifier rubyid_to_s'>to_s</span>.<span class='id identifier rubyid_strip'>strip</span>
+<span class='id identifier rubyid_foo'>foo</span>.<span class='id identifier rubyid_to_i'>to_i</span>.<span class='id identifier rubyid_zero?'>zero?</span>
+<span class='id identifier rubyid_foo'>foo</span>.<span class='id identifier rubyid_to_f'>to_f</span>.<span class='id identifier rubyid_zero?'>zero?</span>
+<span class='id identifier rubyid_foo'>foo</span>.<span class='id identifier rubyid_to_a'>to_a</span>.<span class='id identifier rubyid_size'>size</span>
+<span class='id identifier rubyid_foo'>foo</span>.<span class='id identifier rubyid_to_h'>to_h</span>.<span class='id identifier rubyid_size'>size</span>
 
 <span class='comment'># bad
 </span><span class='id identifier rubyid_do_something'>do_something</span> <span class='kw'>if</span> <span class='id identifier rubyid_attrs'>attrs</span><span class='op'>&amp;.</span><span class='id identifier rubyid_respond_to?'>respond_to?</span>(<span class='symbeg'>:</span><span class='op'>[]</span>)
@@ -8039,6 +8064,59 @@ will be autocorrected to never return <code>nil</code>.</p>
 </div>
 </div>
 </div>
+<div class="sect3">
+<h4 id="infernonnilreceiver_-false-_default_-lintredundantsafenavigation">InferNonNilReceiver: false (default)</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='comment'># good
+</span><span class='id identifier rubyid_foo'>foo</span>.<span class='id identifier rubyid_bar'>bar</span>
+<span class='id identifier rubyid_foo'>foo</span><span class='op'>&amp;.</span><span class='id identifier rubyid_baz'>baz</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="infernonnilreceiver_-true-lintredundantsafenavigation">InferNonNilReceiver: true</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='comment'># bad
+</span><span class='id identifier rubyid_foo'>foo</span>.<span class='id identifier rubyid_bar'>bar</span>
+<span class='id identifier rubyid_foo'>foo</span><span class='op'>&amp;.</span><span class='id identifier rubyid_baz'>baz</span> <span class='comment'># would raise on previous line if `foo` is nil
+</span>
+<span class='comment'># good
+</span><span class='id identifier rubyid_foo'>foo</span>.<span class='id identifier rubyid_bar'>bar</span>
+<span class='id identifier rubyid_foo'>foo</span>.<span class='id identifier rubyid_baz'>baz</span>
+
+<span class='comment'># bad
+</span><span class='kw'>if</span> <span class='id identifier rubyid_foo'>foo</span>.<span class='id identifier rubyid_condition?'>condition?</span>
+  <span class='id identifier rubyid_foo'>foo</span><span class='op'>&amp;.</span><span class='id identifier rubyid_bar'>bar</span>
+<span class='kw'>end</span>
+
+<span class='comment'># good
+</span><span class='kw'>if</span> <span class='id identifier rubyid_foo'>foo</span>.<span class='id identifier rubyid_condition?'>condition?</span>
+  <span class='id identifier rubyid_foo'>foo</span>.<span class='id identifier rubyid_bar'>bar</span>
+<span class='kw'>end</span>
+
+<span class='comment'># good (different scopes)
+</span><span class='kw'>def</span> <span class='id identifier rubyid_method1'>method1</span>
+  <span class='id identifier rubyid_foo'>foo</span>.<span class='id identifier rubyid_bar'>bar</span>
+<span class='kw'>end</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_method2'>method2</span>
+  <span class='id identifier rubyid_foo'>foo</span><span class='op'>&amp;.</span><span class='id identifier rubyid_bar'>bar</span>
+<span class='kw'>end</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="additionalnilmethods_-_present__-lintredundantsafenavigation">AdditionalNilMethods: [present?]</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='comment'># good
+</span><span class='id identifier rubyid_foo'>foo</span>.<span class='id identifier rubyid_present?'>present?</span>
+<span class='id identifier rubyid_foo'>foo</span><span class='op'>&amp;.</span><span class='id identifier rubyid_bar'>bar</span></code></pre>
+</div>
+</div>
+</div>
 </div>
 <div class="sect2">
 <h3 id="configurable-attributes-lintredundantsafenavigation">Configurable attributes</h3>
@@ -8059,6 +8137,16 @@ will be autocorrected to never return <code>nil</code>.</p>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">AllowedMethods</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>instance_of?</code>, <code>kind_of?</code>, <code>is_a?</code>, <code>eql?</code>, <code>respond_to?</code>, <code>equal?</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Array</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">InferNonNilReceiver</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>false</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Boolean</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">AdditionalNilMethods</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>present?</code>, <code>blank?</code>, <code>try</code>, <code>try!</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Array</p></td>
 </tr>
 </tbody>
@@ -8944,7 +9032,7 @@ So, this cop does not provide autocorrection because it is left to user.
 </tbody>
 </table>
 <div class="paragraph">
-<p>Check for arguments to <code>rescue</code> that will result in a <code>TypeError</code>
+<p>Checks for arguments to <code>rescue</code> that will result in a <code>TypeError</code>
 if an exception is raised.</p>
 </div>
 <div class="sect2">
