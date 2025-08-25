@@ -126,12 +126,12 @@
   <li>
     <span id='MAXIMUM_UPLOAD_PARTS_COUNT-constant' class='summary_signature'>MAXIMUM_UPLOAD_PARTS_COUNT =</span>
     <br/>
-    <a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L130-L130'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 130</a>    <pre class='code ruby'><span class='int'>10000</span></pre>
+    <a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L139-L139'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 139</a>    <pre class='code ruby'><span class='int'>10000</span></pre>
   </li>
   <li>
     <span id='MINIMUM_UPLOAD_PART_SIZE-constant' class='summary_signature'>MINIMUM_UPLOAD_PART_SIZE =</span>
     <br/>
-    <a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L131-L131'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 131</a>    <pre class='code ruby'><span class='int'>5</span>.<span class='id identifier rubyid_megabytes'>megabytes</span></pre>
+    <a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L140-L140'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 140</a>    <pre class='code ruby'><span class='int'>5</span>.<span class='id identifier rubyid_megabytes'>megabytes</span></pre>
   </li>
 </ul>
 </div>
@@ -302,6 +302,12 @@
   </li>
   <li>
     <span class='summary_signature priv'>
+      <a href="#upload_stream-instance_method" title="#upload_stream (instance method)">#<strong>upload_stream</strong>(key:, **options, &amp;block)  </a>
+    </span>
+    <span class='note title private'>private</span>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
       <a href="#upload_with_multipart-instance_method" title="#upload_with_multipart (instance method)">#<strong>upload_with_multipart</strong>(key, io, content_type: nil, content_disposition: nil, custom_metadata: {})  </a>
     </span>
     <span class='note title private'>private</span>
@@ -394,15 +400,16 @@
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L17-L26'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L17-L27'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='17' data-end='26'></pre>
+  <pre class='lines_num' data-start='17' data-end='27'></pre>
   <div class='lines_code'>
 <pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 17</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span>(<span class='label'>bucket:</span><span class='comma'>,</span> <span class='label'>upload:</span> {}<span class='comma'>,</span> <span class='label'>public:</span> <span class='kw'>false</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_options'>options</span>)
   <span class='ivar'>@client</span> <span class='op'>=</span> <span class='const'>Aws</span><span class='op'>::</span><span class='const'>S3</span><span class='op'>::</span><span class='const'>Resource</span>.<span class='id identifier rubyid_new'>new</span>(<span class='op'>**</span><span class='id identifier rubyid_options'>options</span>)
+  <span class='ivar'>@transfer_manager</span> <span class='op'>=</span> <span class='const'>Aws</span><span class='op'>::</span><span class='const'>S3</span><span class='op'>::</span><span class='const'>TransferManager</span>.<span class='id identifier rubyid_new'>new</span>(<span class='label'>client:</span> <span class='ivar'>@client</span>.<span class='id identifier rubyid_client'><a href="#client-instance_method" title="ActiveStorage::Service::S3Service#client (method)">client</a></span>) <span class='kw'>if</span> <span class='kw'>defined?</span>(<span class='const'>Aws</span><span class='op'>::</span><span class='const'>S3</span><span class='op'>::</span><span class='const'>TransferManager</span>)
   <span class='ivar'>@bucket</span> <span class='op'>=</span> <span class='ivar'>@client</span>.<span class='id identifier rubyid_bucket'><a href="#bucket-instance_method" title="ActiveStorage::Service::S3Service#bucket (method)">bucket</a></span>(<span class='id identifier rubyid_bucket'><a href="#bucket-instance_method" title="ActiveStorage::Service::S3Service#bucket (method)">bucket</a></span>)
 
   <span class='ivar'>@multipart_upload_threshold</span> <span class='op'>=</span> <span class='id identifier rubyid_upload'><a href="#upload-instance_method" title="ActiveStorage::Service::S3Service#upload (method)">upload</a></span>.<span class='id identifier rubyid_delete'><a href="#delete-instance_method" title="ActiveStorage::Service::S3Service#delete (method)">delete</a></span>(<span class='symbeg'>:</span><span class='id identifier rubyid_multipart_threshold'>multipart_threshold</span>) <span class='op'>||</span> <span class='int'>100</span>.<span class='id identifier rubyid_megabytes'>megabytes</span>
@@ -490,17 +497,18 @@
   <h3 class='signature  first'>
     #<strong>compose</strong>(source_keys, destination_key, filename: nil, content_type: nil, disposition: nil, custom_metadata: {})  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L100-L116'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L101-L118'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='100' data-end='116'></pre>
+  <pre class='lines_num' data-start='101' data-end='118'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 100</span></pre>
+<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 101</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_compose'>compose</span>(<span class='id identifier rubyid_source_keys'>source_keys</span><span class='comma'>,</span> <span class='id identifier rubyid_destination_key'>destination_key</span><span class='comma'>,</span> <span class='label'>filename:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>content_type:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>disposition:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>custom_metadata:</span> {})
   <span class='id identifier rubyid_content_disposition'>content_disposition</span> <span class='op'>=</span> <span class='id identifier rubyid_content_disposition_with'><a href="../Service.html#content_disposition_with-instance_method" title="ActiveStorage::Service#content_disposition_with (method)">content_disposition_with</a></span>(<span class='label'>type:</span> <span class='id identifier rubyid_disposition'>disposition</span><span class='comma'>,</span> <span class='label'>filename:</span> <span class='id identifier rubyid_filename'>filename</span>) <span class='kw'>if</span> <span class='id identifier rubyid_disposition'>disposition</span> <span class='op'>&amp;&amp;</span> <span class='id identifier rubyid_filename'>filename</span>
 
-  <span class='id identifier rubyid_object_for'><a href="#object_for-instance_method" title="ActiveStorage::Service::S3Service#object_for (method)">object_for</a></span>(<span class='id identifier rubyid_destination_key'>destination_key</span>).<span class='id identifier rubyid_upload_stream'>upload_stream</span>(
+  <span class='id identifier rubyid_upload_stream'><a href="#upload_stream-instance_method" title="ActiveStorage::Service::S3Service#upload_stream (method)">upload_stream</a></span>(
+    <span class='label'>key:</span> <span class='id identifier rubyid_destination_key'>destination_key</span><span class='comma'>,</span>
     <span class='label'>content_type:</span> <span class='id identifier rubyid_content_type'>content_type</span><span class='comma'>,</span>
     <span class='label'>content_disposition:</span> <span class='id identifier rubyid_content_disposition'>content_disposition</span><span class='comma'>,</span>
     <span class='label'>part_size:</span> <span class='const'><a href="#MINIMUM_UPLOAD_PART_SIZE-constant" title="ActiveStorage::Service::S3Service::MINIMUM_UPLOAD_PART_SIZE (constant)">MINIMUM_UPLOAD_PART_SIZE</a></span><span class='comma'>,</span>
@@ -523,11 +531,11 @@
   <h3 class='signature priv'>
     #<strong>custom_metadata_headers</strong>(metadata)   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L167-L169'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L182-L184'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='167' data-end='169'></pre>
+  <pre class='lines_num' data-start='182' data-end='184'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 167</span></pre>
+<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 182</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_custom_metadata_headers'>custom_metadata_headers</span>(<span class='id identifier rubyid_metadata'>metadata</span>)
@@ -542,11 +550,11 @@
   <h3 class='signature '>
     #<strong>delete</strong>(key)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L62-L66'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L63-L67'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='62' data-end='66'></pre>
+  <pre class='lines_num' data-start='63' data-end='67'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 62</span></pre>
+<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 63</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_delete'>delete</span>(<span class='id identifier rubyid_key'>key</span>)
@@ -563,11 +571,11 @@
   <h3 class='signature '>
     #<strong>delete_prefixed</strong>(prefix)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L68-L72'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L69-L73'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='68' data-end='72'></pre>
+  <pre class='lines_num' data-start='69' data-end='73'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 68</span></pre>
+<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 69</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_delete_prefixed'>delete_prefixed</span>(<span class='id identifier rubyid_prefix'>prefix</span>)
@@ -584,11 +592,11 @@
   <h3 class='signature '>
     #<strong>download</strong>(key, &amp;block)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L40-L52'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L41-L53'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='40' data-end='52'></pre>
+  <pre class='lines_num' data-start='41' data-end='53'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 40</span></pre>
+<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 41</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_download'>download</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span>)
@@ -613,11 +621,11 @@
   <h3 class='signature '>
     #<strong>download_chunk</strong>(key, range)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L54-L60'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L55-L61'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='54' data-end='60'></pre>
+  <pre class='lines_num' data-start='55' data-end='61'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 54</span></pre>
+<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 55</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_download_chunk'>download_chunk</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_range'>range</span>)
@@ -644,11 +652,11 @@
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L74-L80'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L75-L81'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='74' data-end='80'></pre>
+  <pre class='lines_num' data-start='75' data-end='81'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 74</span></pre>
+<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 75</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_exist?'>exist?</span>(<span class='id identifier rubyid_key'>key</span>)
@@ -667,11 +675,11 @@
   <h3 class='signature '>
     #<strong>headers_for_direct_upload</strong>(key, content_type:, checksum:, filename: nil, disposition: nil, custom_metadata: {})  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L94-L98'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L95-L99'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='94' data-end='98'></pre>
+  <pre class='lines_num' data-start='95' data-end='99'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 94</span></pre>
+<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 95</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_headers_for_direct_upload'>headers_for_direct_upload</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='label'>content_type:</span><span class='comma'>,</span> <span class='label'>checksum:</span><span class='comma'>,</span> <span class='label'>filename:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>disposition:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>custom_metadata:</span> {}<span class='comma'>,</span> <span class='op'>**</span>)
@@ -688,11 +696,11 @@
   <h3 class='signature priv'>
     #<strong>object_for</strong>(key)   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L148-L150'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L163-L165'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='148' data-end='150'></pre>
+  <pre class='lines_num' data-start='163' data-end='165'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 148</span></pre>
+<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 163</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_object_for'>object_for</span>(<span class='id identifier rubyid_key'>key</span>)
@@ -707,11 +715,11 @@
   <h3 class='signature priv'>
     #<strong>private_url</strong>(key, expires_in:, filename:, disposition:, content_type:, **client_opts)   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L119-L123'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L129-L133'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='119' data-end='123'></pre>
+  <pre class='lines_num' data-start='129' data-end='133'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 119</span></pre>
+<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 129</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_private_url'>private_url</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='label'>expires_in:</span><span class='comma'>,</span> <span class='label'>filename:</span><span class='comma'>,</span> <span class='label'>disposition:</span><span class='comma'>,</span> <span class='label'>content_type:</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_client_opts'>client_opts</span>)
@@ -728,11 +736,11 @@
   <h3 class='signature priv'>
     #<strong>public_url</strong>(key, **client_opts)   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L125-L127'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L135-L137'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='125' data-end='127'></pre>
+  <pre class='lines_num' data-start='135' data-end='137'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 125</span></pre>
+<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 135</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_public_url'>public_url</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_client_opts'>client_opts</span>)
@@ -763,11 +771,11 @@
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L153-L165'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L168-L180'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='153' data-end='165'></pre>
+  <pre class='lines_num' data-start='168' data-end='180'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 153</span></pre>
+<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 168</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_stream'>stream</span>(<span class='id identifier rubyid_key'>key</span>)
@@ -792,11 +800,11 @@
   <h3 class='signature '>
     #<strong>upload</strong>(key, io, checksum: nil, filename: nil, content_type: nil, disposition: nil, custom_metadata: {})  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L28-L38'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L29-L39'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='28' data-end='38'></pre>
+  <pre class='lines_num' data-start='29' data-end='39'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 28</span></pre>
+<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 29</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_upload'>upload</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_io'>io</span><span class='comma'>,</span> <span class='label'>checksum:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>filename:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>content_type:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>disposition:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>custom_metadata:</span> {}<span class='comma'>,</span> <span class='op'>**</span>)
@@ -815,21 +823,51 @@
 </div>
 </section>
 
+<section class='method_details' id="upload_stream-instance_method">
+  <h3 class='signature priv'>
+    #<strong>upload_stream</strong>(key:, **options, &amp;block)   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L121-L127'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='121' data-end='127'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 121</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_upload_stream'>upload_stream</span>(<span class='label'>key:</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_options'>options</span><span class='comma'>,</span> <span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span>)
+  <span class='kw'>if</span> <span class='ivar'>@transfer_manager</span>
+    <span class='ivar'>@transfer_manager</span>.<span class='id identifier rubyid_upload_stream'>upload_stream</span>(<span class='label'>key:</span> <span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='label'>bucket:</span> <span class='id identifier rubyid_bucket'><a href="#bucket-instance_method" title="ActiveStorage::Service::S3Service#bucket (method)">bucket</a></span>.<span class='id identifier rubyid_name'><a href="../Service.html#name-instance_method" title="ActiveStorage::Service#name (method)">name</a></span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_options'>options</span><span class='comma'>,</span> <span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span>)
+  <span class='kw'>else</span>
+    <span class='id identifier rubyid_object_for'><a href="#object_for-instance_method" title="ActiveStorage::Service::S3Service#object_for (method)">object_for</a></span>(<span class='id identifier rubyid_key'>key</span>).<span class='id identifier rubyid_upload_stream'>upload_stream</span>(<span class='op'>**</span><span class='id identifier rubyid_options'>options</span><span class='comma'>,</span> <span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
 <section class='method_details' id="upload_with_multipart-instance_method">
   <h3 class='signature priv'>
     #<strong>upload_with_multipart</strong>(key, io, content_type: nil, content_disposition: nil, custom_metadata: {})   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L139-L145'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L148-L161'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='139' data-end='145'></pre>
+  <pre class='lines_num' data-start='148' data-end='161'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 139</span></pre>
+<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 148</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_upload_with_multipart'>upload_with_multipart</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_io'>io</span><span class='comma'>,</span> <span class='label'>content_type:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>content_disposition:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>custom_metadata:</span> {})
   <span class='id identifier rubyid_part_size'>part_size</span> <span class='op'>=</span> [ <span class='id identifier rubyid_io'>io</span>.<span class='id identifier rubyid_size'>size</span>.<span class='id identifier rubyid_fdiv'>fdiv</span>(<span class='const'><a href="#MAXIMUM_UPLOAD_PARTS_COUNT-constant" title="ActiveStorage::Service::S3Service::MAXIMUM_UPLOAD_PARTS_COUNT (constant)">MAXIMUM_UPLOAD_PARTS_COUNT</a></span>).<span class='id identifier rubyid_ceil'>ceil</span><span class='comma'>,</span> <span class='const'><a href="#MINIMUM_UPLOAD_PART_SIZE-constant" title="ActiveStorage::Service::S3Service::MINIMUM_UPLOAD_PART_SIZE (constant)">MINIMUM_UPLOAD_PART_SIZE</a></span> ].<span class='id identifier rubyid_max'>max</span>
 
-  <span class='id identifier rubyid_object_for'><a href="#object_for-instance_method" title="ActiveStorage::Service::S3Service#object_for (method)">object_for</a></span>(<span class='id identifier rubyid_key'>key</span>).<span class='id identifier rubyid_upload_stream'>upload_stream</span>(<span class='label'>content_type:</span> <span class='id identifier rubyid_content_type'>content_type</span><span class='comma'>,</span> <span class='label'>content_disposition:</span> <span class='id identifier rubyid_content_disposition'>content_disposition</span><span class='comma'>,</span> <span class='label'>part_size:</span> <span class='id identifier rubyid_part_size'>part_size</span><span class='comma'>,</span> <span class='label'>metadata:</span> <span class='id identifier rubyid_custom_metadata'>custom_metadata</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_upload_options'><a href="#upload_options-instance_method" title="ActiveStorage::Service::S3Service#upload_options (method)">upload_options</a></span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_out'>out</span><span class='op'>|</span>
+  <span class='id identifier rubyid_upload_stream'><a href="#upload_stream-instance_method" title="ActiveStorage::Service::S3Service#upload_stream (method)">upload_stream</a></span>(
+    <span class='label'>key:</span> <span class='id identifier rubyid_key'>key</span><span class='comma'>,</span>
+    <span class='label'>content_type:</span> <span class='id identifier rubyid_content_type'>content_type</span><span class='comma'>,</span>
+    <span class='label'>content_disposition:</span> <span class='id identifier rubyid_content_disposition'>content_disposition</span><span class='comma'>,</span>
+    <span class='label'>part_size:</span> <span class='id identifier rubyid_part_size'>part_size</span><span class='comma'>,</span>
+    <span class='label'>metadata:</span> <span class='id identifier rubyid_custom_metadata'>custom_metadata</span><span class='comma'>,</span>
+    <span class='op'>**</span><span class='id identifier rubyid_upload_options'><a href="#upload_options-instance_method" title="ActiveStorage::Service::S3Service#upload_options (method)">upload_options</a></span>
+  ) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_out'>out</span><span class='op'>|</span>
     <span class='const'><a href="../../IO.html" title="IO (class)">IO</a></span>.<span class='id identifier rubyid_copy_stream'>copy_stream</span>(<span class='id identifier rubyid_io'>io</span><span class='comma'>,</span> <span class='id identifier rubyid_out'>out</span>)
   <span class='kw'>end</span>
 <span class='kw'>end</span>
@@ -842,11 +880,11 @@
   <h3 class='signature priv'>
     #<strong>upload_with_single_part</strong>(key, io, checksum: nil, content_type: nil, content_disposition: nil, custom_metadata: {})   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L133-L137'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L142-L146'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='133' data-end='137'></pre>
+  <pre class='lines_num' data-start='142' data-end='146'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 133</span></pre>
+<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 142</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_upload_with_single_part'>upload_with_single_part</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_io'>io</span><span class='comma'>,</span> <span class='label'>checksum:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>content_type:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>content_disposition:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>custom_metadata:</span> {})
@@ -863,11 +901,11 @@
   <h3 class='signature '>
     #<strong>url_for_direct_upload</strong>(key, expires_in:, content_type:, content_length:, checksum:, custom_metadata: {})  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L82-L92'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activestorage/lib/active_storage/service/s3_service.rb#L83-L93'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='82' data-end='92'></pre>
+  <pre class='lines_num' data-start='83' data-end='93'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 82</span></pre>
+<pre><span class='info file'># File 'activestorage/lib/active_storage/service/s3_service.rb', line 83</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_url_for_direct_upload'>url_for_direct_upload</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='label'>expires_in:</span><span class='comma'>,</span> <span class='label'>content_type:</span><span class='comma'>,</span> <span class='label'>content_length:</span><span class='comma'>,</span> <span class='label'>checksum:</span><span class='comma'>,</span> <span class='label'>custom_metadata:</span> {})
