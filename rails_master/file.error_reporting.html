@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen'       content='yes'>
+<meta name='apple-mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Error Reporting &mdash; Rails main</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "error_reporting",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>Rails main</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Error Reporting&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<p><strong>DO NOT READ THIS FILE ON GITHUB, GUIDES ARE PUBLISHED ON <a href="https://guides.rubyonrails.org">https://guides.rubyonrails.org</a>.</strong></p>
+
+<h1>Error Reporting in <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> Applications</h1>
+
+<p>This guide introduces ways to manage errors in a <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> application.</p>
+
+<p>After reading this guide, you will know:</p>
+
+<ul>
+<li>How to use Rails&#39; error reporter to capture and report errors.</li>
+<li>How to create custom subscribers for your error-reporting service.</li>
+</ul>
+
+<hr>
+
+<h2>Error Reporting</h2>
+
+<p>The Rails <a href="https://api.rubyonrails.org/classes/ActiveSupport/ErrorReporter.html">error
+reporter</a>
+provides a standard way to collect errors that occur in your application and
+report them to your preferred service or location (e.g. you could report the
+errors to a monitoring service such as
+Sentry).</p>
+
+<p>It aims to replace boilerplate error-handling code like this:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>begin</span>
+  <span class='id identifier rubyid_do_something'>do_something</span>
+<span class='kw'>rescue</span> <span class='const'>SomethingIsBroken</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_error'>error</span>
+  <span class='const'>MyErrorReportingService</span>.<span class='id identifier rubyid_notify'>notify</span>(<span class='id identifier rubyid_error'>error</span>)
+<span class='kw'>end</span></code></pre>
+
+<p>with a consistent interface:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_error'><a href="Rails.html#error-class_method" title="Rails.error (method)">error</a></span>.<span class='id identifier rubyid_handle'>handle</span>(<span class='const'>SomethingIsBroken</span>) <span class='kw'>do</span>
+  <span class='id identifier rubyid_do_something'>do_something</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Rails wraps all executions (such as HTTP
+requests,
+<a href="active_job_basics.html">jobs</a>, and <a href="command_line.html#bin-rails-runner">rails runner</a> invocations) in the error reporter,
+so any unhandled errors raised in your app will automatically be reported to
+your error-reporting service via their subscribers.</p>
+
+<p>NOTE: For HTTP requests, errors present in <a href="ActionDispatch/ExceptionWrapper.html#rescue_responses-class_method" title="ActionDispatch::ExceptionWrapper.rescue_responses (method)">ActionDispatch::ExceptionWrapper.rescue_responses</a>
+are not reported as they do not result in server errors (500) and generally aren&#39;t bugs that need to be addressed.</p>
+
+<p>This means that third-party error-reporting libraries no longer need to insert a
+<a href="rails_on_rack.html">Rack</a> middleware or do any monkey-patching to capture
+unhandled errors. Libraries that use <a href="https://api.rubyonrails.org/classes/ActiveSupport.html">Active
+Support</a> can also use
+this to non-intrusively report warnings that would previously have been lost in
+logs.</p>
+
+<p>NOTE: Using the Rails error reporter is optional, as other means of capturing
+errors still work.</p>
+
+<h3>Subscribing to the Reporter</h3>
+
+<p>To use the error reporter with an external service, you need a <em>subscriber</em>. A
+subscriber can be any Ruby object with a <code>report</code> method. When an error occurs
+in your application or is manually reported, the Rails error reporter will call
+this method with the error object and some options.</p>
+
+<p>NOTE: Some error-reporting libraries, such as Sentry&#39;s
+and Honeybadger&#39;s,
+automatically register a subscriber for you.</p>
+
+<p>You may also create a custom subscriber. For example:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/initializers/error_subscriber.rb
+</span><span class='kw'>class</span> <span class='const'>ErrorSubscriber</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_report'>report</span>(<span class='id identifier rubyid_error'>error</span><span class='comma'>,</span> <span class='label'>handled:</span><span class='comma'>,</span> <span class='label'>severity:</span><span class='comma'>,</span> <span class='label'>context:</span><span class='comma'>,</span> <span class='label'>source:</span> <span class='kw'>nil</span>)
+    <span class='const'>MyErrorReportingService</span>.<span class='id identifier rubyid_report_error'>report_error</span>(<span class='id identifier rubyid_error'>error</span><span class='comma'>,</span> <span class='label'>context:</span> <span class='id identifier rubyid_context'>context</span><span class='comma'>,</span> <span class='label'>handled:</span> <span class='id identifier rubyid_handled'>handled</span><span class='comma'>,</span> <span class='label'>level:</span> <span class='id identifier rubyid_severity'>severity</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>After defining the subscriber class, you can register it by calling the
+<a href="https://api.rubyonrails.org/classes/ActiveSupport/ErrorReporter.html#method-i-subscribe"><code>Rails.error.subscribe</code></a>
+method:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_error'><a href="Rails.html#error-class_method" title="Rails.error (method)">error</a></span>.<span class='id identifier rubyid_subscribe'>subscribe</span>(<span class='const'>ErrorSubscriber</span>.<span class='id identifier rubyid_new'>new</span>)</code></pre>
+
+<p>You can register as many subscribers as you wish. Rails will call them in the
+order in which they were registered.</p>
+
+<p>It is also possible to unregister a subscriber by calling
+<a href="https://api.rubyonrails.org/classes/ActiveSupport/ErrorReporter.html#method-i-unsubscribe"><code>Rails.error.unsubscribe</code></a>.
+This may be useful if you&#39;d like to replace or remove a subscriber added by one
+of your dependencies. Both <code>subscribe</code> and <code>unsubscribe</code> can take either a
+subscriber or a class as follows:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_subscriber'>subscriber</span> <span class='op'>=</span> <span class='const'>ErrorSubscriber</span>.<span class='id identifier rubyid_new'>new</span>
+<span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_error'><a href="Rails.html#error-class_method" title="Rails.error (method)">error</a></span>.<span class='id identifier rubyid_unsubscribe'>unsubscribe</span>(<span class='id identifier rubyid_subscriber'>subscriber</span>)
+<span class='comment'># or
+</span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_error'><a href="Rails.html#error-class_method" title="Rails.error (method)">error</a></span>.<span class='id identifier rubyid_unsubscribe'>unsubscribe</span>(<span class='const'>ErrorSubscriber</span>)</code></pre>
+
+<p>NOTE: The Rails error reporter will always call registered subscribers,
+regardless of your environment. However, many error-reporting services only
+report errors in production by default. You should configure and test your setup
+across environments as needed.</p>
+
+<h3>Using the Error Reporter</h3>
+
+<p>Rails error reporter has four methods that allow you to report methods in
+different ways:</p>
+
+<ul>
+<li><code>Rails.error.handle</code></li>
+<li><code>Rails.error.record</code></li>
+<li><code>Rails.error.report</code></li>
+<li><code>Rails.error.unexpected</code></li>
+</ul>
+
+<h4>Reporting and Swallowing Errors</h4>
+
+<p>The
+<a href="https://api.rubyonrails.org/classes/ActiveSupport/ErrorReporter.html#method-i-handle"><code>Rails.error.handle</code></a>
+method will report any error raised within the block. It will then <strong>swallow</strong>
+the error, and the rest of your code outside the block will continue as normal.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_result'>result</span> <span class='op'>=</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_error'><a href="Rails.html#error-class_method" title="Rails.error (method)">error</a></span>.<span class='id identifier rubyid_handle'>handle</span> <span class='kw'>do</span>
+  <span class='int'>1</span> <span class='op'>+</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>1</span><span class='tstring_end'>&quot;</span></span> <span class='comment'># raises TypeError
+</span><span class='kw'>end</span>
+<span class='id identifier rubyid_result'>result</span> <span class='comment'># =&gt; nil
+</span><span class='int'>1</span> <span class='op'>+</span> <span class='int'>1</span> <span class='comment'># This will be executed</span></code></pre>
+
+<p>If no error is raised in the block, <code>Rails.error.handle</code> will return the result
+of the block, otherwise it will return <code>nil</code>. You can override this by providing
+a <code>fallback</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_user'>user</span> <span class='op'>=</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_error'><a href="Rails.html#error-class_method" title="Rails.error (method)">error</a></span>.<span class='id identifier rubyid_handle'>handle</span>(<span class='label'>fallback:</span> <span class='tlambda'>-&gt;</span> <span class='tlambeg'>{</span> <span class='const'>User</span>.<span class='id identifier rubyid_anonymous'>anonymous</span> }) <span class='kw'>do</span>
+  <span class='const'>User</span>.<span class='id identifier rubyid_find'>find</span>(<span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span>])
+<span class='kw'>end</span></code></pre>
+
+<h4>Reporting and Re-raising Errors</h4>
+
+<p>The
+<a href="https://api.rubyonrails.org/classes/ActiveSupport/ErrorReporter.html#method-i-record"><code>Rails.error.record</code></a>
+method will report errors to all registered subscribers and then <strong>re-raise</strong>
+the error, meaning that the rest of your code won&#39;t execute.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_error'><a href="Rails.html#error-class_method" title="Rails.error (method)">error</a></span>.<span class='id identifier rubyid_record'>record</span> <span class='kw'>do</span>
+  <span class='int'>1</span> <span class='op'>+</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>1</span><span class='tstring_end'>&quot;</span></span> <span class='comment'># raises TypeError
+</span><span class='kw'>end</span>
+<span class='int'>1</span> <span class='op'>+</span> <span class='int'>1</span> <span class='comment'># This won&#39;t be executed</span></code></pre>
+
+<p>If no error is raised in the block, <code>Rails.error.record</code> will return the result
+of the block.</p>
+
+<h4>Manually Reporting Errors</h4>
+
+<p>You can also manually report errors by calling
+<a href="https://api.rubyonrails.org/classes/ActiveSupport/ErrorReporter.html#method-i-report"><code>Rails.error.report</code></a>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>begin</span>
+  <span class='comment'># code
+</span><span class='kw'>rescue</span> <span class='const'>StandardError</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
+  <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_error'><a href="Rails.html#error-class_method" title="Rails.error (method)">error</a></span>.<span class='id identifier rubyid_report'>report</span>(<span class='id identifier rubyid_e'>e</span>)
+<span class='kw'>end</span></code></pre>
+
+<p>Any options you pass will be passed on to the error subscribers.</p>
+
+<h4>Reporting Unexpected Errors</h4>
+
+<p>You can report any unexpected error by calling
+<a href="https://api.rubyonrails.org/classes/ActiveSupport/ErrorReporter.html#method-i-unexpected%22"><code>Rails.error.unexpected</code></a>.</p>
+
+<p>When called in production, this method will return nil after the error is
+reported and the execution of your code will continue.</p>
+
+<p>When called in development or test, the error will be wrapped in a new error class (to
+ensure it&#39;s not being rescued higher in the stack) and surfaced to the developer
+for debugging.</p>
+
+<p>For example:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_edit'>edit</span>
+  <span class='kw'>if</span> <span class='id identifier rubyid_published?'>published?</span>
+    <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_error'><a href="Rails.html#error-class_method" title="Rails.error (method)">error</a></span>.<span class='id identifier rubyid_unexpected'>unexpected</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>[BUG] Attempting to edit a published article, that shouldn&#39;t be possible</span><span class='tstring_end'>&quot;</span></span>)
+    <span class='kw'>false</span>
+  <span class='kw'>end</span>
+  <span class='comment'># ...
+</span><span class='kw'>end</span></code></pre>
+
+<p>NOTE: This method is intended to gracefully handle any errors that may occur in
+production, but that aren&#39;t anticipated to be the result of typical use.</p>
+
+<h3>Error-reporting Options</h3>
+
+<p>The reporting APIs <code>#handle</code>, <code>#record</code>, and <code>#report</code> support the following
+options, which are then passed along to all registered subscribers:</p>
+
+<ul>
+<li><code>handled</code>: a <code>Boolean</code> to indicate if the error was handled. This is set to
+<code>true</code> by default. <code>#record</code> sets this to <code>false</code>.</li>
+<li><code>severity</code>: a <a href="Symbol.html" title="Symbol (class)"><code>Symbol</code></a> describing the severity of the error. Expected values
+are: <code>:error</code>, <code>:warning</code>, and <code>:info</code>. <code>#handle</code> sets this to <code>:warning</code>,
+while <code>#record</code> sets it to <code>:error</code>.</li>
+<li><code>context</code>: a <a href="Hash.html" title="Hash (class)"><code>Hash</code></a> to provide more context about the error, like request or
+user details</li>
+<li><code>source</code>: a <a href="String.html" title="String (class)"><code>String</code></a> about the source of the error. The default source is
+<code>&quot;application&quot;</code>. Errors reported by internal libraries may set other sources;
+the Redis cache library may use <code>&quot;redis_cache_store.active_support&quot;</code>, for
+instance. Your subscriber can use the source to ignore errors you aren&#39;t
+interested in.</li>
+</ul>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_error'><a href="Rails.html#error-class_method" title="Rails.error (method)">error</a></span>.<span class='id identifier rubyid_handle'>handle</span>(<span class='label'>context:</span> { <span class='label'>user_id:</span> <span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_id'>id</span> }<span class='comma'>,</span> <span class='label'>severity:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_info'>info</span>) <span class='kw'>do</span>
+  <span class='comment'># ...
+</span><span class='kw'>end</span></code></pre>
+
+<h3>Setting Context Globally</h3>
+
+<p>In addition to setting context through the <code>context</code> option, you can use
+<a href="https://api.rubyonrails.org/classes/ActiveSupport/ErrorReporter.html#method-i-set_context"><code>Rails.error.set_context</code></a>.
+For example:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_error'><a href="Rails.html#error-class_method" title="Rails.error (method)">error</a></span>.<span class='id identifier rubyid_set_context'>set_context</span>(<span class='label'>section:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>checkout</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>user_id:</span> <span class='ivar'>@user</span>.<span class='id identifier rubyid_id'>id</span>)</code></pre>
+
+<p>Any context set this way will be merged with the <code>context</code> option</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_error'><a href="Rails.html#error-class_method" title="Rails.error (method)">error</a></span>.<span class='id identifier rubyid_set_context'>set_context</span>(<span class='label'>a:</span> <span class='int'>1</span>)
+<span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_error'><a href="Rails.html#error-class_method" title="Rails.error (method)">error</a></span>.<span class='id identifier rubyid_handle'>handle</span>(<span class='label'>context:</span> { <span class='label'>b:</span> <span class='int'>2</span> }) { <span class='id identifier rubyid_raise'>raise</span> }
+<span class='comment'># The reported context will be: {:a=&gt;1, :b=&gt;2}
+</span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_error'><a href="Rails.html#error-class_method" title="Rails.error (method)">error</a></span>.<span class='id identifier rubyid_handle'>handle</span>(<span class='label'>context:</span> { <span class='label'>b:</span> <span class='int'>3</span> }) { <span class='id identifier rubyid_raise'>raise</span> }
+<span class='comment'># The reported context will be: {:a=&gt;1, :b=&gt;3}</span></code></pre>
+
+<h3>Filtering by Error Classes</h3>
+
+<p>With <code>Rails.error.handle</code> and <code>Rails.error.record</code>, you can also choose to only
+report errors of certain classes. For example:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_error'><a href="Rails.html#error-class_method" title="Rails.error (method)">error</a></span>.<span class='id identifier rubyid_handle'>handle</span>(<span class='const'>IOError</span>) <span class='kw'>do</span>
+  <span class='int'>1</span> <span class='op'>+</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>1</span><span class='tstring_end'>&quot;</span></span> <span class='comment'># raises TypeError
+</span><span class='kw'>end</span>
+<span class='int'>1</span> <span class='op'>+</span> <span class='int'>1</span> <span class='comment'># TypeErrors are not IOErrors, so this will *not* be executed</span></code></pre>
+
+<p>Here, the <code>TypeError</code> will not be captured by the Rails error reporter. Only
+instances of  <code>IOError</code> and its descendants will be reported. Any other errors
+will be raised as normal.</p>
+
+<h3>Disabling Notifications</h3>
+
+<p>You can prevent a subscriber from being notified of errors for the duration of a
+block by calling
+<a href="https://api.rubyonrails.org/classes/ActiveSupport/ErrorReporter.html#method-i-disable"><code>Rails.error.disable</code></a>.
+Similarly to <code>subscribe</code> and <code>unsubscribe</code>, you can pass in either the
+subscriber itself, or its class.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_error'><a href="Rails.html#error-class_method" title="Rails.error (method)">error</a></span>.<span class='id identifier rubyid_disable'>disable</span>(<span class='const'>ErrorSubscriber</span>) <span class='kw'>do</span>
+  <span class='int'>1</span> <span class='op'>+</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>1</span><span class='tstring_end'>&quot;</span></span> <span class='comment'># TypeError will not be reported via the ErrorSubscriber
+</span><span class='kw'>end</span></code></pre>
+
+<p>NOTE: This can also be helpful for third-party error reporting services who may
+want to manage error handling a different way, or higher in the stack.</p>
+
+<h2>Error-reporting Libraries</h2>
+
+<p>Error-reporting libraries can register their subscribers in a
+<a href="https://api.rubyonrails.org/classes/Rails/Railtie.html">Railtie</a>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'>MySdk</span>
+  <span class='kw'>class</span> <span class='const'>Railtie</span> <span class='op'>&lt;</span> <span class='op'>::</span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span><span class='op'>::</span><span class='const'><a href="Rails/Railtie.html" title="Rails::Railtie (class)">Railtie</a></span>
+    <span class='id identifier rubyid_initializer'>initializer</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>my_sdk.error_subscribe</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
+      <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_error'><a href="Rails.html#error-class_method" title="Rails.error (method)">error</a></span>.<span class='id identifier rubyid_subscribe'>subscribe</span>(<span class='const'>MyErrorSubscriber</span>.<span class='id identifier rubyid_new'>new</span>)
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>NOTE: If you register an error subscriber, but still have other error mechanisms
+like a Rack middleware, you may end up with errors reported multiple times. You
+should either remove your other mechanisms or adjust your report functionality
+so it skips reporting an error it has seen before.</p>
+
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>
