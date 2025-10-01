@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen'       content='yes'>
+<meta name='apple-mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Examples &mdash; FFI master</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "Examples",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>FFI master</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Examples&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<p>This page contains some real-world(ish) examples of Ruby-FFI usage. It will
+generally present the C interface, along with the Ruby code to call the C code.</p>
+
+<p>There are some other examples in <a href="http://github.com/ffi/ffi/tree/master/samples">the repository</a>.</p>
+
+<h2><a name="common"></a>Common Usage</h2>
+
+<p>Let&#39;s imagine a C library interface like the following:</p>
+
+<p>C interface:</p>
+
+<pre class="code c"><code class="c">/* mylibrary.h */
+double               calculate_something(int a, float b);
+int                  error_code(void);
+struct SomeObject*   create_object(char* name);
+double               calculate_something_else(double c, struct SomeObject* obj);
+void                 free_object(void* pointer_to_memory);
+</code></pre>
+
+<p>A possible C application might use this library as follows:</p>
+
+<pre class="code c"><code class="c">#include &quot;mylibrary.h&quot;
+int main()
+{
+  double c, d ;
+  int errcode ;
+  struct SomeObject *objptr ;
+
+  c = calculate_something(42, 98.6) ;
+  if ((errcode = error_code()) != 0) {
+    fprintf(stderr, &quot;error calculating something: %d\n&quot;, errcode);
+    exit(1);
+  }
+
+  objptr = create_object(&quot;my object&quot;) ;
+  d = calculate_something_else(c, objptr) ;
+  free_object(objptr) ;  
+
+  fprintf(stdout, &quot;calculated %f\n&quot;, d);
+  exit(0) ;
+}
+</code></pre>
+
+<p>Note that the code does not access the SomeObject&#39;s data members, but rather
+ treats it as an opaque object -- that is, a pointer to a memory block that the
+ application passes into other API calls, but doesn&#39;t operate on directly.</p>
+
+<p>Now let&#39;s attach the library code to a Ruby FFI wrapper:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># mylibrary.rb
+</span><span class='kw'>module</span> <span class='const'>MyLibrary</span>
+  <span class='id identifier rubyid_extend'>extend</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/Library.html" title="FFI::Library (module)">Library</a></span>
+  <span class='id identifier rubyid_ffi_lib'>ffi_lib</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>path/to/mylibrary.so</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_calculate_something'>calculate_something</span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_int'>int</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_float'>float</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_double'>double</span>
+  <span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_error_code'>error_code</span><span class='comma'>,</span> []<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_int'>int</span> <span class='comment'># note empty array for functions taking zero arguments
+</span>  <span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_create_object'>create_object</span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_string'>string</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span>
+  <span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_calculate_something_else'>calculate_something_else</span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_double'>double</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_double'>double</span>
+  <span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_free_object'>free_object</span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_void'>void</span>
+<span class='kw'>end</span></code></pre>
+
+<p>And then the same application logic, but this time in Ruby:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>ffi</span><span class='tstring_end'>&#39;</span></span>
+<span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>mylibrary</span><span class='tstring_end'>&#39;</span></span>
+
+<span class='id identifier rubyid_c'>c</span> <span class='op'>=</span> <span class='const'>MyLibrary</span>.<span class='id identifier rubyid_calculate_something'>calculate_something</span>(<span class='int'>42</span><span class='comma'>,</span> <span class='float'>98.6</span>) <span class='comment'># note FFI handles literals just fine
+</span><span class='kw'>if</span> ( (<span class='id identifier rubyid_errcode'>errcode</span> <span class='op'>=</span> <span class='const'>MyLibrary</span>.<span class='id identifier rubyid_error_code'>error_code</span>()) <span class='op'>!=</span> <span class='int'>0</span>)
+  <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>error calculating something: </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_errcode'>errcode</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_exit'>exit</span> <span class='int'>1</span>
+<span class='kw'>end</span>
+
+<span class='id identifier rubyid_objptr'>objptr</span> <span class='op'>=</span> <span class='const'>MyLibrary</span>.<span class='id identifier rubyid_create_object'>create_object</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>my object</span><span class='tstring_end'>&quot;</span></span>) <span class='comment'># note FFI handles string literals as well
+</span><span class='id identifier rubyid_d'>d</span> <span class='op'>=</span> <span class='const'>MyLibrary</span>.<span class='id identifier rubyid_calculate_something_else'>calculate_something_else</span>(<span class='id identifier rubyid_c'>c</span><span class='comma'>,</span> <span class='id identifier rubyid_objptr'>objptr</span>)
+<span class='const'>MyLibrary</span>.<span class='id identifier rubyid_free_object'>free_object</span>(<span class='id identifier rubyid_objptr'>objptr</span>)
+
+<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>calculated </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_d'>d</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span></code></pre>
+
+<h3>Note about NULL Values</h3>
+
+<p>Note that you can pass a NULL pointer by passing <code>nil</code>, as follows:</p>
+
+<p>C code:</p>
+
+<pre class="code c"><code class="c">c = calculate_something_else(14.2, NULL);
+</code></pre>
+
+<p>Ruby code:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_c'>c</span> <span class='op'>=</span> <span class='const'>MyLibrary</span>.<span class='id identifier rubyid_calculate_something_else'>calculate_something_else</span>(<span class='float'>14.2</span><span class='comma'>,</span> <span class='kw'>nil</span>)</code></pre>
+
+<h2>Output Parameters with MemoryPointer</h2>
+
+<p>So far, you&#39;ve seen a very simple C API. Most C APIs are a little more complicated, though.</p>
+
+<p>Let&#39;s imagine the following function is also part of our MyLibrary interface:</p>
+
+<pre class="code c"><code class="c">/*
+ *  find_first_match() looks for an object with name _name_ in the object cache.
+ *  returns: the number of total matches,
+ *           and sets the found_object pointer to the first SomeObject found
+ */
+int find_first_match(char* name, struct SomeObject** found_object) ;
+</code></pre>
+
+<p>This function is different in that it has an <strong>output parameter</strong>. See the following C code for usage:</p>
+
+<pre class="code c"><code class="c">  struct SomeObject* objptr ;
+  int nfound ;
+  double result ;
+
+  nfound = find_first_match(&quot;jimbo&quot;, &amp;objptr) ;
+  result = calculate_something_else(11.2, objptr) ;  
+</code></pre>
+
+<p>The function is attached via FFI as follows:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_find_first_match'>find_first_match</span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_string'>string</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_int'>int</span></code></pre>
+
+<p>And here&#39;s the same sample usage translated into Ruby code:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_objptr'>objptr</span> <span class='op'>=</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/MemoryPointer.html" title="FFI::MemoryPointer (class)">MemoryPointer</a></span>.<span class='id identifier rubyid_new'><a href="FFI/MemoryPointer.html#new-class_method" title="FFI::MemoryPointer.new (method)">new</a></span> <span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span>
+<span class='id identifier rubyid_nfound'>nfound</span> <span class='op'>=</span> <span class='const'>MyLibrary</span>.<span class='id identifier rubyid_find_first_match'>find_first_match</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>jimbo</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_objptr'>objptr</span>)
+<span class='id identifier rubyid_objptr'>objptr</span> <span class='op'>=</span> <span class='id identifier rubyid_objptr'>objptr</span>.<span class='id identifier rubyid_get_pointer'>get_pointer</span>(<span class='int'>0</span>)
+<span class='id identifier rubyid_result'>result</span> <span class='op'>=</span> <span class='id identifier rubyid_calculate_something_else'>calculate_something_else</span>(<span class='float'>11.2</span><span class='comma'>,</span> <span class='id identifier rubyid_objptr'>objptr</span>)</code></pre>
+
+<h2>Strings as Output Parameters</h2>
+
+<p>More on output Parameters: Here are examples of methods which return a single string, and an 
+array of strings. They were based on wrapping the <a href="http://www.augeas.net">Augeas</a> library.</p>
+
+<h3>Single String</h3>
+
+<p>Assume the following method:</p>
+
+<pre class="code c"><code class="c">int aug_get(const augeas* aug, const char* path, const char** value);
+</code></pre>
+
+<p>Where the value of the get is the third parameter, and the return value tells you success or 
+failure. The function is attached via FFI as follows:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'>AugeasLib</span>
+  <span class='id identifier rubyid_extend'>extend</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/Library.html" title="FFI::Library (module)">Library</a></span>
+  <span class='id identifier rubyid_ffi_lib'>ffi_lib</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>libaugeas.so</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_aug_get'>aug_get</span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_string'>string</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_int'>int</span>
+<span class='kw'>end</span></code></pre>
+
+<p>And the sample usage of this would be:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_get'>get</span>(<span class='id identifier rubyid_path'>path</span>)
+     <span class='id identifier rubyid_ptr'>ptr</span> <span class='op'>=</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/MemoryPointer.html" title="FFI::MemoryPointer (class)">MemoryPointer</a></span>.<span class='id identifier rubyid_new'><a href="FFI/MemoryPointer.html#new-class_method" title="FFI::MemoryPointer.new (method)">new</a></span>(<span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span><span class='comma'>,</span> <span class='int'>1</span>)
+     <span class='const'>AugeasLib</span>.<span class='id identifier rubyid_aug_get'>aug_get</span>(<span class='ivar'>@aug</span><span class='comma'>,</span> <span class='id identifier rubyid_path'>path</span><span class='comma'>,</span> <span class='id identifier rubyid_ptr'>ptr</span>)
+     <span class='id identifier rubyid_strPtr'>strPtr</span> <span class='op'>=</span> <span class='id identifier rubyid_ptr'>ptr</span>.<span class='id identifier rubyid_read_pointer'>read_pointer</span>()
+     <span class='kw'>return</span> <span class='id identifier rubyid_strPtr'>strPtr</span>.<span class='id identifier rubyid_null?'>null?</span> <span class='op'>?</span> <span class='kw'>nil</span> <span class='op'>:</span> <span class='id identifier rubyid_strPtr'>strPtr</span>.<span class='id identifier rubyid_read_string'>read_string</span>()
+ <span class='kw'>end</span></code></pre>
+
+<p><code>FFI::Pointer.read_string()</code> doesn&#39;t care about the string encoding used. To get a ruby string with proper encoding, you have to call <tt>force_encoding(encoding)</tt>. Sample usage of this would be:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_get'>get</span>(<span class='id identifier rubyid_path'>path</span>)
+     <span class='id identifier rubyid_ptr'>ptr</span> <span class='op'>=</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/MemoryPointer.html" title="FFI::MemoryPointer (class)">MemoryPointer</a></span>.<span class='id identifier rubyid_new'><a href="FFI/MemoryPointer.html#new-class_method" title="FFI::MemoryPointer.new (method)">new</a></span>(<span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span><span class='comma'>,</span> <span class='int'>1</span>)
+     <span class='const'>AugeasLib</span>.<span class='id identifier rubyid_aug_get'>aug_get</span>(<span class='ivar'>@aug</span><span class='comma'>,</span> <span class='id identifier rubyid_path'>path</span><span class='comma'>,</span> <span class='id identifier rubyid_ptr'>ptr</span>)
+     <span class='id identifier rubyid_strPtr'>strPtr</span> <span class='op'>=</span> <span class='id identifier rubyid_ptr'>ptr</span>.<span class='id identifier rubyid_read_pointer'>read_pointer</span>()
+     <span class='kw'>return</span> <span class='id identifier rubyid_strPtr'>strPtr</span>.<span class='id identifier rubyid_null?'>null?</span> <span class='op'>?</span> <span class='kw'>nil</span> <span class='op'>:</span> <span class='id identifier rubyid_strPtr'>strPtr</span>.<span class='id identifier rubyid_read_string'>read_string</span>().<span class='id identifier rubyid_force_encoding'>force_encoding</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>UTF-8</span><span class='tstring_end'>&#39;</span></span>) <span class='comment'># returns UTF-8 encoded string
+</span> <span class='kw'>end</span></code></pre>
+
+<p>With <code>*W</code> family of winapi functions you need to use <code>#read_bytes(len * 2)</code> (because <code>#read_string</code> stops on first <code>\x00</code>).</p>
+
+<h3>Array of Strings</h3>
+
+<p>Assume the following method:</p>
+
+<pre class="code c"><code class="c">int aug_match(const augeas* aug, const char* path, char*** matches);
+</code></pre>
+
+<p>Where the value of the match is the third parameter, and the return value tells you success or 
+failure and the size of the array. The function is attached via FFI as follows:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'>AugeasLib</span>
+  <span class='id identifier rubyid_extend'>extend</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/Library.html" title="FFI::Library (module)">Library</a></span>
+  <span class='id identifier rubyid_ffi_lib'>ffi_lib</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>libaugeas.so</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_aug_match'>aug_match</span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_string'>string</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_int'>int</span> 
+<span class='kw'>end</span></code></pre>
+
+<p>And the sample usage of this would be:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_match'>match</span>(<span class='id identifier rubyid_path'>path</span>)
+    <span class='id identifier rubyid_ptr'>ptr</span> <span class='op'>=</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/MemoryPointer.html" title="FFI::MemoryPointer (class)">MemoryPointer</a></span>.<span class='id identifier rubyid_new'><a href="FFI/MemoryPointer.html#new-class_method" title="FFI::MemoryPointer.new (method)">new</a></span>(<span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span><span class='comma'>,</span> <span class='int'>1</span>)
+    <span class='id identifier rubyid_len'>len</span> <span class='op'>=</span> <span class='const'>AugeasLib</span>.<span class='id identifier rubyid_aug_match'>aug_match</span>(<span class='ivar'>@aug</span><span class='comma'>,</span> <span class='id identifier rubyid_path'>path</span><span class='comma'>,</span> <span class='id identifier rubyid_ptr'>ptr</span>)
+    <span class='kw'>if</span> (<span class='id identifier rubyid_len'>len</span> <span class='op'>&lt;</span> <span class='int'>0</span>)
+        <span class='id identifier rubyid_raise'>raise</span> <span class='const'>SystemCallError</span>.<span class='id identifier rubyid_new'>new</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Matching path expression &#39;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_path'>path</span><span class='embexpr_end'>}</span><span class='tstring_content'>&#39; failed</span><span class='tstring_end'>&quot;</span></span>)
+    <span class='kw'>else</span>
+        <span class='id identifier rubyid_strPtr'>strPtr</span> <span class='op'>=</span> <span class='id identifier rubyid_ptr'>ptr</span>.<span class='id identifier rubyid_read_pointer'>read_pointer</span>()
+        <span class='id identifier rubyid_strPtr'>strPtr</span>.<span class='id identifier rubyid_null?'>null?</span> <span class='op'>?</span> [] <span class='op'>:</span> <span class='id identifier rubyid_ptr'>ptr</span>.<span class='id identifier rubyid_get_array_of_string'>get_array_of_string</span>(<span class='int'>0</span><span class='comma'>,</span> <span class='id identifier rubyid_len'>len</span>).<span class='id identifier rubyid_compact'>compact</span>
+    <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<h2><a name="structs"></a> Structs</h2>
+
+<p>Now let&#39;s get more advanced -- let&#39;s access SomeObject&#39;s data members through a Ruby object.</p>
+
+<pre class="code c"><code class="c">/* my_library.h */
+
+struct SomeObject {
+  struct SomeObject *next ;
+  char              *name ;
+  double             value ;
+};
+</code></pre>
+
+<pre class="code c"><code class="c">  struct SomeObject *objptr1 ;
+  struct SomeObject *objptr2 ;
+
+  objptr1 = create_object(&quot;foobar&quot;);
+  printf(&quot;%s\n&quot;, objptr1-&gt;name); // =&gt; &#39;foobar&#39;
+
+  int nfound = find_first_match(&quot;foobar&quot;, &amp;objptr2) ;
+  printf(&quot;%s\n&quot;, objptr2-&gt;name); // =&gt; &#39;foobar&#39;
+
+  free_object(objptr1);
+</code></pre>
+
+<p>Here&#39;s how to create a Ruby object to mirror this struct.</p>
+
+<p>(Note: see [[Automatic Struct Layout]] for a way to automate layout offset calculations.)</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'>MyLibrary</span>
+  <span class='kw'>class</span> <span class='const'>SomeObject</span> <span class='op'>&lt;</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/Struct.html" title="FFI::Struct (class)">Struct</a></span>
+    <span class='id identifier rubyid_layout'>layout</span> <span class='symbeg'>:</span><span class='kw'>next</span><span class='comma'>,</span>  <span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span><span class='comma'>,</span>
+           <span class='symbeg'>:</span><span class='id identifier rubyid_name'>name</span><span class='comma'>,</span>  <span class='symbeg'>:</span><span class='id identifier rubyid_string'>string</span><span class='comma'>,</span>
+           <span class='symbeg'>:</span><span class='id identifier rubyid_value'>value</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_double'>double</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>And here&#39;s the application code:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_obj_ptr2'>obj_ptr2</span> <span class='op'>=</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/MemoryPointer.html" title="FFI::MemoryPointer (class)">MemoryPointer</a></span>.<span class='id identifier rubyid_new'><a href="FFI/MemoryPointer.html#new-class_method" title="FFI::MemoryPointer.new (method)">new</a></span> <span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span>
+
+<span class='id identifier rubyid_obj_ptr1'>obj_ptr1</span> <span class='op'>=</span> <span class='const'>MyLibrary</span>.<span class='id identifier rubyid_create_object'>create_object</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foobar</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_obj1'>obj1</span> <span class='op'>=</span> <span class='const'>MyLibrary</span><span class='op'>::</span><span class='const'>SomeObject</span>.<span class='id identifier rubyid_new'>new</span>(<span class='id identifier rubyid_obj_ptr1'>obj_ptr1</span>) <span class='comment'># wrap ruby object around C pointer
+</span><span class='id identifier rubyid_puts'>puts</span> <span class='id identifier rubyid_obj1'>obj1</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_name'>name</span>] <span class='comment'># =&gt; &#39;foobar&#39;
+</span>
+<span class='id identifier rubyid_nfound'>nfound</span> <span class='op'>=</span> <span class='const'>MyLibrary</span>.<span class='id identifier rubyid_find_first_match'>find_first_match</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foobar</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_obj_ptr2'>obj_ptr2</span>)
+<span class='id identifier rubyid_obj2'>obj2</span> <span class='op'>=</span> <span class='const'>MyLibrary</span><span class='op'>::</span><span class='const'>SomeObject</span>.<span class='id identifier rubyid_new'>new</span>(<span class='id identifier rubyid_obj_ptr2'>obj_ptr2</span>.<span class='id identifier rubyid_read_pointer'>read_pointer</span>()) <span class='comment'># wrap ruby object around C pointer
+</span><span class='id identifier rubyid_puts'>puts</span> <span class='id identifier rubyid_obj2'>obj2</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_name'>name</span>] <span class='comment'># =&gt; &#39;foobar&#39;
+</span>
+<span class='const'>MyLibrary</span>.<span class='id identifier rubyid_free_object'>free_object</span>(<span class='id identifier rubyid_obj1'>obj1</span>.<span class='id identifier rubyid_pointer'>pointer</span>)<span class='semicolon'>;</span> <span class='comment'># equivalent to free_object(obj_ptr1)</span></code></pre>
+
+<h2>Custom Memory Management</h2>
+
+<p>Now that we have a full-blown Ruby object to access C struct data members, wouldn&#39;t it be nice if we didn&#39;t have to take care of calling <tt>free_object</tt> each time we created a SomeObject?</p>
+
+<p>You can do it! Inherit from FFI::ManagedStruct instead of FFI::Struct, and define a <tt>release()</tt> class method:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'>MyLibrary</span>
+  <span class='kw'>class</span> <span class='const'>SomeObject</span> <span class='op'>&lt;</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/ManagedStruct.html" title="FFI::ManagedStruct (class)">ManagedStruct</a></span>
+    <span class='id identifier rubyid_layout'>layout</span> <span class='symbeg'>:</span><span class='kw'>next</span><span class='comma'>,</span>  <span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span><span class='comma'>,</span>
+           <span class='symbeg'>:</span><span class='id identifier rubyid_name'>name</span><span class='comma'>,</span>  <span class='symbeg'>:</span><span class='id identifier rubyid_string'>string</span><span class='comma'>,</span>
+           <span class='symbeg'>:</span><span class='id identifier rubyid_value'>value</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_double'>double</span><span class='comma'>,</span>
+
+    <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_release'>release</span>(<span class='id identifier rubyid_ptr'>ptr</span>)
+      <span class='const'>MyLibrary</span>.<span class='id identifier rubyid_free_object'>free_object</span>(<span class='id identifier rubyid_ptr'>ptr</span>)
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Yes, it&#39;s that easy. Now the code from the previous section could look like this:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>begin</span>
+  <span class='id identifier rubyid_obj_ptr1'>obj_ptr1</span> <span class='op'>=</span> <span class='const'>MyLibrary</span>.<span class='id identifier rubyid_create_object'>create_object</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foobar</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_obj1'>obj1</span> <span class='op'>=</span> <span class='const'>MyLibrary</span><span class='op'>::</span><span class='const'>SomeObject</span>.<span class='id identifier rubyid_new'>new</span>(<span class='id identifier rubyid_obj_ptr1'>obj_ptr1</span>) <span class='comment'># wrap ruby object around C pointer
+</span>  <span class='id identifier rubyid_puts'>puts</span> <span class='id identifier rubyid_obj1'>obj1</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_name'>name</span>] <span class='comment'># =&gt; &#39;foobar&#39;
+</span><span class='kw'>end</span>
+<span class='comment'># obj1 is now out-of-scope, and when it is GC&#39;d,
+</span><span class='comment'># the SomeObject#release() method will be invoked with obj1 as its argument, allowing it to free the C struct&#39;s memory.</span></code></pre>
+
+<p>Note that for structs that are created with only native elements (like int&#39;s, etc.) may not need any cleanup method, as the structs themselves are cleaned up automatically at GC time.  In the instance above we need a cleanup method since the struct refers to a pointer that needs to be cleaned up, to avoid a memory leak.</p>
+
+<p>For both normal structs and &quot;memory managed&quot; you can explicitly call #free on them, if desired.</p>
+
+<h3>WARNING: Don&#39;t Use ManagedStruct When You Want Type-Casting</h3>
+
+<p>There&#39;s a potential pitfall when using FFI::ManagedStruct, which is that you may not always <em>actually</em> want to free underlying memory. For instance, in this case we don&#39;t want to free the underlying memory:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_obj_ptr2'>obj_ptr2</span> <span class='op'>=</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/MemoryPointer.html" title="FFI::MemoryPointer (class)">MemoryPointer</a></span>.<span class='id identifier rubyid_new'><a href="FFI/MemoryPointer.html#new-class_method" title="FFI::MemoryPointer.new (method)">new</a></span> <span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span>
+<span class='id identifier rubyid_nfound'>nfound</span> <span class='op'>=</span> <span class='const'>MyLibrary</span>.<span class='id identifier rubyid_find_first_match'>find_first_match</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foobar</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_obj_ptr2'>obj_ptr2</span>)
+<span class='id identifier rubyid_obj2'>obj2</span> <span class='op'>=</span> <span class='const'>MyLibrary</span><span class='op'>::</span><span class='const'>SomeObject</span>.<span class='id identifier rubyid_new'>new</span>(<span class='id identifier rubyid_obj_ptr2'>obj_ptr2</span>) <span class='comment'># wrap ruby object around C pointer
+</span><span class='id identifier rubyid_puts'>puts</span> <span class='id identifier rubyid_obj2'>obj2</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_name'>name</span>] <span class='comment'># =&gt; &#39;foobar&#39;</span></code></pre>
+
+<p>However, as soon as <tt>obj2</tt> goes out of scope, that underlying memory &#39;&#39;will&#39;&#39; be freed, despite the fact that the find_first_match() cache still has a pointer to it, leading to a probable segfault and FAIL. That&#39;s bad.</p>
+
+<p>I&#39;ve found it useful to define two Ruby classes, one inherited from ManagedStruct, for managing object lifetimes, and one inherited from Struct, used for typecasting pointers.</p>
+
+<p>Here&#39;s an example of this:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'>MyLibrary</span>
+  <span class='kw'>module</span> <span class='const'>SomeObjectLayout</span>
+    <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_included'>included</span>(<span class='id identifier rubyid_base'>base</span>)
+      <span class='id identifier rubyid_base'>base</span>.<span class='id identifier rubyid_class_eval'>class_eval</span> <span class='kw'>do</span>
+        <span class='id identifier rubyid_layout'>layout</span> <span class='symbeg'>:</span><span class='kw'>next</span><span class='comma'>,</span>  <span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span><span class='comma'>,</span>
+               <span class='symbeg'>:</span><span class='id identifier rubyid_name'>name</span><span class='comma'>,</span>  <span class='symbeg'>:</span><span class='id identifier rubyid_string'>string</span><span class='comma'>,</span>
+               <span class='symbeg'>:</span><span class='id identifier rubyid_value'>value</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_double'>double</span><span class='comma'>,</span>
+      <span class='kw'>end</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>class</span> <span class='const'>SomeObject</span> <span class='op'>&lt;</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/ManagedStruct.html" title="FFI::ManagedStruct (class)">ManagedStruct</a></span>
+    <span class='id identifier rubyid_include'>include</span> <span class='const'>SomeObjectLayout</span>
+    <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_release'>release</span>(<span class='id identifier rubyid_ptr'>ptr</span>)
+      <span class='const'>MyLibrary</span>.<span class='id identifier rubyid_free_object'>free_object</span>(<span class='id identifier rubyid_ptr'>ptr</span>)
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>class</span> <span class='const'>SomeObjectCast</span> <span class='op'>&lt;</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/Struct.html" title="FFI::Struct (class)">Struct</a></span>
+    <span class='id identifier rubyid_include'>include</span> <span class='const'>SomeObjectLayout</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>And here&#39;s some sample usage:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>begin</span>
+  <span class='id identifier rubyid_obj_ptr1'>obj_ptr1</span> <span class='op'>=</span> <span class='const'>MyLibrary</span>.<span class='id identifier rubyid_create_object'>create_object</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foobar</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_obj1'>obj1</span> <span class='op'>=</span> <span class='const'>MyLibrary</span><span class='op'>::</span><span class='const'>SomeObject</span>.<span class='id identifier rubyid_new'>new</span>(<span class='id identifier rubyid_obj_ptr1'>obj_ptr1</span>) <span class='comment'># NOTE use of managed struct class
+</span>  <span class='id identifier rubyid_puts'>puts</span> <span class='id identifier rubyid_obj1'>obj1</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_name'>name</span>] <span class='comment'># =&gt; &#39;foobar&#39;
+</span>
+  <span class='id identifier rubyid_obj_ptr2'>obj_ptr2</span> <span class='op'>=</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/MemoryPointer.html" title="FFI::MemoryPointer (class)">MemoryPointer</a></span>.<span class='id identifier rubyid_new'><a href="FFI/MemoryPointer.html#new-class_method" title="FFI::MemoryPointer.new (method)">new</a></span> <span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span>
+  <span class='id identifier rubyid_nfound'>nfound</span> <span class='op'>=</span> <span class='const'>MyLibrary</span>.<span class='id identifier rubyid_find_first_match'>find_first_match</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foobar</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_obj_ptr2'>obj_ptr2</span>)
+  <span class='id identifier rubyid_obj2'>obj2</span> <span class='op'>=</span> <span class='const'>MyLibrary</span><span class='op'>::</span><span class='const'>SomeObjectCast</span>.<span class='id identifier rubyid_new'>new</span>(<span class='id identifier rubyid_obj_ptr2'>obj_ptr2</span>) <span class='comment'># NOTE: use of typecast class
+</span>  <span class='id identifier rubyid_puts'>puts</span> <span class='id identifier rubyid_obj2'>obj2</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_name'>name</span>] <span class='comment'># =&gt; &#39;foobar&#39;
+</span><span class='kw'>end</span>
+<span class='comment'># obj1 and obj2 are now both out-of-scope. however, free_object() will
+</span><span class='comment'># only be invoked once, for obj1.</span></code></pre>
+
+<h2><a name="callbacks"></a>Callbacks</h2>
+
+<p>Many APIs use function pointers to manage &quot;callbacks&quot;, which are functions-to-be-called-later. Ruby libraries commonly uses Procs or lambdas (let&#39;s call them &#39;&#39;&#39;closures&#39;&#39;&#39; here) for this, and FFI allows you to map closures to C function callbacks. Nice!</p>
+
+<p>Again, here&#39;s our C API:</p>
+
+<pre class="code c"><code class="c">/*
+ *  notifyWhenObjectWaggles callback:
+ *    waggled: the object that just waggled
+ *    waggle_size: how much the object waggled
+ *  should return:
+ *    non-zero integer to continue waggling, zero to cease waggling
+ */
+typedef int (*notifyWhenObjectWaggles)(struct SomeObject *waggled, int waggle_size) ;
+void set_object_waggle_callback(struct SomeObject *waggler, notifywhenObjectWaggles callback) ;
+</code></pre>
+
+<p>Here&#39;s how it&#39;s used in C:</p>
+
+<pre class="code c"><code class="c">int waggle_callback(struct SomeObject *waggled, int waggle_size)
+{
+  printf(&quot;object %s just waggled %d\n&quot;, waggled-&gt;name, waggle_size);
+  return(waggle_size &gt; 10 ? 1 : 0);
+}
+
+int main()
+{
+  ...
+
+  struct SomeObject *p ;
+  p = create_object(&quot;foobar&quot;);
+  set_object_waggle_callback(p, waggle_callback);
+
+  ...
+}
+</code></pre>
+
+<p>Here&#39;s the Ruby declaration equivalent:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'>MyLibrary</span>
+  <span class='comment'>#... # same as before
+</span>
+  <span class='comment'>#  declare the callback type (the callback&#39;s function signature)
+</span>  <span class='id identifier rubyid_callback'>callback</span> <span class='symbeg'>:</span><span class='id identifier rubyid_object_waggled_callback'>object_waggled_callback</span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_int'>int</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_int'>int</span>
+
+  <span class='comment'>#  declare the function signature that takes the callback as a param.
+</span>  <span class='comment'>#  note we use the callback type just like any builtin type here.
+</span>  <span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_set_object_waggle_callback'>set_object_waggle_callback</span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_object_waggled_callback'>object_waggled_callback</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_void'>void</span></code></pre>
+
+<p>And finally, the callback in action:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'>#
+</span><span class='comment'>#  it&#39;s a good policy to assign closures to a constant.
+</span><span class='comment'>#  more on this below.
+</span><span class='comment'>#
+</span><span class='const'>MyLibrary</span><span class='op'>::</span><span class='const'>WaggleCallback</span> <span class='op'>=</span> <span class='const'>Proc</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_waggled_ptr'>waggled_ptr</span><span class='comma'>,</span> <span class='id identifier rubyid_waggle_size'>waggle_size</span><span class='op'>|</span>
+  <span class='id identifier rubyid_waggled'>waggled</span> <span class='op'>=</span> <span class='const'>MyLibrary</span><span class='op'>::</span><span class='const'>SomeObjectCast</span>.<span class='id identifier rubyid_new'>new</span> <span class='id identifier rubyid_waggled_ptr'>waggled_ptr</span> <span class='comment'># note we use the typecast flavor
+</span>  <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>object </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_waggled'>waggled</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_name'>name</span>]<span class='embexpr_end'>}</span><span class='tstring_content'> just waggled </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_waggle_size'>waggle_size</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_waggle_size'>waggle_size</span> <span class='op'>&gt;</span> <span class='int'>10</span> <span class='op'>?</span> <span class='int'>1</span> <span class='op'>:</span> <span class='int'>0</span>
+<span class='kw'>end</span>
+
+<span class='id identifier rubyid_obj_ptr'>obj_ptr</span> <span class='op'>=</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/MemoryPointer.html" title="FFI::MemoryPointer (class)">MemoryPointer</a></span>.<span class='id identifier rubyid_new'><a href="FFI/MemoryPointer.html#new-class_method" title="FFI::MemoryPointer.new (method)">new</a></span> <span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span>
+<span class='id identifier rubyid_obj_ptr'>obj_ptr</span> <span class='op'>=</span> <span class='id identifier rubyid_create_object'>create_object</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foobar</span><span class='tstring_end'>&quot;</span></span>)
+<span class='id identifier rubyid_obj'>obj</span> <span class='op'>=</span> <span class='const'>MyLibrary</span><span class='op'>::</span><span class='const'>SomeObject</span>.<span class='id identifier rubyid_new'>new</span> <span class='id identifier rubyid_obj_ptr'>obj_ptr</span>
+<span class='id identifier rubyid_set_object_waggle_callback'>set_object_waggle_callback</span>(<span class='id identifier rubyid_obj'>obj</span>.<span class='id identifier rubyid_pointer'>pointer</span><span class='comma'>,</span> <span class='const'>MyLibrary</span><span class='op'>::</span><span class='const'>WaggleCallback</span>)</code></pre>
+
+<h3>WARNING: Be Careful Your <code>Proc</code> Doesn&#39;t Get GC&#39;d</h3>
+
+<p>Let&#39;s imagine the above example was written as follows:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>begin</span>
+  <span class='id identifier rubyid_proc'>proc</span> <span class='op'>=</span> <span class='const'>Proc</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_waggled_ptr'>waggled_ptr</span><span class='comma'>,</span> <span class='id identifier rubyid_waggle_size'>waggle_size</span><span class='op'>|</span>
+    <span class='id identifier rubyid_waggled'>waggled</span> <span class='op'>=</span> <span class='const'>MyLibrary</span><span class='op'>::</span><span class='const'>SomeObjectCast</span>.<span class='id identifier rubyid_new'>new</span> <span class='id identifier rubyid_waggled_ptr'>waggled_ptr</span> <span class='comment'># note we use the typecast flavor
+</span>    <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>object </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_waggled'>waggled</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_name'>name</span>]<span class='embexpr_end'>}</span><span class='tstring_content'> just waggled </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_waggle_size'>waggle_size</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
+    <span class='id identifier rubyid_waggle_size'>waggle_size</span> <span class='op'>&gt;</span> <span class='int'>10</span> <span class='op'>?</span> <span class='int'>1</span> <span class='op'>:</span> <span class='int'>0</span>
+  <span class='kw'>end</span>
+  <span class='id identifier rubyid_set_object_waggle_callback'>set_object_waggle_callback</span>(<span class='id identifier rubyid_obj'>obj</span>.<span class='id identifier rubyid_pointer'>pointer</span><span class='comma'>,</span> <span class='id identifier rubyid_proc'>proc</span>)
+<span class='kw'>end</span></code></pre>
+
+<p>At the end of the block, <tt>proc</tt> is out of scope and may be garbage-collected. This is really bad for your application, because as soon as the object waggles, the C library will be dereferencing a pointer that no longer points to your proc object.</p>
+
+<p>You must be careful to ensure that your closures do NOT go out of scope while they are active!</p>
+
+<p>The easiest way to guarantee this is to assign the proc to a constant, which will never go out of scope. This is what was done in the example above.</p>
+
+<h2><a name="varargs"></a>Using :varargs</h2>
+
+<p>Here&#39;s an example</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>ffi</span><span class='tstring_end'>&#39;</span></span>
+
+<span class='kw'>module</span> <span class='const'>Hello</span>
+  <span class='id identifier rubyid_extend'>extend</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/Library.html" title="FFI::Library (module)">Library</a></span>
+  <span class='id identifier rubyid_attach_function'>attach_function</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>printf</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_string'>string</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_varargs'>varargs</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_int'>int</span>
+<span class='kw'>end</span>
+
+<span class='int'>3</span>.<span class='id identifier rubyid_times'>times</span> {  <span class='const'>Hello</span>.<span class='id identifier rubyid_printf'>printf</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>cputs %s %d %x</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_string'>string</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>yoyo</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_int'>int</span><span class='comma'>,</span> <span class='int'>33</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_int'>int</span><span class='comma'>,</span> <span class='int'>34</span>)} <span class='comment'># each one needs its own specifier of which type it is</span></code></pre>
+
+<h2><a name="typedef"></a>Using typedef</h2>
+
+<p>You can define &quot;aliases&quot; for types using <code>typedef current, new</code>. Once an alias has been defined, you can use it in a struct or function definition. This can make those definitions more descriptive and meaningful, or make it easier to deal with platform differences. Here&#39;s a contrived example:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'>MyLibrary</span>
+  <span class='id identifier rubyid_extend'>extend</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/Library.html" title="FFI::Library (module)">Library</a></span>
+
+  <span class='id identifier rubyid_typedef'>typedef</span> <span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span>
+
+  <span class='comment'># Define :status as an alias for :long on Mac, or :int on other platforms.
+</span>  <span class='kw'>if</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/Platform.html" title="FFI::Platform (module)">Platform</a></span>.<span class='id identifier rubyid_mac?'><a href="FFI/Platform.html#mac%3F-class_method" title="FFI::Platform.mac? (method)">mac?</a></span>
+    <span class='id identifier rubyid_typedef'>typedef</span> <span class='symbeg'>:</span><span class='id identifier rubyid_long'>long</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_status'>status</span>
+  <span class='kw'>else</span>
+    <span class='id identifier rubyid_typedef'>typedef</span> <span class='symbeg'>:</span><span class='id identifier rubyid_int'>int</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_status'>status</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>class</span> <span class='const'>MyStruct</span> <span class='op'>&lt;</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/Struct.html" title="FFI::Struct (class)">Struct</a></span>
+    <span class='id identifier rubyid_layout'>layout</span> <span class='symbeg'>:</span><span class='id identifier rubyid_a'>a</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_b'>b</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_status'>status</span>
+  <span class='kw'>end</span>
+
+  <span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_doSomething'>doSomething</span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_int'>int</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_status'>status</span>
+<span class='kw'>end</span></code></pre>
+
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>

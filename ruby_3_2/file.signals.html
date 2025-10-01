@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen'       content='yes'>
+<meta name='apple-mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Signals &mdash; Ruby-3.2.9</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "signals",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>Ruby-3.2.9</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Signals&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="file_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+
+<h1 id="label-Caveats+for+implementing+Signal.trap+callbacks">Caveats for implementing Signal.trap callbacks</h1>
+
+<p>As with implementing signal handlers in C or most other languages, all code passed to Signal.trap must be reentrant.  If you are not familiar with reentrancy, you need to read up on it at <a href="https://en.wikipedia.org/wiki/Reentrancy_(computing" target="_parent" title=") Wikipedia">) Wikipedia</a> or elsewhere before reading the rest of this document.</p>
+
+<p>Most importantly, “thread-safety” does not guarantee reentrancy; and methods such as Mutex#lock and Mutex#synchronize which are commonly used for thread-safety even prevent reentrancy.</p>
+
+<h2 id="label-An+implementation+detail+of+the+Ruby+VM">An implementation detail of the Ruby VM</h2>
+
+<p>The Ruby VM defers Signal.trap callbacks from running until it is safe for its internal data structures, but it does not know when it is safe for data structures in YOUR code.  Ruby implements deferred signal handling by registering short C functions with only <a href="http://man7.org/linux/man-pages/man7/signal-safety.7.html" target="_parent" title="async-signal-safe functions">async-signal-safe functions</a> as signal handlers.  These short C functions only do enough tell the VM to run callbacks registered via Signal.trap later in the main Ruby Thread.</p>
+
+<h2 id="label-Unsafe+methods+to+call+in+Signal.trap+blocks">Unsafe methods to call in Signal.trap blocks</h2>
+
+<p>When in doubt, consider anything not listed as safe below as being unsafe.</p>
+<ul><li>
+<p>Mutex#lock, Mutex#synchronize and any code using them are explicitly unsafe.  This includes Monitor in the standard library which uses Mutex to provide reentrancy.</p>
+</li><li>
+<p>Dir.chdir with block</p>
+</li><li>
+<p>any IO write operations when IO#sync is false; including IO#write, IO#write_nonblock, IO#puts. Pipes and sockets default to ‘IO#sync = true’, so it is safe to write to them unless IO#sync was disabled.</p>
+</li><li>
+<p>File#flock, as the underlying flock(2) call is not specified by POSIX</p>
+</li></ul>
+
+<h2 id="label-Commonly+safe+operations+inside+Signal.trap+blocks">Commonly safe operations inside Signal.trap blocks</h2>
+<ul><li>
+<p>Assignment and retrieval of local, instance, and class variables</p>
+</li><li>
+<p>Most object allocations and initializations of common types including Array, Hash, String, Struct, Time.</p>
+</li><li>
+<p>Common Array, Hash, String, Struct operations which do not execute a block are generally safe; but beware if iteration is occurring elsewhere.</p>
+</li><li>
+<p>Hash#[], Hash#[]= (unless Hash.new was given an unsafe block)</p>
+</li><li>
+<p>Thread::Queue#push and Thread::SizedQueue#push (since Ruby 2.1)</p>
+</li><li>
+<p>Creating a new Thread via Thread.new/Thread.start can used to get around the unusability of Mutexes inside a signal handler</p>
+</li><li>
+<p>Signal.trap is safe to use inside blocks passed to Signal.trap</p>
+</li><li>
+<p>arithmetic on Integer and Float (‘+’, ‘-’, ‘%’, ‘*’, ‘/’)</p>
+
+<p>Additionally, signal handlers do not run between two successive local variable accesses, so shortcuts such as ‘+=’ and ‘-=’ will not trigger a data race when used on Integer and Float classes in signal handlers.</p>
+</li></ul>
+
+<h2 id="label-System+call+wrapper+methods+which+are+safe+inside+Signal.trap">System call wrapper methods which are safe inside Signal.trap</h2>
+
+<p>Since Ruby has wrappers around many <a href="http://man7.org/linux/man-pages/man7/signal-safety.7.html" target="_parent" title="async-signal-safe C functions">async-signal-safe C functions</a> the corresponding wrappers for many IO, File, Dir, and Socket methods are safe.</p>
+
+<p>(Incomplete list)</p>
+<ul><li>
+<p>Dir.chdir (without block arg)</p>
+</li><li>
+<p>Dir.mkdir</p>
+</li><li>
+<p>Dir.open</p>
+</li><li>
+<p>File#truncate</p>
+</li><li>
+<p>File.link</p>
+</li><li>
+<p>File.open</p>
+</li><li>
+<p>File.readlink</p>
+</li><li>
+<p>File.rename</p>
+</li><li>
+<p>File.stat</p>
+</li><li>
+<p>File.symlink</p>
+</li><li>
+<p>File.truncate</p>
+</li><li>
+<p>File.unlink</p>
+</li><li>
+<p>File.utime</p>
+</li><li>
+<p>IO#close</p>
+</li><li>
+<p>IO#dup</p>
+</li><li>
+<p>IO#fsync</p>
+</li><li>
+<p>IO#read</p>
+</li><li>
+<p>IO#read_nonblock</p>
+</li><li>
+<p>IO#stat</p>
+</li><li>
+<p>IO#sysread</p>
+</li><li>
+<p>IO#syswrite</p>
+</li><li>
+<p>IO.select</p>
+</li><li>
+<p>IO.pipe</p>
+</li><li>
+<p>Process.clock_gettime</p>
+</li><li>
+<p>Process.exit!</p>
+</li><li>
+<p>Process.fork</p>
+</li><li>
+<p>Process.kill</p>
+</li><li>
+<p>Process.pid</p>
+</li><li>
+<p>Process.ppid</p>
+</li><li>
+<p>Process.waitpid</p>
+</li></ul>
+
+<p>…</p>
+
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>

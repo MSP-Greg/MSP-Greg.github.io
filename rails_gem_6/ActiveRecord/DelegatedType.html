@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen'       content='yes'>
+<meta name='apple-mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>Module: ActiveRecord::DelegatedType &mdash; Rails 6.1.7.10</title>
+
+<link rel='stylesheet'  type='text/css' href='../../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "ActiveRecord::DelegatedType",
+    relpath = '../';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='../'>Rails 6.1.7.10</a> &raquo; 
+      <a href='../_index.html#alpha_D'>Index (D)</a> &raquo; 
+        <a href="../ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>DelegatedType&nbsp;&#x25B2;</a></span>
+    </div>
+
+    <a id='list_href' href="../class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='module'>
+<h1>Module: ActiveRecord::DelegatedType</h1>
+<div id='t2_rel_sf_div'>
+<table id='t2_rel_sf' class='y_box'>
+  <thead>
+    <tr><td id='t2_relations' colspan='2'>Relationships & Source Files</td></tr>
+  </thead>
+  <tbody>
+    <tr><td class='box_h' colspan='2'>Extension / Inclusion / Inheritance Descendants</td></tr>
+    <tr><td colspan='2'>
+      <div class='box_1'>Extended In:</div>
+      <div class='box_11'>
+        <a href="Base.html" title="ActiveRecord::Base (class)"><code>Base</code></a>,
+          <span class='nodoc_h'>ActiveRecord::InternalMetadata</span>,
+          <span class='nodoc_h'>ActiveRecord::SchemaMigration</span>
+      </div>
+    </td></tr>
+    <tr class='single'>
+      <td id='t2_defined_in' class='box_2'>Defined in:</td>
+      <td class='box_rel'><a class='repo' href='https://github.com/rails/rails/blob/v6.1.7.10/activerecord/lib/active_record/delegated_type.rb#L139'>activerecord/lib/active_record/delegated_type.rb</a>      </td>
+    </tr>
+  </tbody>
+</table>
+</div>
+<h2 id='h2_overview'>Overview</h2>
+<div id='overview_ds'>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<h3 id="label-Delegated+types">Delegated types</h3>
+
+<p><a href="../Class.html" title="Class (class)"><code>::Class</code></a> hierarchies can map to relational database tables in many ways. Active Record, for example, offers purely abstract classes, where the superclass doesn’t persist any attributes, and single-table inheritance, where all attributes from all levels of the hierarchy are represented in a single table. Both have their places, but neither are without their drawbacks.</p>
+
+<p>The problem with purely abstract classes is that all concrete subclasses must persist all the shared attributes themselves in their own tables (also known as class-table inheritance). This makes it hard to do queries across the hierarchy. For example, imagine you have the following hierarchy:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Entry</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+<span class='const'>Message</span> <span class='op'>&lt;</span> <span class='const'>Entry</span>
+<span class='const'>Comment</span> <span class='op'>&lt;</span> <span class='const'>Entry</span></code></pre>
+
+<p>How do you show a feed that has both <code>Message</code> and <code>Comment</code> records, which can be easily paginated? Well, you can’t! Messages are backed by a messages table and comments by a comments table. You can’t pull from both tables at once and use a consistent OFFSET/LIMIT scheme.</p>
+
+<p>You can get around the pagination problem by using single-table inheritance, but now you’re forced into a single mega table with all the attributes from all subclasses. No matter how divergent. If a Message has a subject, but the comment does not, well, now the comment does anyway! So STI works best when there’s little divergence between the subclasses and their attributes.</p>
+
+<p>But there’s a third way: Delegated types. With this approach, the “superclass” is a concrete class that is represented by its own table, where all the superclass attributes that are shared amongst all the “subclasses” are stored. And then each of the subclasses have their own individual tables for additional attributes that are particular to their implementation. This is similar to what’s called multi-table inheritance in Django, but instead of actual inheritance, this approach uses delegation to form the hierarchy and share responsibilities.</p>
+
+<p>Let’s look at that entry/message/comment example using delegated types:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># Schema: entries[ id, account_id, creator_id, created_at, updated_at, entryable_type, entryable_id ]
+</span><span class='kw'>class</span> <span class='const'>Entry</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_belongs_to'>belongs_to</span> <span class='symbeg'>:</span><span class='id identifier rubyid_account'>account</span>
+  <span class='id identifier rubyid_belongs_to'>belongs_to</span> <span class='symbeg'>:</span><span class='id identifier rubyid_creator'>creator</span>
+  <span class='id identifier rubyid_delegated_type'><a href="#delegated_type-instance_method" title="ActiveRecord::DelegatedType#delegated_type (method)">delegated_type</a></span> <span class='symbeg'>:</span><span class='id identifier rubyid_entryable'>entryable</span><span class='comma'>,</span> <span class='label'>types:</span> <span class='qwords'><span class='qwords_beg'>%w[</span><span class='words_sep'> </span><span class='tstring_content'>Message</span><span class='words_sep'> </span><span class='tstring_content'>Comment</span><span class='words_sep'> </span><span class='tstring_end'>]</span></span>
+<span class='kw'>end</span>
+
+<span class='kw'>module</span> <span class='const'>Entryable</span>
+  <span class='id identifier rubyid_extend'>extend</span> <span class='const'><a href="../ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="../ActiveSupport/Concern.html" title="ActiveSupport::Concern (module)">Concern</a></span>
+
+  <span class='id identifier rubyid_included'>included</span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_has_one'>has_one</span> <span class='symbeg'>:</span><span class='id identifier rubyid_entry'>entry</span><span class='comma'>,</span> <span class='label'>as:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_entryable'>entryable</span><span class='comma'>,</span> <span class='label'>touch:</span> <span class='kw'>true</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+
+<span class='comment'># Schema: messages[ id, subject ]
+</span><span class='kw'>class</span> <span class='const'>Message</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_include'>include</span> <span class='const'>Entryable</span>
+  <span class='id identifier rubyid_has_rich_text'>has_rich_text</span> <span class='symbeg'>:</span><span class='id identifier rubyid_content'>content</span>
+<span class='kw'>end</span>
+
+<span class='comment'># Schema: comments[ id, content ]
+</span><span class='kw'>class</span> <span class='const'>Comment</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_include'>include</span> <span class='const'>Entryable</span>
+<span class='kw'>end</span></code></pre>
+
+<p>As you can see, neither <code>Message</code> nor <code>Comment</code> are meant to stand alone. Crucial metadata for both classes resides in the <code>Entry</code> “superclass”. But the <code>Entry</code> absolutely can stand alone in terms of querying capacity in particular. You can now easily do things like:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Account</span>.<span class='id identifier rubyid_entries'>entries</span>.<span class='id identifier rubyid_order'>order</span>(<span class='label'>created_at:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_desc'>desc</span>).<span class='id identifier rubyid_limit'>limit</span>(<span class='int'>50</span>)</code></pre>
+
+<p>Which is exactly what you want when displaying both comments and messages together. The entry itself can be rendered as its delegated type easily, like so:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># entries/_entry.html.erb
+</span><span class='op'>&lt;</span><span class='tstring'><span class='tstring_beg'>%=</span><span class='tstring_content'> render &quot;entries/entryables/</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_entry'>entry</span>.<span class='id identifier rubyid_entryable_name'>entryable_name</span><span class='embexpr_end'>}</span><span class='tstring_content'>&quot;, entry: entry %&gt;
+
+# entries/entryables/_message.html.erb
+&lt;div class</span><span class='tstring_end'>=</span></span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>message</span><span class='tstring_end'>&quot;</span></span><span class='op'>&gt;</span>
+  <span class='const'>Posted</span> <span class='id identifier rubyid_on'>on</span> <span class='op'>&lt;</span><span class='tstring'><span class='tstring_beg'>%=</span><span class='tstring_content'> entry.created_at %&gt; by &lt;%</span><span class='tstring_end'>=</span></span> <span class='id identifier rubyid_entry'>entry</span>.<span class='id identifier rubyid_creator'>creator</span>.<span class='id identifier rubyid_name'>name</span> <span class='tstring'><span class='tstring_beg'>%&gt;</span><span class='tstring_content'>: &lt;%= entry.message.content %</span><span class='tstring_end'>&gt;</span></span>
+<span class='op'>&lt;</span><span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>div&gt;
+
+# entries</span><span class='regexp_end'>/entryables</span></span><span class='op'>/</span><span class='id identifier rubyid__comment'>_comment</span>.<span class='id identifier rubyid_html'>html</span>.<span class='id identifier rubyid_erb'>erb</span>
+<span class='op'>&lt;</span><span class='id identifier rubyid_div'>div</span> <span class='kw'>class</span><span class='op'>=</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>comment</span><span class='tstring_end'>&quot;</span></span><span class='op'>&gt;</span>
+  <span class='op'>&lt;</span><span class='tstring'><span class='tstring_beg'>%=</span><span class='tstring_content'> entry.creator.name %&gt; said: &lt;%</span><span class='tstring_end'>=</span></span> <span class='id identifier rubyid_entry'>entry</span>.<span class='id identifier rubyid_comment'>comment</span>.<span class='id identifier rubyid_content'>content</span> <span class='tstring'><span class='tstring_beg'>%&gt;</span><span class='tstring_content'>
+&lt;/div</span><span class='tstring_end'>&gt;</span></span></code></pre>
+
+<h3 id="label-Sharing+behavior+with+concerns+and+controllers">Sharing behavior with concerns and controllers</h3>
+
+<p>The entry “superclass” also serves as a perfect place to put all that shared logic that applies to both messages and comments, and which acts primarily on the shared attributes. Imagine:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Entry</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_include'>include</span> <span class='const'>Eventable</span><span class='comma'>,</span> <span class='const'>Forwardable</span><span class='comma'>,</span> <span class='const'>Redeliverable</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Which allows you to have controllers for things like <code>ForwardsController</code> and <code>RedeliverableController</code> that both act on entries, and thus provide the shared functionality to both messages and comments.</p>
+
+<h3 id="label-Creating+new+records">Creating new records</h3>
+
+<p>You create a new record that uses delegated typing by creating the delegator and delegatee at the same time, like so:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Entry</span>.<span class='id identifier rubyid_create!'>create!</span> <span class='label'>entryable:</span> <span class='const'>Comment</span>.<span class='id identifier rubyid_new'>new</span>(<span class='label'>content:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Hello!</span><span class='tstring_end'>&quot;</span></span>)<span class='comma'>,</span> <span class='label'>creator:</span> <span class='const'>Current</span>.<span class='id identifier rubyid_user'>user</span></code></pre>
+
+<p>If you need more complicated composition, or you need to perform dependent validation, you should build a factory method or class to take care of the complicated needs. This could be as simple as:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Entry</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_create_with_comment'>create_with_comment</span>(<span class='id identifier rubyid_content'>content</span><span class='comma'>,</span> <span class='label'>creator:</span> <span class='const'>Current</span>.<span class='id identifier rubyid_user'>user</span>)
+    <span class='id identifier rubyid_create!'>create!</span> <span class='label'>entryable:</span> <span class='const'>Comment</span>.<span class='id identifier rubyid_new'>new</span>(<span class='label'>content:</span> <span class='id identifier rubyid_content'>content</span>)<span class='comma'>,</span> <span class='label'>creator:</span> <span class='id identifier rubyid_creator'>creator</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<h3 id="label-Adding+further+delegation">Adding further delegation</h3>
+
+<p>The delegated type shouldn’t just answer the question of what the underlying class is called. In fact, that’s an anti-pattern most of the time. The reason you’re building this hierarchy is to take advantage of polymorphism. So here’s a simple example of that:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Entry</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_delegated_type'><a href="#delegated_type-instance_method" title="ActiveRecord::DelegatedType#delegated_type (method)">delegated_type</a></span> <span class='symbeg'>:</span><span class='id identifier rubyid_entryable'>entryable</span><span class='comma'>,</span> <span class='label'>types:</span> <span class='qwords'><span class='qwords_beg'>%w[</span><span class='words_sep'> </span><span class='tstring_content'>Message</span><span class='words_sep'> </span><span class='tstring_content'>Comment</span><span class='words_sep'> </span><span class='tstring_end'>]</span></span>
+  <span class='id identifier rubyid_delegate'>delegate</span> <span class='symbeg'>:</span><span class='id identifier rubyid_title'>title</span><span class='comma'>,</span> <span class='label'>to:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_entryable'>entryable</span>
+<span class='kw'>end</span>
+
+<span class='kw'>class</span> <span class='const'>Message</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_title'>title</span>
+    <span class='id identifier rubyid_subject'>subject</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+
+<span class='kw'>class</span> <span class='const'>Comment</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_title'>title</span>
+    <span class='id identifier rubyid_content'>content</span>.<span class='id identifier rubyid_truncate'>truncate</span>(<span class='int'>20</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Now you can list a bunch of entries, call <code>Entry#title</code>, and polymorphism will provide you with the answer.</p>
+
+  </div>
+</div>
+</div>
+<h2 class='h2_sum' id='instance_method_summary'>Instance Method Summary</h2>
+<div class='div_sum'>
+<ul class='summary full'>
+  <li>
+    <span class='summary_signature '>
+      <a href="#delegated_type-instance_method" title="#delegated_type (instance method)">#<strong>delegated_type</strong>(role, types:, **options)  </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Defines this as a class that’ll delegate its type for the passed <code>role</code> to the class references in <code>types</code>.</p></div>
+    </div>
+  </li>
+</ul>
+</div>  <!-- instance_method_summary -->
+<h2 class='y_details'>Instance Method Details</h2>
+<section class='method_details first' id="delegated_type-instance_method">
+  <h3 class='signature  first'>
+    #<strong>delegated_type</strong>(role, types:, **options)  
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Defines this as a class that’ll delegate its type for the passed <code>role</code> to the class references in <code>types</code>. That’ll create a polymorphic <code>belongs_to</code> relationship to that <code>role</code>, and it’ll add all the delegated type convenience methods:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Entry</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_delegated_type'>delegated_type</span> <span class='symbeg'>:</span><span class='id identifier rubyid_entryable'>entryable</span><span class='comma'>,</span> <span class='label'>types:</span> <span class='qwords'><span class='qwords_beg'>%w[</span><span class='words_sep'> </span><span class='tstring_content'>Message</span><span class='words_sep'> </span><span class='tstring_content'>Comment</span><span class='words_sep'> </span><span class='tstring_end'>]</span></span><span class='comma'>,</span> <span class='label'>dependent:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_destroy'>destroy</span>
+<span class='kw'>end</span>
+
+<span class='const'>Entry</span><span class='comment'>#entryable_class # =&gt; {Message} or {Comment}
+</span><span class='const'>Entry</span><span class='comment'>#entryable_name  # =&gt; &quot;message&quot; or &quot;comment&quot;
+</span><span class='const'>Entry</span>.<span class='id identifier rubyid_messages'>messages</span>        <span class='comment'># =&gt; Entry.where(entryable_type: &quot;Message&quot;)
+</span><span class='const'>Entry</span><span class='comment'>#message?        # =&gt; true when entryable_type == &quot;Message&quot;
+</span><span class='const'>Entry</span><span class='comment'>#message         # =&gt; returns the message record, when entryable_type == &quot;Message&quot;, otherwise nil
+</span><span class='const'>Entry</span><span class='comment'>#message_id      # =&gt; returns entryable_id, when entryable_type == &quot;Message&quot;, otherwise nil
+</span><span class='const'>Entry</span>.<span class='id identifier rubyid_comments'>comments</span>        <span class='comment'># =&gt; Entry.where(entryable_type: &quot;Comment&quot;)
+</span><span class='const'>Entry</span><span class='comment'>#comment?        # =&gt; true when entryable_type == &quot;Comment&quot;
+</span><span class='const'>Entry</span><span class='comment'>#comment         # =&gt; returns the comment record, when entryable_type == &quot;Comment&quot;, otherwise nil
+</span><span class='const'>Entry</span><span class='comment'>#comment_id      # =&gt; returns entryable_id, when entryable_type == &quot;Comment&quot;, otherwise nil</span></code></pre>
+
+<p>The <code>options</code> are passed directly to the <code>belongs_to</code> call, so this is where you declare <code>dependent</code> etc.</p>
+
+<p>You can also declare namespaced types:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Entry</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_delegated_type'>delegated_type</span> <span class='symbeg'>:</span><span class='id identifier rubyid_entryable'>entryable</span><span class='comma'>,</span> <span class='label'>types:</span> <span class='qwords'><span class='qwords_beg'>%w[</span><span class='words_sep'> </span><span class='tstring_content'>Message</span><span class='words_sep'> </span><span class='tstring_content'>Comment</span><span class='words_sep'> </span><span class='tstring_content'>Access::NoticeMessage</span><span class='words_sep'> </span><span class='tstring_end'>]</span></span><span class='comma'>,</span> <span class='label'>dependent:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_destroy'>destroy</span>
+<span class='kw'>end</span>
+
+<span class='const'>Entry</span>.<span class='id identifier rubyid_access_notice_messages'>access_notice_messages</span>
+<span class='id identifier rubyid_entry'>entry</span>.<span class='id identifier rubyid_access_notice_message'>access_notice_message</span>
+<span class='id identifier rubyid_entry'>entry</span>.<span class='id identifier rubyid_access_notice_message?'>access_notice_message?</span></code></pre>
+
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/v6.1.7.10/activerecord/lib/active_record/delegated_type.rb#L170-L173'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='170' data-end='173'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activerecord/lib/active_record/delegated_type.rb', line 170</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_delegated_type'>delegated_type</span>(<span class='id identifier rubyid_role'>role</span><span class='comma'>,</span> <span class='label'>types:</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_options'>options</span>)
+  <span class='id identifier rubyid_belongs_to'>belongs_to</span> <span class='id identifier rubyid_role'>role</span><span class='comma'>,</span> <span class='id identifier rubyid_options'>options</span>.<span class='id identifier rubyid_delete'>delete</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_scope'>scope</span>)<span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_options'>options</span>.<span class='id identifier rubyid_merge'>merge</span>(<span class='label'>polymorphic:</span> <span class='kw'>true</span>)
+  <span class='id identifier rubyid_define_delegated_type_methods'>define_delegated_type_methods</span> <span class='id identifier rubyid_role'>role</span><span class='comma'>,</span> <span class='label'>types:</span> <span class='id identifier rubyid_types'>types</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>

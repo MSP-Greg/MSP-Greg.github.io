@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen'       content='yes'>
+<meta name='apple-mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Tuning Performance For Deployment &mdash; Rails 8-0-stable</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "tuning_performance_for_deployment",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>Rails 8-0-stable</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Tuning Performance For Deployment&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<p><strong>DO NOT READ THIS FILE ON GITHUB, GUIDES ARE PUBLISHED ON <a href="https://guides.rubyonrails.org">https://guides.rubyonrails.org</a>.</strong></p>
+
+<h1>Tuning Performance for Deployment</h1>
+
+<p>This guide covers performance and concurrency configuration for deploying your production Ruby on <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> application.</p>
+
+<p>After reading this guide, you will know:</p>
+
+<ul>
+<li>Whether to use Puma, the default application server</li>
+<li>How to configure important performance settings for Puma</li>
+<li>How to begin performance testing your application settings</li>
+</ul>
+
+<p>This guide focuses on web servers, which are the primary performance-sensitive component of most web applications. Other
+components like background jobs and WebSockets can be tuned but won&#39;t be covered by this guide.</p>
+
+<p>More information about how to configure your application can be found in the <a href="configuring.html">Configuration Guide</a>.</p>
+
+<hr>
+
+<p>This guide assumes you are running <a href="https://ruby-lang.org">MRI</a>, the canonical implementation of Ruby also known as
+CRuby. If you&#39;re using another Ruby implementation such as JRuby or TruffleRuby, most of this guide doesn&#39;t apply.
+If needed, check sources specific to your Ruby implementation.</p>
+
+<h2>Choosing an Application Server</h2>
+
+<p>Puma is Rails&#39; default application server and the most commonly used server across the community.
+It works well in most cases. In some cases, you may wish to change to another.</p>
+
+<p>An application server uses a particular concurrency method.
+For example, Unicorn uses processes, Puma and Passenger are hybrid process- and thread-based concurrency, and Falcon
+uses fibers.</p>
+
+<p>A full discussion of Ruby&#39;s concurrency methods is beyond the scope of this document, but the key tradeoffs between
+processes and threads will be presented.
+If you want to use a method other than processes and threads, you will need to use a different application server.</p>
+
+<p>This guide will focus on how to tune Puma.</p>
+
+<h2>What to Optimize for?</h2>
+
+<p>In essence, tuning a Ruby web server is making a tradeoff between multiple properties such as memory usage, throughput,
+and latency.</p>
+
+<p>The throughput is the measure of how many requests per second the server can handle, and latency is the measure of how
+long individual requests take (also referred to as response time).</p>
+
+<p>Some users may want to maximize throughput to keep their hosting cost low, some other users may want to minimize latency
+to offer the best user experience, and many users will search for some compromise somewhere in the middle.</p>
+
+<p>It is important to understand that optimizing for one property will generally hurt at least another one.</p>
+
+<h3>Understanding Ruby&#39;s Concurrency and Parallelism</h3>
+
+<p><a href="https://www.ruby-lang.org/en/">CRuby</a> has a <a href="https://en.wikipedia.org/wiki/Global_interpreter_lock">Global Interpreter Lock</a>,
+often called the GVL or GIL.
+The GVL prevents multiple threads from running Ruby code at the same time in a single process.
+Multiple threads can be waiting on network data, database operations, or some other non-Ruby work generally referred to
+as I/O operations, but only one can actively run Ruby code at a time.</p>
+
+<p>This means that thread-based concurrency allows for increased throughput by concurrently processing web requests
+whenever they do I/O operations, but may degrade latency whenever an I/O operation completes. The thread that performed
+it may have to wait before it can resume executing Ruby code.
+Similarly, Ruby&#39;s garbage collector is &quot;stop-the-world&quot; so when it triggers all threads have to stop.</p>
+
+<p>This also means that regardless of how many threads a Ruby process contains, it will never use more than a single CPU
+core.</p>
+
+<p>Because of this, if your application only spends 50% of its time doing I/O operations, using more than 2 or 3 threads
+per process may severely hurt latency, and the gains in throughput will quickly hit diminishing returns.</p>
+
+<p>Generally speaking, a well-crafted <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> application that isn&#39;t suffering from slow SQL queries or N+1 problems doesn&#39;t
+spend more than 50% of its time doing I/O operations, hence is unlikely to benefit from more than 3 threads.
+However, some applications that do call third-party APIs inline may spend a very large proportion of their time doing
+I/O operations and may benefit from more threads than that.</p>
+
+<p>The way to achieve true parallelism with Ruby is to use multiple processes. As long as there is a free CPU core, Ruby
+processes don&#39;t have to wait on one another before resuming execution after an I/O operation is complete.
+However, processes only share a fraction of their memory via <a href="https://en.wikipedia.org/wiki/Copy-on-write">copy-on-write</a>,
+so one additional process uses more memory than an additional thread would.</p>
+
+<p>Note that while threads are cheaper than processes, they are not free, and increasing the number of threads per process,
+also increases memory usage.</p>
+
+<h3>Practical Implications</h3>
+
+<p>Users interested in optimizing for throughput and server utilization will want to run one process per CPU core and
+increase the number of threads per process until the impact on latency is deemed too important.</p>
+
+<p>Users interested in optimizing for latency will want to keep the number of threads per process low.
+To optimize for latency even further, users can even set the thread per process count to <code>1</code> and run <code>1.5</code> or <code>1.3</code>
+process per CPU core to account for when processes are idle waiting for I/O operations.</p>
+
+<p>It is important to note that some hosting solutions may only offer a relatively small amount of memory (RAM) per CPU
+core, preventing you from running as many processes as needed to use all CPU cores.
+However, most hosting solutions have different plans with different ratios of memory and CPU.</p>
+
+<p>Another thing to consider is that Ruby memory usage benefits from economies of scale thanks to
+<a href="https://en.wikipedia.org/wiki/Copy-on-write">copy-on-write</a>.
+So <code>2</code> servers with <code>32</code> Ruby processes each will use less memory per CPU core than <code>16</code> servers with <code>4</code> Ruby processes
+each.</p>
+
+<h2>Configurations</h2>
+
+<h3>Puma</h3>
+
+<p>The Puma configuration resides in the <code>config/puma.rb</code> file.
+The two most important Puma configurations are the number of threads per process, and the number of processes,
+which Puma calls <code>workers</code>.</p>
+
+<p>The number of threads per process is configured via the <code>threads</code> directive.
+In the default generated configuration, it is set to <code>3</code>.
+You can modify it either by setting the <code>RAILS_MAX_THREADS</code> environment variable or simply editing the configuration
+file.</p>
+
+<p>The number of processes is configured by the <code>workers</code> directive.
+If you use more than one thread per process, then it should be set to how many CPU cores are available on the server,
+or if the server is running multiple applications, to how many cores you want the application to use.
+If you only use one thread per worker, then you can increase it to above one per process to account for when workers are
+idle waiting for I/O operations.</p>
+
+<p>You can configure number of Puma workers by setting the <code>WEB_CONCURRENCY</code> environment variable.</p>
+
+<h3>YJIT</h3>
+
+<p>Recent Ruby versions come with a <a href="https://en.wikipedia.org/wiki/Just-in-time_compilation">Just-in-time compiler</a>
+called [<code>YJIT</code>]).</p>
+
+<p>Without going into too many details, JIT compilers allow to execute code faster, at the expense of using some more
+memory.
+Unless you really cannot spare this extra memory usage, it is highly recommended to enable YJIT.</p>
+
+<p>As for <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> 7.2, if your application is running on Ruby 3.3 or superior, YJIT will automatically be enabled by <a href="Rails.html" title="Rails (module)"><code>Rails</code></a>
+by default.
+Older versions of <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> or Ruby have to enable it manually, please refer to the
+[<code>YJIT documentation</code>]) about how to do it.</p>
+
+<p>If the extra memory usage is a problem, before entirely disabling YJIT, you can try tuning it to use less memory via
+[the <code>--yjit-exec-mem-size</code> configuration]#decreasing---yjit-exec-mem-size).</p>
+
+<h3>Memory Allocators and Configuration</h3>
+
+<p>Because of how the default memory allocator works on most Linux distributions, running Puma with multiple threads can
+lead to an unexpected increase in memory usage caused by <a href="https://en.wikipedia.org/wiki/Fragmentation_(computing)">memory fragmentation</a>.
+In turn, this increased memory usage may prevent your application from fully utilizing the server CPU cores.</p>
+
+<p>To alleviate this problem, it is highly recommended to configure Ruby to use an alternative memory allocator:
+<a href="https://github.com/jemalloc/jemalloc">jemalloc</a>.</p>
+
+<p>The default Dockerfile generated by <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> already comes preconfigured to install and use <code>jemalloc</code>. But if your hosting
+solution isn&#39;t Docker based, you should look into how to install and enable jemalloc there.</p>
+
+<p>If for some reason that isn&#39;t possible, a less efficient alternative is to configure the default allocator in a way that
+reduces memory fragmentation by setting <code>MALLOC_ARENA_MAX=2</code> in your environment.
+Note however that this might make Ruby slower, so <code>jemalloc</code> is the preferred solution.</p>
+
+<h2>Performance Testing</h2>
+
+<p>Because every <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> application is different, and that every <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> user may want to optimize for different properties,
+it is impossible to offer a default configuration or guidelines that works best for everyone.</p>
+
+<p>Hence, the best way to choose your application&#39;s settings is to measure the performance of your application, and adjust
+the configuration until it is satisfactory for your goals.</p>
+
+<p>This can be done with a simulated production workload, or directly in production with live application traffic.</p>
+
+<p>Performance testing is a deep subject. This guide gives only simple guidelines.</p>
+
+<h3>What to Measure</h3>
+
+<p>Throughput is the number of requests per second that your application successfully processes.
+Any good load testing program will measure it.
+A throughput is normally a single number expressed in &quot;requests per second&quot;.</p>
+
+<p>Latency is the delay from the time the request is sent until its response is successfully received, generally expressed
+in milliseconds.
+Each individual request will have its own latency.</p>
+
+<p><a href="https://en.wikipedia.org/wiki/Percentile_rank">Percentile</a> latency gives the latency where a certain percentage of
+requests have better latency than that.
+For instance, <code>P90</code> is the 90th-percentile latency.
+The <code>P90</code> is the latency for a single load test where only 10% of requests took longer than that to process.
+The <code>P50</code> is the latency such that half your requests were slower, also called the median latency.</p>
+
+<p>&quot;Tail latency&quot; refers to high-percentile latencies.
+For instance, the <code>P99</code> is the latency such that only 1% of your requests were worse.
+<code>P99</code> is a tail latency.
+<code>P50</code> is not a tail latency.</p>
+
+<p>Generally speaking, the average latency isn&#39;t a good metric to optimize for.
+It is best to focus on median (<code>P50</code>) and tail (<code>P95</code> or <code>P99</code>) latency.</p>
+
+<h3>Production Measurement</h3>
+
+<p>If your production environment includes more than one server, it can be a good idea to do
+<a href="https://en.wikipedia.org/wiki/A/B_testing">A/B testing</a> there.
+For instance, you could run half of the servers with <code>3</code> threads per process, and the other half with <code>4</code> threads per
+process, and then use an application performance monitoring service to compare the throughput and latency of the two
+groups.</p>
+
+<p>Application performance monitoring services are numerous, some are self-hosted, some are cloud solutions, and many offer
+a free tier plan.
+Recommending a particular one is beyond the scope of this guide.</p>
+
+<h3>Load Testers</h3>
+
+<p>You will need a load testing program to make requests of your application.
+This can be a dedicated load testing program of some kind, or you can write a small application to make HTTP requests
+and track how long they take.
+You should not normally check the time in your <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> log file.
+That time is only how long <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> took to process the request. It does not include time taken by the application server.</p>
+
+<p>Sending many simultaneous requests and timing them can be difficult. It is easy to introduce subtle measurement errors.
+Normally you should use a load testing program, not write your own. Many load testers are simple to use and many
+excellent load testers are free.</p>
+
+<h3>What You Can Change</h3>
+
+<p>You can change the number of threads in your test to find the best tradeoff between throughput and latency for your
+application.</p>
+
+<p>Larger hosts with more memory and CPU cores will need more processes for best usage.
+You can vary the size and type of hosts from a hosting provider.</p>
+
+<p>Increasing the number of iterations will usually give a more exact answer, but require longer for testing.</p>
+
+<p>You should test on the same type of host that will run in production.
+Testing on your development machine will only tell you what settings are best for that development machine.</p>
+
+<h3>Warmup</h3>
+
+<p>Your application should process a number of requests after startup that are not included in your final measurements.
+These requests are called &quot;warmup&quot; requests, and are usually much slower than later &quot;steady-state&quot; requests.</p>
+
+<p>Your load testing program will usually support warmup requests. You can also run it more than once and throw away the
+first set of times.</p>
+
+<p>You have enough warmup requests when increasing the number does not significantly change your result.
+<a href="https://arxiv.org/abs/1602.00602">The theory behind this can be complicated</a> but most common situations are
+straightforward: test several times with different amounts of warmup. See how many warmup iterations are needed before
+the results stay roughly the same.</p>
+
+<p>Very long warmup can be useful for testing memory fragmentation and other issues that happen only after many requests.</p>
+
+<h3>Which Requests</h3>
+
+<p>Your application probably accepts many different HTTP requests.
+You should begin by load testing with just a few of them.
+You can add more kinds of requests over time.
+If a particular kind of request is too slow in your production application, you can add it to your load testing code.</p>
+
+<p>A synthetic workload cannot perfectly match your application&#39;s production traffic.
+It is still helpful for testing configurations.</p>
+
+<h3>What to Look For</h3>
+
+<p>Your load testing program should allow you to check latencies, including percentile and tail latencies.</p>
+
+<p>For different numbers of processes and threads, or different configurations in general, check the throughput and one or
+more latencies such as <code>P50</code>, <code>P90</code>, and <code>P99</code>.
+Increasing the threads will improve throughput up to a point, but worsen latency.</p>
+
+<p>Choose a tradeoff between latency and throughput based on your application&#39;s needs.</p>
+
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>

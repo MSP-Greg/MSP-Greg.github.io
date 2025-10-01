@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen'       content='yes'>
+<meta name='apple-mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: FAQ &mdash; EventMachine master</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "FAQ",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>EventMachine master</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: FAQ&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<h2>Does EM buffer during GC?</h2>
+<p>Yes&#8212;but only to the extent that the kernel buffers itself (so like a few KB/connection, then they fill up).</p>
+<h2>Does EM work with other Ruby threads running?</h2>
+<p>Yes but if you do EM::connect from a different thread, then it may throw unbound errors. To avoid this put your EM::connect stuffs in a next_tick call.</p>
+<pre class="code ruby"><code class='ruby'><span class='const'><a href="#EM-constant" title="EM (constant)">EM</a></span><span class='op'>::</span><span class='id identifier rubyid_next_tick'><a href="EventMachine.html#next_tick-class_method" title="EventMachine.next_tick (method)">next_tick</a></span> { 
+  <span class='const'><a href="#EM-constant" title="EM (constant)">EM</a></span><span class='op'>::</span><span class='id identifier rubyid_connect'><a href="EventMachine.html#connect-class_method" title="EventMachine.connect (method)">connect</a></span> <span class='id identifier rubyid_server_name'>server_name</span><span class='comma'>,</span> <span class='id identifier rubyid_port'>port</span><span class='comma'>,</span> <span class='const'>Class</span> { 
+    <span class='comment'># block
+</span>  } 
+}</code></pre>
+<p>Then EM will work it in correctly, and almost instantaneously. You lose the ability to catch immediate connection errors, but it will be thread safe, and the code will run almost instantaneously!</p>
+<p>Adding timers must also be this way, or you risk the possibility of ConnectionUnbound? errors.</p>
+<p>Note that if you don&#8217;t do this and are doing it multi-threadedly, then the order of post_init, unbind/connection_completed may be before the block passed to connect (ordering can get messed up).</p>
+<h2>What is the order of functions called?</h2>
+<p>These will only be called when a connection is made (though a connection which is attempted will also call a few before it fails).</p>
+<p>With a client</p>
+<ul>
+	<li>EM.connect( &#8216;127.0.0.1&#8217;, port, EchoClient?) called first</li>
+	<li>initialize method (called by EM on a new instance&#8212;currently without any parameters and only internally)</li>
+	<li>post_init (always called)</li>
+	<li>block given to EM.connect (always called)</li>
+	<li>connection_completed (called on success, else unbind)</li>
+</ul>
+<ul>
+	<li>receive_data (called by EM&#8212;when it receives incoming data and it&#8217;s that port&#8217;s turn to process it&#8212;it will pass it &#8220;all or most&#8221; of incoming data).</li>
+	<li>send_<code>file_data, datagram</code> called by you&#8212;puts those things in EM&#8217;s outbound queue for that connection.</li>
+</ul>
+<ul>
+	<li>close_connection, close_connection_after_writing, EM::(stop | stop_event_loop) all shut it down (called by you).</li>
+	<li>unbind</li>
+</ul>
+<p>With a server (only on incoming connections, once per connection):</p>
+<ul>
+	<li>initialize</li>
+	<li>post_init (called by EM)</li>
+	<li>EM.start_server block (the block you passed to the start server call, called by EM)</li>
+</ul>
+<ul>
+	<li>send_data/send_file_data/send_datagram (called by you)</li>
+	<li>receive_data (called by EM)</li>
+	<li>stop_server (called by you &#8212; stops server from listening, though existing connections are still live) &#8212; see documentation</li>
+</ul>
+<ul>
+	<li>close_connection, close_connection_after_writing, EM::(stop | stop_event_loop) all shut it down (called by you).</li>
+	<li>unbind (when socket closed) (called by EM, whenever it closes because of you or the connecting peer)</li>
+</ul>
+<h2>Which are the methods you can redefine, then, that get called?</h2>
+<p><code>#post_init</code>, <code>#receive_data</code>, <code>#unbind</code>, and, for clients, <code>#connection_completed</code>.</p>
+<h2>What if I have a server connect to a client on the same host running within the same EM &#8212; which one gets executed first?</h2>
+<p>From experimentation, it appears to be post_init(client), client block, post_init server, server block, connection_completed(client), then unbind of the one that makes the first call to close_connection (i.e. if server calls close_connection, its unbind is called first [right then?], then the clients&#8217;).</p>
+<h2>Can I use instance variables?</h2>
+<p>Of course! There is no arbitrary limitations on your code, this is Ruby!</p>
+<h2>Is there access to some type of initializer?</h2>
+<p>Yeah see above. You get access to it for servers, not for clients, as of 1/1/8</p>
+<h2>Is there a limit to the send buffer size?</h2>
+<p>Nope. Send out a string as large as you want, EM will buffer it and send it as fast as it can. Of course, you may not <span class="caps">WANT</span> to buffer huge strings in <span class="caps">RAM</span>&#8212;in which case there is a <code>#next_tick</code> method which can be used to constantly monitor your sockets buffers and keep them full. See the NextTick? page.</p>
+<h2>How does send file work?</h2>
+<p><code>#send_file</code> was written by Kirk Haines to speed up <span class="caps">HTTP</span> servers. It does <span class="caps">NOT</span> send the entire file at once, but schedules it out piece by piece, carefully monitoring the size of the outbound kernel buffers as it goes. You can probably send terabytes through it.</p>
+<p>from Kirk Haines</p>
+<p>&#8220;I have tested pushing thousands of gigabyte+ sized files through it, and there were no problems.&#8221;</p>
+<h2>Do you need to flush your socket, like in C?</h2>
+<p>Thankfully no. The sockets are setup to auto-flush, so you never have to worry about it (Nagle&#8217;s Algorithm is disabled by default).</p>
+<h2>How do you send a lotta lotta data, without loading it all into a enormous string?</h2>
+<p>Look at the rdoc for the #next_tick function. Also, read the SPAWNED_PROCESSES document. See NextTick? page.</p>
+<h2>Can I start a server on &#8216;a random available port&#8217;?</h2>
+<p>Yes. When you call EM#start_server, pass 0 as the port number. Use EM#get_sockname with the object returned from EM#start_server to find out what port number actually was assigned to the server. (This works as of the <span class="caps">HEAD</span> revision checked in on 15May08.)</p>
+<pre class="code ruby"><code class='ruby'><span class='const'><a href="#EM-constant" title="EM (constant)">EM</a></span>.<span class='id identifier rubyid_run'><a href="EventMachine.html#run-class_method" title="EventMachine.run (method)">run</a></span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_server'>server</span> <span class='op'>=</span> <span class='const'><a href="#EM-constant" title="EM (constant)">EM</a></span>.<span class='id identifier rubyid_start_server'><a href="EventMachine.html#start_server-class_method" title="EventMachine.start_server (method)">start_server</a></span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>127.0.0.1</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='int'>0</span><span class='comma'>,</span> <span class='const'>Handler</span>  <span class='comment'># port arg is 0
+</span>  <span class='id identifier rubyid_sockname'>sockname</span> <span class='op'>=</span> <span class='const'><a href="#EM-constant" title="EM (constant)">EM</a></span>.<span class='id identifier rubyid_get_sockname'><a href="EventMachine.html#get_sockname-class_method" title="EventMachine.get_sockname (method)">get_sockname</a></span>( <span class='id identifier rubyid_server'>server</span> )  <span class='comment'># Get data structure
+</span>  <span class='id identifier rubyid_port'>port</span><span class='comma'>,</span> <span class='op'>*</span> <span class='op'>=</span> <span class='const'>Socket</span>.<span class='id identifier rubyid_unpack_sockaddr_in'>unpack_sockaddr_in</span>( <span class='id identifier rubyid_sockname'>sockname</span> )  <span class='comment'># Extract port (and ip addr)
+</span>  <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Running on port </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_port'>port</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
+<span class='kw'>end</span></code></pre>
+<h2>What are deferrables?</h2>
+<p>See [[EM::Deferrable-and-EM.defer]]</p>
+<h2>Can you give the EM thread special priority?</h2>
+<p>Yes. See the priority function of the Thread.current class. Weirdness has been noted using it in conjunction with epoll, however.</p>
+<h2>Where can I publish my useful EM code?</h2>
+<p>At [[Code Snippets]], of course :)</p>
+<h2>Is unbind called when the connection is &#8216;totally closed&#8217; (like the remote peer has acknowledged the close)?</h2>
+<p>from Francis Cianfrocca</p>
+<p>&#8220;&#8230;unbind will reliably be called when the local side of a <span class="caps">TCP</span> connection has closed, or the reactor has detected either a close or a reset by the remote peer&#8230;&#8221;</p>
+<h2>Does EM block on <span class="caps">DNS</span> resolutions (i.e. if you start a connection to takes_ages.com, will it temporarily block the other processes while it works)?</h2>
+<p>Yes. DnsRuby? has a workaround. See the mailing list for full details, or :</p>
+<pre class="code ruby"><code class='ruby'><span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Dnsruby</span><span class='tstring_end'>&#39;</span></span>
+<span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>eventmachine</span><span class='tstring_end'>&#39;</span></span>
+<span class='id identifier rubyid_res'>res</span> <span class='op'>=</span> <span class='const'>Dnsruby</span><span class='op'>::</span><span class='const'>Resolver</span>.<span class='id identifier rubyid_new'>new</span> <span class='comment'># use system defaults
+</span><span class='const'>Dnsruby</span><span class='op'>::</span><span class='const'>Resolver</span>.<span class='id identifier rubyid_use_eventmachine'>use_eventmachine</span>
+<span class='const'>Dnsruby</span><span class='op'>::</span><span class='const'>Resolver</span>.<span class='id identifier rubyid_start_eventmachine_loop'>start_eventmachine_loop</span>(<span class='kw'>false</span>)
+
+<span class='const'><a href="#EM-constant" title="EM (constant)">EM</a></span>.<span class='id identifier rubyid_run'><a href="EventMachine.html#run-class_method" title="EventMachine.run (method)">run</a></span> {
+  <span class='id identifier rubyid_name'>name</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>dns_that_takes_ages.com</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_df'>df</span> <span class='op'>=</span> <span class='id identifier rubyid_res'>res</span>.<span class='id identifier rubyid_send_async'>send_async</span>(<span class='const'>Message</span>.<span class='id identifier rubyid_new'>new</span>(<span class='id identifier rubyid_name'>name</span>))
+  <span class='id identifier rubyid_df'>df</span>.<span class='id identifier rubyid_callback'>callback</span> {<span class='op'>|</span><span class='id identifier rubyid_msg'>msg</span><span class='op'>|</span>
+    <span class='const'><a href="#EM-constant" title="EM (constant)">EM</a></span>.<span class='id identifier rubyid_connect'><a href="EventMachine.html#connect-class_method" title="EventMachine.connect (method)">connect</a></span>(<span class='id identifier rubyid_msg'>msg</span>.<span class='id identifier rubyid_answer'>answer</span>[<span class='int'>0</span>]<span class='comma'>,</span> <span class='int'>8289</span><span class='comma'>,</span> <span class='const'>MyClass</span>) {}  
+  }
+  <span class='id identifier rubyid_df'>df</span>.<span class='id identifier rubyid_errback'>errback</span> {<span class='op'>|</span><span class='id identifier rubyid_msg'>msg</span><span class='comma'>,</span> <span class='id identifier rubyid_err'>err</span><span class='op'>|</span>
+    <span class='id identifier rubyid_print'>print</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Sorry - can&#39;t resolve </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_name'>name</span><span class='embexpr_end'>}</span><span class='tstring_content'>. Error = </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_err'>err</span><span class='embexpr_end'>}</span><span class='tstring_content'>n</span><span class='tstring_end'>&quot;</span></span>
+  }
+}</code></pre>
+<p>This could easily be wrapped up in a new call, e.g. EM.connect_nonblock() {}</p>
+<h2>Can you set variables &#8216;per server&#8217; (and thereby reuse a server class with different variables set, in the server)?</h2>
+<p>Yes. Either set them in the block called on each server&#8217;s connection.</p>
+<pre class="code ruby"><code class='ruby'><span class='const'><a href="EventMachine.html" title="EventMachine (module)">EventMachine</a></span><span class='op'>::</span><span class='id identifier rubyid_start_server'><a href="EventMachine.html#start_server-class_method" title="EventMachine.start_server (method)">start_server</a></span> <span class='id identifier rubyid_host'>host</span><span class='comma'>,</span> <span class='id identifier rubyid_port'>port</span><span class='comma'>,</span> <span class='const'>LineCounterModule</span> { <span class='op'>|</span><span class='id identifier rubyid_conn'>conn</span><span class='op'>|</span>
+   <span class='comment'>#do stuff
+</span>}</code></pre>
+<p>The &#8220;#do stuff&#8221; block will run each time the server is instantiated (i.e. it passes, to that block, the instantiation of your defined Module), so it&#8217;s a way to access your servers and pass them parameter when each connection is created. In reality there is no server &#8216;object&#8217; per se instantiated, until one is created for each connection, so this is a good place to load each with appropriate variables.</p>
+<p>You could, however, .dup the class (in this case LineCounterModule) and then set some class variables in it, but that is harder.</p>
+<h2>How do I get the latest source code?</h2>
+<pre class="code bash"><code class="bash">git clone git://github.com/eventmachine/eventmachine
+</code></pre>
+<p>see [[Building EventMachine]] for more detailed instructions</p>
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>

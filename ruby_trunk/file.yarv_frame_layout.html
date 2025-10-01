@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen'       content='yes'>
+<meta name='apple-mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Yarv Frame Layout &mdash; Ruby-master</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "yarv_frame_layout",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>Ruby-master</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Yarv Frame Layout&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="file_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<h1>YARV Frame Layout</h1>
+
+<p>This document is an introduction to what happens on the VM stack as the VM
+services calls. The code holds the ultimate truth for this subject, so beware
+that this document can become stale.</p>
+
+<p>We&#39;ll walk through the following program, with explanation at selected points
+in execution and abridged disassembly listings:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_foo'>foo</span>(<span class='id identifier rubyid_x'>x</span><span class='comma'>,</span> <span class='id identifier rubyid_y'>y</span>)
+  <span class='id identifier rubyid_z'>z</span> <span class='op'>=</span> <span class='id identifier rubyid_x'>x</span>.<span class='id identifier rubyid_casecmp'>casecmp</span>(<span class='id identifier rubyid_y'>y</span>)
+<span class='kw'>end</span>
+
+<span class='id identifier rubyid_foo'>foo</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_one'>one</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_two'>two</span>)</code></pre>
+
+<p>First, after arguments are evaluated and right before the <code>send</code> to <code>foo</code>:</p>
+
+<pre class="code ruby"><code class="ruby">                                <span class='id identifier rubyid_┌────────────┐'>┌────────────┐</span>
+  <span class='id identifier rubyid_putself'>putself</span>                       <span class='id identifier rubyid_│'>│</span>    <span class='symbeg'>:</span><span class='id identifier rubyid_two'>two</span>    <span class='id identifier rubyid_│'>│</span>
+  <span class='id identifier rubyid_putobject'>putobject</span> <span class='symbeg'>:</span><span class='id identifier rubyid_one'>one</span>            <span class='int'>0x2</span> <span class='id identifier rubyid_├────────────┤'>├────────────┤</span>
+  <span class='id identifier rubyid_putobject'>putobject</span> <span class='symbeg'>:</span><span class='id identifier rubyid_two'>two</span>                <span class='id identifier rubyid_│'>│</span>    <span class='symbeg'>:</span><span class='id identifier rubyid_one'>one</span>    <span class='id identifier rubyid_│'>│</span>
+<span class='id identifier rubyid_►'>►</span> <span class='id identifier rubyid_send'>send</span> <span class='op'>&lt;</span><span class='symbeg'>:</span><span class='id identifier rubyid_foo'>foo</span><span class='comma'>,</span> <span class='label'>argc:</span><span class='int'>2</span><span class='op'>&gt;</span>       <span class='int'>0x1</span> <span class='id identifier rubyid_├────────────┤'>├────────────┤</span>
+  <span class='id identifier rubyid_leave'>leave</span>                         <span class='id identifier rubyid_│'>│</span>    <span class='kw'>self</span>    <span class='id identifier rubyid_│'>│</span>
+                            <span class='int'>0x0</span> <span class='id identifier rubyid_└────────────┘'>└────────────┘</span></code></pre>
+
+<p>The <code>put*</code> instructions have pushed 3 items onto the stack. It&#39;s now time to
+add a new control frame for <code>foo</code>. The following is the shape of the stack
+after one instruction in <code>foo</code>:</p>
+
+<pre class="code ruby"><code class="ruby">                                                <span class='id identifier rubyid_cfp'>cfp</span><span class='tlambda'>-&gt;</span><span class='id identifier rubyid_sp'>sp</span><span class='op'>=</span><span class='int'>0x8</span> <span class='id identifier rubyid_at'>at</span> <span class='id identifier rubyid_this'>this</span> <span class='id identifier rubyid_point'>point</span>.
+                           <span class='int'>0x8</span> <span class='id identifier rubyid_┌────────────┐◄──Stack'>┌────────────┐◄──Stack</span> <span class='id identifier rubyid_space'>space</span> <span class='kw'>for</span> <span class='id identifier rubyid_temporaries'>temporaries</span>
+                               <span class='id identifier rubyid_│'>│</span>    <span class='symbeg'>:</span><span class='id identifier rubyid_one'>one</span>    <span class='id identifier rubyid_│'>│</span>   <span class='id identifier rubyid_live'>live</span> <span class='id identifier rubyid_above'>above</span> <span class='id identifier rubyid_the'>the</span> <span class='id identifier rubyid_environment'>environment</span>.
+                           <span class='int'>0x7</span> <span class='id identifier rubyid_├────────────┤'>├────────────┤</span>
+  <span class='id identifier rubyid_getlocal'>getlocal</span>      <span class='id identifier rubyid_x'>x</span><span class='ivar'>@</span><span class='int'>0</span>            <span class='id identifier rubyid_│'>│</span> <span class='op'>&lt;</span> <span class='id identifier rubyid_flags'>flags</span>  <span class='op'>&gt;</span> <span class='id identifier rubyid_│'>│</span>   <span class='id identifier rubyid_foo'>foo</span><span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>s rb_control_frame_t
+► getlocal      y@1        0x6 ├────────────┤◄──has cfp-&gt;ep=0x6
+  send &lt;:casecmp, argc:1&gt;      │ &lt;no block&gt; │
+  dup                      0x5 ├────────────┤  The flags, block, and CME triple
+  setlocal      z@2            │ &lt;CME: foo&gt; │  (VM_ENV_DATA_SIZE) form an
+  leave                    0x4 ├────────────┤  environment. They can be used to
+                               │   z (nil)  │  figure out what local variables
+                           0x3 ├────────────┤  are below them.
+                               │    :two    │
+                           0x2 ├────────────┤  Notice how the arguments, now
+                               │    :one    │  locals, never moved. This layout
+                           0x1 ├────────────┤  allows for argument transfer
+                               │    self    │  without copying.
+                           0x0 └────────────┘</span></code></pre>
+
+<p>Given that locals have lower address than <code>cfp-&gt;ep</code>, it makes sense then that
+<code>getlocal</code> in <code>insns.def</code> has <code>val = *(vm_get_ep(GET_EP(), level) - idx);</code>.
+When accessing variables in the immediate scope, where <code>level=0</code>, it&#39;s
+essentially <code>val = cfp-&gt;ep[-idx];</code>.</p>
+
+<p>Note that this EP-relative index has a different basis the index that comes
+after &quot;@&quot; in disassembly listings. The &quot;@&quot; index is relative to the 0th local
+(<code>x</code> in this case).</p>
+
+<h2>Q&amp;A</h2>
+
+<p>Q: It seems that the receiver is always at an offset relative to EP,
+   like locals. Couldn&#39;t we use EP to access it instead of using <code>cfp-&gt;self</code>?</p>
+
+<p>A: Not all calls put the <code>self</code> in the callee on the stack. Two
+   examples are <code>Proc#call</code>, where the receiver is the Proc object, but <code>self</code>
+   inside the callee is <code>Proc#receiver</code>, and <code>yield</code>, where the receiver isn&#39;t
+   pushed onto the stack before the arguments.</p>
+
+<p>Q: Why have <code>cfp-&gt;ep</code> when it seems that everything is below <code>cfp-&gt;sp</code>?</p>
+
+<p>A: In the example, <code>cfp-&gt;ep</code> points to the stack, but it can also point to the
+   GC heap. Blocks can capture and evacuate their environment to the heap.</p>
+
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>

@@ -1,0 +1,1891 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen'       content='yes'>
+<meta name='apple-mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Active Support Instrumentation &mdash; Rails 8-0-stable</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "active_support_instrumentation",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>Rails 8-0-stable</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Active Support Instrumentation&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<p><strong>DO NOT READ THIS FILE ON GITHUB, GUIDES ARE PUBLISHED ON <a href="https://guides.rubyonrails.org">https://guides.rubyonrails.org</a>.</strong></p>
+
+<h1>Active Support Instrumentation</h1>
+
+<p>Active Support is a part of core <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> that provides Ruby language extensions, utilities, and other things. One of the things it includes is an instrumentation API that can be used inside an application to measure certain actions that occur within Ruby code, such as those inside a <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> application or the framework itself. It is not limited to <a href="Rails.html" title="Rails (module)"><code>Rails</code></a>, however. It can be used independently in other Ruby scripts if desired.</p>
+
+<p>In this guide, you will learn how to use the Active Support&#39;s instrumentation API to measure events inside of <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> and other Ruby code.</p>
+
+<p>After reading this guide, you will know:</p>
+
+<ul>
+<li>What instrumentation can provide.</li>
+<li>How to add a subscriber to a hook.</li>
+<li>The hooks inside the <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> framework for instrumentation.</li>
+<li>How to build a custom instrumentation implementation.</li>
+</ul>
+
+<hr>
+
+<h2>Introduction to Instrumentation</h2>
+
+<p>The instrumentation API provided by Active Support allows developers to provide hooks which other developers may hook into. There are <a href="#rails-framework-hooks">several of these</a> within the <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> framework. With this API, developers can choose to be notified when certain events occur inside their application or another piece of Ruby code.</p>
+
+<p>For example, there is <a href="#sql-active-record">a hook</a> provided within Active Record that is called every time Active Record uses an SQL query on a database. This hook could be <strong>subscribed</strong> to, and used to track the number of queries during a certain action. There&#39;s <a href="#process-action-action-controller">another hook</a> around the processing of an action of a controller. This could be used, for instance, to track how long a specific action has taken.</p>
+
+<p>You are even able to <a href="#creating-custom-events">create your own events</a> inside your application which you can later subscribe to.</p>
+
+<h2>Subscribing to an Event</h2>
+
+<p>Use <a href="https://api.rubyonrails.org/classes/ActiveSupport/Notifications.html#method-c-subscribe"><a href="ActiveSupport/Notifications.html#subscribe-class_method" title="ActiveSupport::Notifications.subscribe (method)">ActiveSupport::Notifications.subscribe</a></a> with a block to listen to any notification. Depending on the amount of
+arguments the block takes, you will receive different data.</p>
+
+<p>The first way to subscribe to an event is to use a block with a single argument. The argument will be an instance of
+<a href="https://api.rubyonrails.org/classes/ActiveSupport/Notifications/Event.html"><a href="ActiveSupport/Notifications/Event.html" title="ActiveSupport::Notifications::Event (class)"><code>::ActiveSupport::Notifications::Event</code></a></a>.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/Notifications.html" title="ActiveSupport::Notifications (module)">Notifications</a></span>.<span class='id identifier rubyid_subscribe'><a href="ActiveSupport/Notifications.html#subscribe-class_method" title="ActiveSupport::Notifications.subscribe (method)">subscribe</a></span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>process_action.action_controller</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_event'>event</span><span class='op'>|</span>
+  <span class='id identifier rubyid_event'>event</span>.<span class='id identifier rubyid_name'>name</span>        <span class='comment'># =&gt; &quot;process_action.action_controller&quot;
+</span>  <span class='id identifier rubyid_event'>event</span>.<span class='id identifier rubyid_duration'>duration</span>    <span class='comment'># =&gt; 10 (in milliseconds)
+</span>  <span class='id identifier rubyid_event'>event</span>.<span class='id identifier rubyid_allocations'>allocations</span> <span class='comment'># =&gt; 1826
+</span>  <span class='id identifier rubyid_event'>event</span>.<span class='id identifier rubyid_payload'>payload</span>     <span class='comment'># =&gt; {:extra=&gt;information}
+</span>
+  <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_logger'><a href="Rails.html#logger-class_method" title="Rails.logger (method)">logger</a></span>.<span class='id identifier rubyid_info'>info</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_event'>event</span><span class='embexpr_end'>}</span><span class='tstring_content'> Received!</span><span class='tstring_end'>&quot;</span></span>
+<span class='kw'>end</span></code></pre>
+
+<p>If you don&#39;t need all the data recorded by an Event object, you can also specify a
+block that takes the following five arguments:</p>
+
+<ul>
+<li>Name of the event</li>
+<li>Time when it started</li>
+<li>Time when it finished</li>
+<li>A unique ID for the instrumenter that fired the event</li>
+<li>The payload for the event</li>
+</ul>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/Notifications.html" title="ActiveSupport::Notifications (module)">Notifications</a></span>.<span class='id identifier rubyid_subscribe'><a href="ActiveSupport/Notifications.html#subscribe-class_method" title="ActiveSupport::Notifications.subscribe (method)">subscribe</a></span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>process_action.action_controller</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_name'>name</span><span class='comma'>,</span> <span class='id identifier rubyid_started'>started</span><span class='comma'>,</span> <span class='id identifier rubyid_finished'>finished</span><span class='comma'>,</span> <span class='id identifier rubyid_unique_id'>unique_id</span><span class='comma'>,</span> <span class='id identifier rubyid_payload'>payload</span><span class='op'>|</span>
+  <span class='comment'># your own custom stuff
+</span>  <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_logger'><a href="Rails.html#logger-class_method" title="Rails.logger (method)">logger</a></span>.<span class='id identifier rubyid_info'>info</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_name'>name</span><span class='embexpr_end'>}</span><span class='tstring_content'> Received! (started: </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_started'>started</span><span class='embexpr_end'>}</span><span class='tstring_content'>, finished: </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_finished'>finished</span><span class='embexpr_end'>}</span><span class='tstring_content'>)</span><span class='tstring_end'>&quot;</span></span> <span class='comment'># process_action.action_controller Received! (started: 2019-05-05 13:43:57 -0800, finished: 2019-05-05 13:43:58 -0800)
+</span><span class='kw'>end</span></code></pre>
+
+<p>If you are concerned about the accuracy of <code>started</code> and <code>finished</code> to compute a precise elapsed time, then use <a href="https://api.rubyonrails.org/classes/ActiveSupport/Notifications.html#method-c-monotonic_subscribe"><a href="ActiveSupport/Notifications.html#monotonic_subscribe-class_method" title="ActiveSupport::Notifications.monotonic_subscribe (method)">ActiveSupport::Notifications.monotonic_subscribe</a></a>. The given block would receive the same arguments as above, but the <code>started</code> and <code>finished</code> will have values with an accurate monotonic time instead of wall-clock time.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/Notifications.html" title="ActiveSupport::Notifications (module)">Notifications</a></span>.<span class='id identifier rubyid_monotonic_subscribe'><a href="ActiveSupport/Notifications.html#monotonic_subscribe-class_method" title="ActiveSupport::Notifications.monotonic_subscribe (method)">monotonic_subscribe</a></span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>process_action.action_controller</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_name'>name</span><span class='comma'>,</span> <span class='id identifier rubyid_started'>started</span><span class='comma'>,</span> <span class='id identifier rubyid_finished'>finished</span><span class='comma'>,</span> <span class='id identifier rubyid_unique_id'>unique_id</span><span class='comma'>,</span> <span class='id identifier rubyid_payload'>payload</span><span class='op'>|</span>
+  <span class='comment'># your own custom stuff
+</span>  <span class='id identifier rubyid_duration'>duration</span> <span class='op'>=</span> <span class='id identifier rubyid_finished'>finished</span> <span class='op'>-</span> <span class='id identifier rubyid_started'>started</span> <span class='comment'># 1560979.429234 - 1560978.425334
+</span>  <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_logger'><a href="Rails.html#logger-class_method" title="Rails.logger (method)">logger</a></span>.<span class='id identifier rubyid_info'>info</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_name'>name</span><span class='embexpr_end'>}</span><span class='tstring_content'> Received! (duration: </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_duration'>duration</span><span class='embexpr_end'>}</span><span class='tstring_content'>)</span><span class='tstring_end'>&quot;</span></span> <span class='comment'># process_action.action_controller Received! (duration: 1.0039)
+</span><span class='kw'>end</span></code></pre>
+
+<p>You may also subscribe to events matching a regular expression. This enables you to subscribe to
+multiple events at once. Here&#39;s how to subscribe to everything from <a href="ActionController.html" title="ActionController (module)"><code>ActionController</code></a>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/Notifications.html" title="ActiveSupport::Notifications (module)">Notifications</a></span>.<span class='id identifier rubyid_subscribe'><a href="ActiveSupport/Notifications.html#subscribe-class_method" title="ActiveSupport::Notifications.subscribe (method)">subscribe</a></span>(<span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>action_controller</span><span class='regexp_end'>/</span></span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_event'>event</span><span class='op'>|</span>
+  <span class='comment'># inspect all ActionController events
+</span><span class='kw'>end</span></code></pre>
+
+<h2>Rails Framework Hooks</h2>
+
+<p>Within the Ruby on Rails framework, there are a number of hooks provided for common events. These events and their payloads are detailed below.</p>
+
+<h3>Action Controller</h3>
+
+<h4><code>start_processing.action_controller</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:controller</code></td>
+<td>The controller name</td>
+</tr>
+<tr>
+<td><code>:action</code></td>
+<td>The action</td>
+</tr>
+<tr>
+<td><code>:request</code></td>
+<td>The <a href="https://api.rubyonrails.org/classes/ActionDispatch/Request.html"><a href="ActionDispatch/Request.html" title="ActionDispatch::Request (class)"><code>::ActionDispatch::Request</code></a></a> object</td>
+</tr>
+<tr>
+<td><code>:params</code></td>
+<td>Hash of request parameters without any filtered parameter</td>
+</tr>
+<tr>
+<td><code>:headers</code></td>
+<td>Request headers</td>
+</tr>
+<tr>
+<td><code>:format</code></td>
+<td>html/js/json/xml etc</td>
+</tr>
+<tr>
+<td><code>:method</code></td>
+<td>HTTP request verb</td>
+</tr>
+<tr>
+<td><code>:path</code></td>
+<td>Request path</td>
+</tr>
+</tbody></table>
+
+<pre class="code ruby"><code class="ruby">{
+  <span class='label'>controller:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>PostsController</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>action:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>new</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>params:</span> { <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>action</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>new</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>controller</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>posts</span><span class='tstring_end'>&quot;</span></span> }<span class='comma'>,</span>
+  <span class='label'>headers:</span> <span class='comment'>#&lt;ActionDispatch::Http::Headers:0x0055a67a519b88&gt;,
+</span>  <span class='label'>format:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_html'>html</span><span class='comma'>,</span>
+  <span class='id identifier rubyid_method'>method</span><span class='op'>:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>GET</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='id identifier rubyid_path'>path</span><span class='op'>:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>/posts/new</span><span class='tstring_end'>&quot;</span></span>
+}</code></pre>
+
+<h4><code>process_action.action_controller</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:controller</code></td>
+<td>The controller name</td>
+</tr>
+<tr>
+<td><code>:action</code></td>
+<td>The action</td>
+</tr>
+<tr>
+<td><code>:params</code></td>
+<td>Hash of request parameters without any filtered parameter</td>
+</tr>
+<tr>
+<td><code>:headers</code></td>
+<td>Request headers</td>
+</tr>
+<tr>
+<td><code>:format</code></td>
+<td>html/js/json/xml etc</td>
+</tr>
+<tr>
+<td><code>:method</code></td>
+<td>HTTP request verb</td>
+</tr>
+<tr>
+<td><code>:path</code></td>
+<td>Request path</td>
+</tr>
+<tr>
+<td><code>:request</code></td>
+<td>The <a href="https://api.rubyonrails.org/classes/ActionDispatch/Request.html"><a href="ActionDispatch/Request.html" title="ActionDispatch::Request (class)"><code>::ActionDispatch::Request</code></a></a> object</td>
+</tr>
+<tr>
+<td><code>:response</code></td>
+<td>The <a href="https://api.rubyonrails.org/classes/ActionDispatch/Response.html"><a href="ActionDispatch/Response.html" title="ActionDispatch::Response (class)"><code>::ActionDispatch::Response</code></a></a> object</td>
+</tr>
+<tr>
+<td><code>:status</code></td>
+<td>HTTP status code</td>
+</tr>
+<tr>
+<td><code>:view_runtime</code></td>
+<td>Amount spent in view in ms</td>
+</tr>
+<tr>
+<td><code>:db_runtime</code></td>
+<td>Amount spent executing database queries in ms</td>
+</tr>
+</tbody></table>
+
+<pre class="code ruby"><code class="ruby">{
+  <span class='label'>controller:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>PostsController</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>action:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>index</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>params:</span> {<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>action</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>index</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>controller</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>posts</span><span class='tstring_end'>&quot;</span></span>}<span class='comma'>,</span>
+  <span class='label'>headers:</span> <span class='comment'>#&lt;ActionDispatch::Http::Headers:0x0055a67a519b88&gt;,
+</span>  <span class='label'>format:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_html'>html</span><span class='comma'>,</span>
+  <span class='id identifier rubyid_method'>method</span><span class='op'>:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>GET</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='id identifier rubyid_path'>path</span><span class='op'>:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>/posts</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='id identifier rubyid_request'>request</span><span class='op'>:</span> <span class='comment'>#&lt;ActionDispatch::Request:0x00007ff1cb9bd7b8&gt;,
+</span>  <span class='id identifier rubyid_response'>response</span><span class='op'>:</span> <span class='comment'>#&lt;ActionDispatch::Response:0x00007f8521841ec8&gt;,
+</span>  <span class='id identifier rubyid_status'>status</span><span class='op'>:</span> <span class='int'>200</span><span class='comma'>,</span>
+  <span class='id identifier rubyid_view_runtime'>view_runtime</span><span class='op'>:</span> <span class='float'>46.848</span><span class='comma'>,</span>
+  <span class='id identifier rubyid_db_runtime'>db_runtime</span><span class='op'>:</span> <span class='float'>0.157</span>
+}</code></pre>
+
+<h4><code>send_file.action_controller</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:path</code></td>
+<td>Complete path to the file</td>
+</tr>
+</tbody></table>
+
+<p>Additional keys may be added by the caller.</p>
+
+<h4><code>send_data.action_controller</code></h4>
+
+<p><a href="ActionController.html" title="ActionController (module)"><code>ActionController</code></a> does not add any specific information to the payload. All options are passed through to the payload.</p>
+
+<h4><code>redirect_to.action_controller</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:status</code></td>
+<td>HTTP response code</td>
+</tr>
+<tr>
+<td><code>:location</code></td>
+<td>URL to redirect to</td>
+</tr>
+<tr>
+<td><code>:request</code></td>
+<td>The <a href="https://api.rubyonrails.org/classes/ActionDispatch/Request.html"><a href="ActionDispatch/Request.html" title="ActionDispatch::Request (class)"><code>::ActionDispatch::Request</code></a></a> object</td>
+</tr>
+</tbody></table>
+
+<pre class="code ruby"><code class="ruby">{
+  <span class='label'>status:</span> <span class='int'>302</span><span class='comma'>,</span>
+  <span class='label'>location:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>http://localhost:3000/posts/new</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>request:</span> <span class='op'>&lt;</span><span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/Request.html" title="ActionDispatch::Request (class)">Request</a></span><span class='symbeg'>:</span><span class='int'>0x00007ff1cb9bd7b8</span><span class='op'>&gt;</span>
+}</code></pre>
+
+<h4><code>halted_callback.action_controller</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:filter</code></td>
+<td>Filter that halted the action</td>
+</tr>
+</tbody></table>
+
+<pre class="code ruby"><code class="ruby">{
+  <span class='label'>filter:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>:halting_filter</span><span class='tstring_end'>&quot;</span></span>
+}</code></pre>
+
+<h4><code>unpermitted_parameters.action_controller</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:keys</code></td>
+<td>The unpermitted keys</td>
+</tr>
+<tr>
+<td><code>:context</code></td>
+<td>Hash with the following keys: <code>:controller</code>, <code>:action</code>, <code>:params</code>, <code>:request</code></td>
+</tr>
+</tbody></table>
+
+<h4><code>send_stream.action_controller</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:filename</code></td>
+<td>The filename</td>
+</tr>
+<tr>
+<td><code>:type</code></td>
+<td>HTTP content type</td>
+</tr>
+<tr>
+<td><code>:disposition</code></td>
+<td>HTTP content disposition</td>
+</tr>
+</tbody></table>
+
+<pre class="code ruby"><code class="ruby">{
+  <span class='label'>filename:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>subscribers.csv</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>type:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>text/csv</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>disposition:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>attachment</span><span class='tstring_end'>&quot;</span></span>
+}</code></pre>
+
+<h3>Action Controller: Caching</h3>
+
+<h4><code>write_fragment.action_controller</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:key</code></td>
+<td>The complete key</td>
+</tr>
+</tbody></table>
+
+<pre class="code ruby"><code class="ruby">{
+  <span class='label'>key:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>posts/1-dashboard-view</span><span class='tstring_end'>&#39;</span></span>
+}</code></pre>
+
+<h4><code>read_fragment.action_controller</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:key</code></td>
+<td>The complete key</td>
+</tr>
+</tbody></table>
+
+<pre class="code ruby"><code class="ruby">{
+  <span class='label'>key:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>posts/1-dashboard-view</span><span class='tstring_end'>&#39;</span></span>
+}</code></pre>
+
+<h4><code>expire_fragment.action_controller</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:key</code></td>
+<td>The complete key</td>
+</tr>
+</tbody></table>
+
+<pre class="code ruby"><code class="ruby">{
+  <span class='label'>key:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>posts/1-dashboard-view</span><span class='tstring_end'>&#39;</span></span>
+}</code></pre>
+
+<h4><code>exist_fragment?.action_controller</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:key</code></td>
+<td>The complete key</td>
+</tr>
+</tbody></table>
+
+<pre class="code ruby"><code class="ruby">{
+  <span class='label'>key:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>posts/1-dashboard-view</span><span class='tstring_end'>&#39;</span></span>
+}</code></pre>
+
+<h3>Action Dispatch</h3>
+
+<h4><code>process_middleware.action_dispatch</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:middleware</code></td>
+<td>Name of the middleware</td>
+</tr>
+</tbody></table>
+
+<h4><code>redirect.action_dispatch</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:status</code></td>
+<td>HTTP response code</td>
+</tr>
+<tr>
+<td><code>:location</code></td>
+<td>URL to redirect to</td>
+</tr>
+<tr>
+<td><code>:request</code></td>
+<td>The <a href="https://api.rubyonrails.org/classes/ActionDispatch/Request.html"><a href="ActionDispatch/Request.html" title="ActionDispatch::Request (class)"><code>::ActionDispatch::Request</code></a></a> object</td>
+</tr>
+</tbody></table>
+
+<h4><code>request.action_dispatch</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:request</code></td>
+<td>The <a href="https://api.rubyonrails.org/classes/ActionDispatch/Request.html"><a href="ActionDispatch/Request.html" title="ActionDispatch::Request (class)"><code>::ActionDispatch::Request</code></a></a> object</td>
+</tr>
+</tbody></table>
+
+<h3>Action View</h3>
+
+<h4><code>render_template.action_view</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:identifier</code></td>
+<td>Full path to template</td>
+</tr>
+<tr>
+<td><code>:layout</code></td>
+<td>Applicable layout</td>
+</tr>
+<tr>
+<td><code>:locals</code></td>
+<td>Local variables passed to template</td>
+</tr>
+</tbody></table>
+
+<pre class="code ruby"><code class="ruby">{
+  <span class='label'>identifier:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>/Users/adam/projects/notifications/app/views/posts/index.html.erb</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>layout:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>layouts/application</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>locals:</span> { <span class='label'>foo:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>bar</span><span class='tstring_end'>&quot;</span></span> }
+}</code></pre>
+
+<h4><code>render_partial.action_view</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:identifier</code></td>
+<td>Full path to template</td>
+</tr>
+<tr>
+<td><code>:locals</code></td>
+<td>Local variables passed to template</td>
+</tr>
+</tbody></table>
+
+<pre class="code ruby"><code class="ruby">{
+  <span class='label'>identifier:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>/Users/adam/projects/notifications/app/views/posts/_form.html.erb</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>locals:</span> { <span class='label'>foo:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>bar</span><span class='tstring_end'>&quot;</span></span> }
+}</code></pre>
+
+<h4><code>render_collection.action_view</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:identifier</code></td>
+<td>Full path to template</td>
+</tr>
+<tr>
+<td><code>:count</code></td>
+<td>Size of collection</td>
+</tr>
+<tr>
+<td><code>:cache_hits</code></td>
+<td>Number of partials fetched from cache</td>
+</tr>
+</tbody></table>
+
+<p>The <code>:cache_hits</code> key is only included if the collection is rendered with <code>cached: true</code>.</p>
+
+<pre class="code ruby"><code class="ruby">{
+  <span class='label'>identifier:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>/Users/adam/projects/notifications/app/views/posts/_post.html.erb</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>count:</span> <span class='int'>3</span><span class='comma'>,</span>
+  <span class='label'>cache_hits:</span> <span class='int'>0</span>
+}</code></pre>
+
+<h4><code>render_layout.action_view</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:identifier</code></td>
+<td>Full path to template</td>
+</tr>
+</tbody></table>
+
+<pre class="code ruby"><code class="ruby">{
+  <span class='label'>identifier:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>/Users/adam/projects/notifications/app/views/layouts/application.html.erb</span><span class='tstring_end'>&quot;</span></span>
+}</code></pre>
+
+<h3>Active Record</h3>
+
+<h4><code>sql.active_record</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:sql</code></td>
+<td>SQL statement</td>
+</tr>
+<tr>
+<td><code>:name</code></td>
+<td>Name of the operation</td>
+</tr>
+<tr>
+<td><code>:connection</code></td>
+<td>Connection object</td>
+</tr>
+<tr>
+<td><code>:transaction</code></td>
+<td>Current transaction, if any</td>
+</tr>
+<tr>
+<td><code>:binds</code></td>
+<td>Bind parameters</td>
+</tr>
+<tr>
+<td><code>:type_casted_binds</code></td>
+<td>Typecasted bind parameters</td>
+</tr>
+<tr>
+<td><code>:statement_name</code></td>
+<td>SQL Statement name</td>
+</tr>
+<tr>
+<td><code>:async</code></td>
+<td><code>true</code> if query is loaded asynchronously</td>
+</tr>
+<tr>
+<td><code>:cached</code></td>
+<td><code>true</code> is added when cached queries used</td>
+</tr>
+<tr>
+<td><code>:row_count</code></td>
+<td>Number of rows returned by the query</td>
+</tr>
+</tbody></table>
+
+<p>Adapters may add their own data as well.</p>
+
+<pre class="code ruby"><code class="ruby">{
+  <span class='label'>sql:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>SELECT \&quot;posts\&quot;.* FROM \&quot;posts\&quot; </span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>name:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Post Load</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>connection:</span> <span class='op'>&lt;</span><span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/ConnectionAdapters.html" title="ActiveRecord::ConnectionAdapters (module)">ConnectionAdapters</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/ConnectionAdapters/SQLite3Adapter.html" title="ActiveRecord::ConnectionAdapters::SQLite3Adapter (class)">SQLite3Adapter</a></span><span class='symbeg'>:</span><span class='int'>0x00007f9f7a838850</span><span class='op'>&gt;</span><span class='comma'>,</span>
+  <span class='id identifier rubyid_transaction'>transaction</span><span class='op'>:</span> <span class='op'>&lt;</span><span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/ConnectionAdapters.html" title="ActiveRecord::ConnectionAdapters (module)">ConnectionAdapters</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/ConnectionAdapters/RealTransaction.html" title="ActiveRecord::ConnectionAdapters::RealTransaction (class)">RealTransaction</a></span><span class='symbeg'>:</span><span class='int'>0x0000000121b5d3e0</span><span class='op'>&gt;</span>
+  <span class='id identifier rubyid_binds'>binds</span><span class='op'>:</span> [<span class='op'>&lt;</span><span class='const'><a href="ActiveModel.html" title="ActiveModel (module)">ActiveModel</a></span><span class='op'>::</span><span class='const'><a href="ActiveModel/Attribute.html" title="ActiveModel::Attribute (class)">Attribute</a></span><span class='op'>::</span><span class='const'><a href="ActiveModel/Attribute/WithCastValue.html" title="ActiveModel::Attribute::WithCastValue (class)">WithCastValue</a></span><span class='symbeg'>:</span><span class='int'>0x00007fe19d15dc00</span><span class='op'>&gt;</span>]<span class='comma'>,</span>
+  <span class='id identifier rubyid_type_casted_binds'>type_casted_binds</span><span class='op'>:</span> [<span class='int'>11</span>]<span class='comma'>,</span>
+  <span class='id identifier rubyid_statement_name'>statement_name</span><span class='op'>:</span> <span class='kw'>nil</span><span class='comma'>,</span>
+  <span class='label'>row_count:</span> <span class='int'>5</span>
+}</code></pre>
+
+<p>If the query is not executed in the context of a transaction, <code>:transaction</code> is <code>nil</code>.</p>
+
+<h4><code>strict_loading_violation.active_record</code></h4>
+
+<p>This event is only emitted when <a href="configuring.html#config-active-record-action-on-strict-loading-violation"><code>config.active_record.action_on_strict_loading_violation</code></a> is set to <code>:log</code>.</p>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:owner</code></td>
+<td>Model with <code>strict_loading</code> enabled</td>
+</tr>
+<tr>
+<td><code>:reflection</code></td>
+<td>Reflection of the association that tried to load</td>
+</tr>
+</tbody></table>
+
+<h4><code>instantiation.active_record</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:record_count</code></td>
+<td>Number of records that instantiated</td>
+</tr>
+<tr>
+<td><code>:class_name</code></td>
+<td>Record&#39;s class</td>
+</tr>
+</tbody></table>
+
+<pre class="code ruby"><code class="ruby">{
+  <span class='label'>record_count:</span> <span class='int'>1</span><span class='comma'>,</span>
+  <span class='label'>class_name:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>User</span><span class='tstring_end'>&quot;</span></span>
+}</code></pre>
+
+<h4><code>start_transaction.active_record</code></h4>
+
+<p>This event is emitted when a transaction has been started.</p>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:transaction</code></td>
+<td>Transaction object</td>
+</tr>
+<tr>
+<td><code>:connection</code></td>
+<td>Connection object</td>
+</tr>
+</tbody></table>
+
+<p>Please, note that Active Record does not create the actual database transaction
+until needed:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)">Base</a></span>.<span class='id identifier rubyid_transaction'><a href="ActiveRecord/Transactions.html#transaction-instance_method" title="ActiveRecord::Transactions#transaction (method)">transaction</a></span> <span class='kw'>do</span>
+  <span class='comment'># We are inside the block, but no event has been triggered yet.
+</span>
+  <span class='comment'># The following line makes Active Record start the transaction.
+</span>  <span class='const'>User</span>.<span class='id identifier rubyid_count'>count</span> <span class='comment'># Event fired here.
+</span><span class='kw'>end</span></code></pre>
+
+<p>Remember that ordinary nested calls do not create new transactions:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)">Base</a></span>.<span class='id identifier rubyid_transaction'><a href="ActiveRecord/Transactions.html#transaction-instance_method" title="ActiveRecord::Transactions#transaction (method)">transaction</a></span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_t1'>t1</span><span class='op'>|</span>
+  <span class='const'>User</span>.<span class='id identifier rubyid_count'>count</span> <span class='comment'># Fires an event for t1.
+</span>  <span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)">Base</a></span>.<span class='id identifier rubyid_transaction'><a href="ActiveRecord/Transactions.html#transaction-instance_method" title="ActiveRecord::Transactions#transaction (method)">transaction</a></span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_t2'>t2</span><span class='op'>|</span>
+    <span class='comment'># The next line fires no event for t2, because the only
+</span>    <span class='comment'># real database transaction in this example is t1.
+</span>    <span class='const'>User</span>.<span class='id identifier rubyid_first'>first</span>.<span class='id identifier rubyid_touch'>touch</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>However, if <code>requires_new: true</code> is passed, you get an event for the nested
+transaction too. This might be a savepoint under the hood:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)">Base</a></span>.<span class='id identifier rubyid_transaction'><a href="ActiveRecord/Transactions.html#transaction-instance_method" title="ActiveRecord::Transactions#transaction (method)">transaction</a></span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_t1'>t1</span><span class='op'>|</span>
+  <span class='const'>User</span>.<span class='id identifier rubyid_count'>count</span> <span class='comment'># Fires an event for t1.
+</span>  <span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)">Base</a></span>.<span class='id identifier rubyid_transaction'><a href="ActiveRecord/Transactions.html#transaction-instance_method" title="ActiveRecord::Transactions#transaction (method)">transaction</a></span>(<span class='label'>requires_new:</span> <span class='kw'>true</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_t2'>t2</span><span class='op'>|</span>
+    <span class='const'>User</span>.<span class='id identifier rubyid_first'>first</span>.<span class='id identifier rubyid_touch'>touch</span> <span class='comment'># Fires an event for t2.
+</span>  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<h4><code>transaction.active_record</code></h4>
+
+<p>This event is emitted when a database transaction finishes. The state of the
+transaction can be found in the <code>:outcome</code> key.</p>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:transaction</code></td>
+<td>Transaction object</td>
+</tr>
+<tr>
+<td><code>:outcome</code></td>
+<td><code>:commit</code>, <code>:rollback</code>, <code>:restart</code>, or <code>:incomplete</code></td>
+</tr>
+<tr>
+<td><code>:connection</code></td>
+<td>Connection object</td>
+</tr>
+</tbody></table>
+
+<p>In practice, you cannot do much with the transaction object, but it may still be
+helpful for tracing database activity. For example, by tracking
+<code>transaction.uuid</code>.</p>
+
+<h3>Action Mailer</h3>
+
+<h4><code>deliver.action_mailer</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:mailer</code></td>
+<td>Name of the mailer class</td>
+</tr>
+<tr>
+<td><code>:message_id</code></td>
+<td>ID of the message, generated by the Mail gem</td>
+</tr>
+<tr>
+<td><code>:subject</code></td>
+<td>Subject of the mail</td>
+</tr>
+<tr>
+<td><code>:to</code></td>
+<td>To address(es) of the mail</td>
+</tr>
+<tr>
+<td><code>:from</code></td>
+<td>From address of the mail</td>
+</tr>
+<tr>
+<td><code>:bcc</code></td>
+<td>BCC addresses of the mail</td>
+</tr>
+<tr>
+<td><code>:cc</code></td>
+<td>CC addresses of the mail</td>
+</tr>
+<tr>
+<td><code>:date</code></td>
+<td>Date of the mail</td>
+</tr>
+<tr>
+<td><code>:mail</code></td>
+<td>The encoded form of the mail</td>
+</tr>
+<tr>
+<td><code>:perform_deliveries</code></td>
+<td>Whether delivery of this message is performed or not</td>
+</tr>
+</tbody></table>
+
+<pre class="code ruby"><code class="ruby">{
+  <span class='label'>mailer:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Notification</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>message_id:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>4f5b5491f1774_181b23fc3d4434d38138e5@mba.local.mail</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>subject:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Rails Guides</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>to:</span> [<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>users@rails.com</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>dhh@rails.com</span><span class='tstring_end'>&quot;</span></span>]<span class='comma'>,</span>
+  <span class='label'>from:</span> [<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>me@rails.com</span><span class='tstring_end'>&quot;</span></span>]<span class='comma'>,</span>
+  <span class='label'>date:</span> <span class='const'>Sat</span><span class='comma'>,</span> <span class='int'>10</span> <span class='const'>Mar</span> <span class='int'>2012</span> <span class='int'>14</span><span class='symbeg'>:</span><span class='int'>18</span><span class='symbeg'>:</span><span class='int'>09</span> <span class='int'>+0100</span><span class='comma'>,</span>
+  <span class='id identifier rubyid_mail'>mail</span><span class='op'>:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>...</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='comment'># omitted for brevity
+</span>  <span class='id identifier rubyid_perform_deliveries'>perform_deliveries</span><span class='op'>:</span> <span class='kw'>true</span>
+}</code></pre>
+
+<h4><code>process.action_mailer</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:mailer</code></td>
+<td>Name of the mailer class</td>
+</tr>
+<tr>
+<td><code>:action</code></td>
+<td>The action</td>
+</tr>
+<tr>
+<td><code>:args</code></td>
+<td>The arguments</td>
+</tr>
+</tbody></table>
+
+<pre class="code ruby"><code class="ruby">{
+  <span class='label'>mailer:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Notification</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>action:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>welcome_email</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>args:</span> []
+}</code></pre>
+
+<h3>Active Support: Caching</h3>
+
+<h4><code>cache_read.active_support</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:key</code></td>
+<td>Key used in the store</td>
+</tr>
+<tr>
+<td><code>:store</code></td>
+<td>Name of the store class</td>
+</tr>
+<tr>
+<td><code>:hit</code></td>
+<td>If this read is a hit</td>
+</tr>
+<tr>
+<td><code>:super_operation</code></td>
+<td><code>:fetch</code> if a read is done with <a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/Store.html#method-i-fetch"><code>fetch</code></a></td>
+</tr>
+</tbody></table>
+
+<h4><code>cache_read_multi.active_support</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:key</code></td>
+<td>Keys used in the store</td>
+</tr>
+<tr>
+<td><code>:store</code></td>
+<td>Name of the store class</td>
+</tr>
+<tr>
+<td><code>:hits</code></td>
+<td>Keys of cache hits</td>
+</tr>
+<tr>
+<td><code>:super_operation</code></td>
+<td><code>:fetch_multi</code> if a read is done with <a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/Store.html#method-i-fetch_multi"><code>fetch_multi</code></a></td>
+</tr>
+</tbody></table>
+
+<h4><code>cache_generate.active_support</code></h4>
+
+<p>This event is only emitted when <a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/Store.html#method-i-fetch"><code>fetch</code></a> is called with a block.</p>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:key</code></td>
+<td>Key used in the store</td>
+</tr>
+<tr>
+<td><code>:store</code></td>
+<td>Name of the store class</td>
+</tr>
+</tbody></table>
+
+<p>Options passed to <code>fetch</code> will be merged with the payload when writing to the store.</p>
+
+<pre class="code ruby"><code class="ruby">{
+  <span class='label'>key:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>name-of-complicated-computation</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>store:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ActiveSupport::Cache::MemCacheStore</span><span class='tstring_end'>&quot;</span></span>
+}</code></pre>
+
+<h4><code>cache_fetch_hit.active_support</code></h4>
+
+<p>This event is only emitted when <a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/Store.html#method-i-fetch"><code>fetch</code></a> is called with a block.</p>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:key</code></td>
+<td>Key used in the store</td>
+</tr>
+<tr>
+<td><code>:store</code></td>
+<td>Name of the store class</td>
+</tr>
+</tbody></table>
+
+<p>Options passed to <code>fetch</code> will be merged with the payload.</p>
+
+<pre class="code ruby"><code class="ruby">{
+  <span class='label'>key:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>name-of-complicated-computation</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>store:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ActiveSupport::Cache::MemCacheStore</span><span class='tstring_end'>&quot;</span></span>
+}</code></pre>
+
+<h4><code>cache_write.active_support</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:key</code></td>
+<td>Key used in the store</td>
+</tr>
+<tr>
+<td><code>:store</code></td>
+<td>Name of the store class</td>
+</tr>
+</tbody></table>
+
+<p>Cache stores may add their own data as well.</p>
+
+<pre class="code ruby"><code class="ruby">{
+  <span class='label'>key:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>name-of-complicated-computation</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>store:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ActiveSupport::Cache::MemCacheStore</span><span class='tstring_end'>&quot;</span></span>
+}</code></pre>
+
+<h4><code>cache_write_multi.active_support</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:key</code></td>
+<td>Keys and values written to the store</td>
+</tr>
+<tr>
+<td><code>:store</code></td>
+<td>Name of the store class</td>
+</tr>
+</tbody></table>
+
+<h4><code>cache_increment.active_support</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:key</code></td>
+<td>Key used in the store</td>
+</tr>
+<tr>
+<td><code>:store</code></td>
+<td>Name of the store class</td>
+</tr>
+<tr>
+<td><code>:amount</code></td>
+<td>Increment amount</td>
+</tr>
+</tbody></table>
+
+<pre class="code ruby"><code class="ruby">{
+  <span class='label'>key:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>bottles-of-beer</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>store:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ActiveSupport::Cache::RedisCacheStore</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>amount:</span> <span class='int'>99</span>
+}</code></pre>
+
+<h4><code>cache_decrement.active_support</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:key</code></td>
+<td>Key used in the store</td>
+</tr>
+<tr>
+<td><code>:store</code></td>
+<td>Name of the store class</td>
+</tr>
+<tr>
+<td><code>:amount</code></td>
+<td>Decrement amount</td>
+</tr>
+</tbody></table>
+
+<pre class="code ruby"><code class="ruby">{
+  <span class='label'>key:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>bottles-of-beer</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>store:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ActiveSupport::Cache::RedisCacheStore</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>amount:</span> <span class='int'>1</span>
+}</code></pre>
+
+<h4><code>cache_delete.active_support</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:key</code></td>
+<td>Key used in the store</td>
+</tr>
+<tr>
+<td><code>:store</code></td>
+<td>Name of the store class</td>
+</tr>
+</tbody></table>
+
+<pre class="code ruby"><code class="ruby">{
+  <span class='label'>key:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>name-of-complicated-computation</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>store:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ActiveSupport::Cache::MemCacheStore</span><span class='tstring_end'>&quot;</span></span>
+}</code></pre>
+
+<h4><code>cache_delete_multi.active_support</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:key</code></td>
+<td>Keys used in the store</td>
+</tr>
+<tr>
+<td><code>:store</code></td>
+<td>Name of the store class</td>
+</tr>
+</tbody></table>
+
+<h4><code>cache_delete_matched.active_support</code></h4>
+
+<p>This event is only emitted when using <a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/RedisCacheStore.html"><code>RedisCacheStore</code></a>,
+<a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/FileStore.html"><code>FileStore</code></a>, or <a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/MemoryStore.html"><code>MemoryStore</code></a>.</p>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:key</code></td>
+<td>Key pattern used</td>
+</tr>
+<tr>
+<td><code>:store</code></td>
+<td>Name of the store class</td>
+</tr>
+</tbody></table>
+
+<pre class="code ruby"><code class="ruby">{
+  <span class='label'>key:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>posts/*</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>store:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ActiveSupport::Cache::RedisCacheStore</span><span class='tstring_end'>&quot;</span></span>
+}</code></pre>
+
+<h4><code>cache_cleanup.active_support</code></h4>
+
+<p>This event is only emitted when using <a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/MemoryStore.html"><code>MemoryStore</code></a>.</p>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:store</code></td>
+<td>Name of the store class</td>
+</tr>
+<tr>
+<td><code>:size</code></td>
+<td>Number of entries in the cache before cleanup</td>
+</tr>
+</tbody></table>
+
+<pre class="code ruby"><code class="ruby">{
+  <span class='label'>store:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ActiveSupport::Cache::MemoryStore</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>size:</span> <span class='int'>9001</span>
+}</code></pre>
+
+<h4><code>cache_prune.active_support</code></h4>
+
+<p>This event is only emitted when using <a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/MemoryStore.html"><code>MemoryStore</code></a>.</p>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:store</code></td>
+<td>Name of the store class</td>
+</tr>
+<tr>
+<td><code>:key</code></td>
+<td>Target size (in bytes) for the cache</td>
+</tr>
+<tr>
+<td><code>:from</code></td>
+<td>Size (in bytes) of the cache before prune</td>
+</tr>
+</tbody></table>
+
+<pre class="code ruby"><code class="ruby">{
+  <span class='label'>store:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ActiveSupport::Cache::MemoryStore</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>key:</span> <span class='int'>5000</span><span class='comma'>,</span>
+  <span class='label'>from:</span> <span class='int'>9001</span>
+}</code></pre>
+
+<h4><code>cache_exist?.active_support</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:key</code></td>
+<td>Key used in the store</td>
+</tr>
+<tr>
+<td><code>:store</code></td>
+<td>Name of the store class</td>
+</tr>
+</tbody></table>
+
+<pre class="code ruby"><code class="ruby">{
+  <span class='label'>key:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>name-of-complicated-computation</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>store:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ActiveSupport::Cache::MemCacheStore</span><span class='tstring_end'>&quot;</span></span>
+}</code></pre>
+
+<h3>Active Support: Messages</h3>
+
+<h4><code>message_serializer_fallback.active_support</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:serializer</code></td>
+<td>Primary (intended) serializer</td>
+</tr>
+<tr>
+<td><code>:fallback</code></td>
+<td>Fallback (actual) serializer</td>
+</tr>
+<tr>
+<td><code>:serialized</code></td>
+<td>Serialized string</td>
+</tr>
+<tr>
+<td><code>:deserialized</code></td>
+<td>Deserialized value</td>
+</tr>
+</tbody></table>
+
+<pre class="code ruby"><code class="ruby">{
+  <span class='label'>serializer:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_json_allow_marshal'>json_allow_marshal</span><span class='comma'>,</span>
+  <span class='label'>fallback:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_marshal'>marshal</span><span class='comma'>,</span>
+  <span class='label'>serialized:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>\x04\b{\x06I\&quot;\nHello\x06:\x06ETI\&quot;\nWorld\x06;\x00T</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>deserialized:</span> { <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Hello</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>World</span><span class='tstring_end'>&quot;</span></span> }<span class='comma'>,</span>
+}</code></pre>
+
+<h3>Active Job</h3>
+
+<h4><code>enqueue_at.active_job</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:adapter</code></td>
+<td>QueueAdapter object processing the job</td>
+</tr>
+<tr>
+<td><code>:job</code></td>
+<td>Job object</td>
+</tr>
+</tbody></table>
+
+<h4><code>enqueue.active_job</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:adapter</code></td>
+<td>QueueAdapter object processing the job</td>
+</tr>
+<tr>
+<td><code>:job</code></td>
+<td>Job object</td>
+</tr>
+</tbody></table>
+
+<h4><code>enqueue_retry.active_job</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:job</code></td>
+<td>Job object</td>
+</tr>
+<tr>
+<td><code>:adapter</code></td>
+<td>QueueAdapter object processing the job</td>
+</tr>
+<tr>
+<td><code>:error</code></td>
+<td>The error that caused the retry</td>
+</tr>
+<tr>
+<td><code>:wait</code></td>
+<td>The delay of the retry</td>
+</tr>
+</tbody></table>
+
+<h4><code>enqueue_all.active_job</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:adapter</code></td>
+<td>QueueAdapter object processing the job</td>
+</tr>
+<tr>
+<td><code>:jobs</code></td>
+<td>An array of Job objects</td>
+</tr>
+</tbody></table>
+
+<h4><code>perform_start.active_job</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:adapter</code></td>
+<td>QueueAdapter object processing the job</td>
+</tr>
+<tr>
+<td><code>:job</code></td>
+<td>Job object</td>
+</tr>
+</tbody></table>
+
+<h4><code>perform.active_job</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:adapter</code></td>
+<td>QueueAdapter object processing the job</td>
+</tr>
+<tr>
+<td><code>:job</code></td>
+<td>Job object</td>
+</tr>
+<tr>
+<td><code>:db_runtime</code></td>
+<td>Amount spent executing database queries in ms</td>
+</tr>
+</tbody></table>
+
+<h4><code>retry_stopped.active_job</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:adapter</code></td>
+<td>QueueAdapter object processing the job</td>
+</tr>
+<tr>
+<td><code>:job</code></td>
+<td>Job object</td>
+</tr>
+<tr>
+<td><code>:error</code></td>
+<td>The error that caused the retry</td>
+</tr>
+</tbody></table>
+
+<h4><code>discard.active_job</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:adapter</code></td>
+<td>QueueAdapter object processing the job</td>
+</tr>
+<tr>
+<td><code>:job</code></td>
+<td>Job object</td>
+</tr>
+<tr>
+<td><code>:error</code></td>
+<td>The error that caused the discard</td>
+</tr>
+</tbody></table>
+
+<h3>Action Cable</h3>
+
+<h4><code>perform_action.action_cable</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:channel_class</code></td>
+<td>Name of the channel class</td>
+</tr>
+<tr>
+<td><code>:action</code></td>
+<td>The action</td>
+</tr>
+<tr>
+<td><code>:data</code></td>
+<td>A hash of data</td>
+</tr>
+</tbody></table>
+
+<h4><code>transmit.action_cable</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:channel_class</code></td>
+<td>Name of the channel class</td>
+</tr>
+<tr>
+<td><code>:data</code></td>
+<td>A hash of data</td>
+</tr>
+<tr>
+<td><code>:via</code></td>
+<td>Via</td>
+</tr>
+</tbody></table>
+
+<h4><code>transmit_subscription_confirmation.action_cable</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:channel_class</code></td>
+<td>Name of the channel class</td>
+</tr>
+</tbody></table>
+
+<h4><code>transmit_subscription_rejection.action_cable</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:channel_class</code></td>
+<td>Name of the channel class</td>
+</tr>
+</tbody></table>
+
+<h4><code>broadcast.action_cable</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:broadcasting</code></td>
+<td>A named broadcasting</td>
+</tr>
+<tr>
+<td><code>:message</code></td>
+<td>A hash of message</td>
+</tr>
+<tr>
+<td><code>:coder</code></td>
+<td>The coder</td>
+</tr>
+</tbody></table>
+
+<h3>Active Storage</h3>
+
+<h4><code>preview.active_storage</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:key</code></td>
+<td>Secure token</td>
+</tr>
+</tbody></table>
+
+<h4><code>transform.active_storage</code></h4>
+
+<h4><code>analyze.active_storage</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:analyzer</code></td>
+<td>Name of analyzer e.g., ffprobe</td>
+</tr>
+</tbody></table>
+
+<h3>Active Storage: Storage Service</h3>
+
+<h4><code>service_upload.active_storage</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:key</code></td>
+<td>Secure token</td>
+</tr>
+<tr>
+<td><code>:service</code></td>
+<td>Name of the service</td>
+</tr>
+<tr>
+<td><code>:checksum</code></td>
+<td>Checksum to ensure integrity</td>
+</tr>
+</tbody></table>
+
+<h4><code>service_streaming_download.active_storage</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:key</code></td>
+<td>Secure token</td>
+</tr>
+<tr>
+<td><code>:service</code></td>
+<td>Name of the service</td>
+</tr>
+</tbody></table>
+
+<h4><code>service_download_chunk.active_storage</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:key</code></td>
+<td>Secure token</td>
+</tr>
+<tr>
+<td><code>:service</code></td>
+<td>Name of the service</td>
+</tr>
+<tr>
+<td><code>:range</code></td>
+<td>Byte range attempted to be read</td>
+</tr>
+</tbody></table>
+
+<h4><code>service_download.active_storage</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:key</code></td>
+<td>Secure token</td>
+</tr>
+<tr>
+<td><code>:service</code></td>
+<td>Name of the service</td>
+</tr>
+</tbody></table>
+
+<h4><code>service_delete.active_storage</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:key</code></td>
+<td>Secure token</td>
+</tr>
+<tr>
+<td><code>:service</code></td>
+<td>Name of the service</td>
+</tr>
+</tbody></table>
+
+<h4><code>service_delete_prefixed.active_storage</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:prefix</code></td>
+<td>Key prefix</td>
+</tr>
+<tr>
+<td><code>:service</code></td>
+<td>Name of the service</td>
+</tr>
+</tbody></table>
+
+<h4><code>service_exist.active_storage</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:key</code></td>
+<td>Secure token</td>
+</tr>
+<tr>
+<td><code>:service</code></td>
+<td>Name of the service</td>
+</tr>
+<tr>
+<td><code>:exist</code></td>
+<td>File or blob exists or not</td>
+</tr>
+</tbody></table>
+
+<h4><code>service_url.active_storage</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:key</code></td>
+<td>Secure token</td>
+</tr>
+<tr>
+<td><code>:service</code></td>
+<td>Name of the service</td>
+</tr>
+<tr>
+<td><code>:url</code></td>
+<td>Generated URL</td>
+</tr>
+</tbody></table>
+
+<h4><code>service_update_metadata.active_storage</code></h4>
+
+<p>This event is only emitted when using the Google Cloud Storage service.</p>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:key</code></td>
+<td>Secure token</td>
+</tr>
+<tr>
+<td><code>:service</code></td>
+<td>Name of the service</td>
+</tr>
+<tr>
+<td><code>:content_type</code></td>
+<td>HTTP <code>Content-Type</code> field</td>
+</tr>
+<tr>
+<td><code>:disposition</code></td>
+<td>HTTP <code>Content-Disposition</code> field</td>
+</tr>
+</tbody></table>
+
+<h3>Action Mailbox</h3>
+
+<h4><code>process.action_mailbox</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:mailbox</code></td>
+<td>Instance of the Mailbox class inheriting from <a href="https://api.rubyonrails.org/classes/ActionMailbox/Base.html"><a href="ActionMailbox/Base.html" title="ActionMailbox::Base (class)"><code>::ActionMailbox::Base</code></a></a></td>
+</tr>
+<tr>
+<td><code>:inbound_email</code></td>
+<td>Hash with data about the inbound email being processed</td>
+</tr>
+</tbody></table>
+
+<pre class="code ruby"><code class="ruby">{
+  <span class='label'>mailbox:</span> <span class='comment'>#&lt;RepliesMailbox:0x00007f9f7a8388&gt;,
+</span>  <span class='label'>inbound_email:</span> {
+    <span class='label'>id:</span> <span class='int'>1</span><span class='comma'>,</span>
+    <span class='label'>message_id:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>0CB459E0-0336-41DA-BC88-E6E28C697DDB@37signals.com</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+    <span class='label'>status:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>processing</span><span class='tstring_end'>&quot;</span></span>
+  }
+}</code></pre>
+
+<h3>Railties</h3>
+
+<h4><code>load_config_initializer.railties</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:initializer</code></td>
+<td>Path of loaded initializer in <code>config/initializers</code></td>
+</tr>
+</tbody></table>
+
+<h3>Rails</h3>
+
+<h4><code>deprecation.rails</code></h4>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:message</code></td>
+<td>The deprecation warning</td>
+</tr>
+<tr>
+<td><code>:callstack</code></td>
+<td>Where the deprecation came from</td>
+</tr>
+<tr>
+<td><code>:gem_name</code></td>
+<td>Name of the gem reporting the deprecation</td>
+</tr>
+<tr>
+<td><code>:deprecation_horizon</code></td>
+<td>Version where the deprecated behavior will be removed</td>
+</tr>
+</tbody></table>
+
+<h2>Exceptions</h2>
+
+<p>If an exception happens during any instrumentation, the payload will include
+information about it.</p>
+
+<table><thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>:exception</code></td>
+<td>An array of two elements. Exception class name and the message</td>
+</tr>
+<tr>
+<td><code>:exception_object</code></td>
+<td>The exception object</td>
+</tr>
+</tbody></table>
+
+<h2>Creating Custom Events</h2>
+
+<p>Adding your own events is easy as well. Active Support will take care of
+all the heavy lifting for you. Simply call <a href="https://api.rubyonrails.org/classes/ActiveSupport/Notifications.html#method-c-instrument"><a href="ActiveSupport/Notifications.html#instrument-class_method" title="ActiveSupport::Notifications.instrument (method)">ActiveSupport::Notifications.instrument</a></a> with a <code>name</code>, <code>payload</code>, and a block.
+The notification will be sent after the block returns. Active Support will generate the start and end times,
+and add the instrumenter&#39;s unique ID. All data passed into the <code>instrument</code> call will make
+it into the payload.</p>
+
+<p>Here&#39;s an example:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/Notifications.html" title="ActiveSupport::Notifications (module)">Notifications</a></span>.<span class='id identifier rubyid_instrument'><a href="ActiveSupport/Notifications.html#instrument-class_method" title="ActiveSupport::Notifications.instrument (method)">instrument</a></span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>my.custom.event</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>this:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_data'>data</span> <span class='kw'>do</span>
+  <span class='comment'># do your custom stuff here
+</span><span class='kw'>end</span></code></pre>
+
+<p>Now you can listen to this event with:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/Notifications.html" title="ActiveSupport::Notifications (module)">Notifications</a></span>.<span class='id identifier rubyid_subscribe'><a href="ActiveSupport/Notifications.html#subscribe-class_method" title="ActiveSupport::Notifications.subscribe (method)">subscribe</a></span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>my.custom.event</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_name'>name</span><span class='comma'>,</span> <span class='id identifier rubyid_started'>started</span><span class='comma'>,</span> <span class='id identifier rubyid_finished'>finished</span><span class='comma'>,</span> <span class='id identifier rubyid_unique_id'>unique_id</span><span class='comma'>,</span> <span class='id identifier rubyid_data'>data</span><span class='op'>|</span>
+  <span class='id identifier rubyid_puts'>puts</span> <span class='id identifier rubyid_data'>data</span>.<span class='id identifier rubyid_inspect'>inspect</span> <span class='comment'># {:this=&gt;:data}
+</span><span class='kw'>end</span></code></pre>
+
+<p>You may also call <code>instrument</code> without passing a block. This lets you leverage the
+instrumentation infrastructure for other messaging uses.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/Notifications.html" title="ActiveSupport::Notifications (module)">Notifications</a></span>.<span class='id identifier rubyid_instrument'><a href="ActiveSupport/Notifications.html#instrument-class_method" title="ActiveSupport::Notifications.instrument (method)">instrument</a></span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>my.custom.event</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>this:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_data'>data</span>
+
+<span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/Notifications.html" title="ActiveSupport::Notifications (module)">Notifications</a></span>.<span class='id identifier rubyid_subscribe'><a href="ActiveSupport/Notifications.html#subscribe-class_method" title="ActiveSupport::Notifications.subscribe (method)">subscribe</a></span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>my.custom.event</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_name'>name</span><span class='comma'>,</span> <span class='id identifier rubyid_started'>started</span><span class='comma'>,</span> <span class='id identifier rubyid_finished'>finished</span><span class='comma'>,</span> <span class='id identifier rubyid_unique_id'>unique_id</span><span class='comma'>,</span> <span class='id identifier rubyid_data'>data</span><span class='op'>|</span>
+  <span class='id identifier rubyid_puts'>puts</span> <span class='id identifier rubyid_data'>data</span>.<span class='id identifier rubyid_inspect'>inspect</span> <span class='comment'># {:this=&gt;:data}
+</span><span class='kw'>end</span></code></pre>
+
+<p>You should follow Rails conventions when defining your own events. The format is: <code>event.library</code>.
+If your application is sending Tweets, you should create an event named <code>tweet.twitter</code>.</p>
+
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>

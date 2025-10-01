@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen'       content='yes'>
+<meta name='apple-mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Asset Pipeline &mdash; Rails 8-0-stable</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "asset_pipeline",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>Rails 8-0-stable</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Asset Pipeline&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<p><strong>DO NOT READ THIS FILE ON GITHUB, GUIDES ARE PUBLISHED ON <a href="https://guides.rubyonrails.org">https://guides.rubyonrails.org</a>.</strong></p>
+
+<h1>The Asset Pipeline</h1>
+
+<p>This guide explains how to handle essential asset management tasks.</p>
+
+<p>After reading this guide, you will know:</p>
+
+<ul>
+<li>What is an asset pipeline.</li>
+<li>The main features of Propshaft, and how to set it up.</li>
+<li>How to migrate from Sprockets to Propshaft.</li>
+<li>How to use other libraries for more advanced asset management.</li>
+</ul>
+
+<hr>
+
+<h2>What is an Asset Pipeline?</h2>
+
+<p>The Rails Asset Pipeline is a library designed for organizing, caching, and
+serving static assets, such as JavaScript, CSS, and image files. It streamlines
+and optimizes the management of these assets to enhance the performance and
+maintainability of the application.</p>
+
+<p>The Rails Asset Pipeline is managed by
+<a href="https://github.com/rails/propshaft"><strong>Propshaft</strong></a>. Propshaft is built for an
+era where transpilation, bundling and compression are less critical for basic
+applications, thanks to better browser support, faster networks and HTTP/2
+capabilities.</p>
+
+<p>Propshaft focuses on essential asset management tasks and leaves more complex
+tasks, such as JavaScript and CSS bundling and minification, to specialized
+tools like <a href="https://github.com/rails/jsbundling-rails"><code>jsbundling-rails</code></a> and
+<a href="https://github.com/rails/cssbundling-rails"><code>cssbundling-rails</code></a>, which can be
+added separately to your application. Propshaft focuses on
+<a href="#fingerprinting-versioning-with-digest-based-urls">fingerprinting</a> and
+emphasizes generating digest-based URLs for assets, allowing browsers to cache
+them, thus minimizing the need for intricate compilation and bundling.</p>
+
+<p>The <a href="https://github.com/rails/propshaft">Propshaft</a> gem is enabled by default in
+new applications. If, for some reason, you want to disable it during setup, you
+can use the <code>--skip-asset-pipeline</code> option:</p>
+
+<pre class="code bash"><code class="bash">$ rails new app_name --skip-asset-pipeline
+</code></pre>
+
+<p>NOTE: Before Rails 8, the asset pipeline was powered by
+<a href="https://github.com/rails/sprockets">Sprockets</a>. You can read about the
+<a href="https://guides.rubyonrails.org/v7.2/asset_pipeline.html">Sprockets Asset
+Pipeline</a> in previous
+versions of the Rails Guides. You can also explore the <a href="#evolution-of-asset-management-techniques">evolution of asset
+management techniques</a> to see how the
+Rails Asset Pipeline has evolved over time.</p>
+
+<h2>Propshaft Features</h2>
+
+<p>Propshaft expects that your assets are already in a browser-ready format—like
+plain CSS, JavaScript, or preprocessed images (like JPEGs or PNGs). Its job is
+to organize, version, and serve those assets efficiently. In this section, we’ll
+cover the main features of Propshaft and how they work.</p>
+
+<h3>Asset Load Order</h3>
+
+<p>With Propshaft, you can control the loading order of dependent files by
+specifying each file explicitly and organizing them manually or ensuring they
+are included in the correct sequence within your HTML or layout files. This
+ensures that dependencies are managed and loaded without relying on automated
+dependency management tools. Below are some strategies for managing
+dependencies:</p>
+
+<ol>
+<li><p>Manually include assets in the correct order:</p>
+
+<p>In your HTML layout (usually <code>application.html.erb</code> for Rails apps) you can
+specify the exact order for loading CSS and JavaScript files by including
+each file individually in a specific order. For example:</p>
+
+<pre class="code xml"><code class="xml">&lt;!-- application.html.erb --&gt;
+&lt;head&gt;
+ &lt;%= stylesheet_link_tag &quot;reset&quot; %&gt;
+ &lt;%= stylesheet_link_tag &quot;base&quot; %&gt;
+ &lt;%= stylesheet_link_tag &quot;main&quot; %&gt;
+&lt;/head&gt;
+&lt;body&gt;
+ &lt;%= javascript_include_tag &quot;utilities&quot; %&gt;
+ &lt;%= javascript_include_tag &quot;main&quot; %&gt;
+&lt;/body&gt;
+</code></pre>
+
+<p>This is important if, for instance, <code>main.js</code> relies on <code>utilities.js</code> to be
+loaded first.</p></li>
+<li><p>Use Modules in JavaScript (ES6)</p>
+
+<p>If you have dependencies within JavaScript files, ES6 modules can help. By
+using import statements, you can explicitly control dependencies within
+JavaScript code. Just make sure your JavaScript files are set up as modules
+using <code>&lt;script type=&quot;module&quot;&gt;</code> in your HTML:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='tstring'><span class='regexp_beg'>/</span><span class='regexp_end'>/</span></span> <span class='id identifier rubyid_main'>main</span>.<span class='id identifier rubyid_js'>js</span>
+<span class='id identifier rubyid_import'>import</span> { <span class='id identifier rubyid_initUtilities'>initUtilities</span> } <span class='id identifier rubyid_from'>from</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>./utilities.js</span><span class='tstring_end'>&quot;</span></span><span class='semicolon'>;</span>
+<span class='id identifier rubyid_import'>import</span> { <span class='id identifier rubyid_setupFeature'>setupFeature</span> } <span class='id identifier rubyid_from'>from</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>./feature.js</span><span class='tstring_end'>&quot;</span></span><span class='semicolon'>;</span>
+
+<span class='id identifier rubyid_initUtilities'>initUtilities</span>()<span class='semicolon'>;</span>
+<span class='id identifier rubyid_setupFeature'>setupFeature</span>()<span class='semicolon'>;</span></code></pre>
+
+<p>Then in your layout:</p>
+
+<pre class="code xml"><code class="xml">&lt;script type=&quot;module&quot; src=&quot;main.js&quot;&gt;&lt;/script&gt;
+</code></pre>
+
+<p>This way, you can manage dependencies within JavaScript files without
+relying on Propshaft to understand them. By importing modules, you can
+control the order in which files are loaded and ensure dependencies are met.</p></li>
+<li><p>Combine Files when necessary</p>
+
+<p>If you have several JavaScript or CSS files that must always load together,
+you can combine them into a single file. For example, you could create a
+<code>combined.js</code> file that imports or copies code from other scripts. Then,
+just include <code>combined.js</code> in your layout to avoid dealing with individual
+file ordering. This can be useful for files that always load together, like
+a set of utility functions or a group of styles for a specific component.
+While this approach can work for small projects or simple use cases, it can
+become tedious and error-prone for larger applications.</p></li>
+<li><p>Bundle your JavaScript or CSS using a bundler</p>
+
+<p>If your project requires features like dependency chaining or CSS
+pre-processing, you may want to consider <a href="#advanced-asset-management">advanced asset
+management</a> alongside Propshaft.</p>
+
+<p>Tools like <a href="https://github.com/rails/jsbundling-rails"><code>jsbundling-rails</code></a>
+integrates <a href="https://bun.sh/">Bun</a>, <a href="https://esbuild.github.io/">esbuild</a>,
+<a href="https://rollupjs.org/">rollup.js</a>, or <a href="https://webpack.js.org/">Webpack</a>
+into your Rails application, while
+<a href="https://github.com/rails/cssbundling-rails"><code>cssbundling-rails</code></a> can be
+used to process stylesheets that use <a href="https://tailwindcss.com/">Tailwind
+CSS</a>, <a href="https://getbootstrap.com/">Bootstrap</a>,
+<a href="https://bulma.io/">Bulma</a>, <a href="https://postcss.org/">PostCSS</a>, or <a href="https://sass-lang.com/">Dart
+Sass</a>.</p>
+
+<p>These tools complement Propshaft by handling the complex processing, while
+Propshaft efficiently organizes and serves the final assets.</p></li>
+</ol>
+
+<h3>Asset Organization</h3>
+
+<p>Propshaft organizes assets within the <code>app/assets</code> directory, which includes
+subdirectories like <code>images</code>, <code>javascripts</code>, and <code>stylesheets</code>. You can place
+your JavaScript, CSS, image files, and other assets into these directories, and
+Propshaft will manage them during the precompilation process.</p>
+
+<p>You can also specify additional asset paths for Propshaft to search by modifying
+<code>config.assets.paths</code> in your <code>config/initializers/assets.rb</code> file. For example:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># Add additional assets to the asset load path.
+</span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_assets'>assets</span>.<span class='id identifier rubyid_paths'>paths</span> <span class='op'>&lt;&lt;</span> <span class='const'>Emoji</span>.<span class='id identifier rubyid_images_path'>images_path</span></code></pre>
+
+<p>Propshaft will make all assets from the configured paths available for serving.
+During the precompilation process, Propshaft copies these assets into the
+<code>public/assets</code> directory, ensuring they are ready for production use.</p>
+
+<p>Assets can be <a href="#digested-assets-in-views">referenced through their logical
+paths</a> using helpers like <code>asset_path</code>, <code>image_tag</code>,
+<code>javascript_include_tag</code>, and other asset helper tags. After running
+<a href="#production">assets:precompile in production</a>, these logical references are
+automatically converted into their fingerprinted paths using the
+<a href="#manifest-files"><code>.manifest.json</code> file</a>.</p>
+
+<p>It is possible to exclude certain directories from this process, you can read more
+about it in the <a href="#fingerprinting-versioning-with-digest-based-urls">Fingerprinting
+section</a>.</p>
+
+<h3>Fingerprinting: Versioning with digest-based URLs</h3>
+
+<p>In Rails, asset versioning uses fingerprinting to add unique identifiers to
+asset filenames.</p>
+
+<p>Fingerprinting is a technique that makes the name of a file dependent on its
+content. A digest of the file&#39;s content is generated and appended to the
+filename. This ensures that when the file content changes, its digest—and
+consequently its filename—also changes. This mechanism is crucial for caching
+assets effectively, as the browser will always load the updated version of an
+asset when its content changes, thereby improving performance. For static or
+infrequently changed content, this provides an easy way to tell whether two
+versions of a file are identical, even across different servers or deployment
+dates.</p>
+
+<h4>Asset Digesting</h4>
+
+<p>As mentioned in the <a href="#asset-organization">Asset Organization section</a>, in
+Propshaft, all assets from the paths configured in <code>config.assets.paths</code> are
+available for serving and will be copied into the <code>public/assets</code> directory.</p>
+
+<p>When fingerprinted, an asset filename  like <code>styles.css</code> is renamed to
+<code>styles-a1b2c3d4e5f6.css</code>. This ensures that if <code>styles.css</code> is updated, the
+filename changes as well, compelling the browser to download the latest version
+instead of using a potentially outdated cached copy.</p>
+
+<h4>Manifest Files</h4>
+
+<p>In Propshaft, the <code>.manifest.json</code> file is automatically generated during the
+asset precompilation process. This file maps original asset filenames to their
+fingerprinted versions, ensuring proper cache invalidation and efficient asset
+management. Located in the <code>public/assets</code> directory, the <code>.manifest.json</code> file
+helps Rails resolve asset paths at runtime, allowing it to reference the correct
+fingerprinted files.</p>
+
+<p>The <code>.manifest.json</code> includes entries for main assets like <code>application.js</code> and
+<code>application.css</code> as well as other files, such as images. Here&#39;s an example of
+what the JSON might look like:</p>
+
+<pre class="code json"><code class="json">{
+  &quot;application.css&quot;: &quot;application-6d58c9e6e3b5d4a7c9a8e3.css&quot;,
+  &quot;application.js&quot;: &quot;application-2d4b9f6c5a7c8e2b8d9e6.js&quot;,
+  &quot;logo.png&quot;: &quot;logo-f3e8c9b2a6e5d4c8.png&quot;,
+  &quot;favicon.ico&quot;: &quot;favicon-d6c8e5a9f3b2c7.ico&quot;
+}
+</code></pre>
+
+<p>When a filename is unique and based on its content, HTTP headers can be set to
+encourage caches everywhere (whether at CDNs, at ISPs, in networking equipment,
+or in web browsers) to keep their own copy of the content. When the content is
+updated, the fingerprint will change. This will cause the remote clients to
+request a new copy of the content. This is generally known as cache busting.</p>
+
+<h4>Digested Assets in Views</h4>
+
+<p>You can reference digested assets in your views using standard Rails asset
+helpers like <code>asset_path</code>, <code>image_tag</code>, <code>javascript_include_tag</code>,
+<code>stylesheet_link_tag</code> and others.</p>
+
+<p>For example, in your layout file, you can include a stylesheet like this:</p>
+
+<pre class="code xml"><code class="xml">&lt;%= stylesheet_link_tag &quot;application&quot;, media: &quot;all&quot; %&gt;
+</code></pre>
+
+<p>If you&#39;re using the <a href="https://github.com/hotwired/turbo-rails"><code>turbo-rails</code></a> gem
+(which is included by default in Rails), you can include the <code>data-turbo-track</code>
+option. This causes Turbo to check if an asset has been updated and, if so,
+reload it into the page:</p>
+
+<pre class="code xml"><code class="xml">&lt;%= stylesheet_link_tag &quot;application&quot;, &quot;data-turbo-track&quot;: &quot;reload&quot; %&gt;
+</code></pre>
+
+<p>You can access images in the <code>app/assets/images</code> directory like this:</p>
+
+<pre class="code xml"><code class="xml">&lt;%= image_tag &quot;rails.png&quot; %&gt;
+</code></pre>
+
+<p>When the asset pipeline is enabled, Propshaft will serve this file. If a file
+exists at <code>public/assets/rails.png</code>, it will be served by the web server.</p>
+
+<p>Alternatively, if you are using fingerprinted assets (e.g.,
+<code>rails-f90d8a84c707a8dc923fca1ca1895ae8ed0a09237f6992015fef1e11be77c023.png</code>),
+Propshaft will also serve these correctly. The fingerprint is automatically
+applied during the precompilation process.</p>
+
+<p>Images can be organized into subdirectories, and you can reference them by
+specifying the directory in the tag:</p>
+
+<pre class="code xml"><code class="xml">&lt;%= image_tag &quot;icons/rails.png&quot; %&gt;
+</code></pre>
+
+<p>Finally, you can reference an image in your CSS like:</p>
+
+<pre class="code css"><code class="css">background: url(&quot;/bg/pattern.svg&quot;);
+</code></pre>
+
+<p>Propshaft will automatically convert this to:</p>
+
+<pre class="code css"><code class="css">background: url(&quot;/assets/bg/pattern-2169cbef.svg&quot;);
+</code></pre>
+
+<p>WARNING: If you&#39;re precompiling your assets (see <a href="#production">the Production
+section</a>), linking to an asset that doesn&#39;t exist will raise an
+exception in the calling page. This includes linking to a blank string. Be
+careful when using <code>image_tag</code> and other helpers with user-supplied data. This
+ensures that the browser always fetches the correct version of the asset.</p>
+
+<h4>Digested Assets in JavaScript</h4>
+
+<p>In JavaScript, you need to manually trigger the asset transformation using the
+<code>RAILS_ASSET_URL</code> macro. Here’s an example:</p>
+
+<pre class="code javascript"><code class="javascript">export default class extends Controller {
+  init() {
+    this.img = RAILS_ASSET_URL(&quot;/icons/trash.svg&quot;);
+  }
+}
+</code></pre>
+
+<p>This will transform into:</p>
+
+<pre class="code javascript"><code class="javascript">export default class extends Controller {
+  init() {
+    this.img = &quot;/assets/icons/trash-54g9cbef.svg&quot;;
+  }
+}
+</code></pre>
+
+<p>This ensures that the correct, digested file is used in your JavaScript code.</p>
+
+<p>If you’re using bundlers like <a href="https://webpack.js.org/">Webpack</a> or
+<a href="https://esbuild.github.io/">esbuild</a>, you should let the bundlers handle the
+digesting process. If Propshaft detects that a file already has a digest in the
+filename (e.g., <code>script-2169cbef.js</code>), it will skip digesting the file again to
+avoid unnecessary reprocessing.</p>
+
+<p>For managing assets with <a href="#importmap-rails">Import Maps</a>, Propshaft ensures that
+assets referenced in the import map are appropriately handled and mapped to
+their digested paths during the precompilation process.</p>
+
+<h4>Bypassing the Digest Step</h4>
+
+<p>If you need to reference files that refer to each other—like a JavaScript file
+and its source map—and want to avoid the digesting process, you can pre-digest
+these files manually. Propshaft recognizes files with the pattern
+<code>-[digest].digested.js</code> as files that have already been digested and will
+preserve their stable file names.</p>
+
+<h4>Excluding Directories from Digestion</h4>
+
+<p>You can exclude certain directories from the precompilation and digestion
+process by adding them to <code>config.assets.excluded_paths</code>. This is useful if, for
+example, you’re using <code>app/assets/stylesheets</code> as input to a compiler like <a href="https://sass-lang.com/">Dart
+Sass</a>, and you don’t want these files to be part of the
+asset load path.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_assets'>assets</span>.<span class='id identifier rubyid_excluded_paths'>excluded_paths</span> <span class='op'>=</span> [<span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_root'><a href="Rails.html#root-class_method" title="Rails.root (method)">root</a></span>.<span class='id identifier rubyid_join'>join</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>app/assets/stylesheets</span><span class='tstring_end'>&quot;</span></span>)]</code></pre>
+
+<p>This will prevent the specified directories from being processed by Propshaft
+while still allowing them to be part of the precompilation process.</p>
+
+<h2>Working with Propshaft</h2>
+
+<p>From Rails 8 onwards, Propshaft is included by default. To use Propshaft, you
+need to configure it properly and organize your assets in a way that Rails can
+serve them efficiently.</p>
+
+<h3>Setup</h3>
+
+<p>Follow these steps for setting up Propshaft in your Rails application:</p>
+
+<ol>
+<li><p>Create a new Rails application:</p>
+
+<pre class="code bash"><code class="bash">$ rails new app_name
+</code></pre></li>
+<li><p>Organize your assets:</p>
+
+<p>Propshaft expects your assets to be in the <code>app/assets</code> directory. You can
+organize your assets into subdirectories like <code>app/assets/javascripts</code> for
+JavaScript files, <code>app/assets/stylesheets</code> for CSS files, and
+<code>app/assets/images</code> for images.</p>
+
+<p>For example, you can create a new JavaScript file in
+<code>app/assets/javascripts</code>:</p>
+
+<pre class="code javascript"><code class="javascript">// app/assets/javascripts/main.js
+console.log(&quot;Hello, world!&quot;);
+</code></pre>
+
+<p>and a new CSS file in <code>app/assets/stylesheets</code>:</p>
+
+<pre class="code css"><code class="css">/* app/assets/stylesheets/main.css */
+body {
+  background-color: red;
+}
+</code></pre></li>
+<li><p>Link assets in your application layout</p>
+
+<p>In your application layout file (usually
+<code>app/views/layouts/application.html.erb</code>), you can include your assets using
+the <code>stylesheet_link_tag</code> and <code>javascript_include_tag</code> helpers:</p>
+
+<pre class="code xml"><code class="xml">&lt;!-- app/views/layouts/application.html.erb --&gt;
+&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+  &lt;head&gt;
+    &lt;title&gt;MyApp&lt;/title&gt;
+    &lt;%= stylesheet_link_tag &quot;main&quot; %&gt;
+  &lt;/head&gt;
+  &lt;body&gt;
+    &lt;%= yield %&gt;
+    &lt;%= javascript_include_tag &quot;main&quot; %&gt;
+  &lt;/body&gt;
+&lt;/html&gt;
+</code></pre>
+
+<p>This layout includes the <code>main.css</code> stylesheet and <code>main.js</code> JavaScript file
+in your application.</p></li>
+<li><p>Start the Rails server:</p>
+
+<pre class="code bash"><code class="bash">$ bin/rails server
+</code></pre></li>
+<li><p>Preview your application:</p>
+
+<p>Open your web browser and navigate to <code>http://localhost:3000</code>. You should
+see your Rails application with the included assets.</p></li>
+</ol>
+
+<h3>Development</h3>
+
+<p>Rails and Propshaft are configured differently in development than in
+production, to allow rapid iteration without manual intervention.</p>
+
+<h4>No Caching</h4>
+
+<p>In development, Rails is configured to bypass asset caching. This means that
+when you modify assets (e.g., CSS, JavaScript), Rails will serve the most
+up-to-date version directly from the file system. There&#39;s no need to worry about
+versioning or file renaming because caching is skipped entirely. Browsers will
+automatically pull in the latest version each time you reload the page.</p>
+
+<h4>Automatic Reloading of Assets</h4>
+
+<p>When using Propshaft on its own, it automatically checks for updates to assets
+like JavaScript, CSS, or images with every request. This means you can edit
+these files, reload the browser, and instantly see the changes without needing
+to restart the Rails server.</p>
+
+<p>When using JavaScript bundlers such as <a href="https://esbuild.github.io/">esbuild</a> or
+<a href="https://webpack.js.org/">Webpack</a> alongside Propshaft, the workflow combines
+both tools effectively:</p>
+
+<ul>
+<li>The bundler watches for changes in your JavaScript and CSS files, compiles
+them into the appropriate build directory, and keeps the files up to date.</li>
+<li>Propshaft ensures that the latest compiled assets are served to the browser
+whenever a request is made.</li>
+</ul>
+
+<p>For these setups, running <code>./bin/dev</code> starts both the Rails server and the asset
+bundler&#39;s development server.</p>
+
+<p>In either case, Propshaft ensures that changes to your assets are reflected as
+soon as the browser page is reloaded, without requiring a server restart.</p>
+
+<h4>Improving Performance with File Watchers</h4>
+
+<p>In development, Propshaft checks if any assets have been updated before each
+request, using the application&#39;s file watcher (by default,
+<a href="ActiveSupport/FileUpdateChecker.html" title="ActiveSupport::FileUpdateChecker (class)"><code>::ActiveSupport::FileUpdateChecker</code></a>). If you have a large number of assets, you
+can improve performance by using the <code>listen</code> gem and configuring the following
+setting in <code>config/environments/development.rb</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_file_watcher'>file_watcher</span> <span class='op'>=</span> <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/EventedFileUpdateChecker.html" title="ActiveSupport::EventedFileUpdateChecker (class)">EventedFileUpdateChecker</a></span></code></pre>
+
+<p>This will reduce the overhead of checking for file updates and improve
+performance during development.</p>
+
+<h3>Production</h3>
+
+<p>In production, Rails serves assets with caching enabled to optimize performance,
+ensuring that your application can handle high traffic efficiently.</p>
+
+<h4>Asset Caching and Versioning in Production</h4>
+
+<p>As mentioned in the <a href="#fingerprinting-versioning-with-digest-based-urls">Fingerprinting
+section</a> when the file
+content changes, its digest also changes, thus the browser uses the updated
+version of the file. Whereas, if the content remains the same, the browser will
+use the cached version.</p>
+
+<h4>Precompiling Assets</h4>
+
+<p>In production, precompilation is typically run during deployment to ensure that
+the latest versions of the assets are served. Propshaft was explicitly not
+designed to provide full transpiler capabilities. However, it does offer an
+input -&gt; output compiler setup that by default is used to translate <code>url(asset)</code>
+function calls in CSS to <code>url(digested-asset)</code> instead and source mapping
+comments likewise.</p>
+
+<p>To manually run precompilation you can use the following command:</p>
+
+<pre class="code bash"><code class="bash">$ RAILS_ENV=production rails assets:precompile
+</code></pre>
+
+<p>After doing this, all assets in the load path will be copied (or compiled when
+using <a href="#advanced-asset-management">advanced asset management</a>) in the
+precompilation step and stamped with a digest hash.</p>
+
+<p>Additionally, you can set <code>ENV["SECRET_KEY_BASE_DUMMY"]</code> to trigger the use of a
+randomly generated <code>secret_key_base</code> that’s stored in a temporary file. This is
+useful when precompiling assets for production as part of a build step that
+otherwise does not need access to the production secrets.</p>
+
+<pre class="code bash"><code class="bash">$ RAILS_ENV=production SECRET_KEY_BASE_DUMMY=1 rails assets:precompile
+</code></pre>
+
+<p>By default, assets are served from the <code>/assets</code> directory.</p>
+
+<p>WARNING: Running the precompile command in development generates a marker file
+named <code>.manifest.json</code>, which tells the application that it can serve the
+compiled assets. As a result, any changes you make to your source assets won&#39;t
+be reflected in the browser until the precompiled assets are updated. If your
+assets stop updating in development mode, the solution is to remove the
+<code>.manifest.json</code> file located in <code>public/assets/</code>.  You can use the <code>rails
+assets:clobber</code> command to delete all your precompiled assets and the
+<code>.manifest.json</code> file. This will force Rails to recompile the assets on the fly,
+reflecting the latest changes.</p>
+
+<p>NOTE: Always ensure that the expected compiled filenames end with <code>.js</code> or
+<code>.css</code>.</p>
+
+<h5>Far-future Expires Header</h5>
+
+<p>Precompiled assets exist on the file system and are served directly by your web
+server. They do not have far-future headers by default, so to get the benefit of
+fingerprinting you&#39;ll have to update your server configuration to add those
+headers.</p>
+
+<p>For Apache:</p>
+
+<pre class="code apache"><code class="apache"># The Expires* directives require the Apache module
+# `mod_expires` to be enabled.
+&lt;Location /assets/&gt;
+  # Use of ETag is discouraged when Last-Modified is present
+  Header unset ETag
+  FileETag None
+  # RFC says only cache for 1 year
+  ExpiresActive On
+  ExpiresDefault &quot;access plus 1 year&quot;
+&lt;/Location&gt;
+</code></pre>
+
+<p>For NGINX:</p>
+
+<pre class="code nginx"><code class="nginx">location ~ ^/assets/ {
+  expires 1y;
+  add_header Cache-Control public;
+
+  add_header ETag &quot;&quot;;
+}
+</code></pre>
+
+<h4>CDNs</h4>
+
+<p>CDN stands for <a href="https://en.wikipedia.org/wiki/Content_delivery_network">Content Delivery
+Network</a>, they are
+primarily designed to cache assets all over the world so that when a browser
+requests the asset, a cached copy will be geographically close to that browser.
+If you are serving assets directly from your Rails server in production, the
+best practice is to use a CDN in front of your application.</p>
+
+<p>A common pattern for using a CDN is to set your production application as the
+&quot;origin&quot; server. This means when a browser requests an asset from the CDN and
+there is a cache miss, it will instead source the file from your server and then
+cache it. For example if you are running a Rails application on <code>example.com</code>
+and have a CDN configured at <code>mycdnsubdomain.fictional-cdn.com</code>, then when a
+request is made to <code>mycdnsubdomain.fictional-cdn.com/assets/smile.png</code>, the CDN
+will query your server once at <code>example.com/assets/smile.png</code> and cache the
+request. The next request to the CDN that comes in to the same URL will hit the
+cached copy. When the CDN can serve an asset directly the request never touches
+your Rails server. Since the assets from a CDN are geographically closer to the
+browser, the request is faster, and since your server doesn&#39;t need to spend time
+serving assets, it can focus on serving application code.</p>
+
+<h5>Set up a CDN to Serve Static Assets</h5>
+
+<p>To set up CDN, your application needs to be running in production on the
+internet at a publicly available URL, for example <code>example.com</code>. Next you&#39;ll
+need to sign up for a CDN service from a cloud hosting provider. When you do
+this you need to configure the &quot;origin&quot; of the CDN to point back at your website
+<code>example.com</code>. Check your provider for documentation on configuring the origin
+server.</p>
+
+<p>The CDN you provisioned should give you a custom subdomain for your application
+such as <code>mycdnsubdomain.fictional-cdn.com</code> (note fictional-cdn.com is not a
+valid CDN provider at the time of this writing). Now that you have configured
+your CDN server, you need to tell browsers to use your CDN to grab assets
+instead of your Rails server directly. You can do this by configuring Rails to
+set your CDN as the asset host instead of using a relative path. To set your
+asset host in Rails, you need to set <a href="configuring.html#config-asset-host"><code>config.asset_host</code></a> in
+<code>config/environments/production.rb</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_asset_host'>asset_host</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>mycdnsubdomain.fictional-cdn.com</span><span class='tstring_end'>&quot;</span></span></code></pre>
+
+<p>NOTE: You only need to provide the &quot;host&quot;, this is the subdomain and root
+domain, you do not need to specify a protocol or &quot;scheme&quot; such as <code>http://</code> or
+<code>https://</code>. When a web page is requested, the protocol in the link to your asset
+that is generated will match how the webpage is accessed by default.</p>
+
+<p>You can also set this value through an <a href="https://en.wikipedia.org/wiki/Environment_variable">environment
+variable</a> to make running a
+staging copy of your site easier:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_asset_host'>asset_host</span> <span class='op'>=</span> <span class='const'>ENV</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>CDN_HOST</span><span class='tstring_end'>&quot;</span></span>]</code></pre>
+
+<p>NOTE: You would need to set <code>CDN_HOST</code> on your server to <code>mycdnsubdomain
+.fictional-cdn.com</code> for this to work.</p>
+
+<p>Once you have configured your server and your CDN, asset paths from helpers such
+as:</p>
+
+<pre class="code xml"><code class="xml">&lt;%= asset_path(&#39;smile.png&#39;) %&gt;
+</code></pre>
+
+<p>Will be rendered as full CDN URLs like
+<code>http://mycdnsubdomain.fictional-cdn.com/assets/smile.png</code> (digest omitted for
+readability).</p>
+
+<p>If the CDN has a copy of <code>smile.png</code>, it will serve it to the browser,  and the
+origin server won&#39;t even know it was requested. If the CDN does not have a copy,
+it will try to find it at the &quot;origin&quot; <code>example.com/assets/smile.png</code>, and then
+store it for future use.</p>
+
+<p>If you want to serve only some assets from your CDN, you can use custom <code>:host</code>
+option for your asset helper, which overwrites the value set in
+<a href="configuring.html#config-action-controller-asset-host"><code>config.action_controller.asset_host</code></a>.</p>
+
+<pre class="code xml"><code class="xml">&lt;%= asset_path &#39;image.png&#39;, host: &#39;mycdnsubdomain.fictional-cdn.com&#39; %&gt;
+</code></pre>
+
+<h5>Customize CDN Caching Behavior</h5>
+
+<p>A CDN works by caching content. If the CDN has stale or bad content, then it is
+hurting rather than helping your application. The purpose of this section is to
+describe general caching behavior of most CDNs. Your specific provider may
+behave slightly differently.</p>
+
+<p><strong>CDN Request Caching</strong></p>
+
+<p>While a CDN is described as being good for caching assets, it actually caches
+the entire request. This includes the body of the asset as well as any headers.
+The most important one being <code>Cache-Control</code>, which tells the CDN (and web
+browsers) how to cache contents. This means that if someone requests an asset
+that does not exist, such as <code>/assets/i-dont-exist.png</code>, and your Rails
+application returns a 404, then your CDN will likely cache the 404 page if a
+valid <code>Cache-Control</code> header is present.</p>
+
+<p><strong>CDN Header Debugging</strong></p>
+
+<p>One way to check the headers are cached properly in your CDN is by using <a href="https://explainshell.com/explain?cmd=curl+-I+http%3A%2F%2Fwww.example.com">curl</a>. You
+can request the headers from both your server and your CDN to verify they are
+the same:</p>
+
+<pre class="code bash"><code class="bash">$ curl -I http://www.example/assets/application-
+d0e099e021c95eb0de3615fd1d8c4d83.css
+HTTP/1.1 200 OK
+Server: Cowboy
+Date: Sun, 24 Aug 2014 20:27:50 GMT
+Connection: keep-alive
+Last-Modified: Thu, 08 May 2014 01:24:14 GMT
+Content-Type: text/css
+Cache-Control: public, max-age=2592000
+Content-Length: 126560
+Via: 1.1 vegur
+</code></pre>
+
+<p>Versus the CDN copy:</p>
+
+<pre class="code bash"><code class="bash">$ curl -I http://mycdnsubdomain.fictional-cdn.com/application-
+d0e099e021c95eb0de3615fd1d8c4d83.css
+HTTP/1.1 200 OK Server: Cowboy Last-
+Modified: Thu, 08 May 2014 01:24:14 GMT Content-Type: text/css
+Cache-Control:
+public, max-age=2592000
+Via: 1.1 vegur
+Content-Length: 126560
+Accept-Ranges:
+bytes
+Date: Sun, 24 Aug 2014 20:28:45 GMT
+Via: 1.1 varnish
+Age: 885814
+Connection: keep-alive
+X-Served-By: cache-dfw1828-DFW
+X-Cache: HIT
+X-Cache-Hits:
+68
+X-Timer: S1408912125.211638212,VS0,VE0
+</code></pre>
+
+<p>Check your CDN documentation for any additional information they may provide
+such as <code>X-Cache</code> or for any additional headers they may add.</p>
+
+<p><strong>CDNs and the Cache-Control Header</strong></p>
+
+<p>The <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control"><code>Cache-Control</code></a> header describes how a request can be cached. When no
+CDN is used, a browser will use this information to cache contents. This is very
+helpful for assets that are not modified so that a browser does not need to
+re-download a website&#39;s CSS or JavaScript on every request. Generally we want
+our Rails server to tell our CDN (and browser) that the asset is &quot;public&quot;. That
+means any cache can store the request. Also we commonly want to set <code>max-age</code>
+which is how long the cache will store the object before invalidating the cache.
+The <code>max-age</code> value is set to seconds with a maximum possible value of
+<code>31536000</code>, which is one year. You can do this in your Rails application by
+setting</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_public_file_server'>public_file_server</span>.<span class='id identifier rubyid_headers'>headers</span> <span class='op'>=</span> {
+  <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Cache-Control</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>public, max-age=31536000</span><span class='tstring_end'>&quot;</span></span>
+}</code></pre>
+
+<p>Now when your application serves an asset in production, the CDN will store the
+asset for up to a year. Since most CDNs also cache headers of the request, this
+<code>Cache-Control</code> will be passed along to all future browsers seeking this asset.
+The browser then knows that it can store this asset for a very long time before
+needing to re-request it.</p>
+
+<p><strong>CDNs and URL-based Cache Invalidation</strong></p>
+
+<p>Most CDNs will cache contents of an asset based on the complete URL. This means
+that a request to</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_http'>http</span><span class='symbeg'>:</span><span class='op'>/</span><span class='op'>/</span><span class='id identifier rubyid_mycdnsubdomain'>mycdnsubdomain</span>.<span class='id identifier rubyid_fictional'>fictional</span><span class='op'>-</span><span class='id identifier rubyid_cdn'>cdn</span>.<span class='id identifier rubyid_com'>com</span><span class='op'>/</span><span class='id identifier rubyid_assets'>assets</span><span class='op'>/</span><span class='id identifier rubyid_smile'>smile</span><span class='op'>-</span><span class='int'>123</span>.<span class='id identifier rubyid_png'>png</span></code></pre>
+
+<p>Will be a completely different cache from</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_http'>http</span><span class='symbeg'>:</span><span class='op'>/</span><span class='op'>/</span><span class='id identifier rubyid_mycdnsubdomain'>mycdnsubdomain</span>.<span class='id identifier rubyid_fictional'>fictional</span><span class='op'>-</span><span class='id identifier rubyid_cdn'>cdn</span>.<span class='id identifier rubyid_com'>com</span><span class='op'>/</span><span class='id identifier rubyid_assets'>assets</span><span class='op'>/</span><span class='id identifier rubyid_smile'>smile</span>.<span class='id identifier rubyid_png'>png</span></code></pre>
+
+<p>If you want to set far future <code>max-age</code> in your <code>Cache-Control</code> (and you do),
+then make sure when you change your assets that your cache is invalidated. For
+example when changing the smiley face in an image from yellow to blue, you want
+all visitors of your site to get the new blue face. When using a CDN with the
+Rails asset pipeline <code>config.assets.digest</code> is set to true by default so that
+each asset will have a different file name when it is changed. This way you
+don&#39;t have to ever manually invalidate any items in your cache. By using a
+different unique asset name instead, your users get the latest asset.</p>
+
+<h2>Sprockets to Propshaft</h2>
+
+<h3>Evolution of Asset Management Techniques</h3>
+
+<p>Within the last few years, the evolution of the web has led to significant
+changes that have influenced how assets are managed in web applications. These
+include:</p>
+
+<ol>
+<li><strong>Browser Support</strong>: Modern browsers have improved support for new features
+and syntax, reducing the need for transpilation and polyfills.</li>
+<li><strong>HTTP/2</strong>: The introduction of HTTP/2 has made it easier to serve multiple
+files in parallel, reducing the need for bundling.</li>
+<li><strong>ES6+</strong>: Modern JavaScript syntax (ES6+) is supported by most modern
+browsers, reducing the need for transpilation.</li>
+</ol>
+
+<p>Therefore, the asset pipeline powered by Propshaft, no longer includes
+transpilation, bundling, or compression by default. However, fingerprinting
+still remains an integral part. You can read more about the evolution of asset
+management techniques and how they directed the change from Sprockets to
+Propshaft below.</p>
+
+<h4>Transpilation ❌</h4>
+
+<p>Transpilation involves converting code from one language or format to another.</p>
+
+<p>For example, converting TypeScript to JavaScript.</p>
+
+<pre class="code typescript"><code class="typescript">const greet = (name: string): void =&gt; {
+  console.log(`Hello, ${name}!`);
+};
+</code></pre>
+
+<p>After transpilation, this code becomes:</p>
+
+<pre class="code javascript"><code class="javascript">const greet = (name) =&gt; {
+  console.log(`Hello, ${name}!`);
+};
+</code></pre>
+
+<p>In the past, pre-processors like <a href="https://sass-lang.com/">Sass</a> and
+<a href="https://lesscss.org/">Less</a> were essential for CSS features such as variables
+and nesting. Today, modern CSS supports these natively, reducing the need for
+transpilation.</p>
+
+<h4>Bundling ❌</h4>
+
+<p>Bundling combines multiple files into one to reduce the number of HTTP requests
+a browser needs to make to render a page.</p>
+
+<p>For example, if your application has three JavaScript files:</p>
+
+<ul>
+<li>menu.js</li>
+<li>cart.js</li>
+<li>checkout.js</li>
+</ul>
+
+<p>Bundling will merge these into a single application.js file.</p>
+
+<pre class="code javascript"><code class="javascript">// app/javascript/application.js
+// Contents of menu.js, cart.js, and checkout.js are combined here
+</code></pre>
+
+<p>This was crucial with HTTP/1.1, which limited 6-8 simultaneous connections per
+domain. With HTTP/2, browsers fetch multiple files in parallel, making bundling
+less critical for modern applications.</p>
+
+<h4>Compression ❌</h4>
+
+<p>Compression encodes files in a more efficient format to reduce their size
+further when delivered to users. A common technique is <a href="https://en.wikipedia.org/wiki/Gzip">Gzip
+compression</a>.</p>
+
+<p>For example, a CSS file that&#39;s 200KB may compress to just 50KB when Gzipped.
+Browsers automatically decompress such files upon receipt, saving bandwidth and
+improving speed.</p>
+
+<p>However, with CDNs automatically compressing assets, the need for manual
+compression has decreased.</p>
+
+<h3>Sprockets vs. Propshaft</h3>
+
+<h4>Load Order</h4>
+
+<p>In Sprockets, you could link files together to ensure they loaded in the correct
+order. For example, a main JavaScript file that depended on other files would
+automatically have its dependencies managed by Sprockets, ensuring everything
+loaded in the right sequence. Propshaft, on the other hand, does not
+automatically handle these dependencies, and instead <a href="#asset-load-order">lets you manage the asset
+load order manually</a>.</p>
+
+<h4>Versioning</h4>
+
+<p>Sprockets simplifies asset fingerprinting by appending a hash to filenames
+whenever assets are updated, ensuring proper cache invalidation. With Propshaft,
+you’ll need to handle certain aspects manually. For example, while asset
+fingerprinting works, you might need to use a bundler or trigger transformations
+manually for JavaScript files to ensure filenames are updated correctly. Read
+more about <a href="#fingerprinting-versioning-with-digest-based-urls">fingerprinting in
+Propshaft</a>.</p>
+
+<h4>Precompilation</h4>
+
+<p>Sprockets processed assets that were explicitly included in a bundle. In
+contrast, Propshaft automatically processes all assets located in the specified
+paths, including images, stylesheets, JavaScript files, and more, without
+requiring explicit bundling. Read more about <a href="#asset-digesting">asset
+digesting</a>.</p>
+
+<h3>Migration Steps</h3>
+
+<p>Propshaft is intentionally simpler than
+<a href="https://github.com/rails/sprockets-rails">Sprockets</a>, which may make migrating
+from Sprockets a fair amount of work. This is especially true if you rely on
+Sprockets for tasks like transpiling
+<a href="https://www.typescriptlang.org/">TypeScript</a> or <a href="https://sass-lang.com/">Sass</a>,
+or if you&#39;re using gems that provide this functionality. In such cases, you&#39;ll
+either need to stop transpiling or switch to a Node.js-based transpiler, such as
+those provided by
+<a href="https://github.com/rails/jsbundling-rails"><code>jsbundling-rails</code></a> or
+<a href="https://github.com/rails/cssbundling-rails"><code>cssbundling-rails</code></a>. Read more
+about these in the <a href="#advanced-asset-management">Advanced Asset Management
+section</a>.</p>
+
+<p>However, if you&#39;re already using a Node-based setup to bundle JavaScript and
+CSS, Propshaft should integrate smoothly into your workflow. Since you won’t
+need an additional tool for bundling or transpiling, Propshaft will primarily
+handle asset digesting and serving.</p>
+
+<p>Some key steps in the migration include:</p>
+
+<ol>
+<li><p>Remove some gems using the following:</p>
+
+<pre class="code bash"><code class="bash">bundle remove sprockets
+bundle remove sprockets-rails
+bundle remove sass-rails
+</code></pre></li>
+<li><p>Delete the <code>config/assets.rb</code> and <code>assets/config/manifest.js</code> files from your
+project.</p></li>
+<li><p>If you&#39;ve already upgraded to Rails 8, then Propshaft is already included in
+your application. Otherwise, install it using <code>bundle add propshaft</code>.</p></li>
+<li><p>Remove the <code>config.assets.paths &lt;&lt; Rails.root.join(&#39;app&#39;, &#39;assets&#39;)</code> line
+from your <code>application.rb</code> file.</p></li>
+<li><p>Migrate asset helpers by replacing all instances of asset helpers in your CSS
+files (e.g., <code>image_url</code>) with standard <code>url()</code> functions, keeping in mind
+that Propshaft utilizes relative paths.
+For example, <code>image_url(&quot;logo.png&quot;)</code> may become <code>url(&quot;/logo.png&quot;)</code>.</p></li>
+<li><p>If you&#39;re relying on Sprockets for transpiling, you&#39;ll need to switch to a
+Node-based transpiler like Webpack, esbuild, or Vite. You can use the
+<code>jsbundling-rails</code> and <code>cssbundling-rails</code> gems to integrate these tools into
+your Rails application.</p></li>
+</ol>
+
+<p>For more information, you can read the [detailed guide on how to migrate from
+Sprockets to
+Propshaft]).</p>
+
+<h2>Advanced Asset Management</h2>
+
+<p>Over the years, there have been multiple default approaches for handling assets,
+and as the web evolved, we began to see more JavaScript-heavy applications. In
+The Rails Doctrine we believe that <a href="https://rubyonrails.org/doctrine#omakase">The Menu Is
+Omakase</a>, so Propshaft focuses on
+delivering a production-ready setup with modern browsers by default.</p>
+
+<p>There is no one-size-fits-all solution for the various JavaScript and CSS
+frameworks and extensions available. However, there are other bundling libraries
+in the Rails ecosystem that should empower you in cases where the default setup
+isn&#39;t enough.</p>
+
+<h3><code>jsbundling-rails</code></h3>
+
+<p><a href="https://github.com/rails/jsbundling-rails"><code>jsbundling-rails</code></a> is a gem that
+integrates modern JavaScript bundlers into your Rails application. It allows you
+to manage and bundle JavaScript assets with tools like <a href="https://bun.sh">Bun</a>,
+<a href="https://esbuild.github.io/">esbuild</a>, <a href="https://rollupjs.org/">rollup.js</a>, or
+<a href="https://webpack.js.org/">Webpack</a>, offering a runtime-dependent approach for
+developers seeking flexibility and performance.</p>
+
+<h4>How <code>jsbundling-rails</code> Works</h4>
+
+<ol>
+<li>After installation, it sets up your Rails app to use your chosen JavaScript
+bundler.</li>
+<li>It creates a <code>build</code> script in your <code>package.json</code> file to compile your
+JavaScript assets.</li>
+<li>During development, the <code>build:watch</code> script ensures live updates to your
+assets as you make changes.</li>
+<li>In production, the gem ensures that JavaScript is built and included during
+the precompilation step, reducing manual intervention. It hooks into Rails&#39;
+<code>assets:precompile</code> task to build JavaScript for all entry points during
+deployment. This integration ensures that your JavaScript is production-ready
+with minimal configuration.</li>
+</ol>
+
+<p>The gem automatically handles entry-point discovery - identifying the primary
+JavaScript files to bundle by following Rails conventions, typically looking in
+directories like <code>app/javascript/</code> and configuration. By adhering to Rails
+conventions, <code>jsbundling-rails</code> simplifies the process of integrating complex
+JavaScript workflows into Rails projects.</p>
+
+<h4>When Should You Use It?</h4>
+
+<p><code>jsbundling-rails</code> is ideal for Rails applications that:</p>
+
+<ul>
+<li>Require modern JavaScript features like ES6+, TypeScript, or JSX.</li>
+<li>Need to leverage bundler-specific optimizations like tree-shaking, code
+splitting, or minification.</li>
+<li>Use <code>Propshaft</code> for asset management and need a reliable way to integrate
+precompiled JavaScript with the broader Rails asset pipeline.</li>
+<li>Utilize libraries or frameworks that depend on a build step. For example,
+projects requiring transpilation—such as those using
+<a href="https://babeljs.io/">Babel</a>, <a href="https://www.typescriptlang.org/">TypeScript</a>,
+or React JSX—benefit greatly from <code>jsbundling-rails</code>. These tools rely on a
+build step, which the gem seamlessly supports.</li>
+</ul>
+
+<p>By integrating with Rails tools like <code>Propshaft</code> and simplifying JavaScript
+workflows, <code>jsbundling-rails</code> allows you to build rich, dynamic front-ends while
+staying productive and adhering to Rails conventions.</p>
+
+<h3><code>cssbundling-rails</code></h3>
+
+<p><a href="https://github.com/rails/cssbundling-rails"><code>cssbundling-rails</code></a> integrates
+modern CSS frameworks and tools into your Rails application. It allows you to
+bundle and process your stylesheets. Once processed, the resulting CSS is
+delivered via the Rails asset pipeline.</p>
+
+<h4>How <code>cssbundling-rails</code> Works</h4>
+
+<ol>
+<li>After installation, it sets up your Rails app to use your chosen CSS
+framework or processor.</li>
+<li>It creates a <code>build:css</code> script in your <code>package.json</code> file to compile your
+stylesheets.</li>
+<li>During development, a <code>build:css --watch</code> task ensures live updates to your
+CSS as you make changes, providing a smooth and responsive workflow.</li>
+<li>In production, the gem ensures your stylesheets are compiled and ready for
+deployment. During the <code>assets:precompile</code> step, it installs all
+<code>package.json</code> dependencies via <code>bun</code>, <code>yarn</code>, <code>pnpm</code> or <code>npm</code> and runs the
+<code>build:css</code> task to process your stylesheet entry points. The resulting CSS
+output is then digested by the asset pipeline and copied into the
+<code>public/assets</code> directory, just like other asset pipeline files.</li>
+</ol>
+
+<p>This integration simplifies the process of preparing production-ready styles
+while ensuring all your CSS is managed and processed efficiently.</p>
+
+<h4>When Should You Use It?</h4>
+
+<p><code>cssbundling-rails</code> is ideal for Rails applications that:</p>
+
+<ul>
+<li>Use CSS frameworks like <a href="https://tailwindcss.com/">Tailwind CSS</a>,
+<a href="https://getbootstrap.com/">Bootstrap</a>, or <a href="https://bulma.io/">Bulma</a> that
+require processing during development or deployment.</li>
+<li>Need advanced CSS capabilities such as custom preprocessing with
+<a href="https://postcss.org/">PostCSS</a> or <a href="https://sass-lang.com/">Dart Sass</a>
+plugins.</li>
+<li>Require seamless integration of processed CSS into the Rails asset pipeline.</li>
+<li>Benefit from live updates to stylesheets during development with minimal
+manual intervention.</li>
+</ul>
+
+<p><strong>NOTE</strong>: Unlike <a href="https://github.com/rails/dartsass-rails"><code>dartsass-rails</code></a> or
+<a href="https://github.com/rails/tailwindcss-rails"><code>tailwindcss-rails</code></a>, which use
+standalone versions of <a href="https://sass-lang.com/">Dart Sass</a> and <a href="https://tailwindcss.com/">Tailwind
+CSS</a>, <code>cssbundling-rails</code> introduces a Node.js
+dependency. This makes it a good choice for applications already relying on Node
+for JavaScript processing with gems like <code>jsbundling-rails</code>. However, if you&#39;re
+using <a href="https://github.com/rails/importmap-rails"><code>importmap-rails</code></a> for
+JavaScript and prefer to avoid Node.js, standalone alternatives like
+<a href="https://github.com/rails/dartsass-rails"><code>dartsass-rails</code></a> or
+<a href="https://github.com/rails/tailwindcss-rails"><code>tailwindcss-rails</code></a> offer a
+simpler setup.</p>
+
+<p>By integrating modern CSS workflows, automating production builds, and
+leveraging the Rails asset pipeline, <code>cssbundling-rails</code> enables developers to
+efficiently manage and deliver dynamic styles.</p>
+
+<h3><code>tailwindcss-rails</code></h3>
+
+<p><a href="https://github.com/rails/tailwindcss-rails"><code>tailwindcss-rails</code></a> is a wrapper
+gem that integrates <a href="https://tailwindcss.com/">Tailwind CSS</a> into your Rails
+application. By bundling Tailwind CSS with a <a href="https://tailwindcss.com/blog/standalone-cli">standalone
+executable</a>, it eliminates the need
+for Node.js or additional JavaScript dependencies. This makes it a lightweight
+and efficient solution for styling Rails applications.</p>
+
+<h4>How <code>tailwindcss-rails</code> Works</h4>
+
+<ol>
+<li>When installed, by providing <code>--css tailwind</code> to the <code>rails new</code> command, the
+gem generates a <code>tailwind.config.js</code> file for customizing your Tailwind setup
+and a <code>stylesheets/application.tailwind.css</code> file for managing your CSS entry
+points.</li>
+<li>Instead of relying on Node.js, the gem uses a precompiled Tailwind CSS
+binary. This standalone approach allows you to process and compile CSS
+without adding a JavaScript runtime to your project.</li>
+<li>During development, changes to your Tailwind configuration or CSS files are
+automatically detected and processed. The gem rebuilds your stylesheets and
+provides a <code>watch</code> process to automatically generate Tailwind output in
+development.</li>
+<li>In production, the gem hooks into the <code>assets:precompile</code> task. It processes
+your Tailwind CSS files and generates optimized, production-ready
+stylesheets, which are then included in the asset pipeline. The output is
+fingerprinted and cached for efficient delivery.</li>
+</ol>
+
+<h4>When Should You Use It?</h4>
+
+<p><code>tailwindcss-rails</code> is ideal for Rails applications that:</p>
+
+<ul>
+<li>Want to use <a href="https://tailwindcss.com/">Tailwind CSS</a> without introducing a
+Node.js dependency or JavaScript build tools.</li>
+<li>Require a minimal setup for managing utility-first CSS frameworks.</li>
+<li>Need to take advantage of Tailwind&#39;s powerful features like custom themes,
+variants, and plugins without complex configuration.</li>
+</ul>
+
+<p>The gem works seamlessly with Rails&#39; asset pipeline tools, like Propshaft,
+ensuring that your CSS is preprocessed, digested, and efficiently served in
+production environments.</p>
+
+<h3><code>importmap-rails</code></h3>
+
+<p><a href="https://github.com/rails/importmap-rails"><code>importmap-rails</code></a> enables a
+Node.js-free approach to managing JavaScript in Rails applications. It leverages
+modern browser support for <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules">ES
+Modules</a>
+to load JavaScript directly in the browser without requiring bundling or
+transpilation. This approach aligns with Rails&#39; commitment to simplicity and
+convention over configuration.</p>
+
+<h4>How <code>importmap-rails</code> Works</h4>
+
+<ul>
+<li>After installation, <code>importmap-rails</code> configures your Rails app to use
+<code>&lt;script type=&quot;module&quot;&gt;</code> tags to load JavaScript modules directly in the
+browser.</li>
+<li>JavaScript dependencies are managed using the <code>bin/importmap</code> command, which
+pins modules to URLs, typically hosted on CDNs like
+<a href="https://www.jsdelivr.com/">jsDelivr</a> that host pre-bundled, browser-ready
+versions of libraries. This eliminates the need for <code>node_modules</code> or a
+package manager.</li>
+<li>During development, there’s no bundling step, so updates to your JavaScript
+are instantly available, streamlining the workflow.</li>
+<li>In production, the gem integrates with Propshaft to serve JavaScript files as
+part of the asset pipeline. Propshaft ensures files are digested, cached, and
+production-ready. Dependencies are versioned, fingerprinted, and efficiently
+delivered without manual intervention.</li>
+</ul>
+
+<p><strong>NOTE</strong>: While Propshaft ensures proper asset handling, it does not handle
+JavaScript processing or transformations — <code>importmap-rails</code> assumes your
+JavaScript is already in a browser-compatible format. This is why it works best
+for projects that don&#39;t require transpiling or bundling.</p>
+
+<p>By eliminating the need for a build step and Node.js, <code>importmap-rails</code>
+simplifies JavaScript management.</p>
+
+<h4>When Should You Use It?</h4>
+
+<p><code>importmap-rails</code> is ideal for Rails applications that:</p>
+
+<ul>
+<li>Do not require complex JavaScript features like transpiling or bundling.</li>
+<li>Use modern JavaScript without relying on tools like
+<a href="https://babeljs.io/">Babel</a>.</li>
+</ul>
+
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>
