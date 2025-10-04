@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen'       content='yes'>
+<meta name='apple-mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: UPGRADE-GUIDE &mdash; Rack main</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "UPGRADE-GUIDE",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>Rack main</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: UPGRADE-GUIDE&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<h1><a href="Rack.html" title="Rack (module)"><code>Rack</code></a> 3 Upgrade Guide</h1>
+
+<p>This document is a work in progress, but outlines some of the key changes in
+<a href="Rack.html" title="Rack (module)"><code>Rack</code></a> 3 which you should be aware of in order to update your server, middleware
+and/or applications.</p>
+
+<h2>Interface Changes</h2>
+
+<h3>Rack 2 &amp; Rack 3 compatibility</h3>
+
+<p>Most applications can be compatible with <a href="Rack.html" title="Rack (module)"><code>Rack</code></a> 2 and 3 by following the strict intersection of the <a href="Rack.html" title="Rack (module)"><code>Rack</code></a> Specifications, notably:</p>
+
+<ul>
+<li>Response array must now be non-frozen.</li>
+<li>Response <code>status</code> must now be an integer greater than or equal to 100.</li>
+<li>Response <code>headers</code> must now be an unfrozen hash.</li>
+<li>Response header keys can no longer include uppercase characters.</li>
+<li><code>rack.input</code> is no longer required to be rewindable.</li>
+<li><code>rack.multithread</code>/<code>rack.multiprocess</code>/<code>rack.run_once</code>/<code>rack.version</code> are no longer required environment keys.</li>
+<li><code>rack.hijack?</code> (partial hijack) and <code>rack.hijack</code> (full hijack) are now independently optional.</li>
+<li><code>rack.hijack_io</code> has been removed completely.</li>
+<li><a href="Rack.html#SERVER_PROTOCOL-constant" title="Rack::SERVER_PROTOCOL (constant)">Rack::SERVER_PROTOCOL</a> is now a required key, matching the HTTP protocol used in the request.</li>
+<li>Middleware must no longer call <code>#each</code> on the body, but they can call <code>#to_ary</code> on the body if it responds to <code>#to_ary</code>.</li>
+</ul>
+
+<p>There is one changed feature in <a href="Rack.html" title="Rack (module)"><code>Rack</code></a> 3 which is not backwards compatible:</p>
+
+<ul>
+<li>Response header values can be an <code>Array</code> to handle multiple values (and no longer supports <code>\n</code> encoded headers).</li>
+</ul>
+
+<p>You can achieve compatibility by using <code>Rack::Response#add_header</code> which provides an interface for adding headers without concern for the underlying format.</p>
+
+<p>There is one new feature in <a href="Rack.html" title="Rack (module)"><code>Rack</code></a> 3 which is not directly backwards compatible:</p>
+
+<ul>
+<li>Response body can now respond to <code>#call</code> (streaming body) instead of <code>#each</code> (enumerable body), for the equivalent of response hijacking in previous versions.</li>
+</ul>
+
+<p>If supported by your server, you can use partial rack hijack instead (or wrap this behaviour in a middleware).</p>
+
+<h3><code>config.ru</code> <a href="Rack/Builder.html#run-instance_method" title="Rack::Builder#run (method)">Rack::Builder#run</a> now accepts block</h3>
+
+<p>Previously, <a href="Rack/Builder.html#run-instance_method" title="Rack::Builder#run (method)">Rack::Builder#run</a> method would only accept a callable argument:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_run'>run</span> <span class='id identifier rubyid_lambda'>lambda</span>{<span class='op'>|</span><span class='id identifier rubyid_env'>env</span><span class='op'>|</span> [<span class='int'>200</span><span class='comma'>,</span> {}<span class='comma'>,</span> [<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Hello World</span><span class='tstring_end'>&quot;</span></span>]]}</code></pre>
+
+<p>This can be rewritten more simply:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_run'>run</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_env'>env</span><span class='op'>|</span>
+  [<span class='int'>200</span><span class='comma'>,</span> {}<span class='comma'>,</span> [<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Hello World</span><span class='tstring_end'>&quot;</span></span>]]
+<span class='kw'>end</span></code></pre>
+
+<h3>Response bodies can be used for bi-directional streaming</h3>
+
+<p>Previously, the <code>rack.hijack</code> response header could be used for implementing
+bi-directional streaming (e.g. WebSockets).</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_call'>call</span>(<span class='id identifier rubyid_env'>env</span>)
+  <span class='id identifier rubyid_stream_callback'>stream_callback</span> <span class='op'>=</span> <span class='id identifier rubyid_proc'>proc</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_stream'>stream</span><span class='op'>|</span>
+    <span class='id identifier rubyid_stream'>stream</span>.<span class='id identifier rubyid_read'>read</span>(<span class='op'>...</span>)
+    <span class='id identifier rubyid_stream'>stream</span>.<span class='id identifier rubyid_write'>write</span>(<span class='op'>...</span>)
+  <span class='kw'>ensure</span>
+    <span class='id identifier rubyid_stream'>stream</span>.<span class='id identifier rubyid_close'>close</span>(<span class='op'>...</span>)
+  <span class='kw'>end</span>
+
+  <span class='kw'>return</span> [<span class='int'>200</span><span class='comma'>,</span> {<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>rack.hijack</span><span class='tstring_end'>&#39;</span></span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_stream_callback'>stream_callback</span>}<span class='comma'>,</span> []]
+<span class='kw'>end</span></code></pre>
+
+<p>This feature was optional and tricky to use correctly. You can now achieve the
+same thing by giving <code>stream_callback</code> as the response body:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_call'>call</span>(<span class='id identifier rubyid_env'>env</span>)
+  <span class='id identifier rubyid_stream_callback'>stream_callback</span> <span class='op'>=</span> <span class='id identifier rubyid_proc'>proc</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_stream'>stream</span><span class='op'>|</span>
+    <span class='id identifier rubyid_stream'>stream</span>.<span class='id identifier rubyid_read'>read</span>(<span class='op'>...</span>)
+    <span class='id identifier rubyid_stream'>stream</span>.<span class='id identifier rubyid_write'>write</span>(<span class='op'>...</span>)
+  <span class='kw'>ensure</span>
+    <span class='id identifier rubyid_stream'>stream</span>.<span class='id identifier rubyid_close'>close</span>(<span class='op'>...</span>)
+  <span class='kw'>end</span>
+
+  <span class='kw'>return</span> [<span class='int'>200</span><span class='comma'>,</span> {}<span class='comma'>,</span> <span class='id identifier rubyid_stream_callback'>stream_callback</span>]
+<span class='kw'>end</span></code></pre>
+
+<h3><code>Rack::Session</code> was moved to a separate gem.</h3>
+
+<p>Previously, <code>Rack::Session</code> was part of the <code>rack</code> gem. Not every application
+needs it, and it increases the security surface area of the <code>rack</code>, so it was
+decided to extract it into its own gem <code>rack-session</code> which can be updated
+independently.</p>
+
+<p>Applications that make use of <code>rack-session</code> will need to add that gem as a
+dependency:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_gem'>gem</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>rack-session</span><span class='tstring_end'>&#39;</span></span></code></pre>
+
+<p>This provides all the previously available functionality.</p>
+
+<h3><code>bin/rackup</code>, <code>Rack::Server</code>, <code>Rack::Handler</code>and  <code>Rack::Lobster</code> were moved to a separate gem.</h3>
+
+<p>Previously, the <code>rackup</code> executable was included with Rack. Because WEBrick is
+no longer a default gem with Ruby, we had to make a decision: either <code>rack</code>
+should depend on <code>webrick</code> or we should move that functionality into a
+separate gem. We chose the latter which will hopefully allow us to innovate
+more rapidly on the design and implementation of <code>rackup</code> separately from
+&quot;rack the interface&quot;.</p>
+
+<p>In Rack 3, you will need to include:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_gem'>gem</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>rackup</span><span class='tstring_end'>&#39;</span></span></code></pre>
+
+<p>This provides all the previously available functionality.</p>
+
+<p>The classes <code>Rack::Server</code>, <code>Rack::Handler</code> and  <code>Rack::Lobster</code> have been moved to the rackup gem too and renamed to <code>Rackup::Server</code>, <code>Rackup::Handler</code> and  <code>Rackup::Lobster</code> respectively.</p>
+
+<p>To start an app with <code>Rackup::Server</code> with Rack 3 :</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>rackup</span><span class='tstring_end'>&#39;</span></span>
+<span class='const'>Rackup</span><span class='op'>::</span><span class='const'>Server</span>.<span class='id identifier rubyid_start'>start</span> <span class='label'>app:</span> <span class='id identifier rubyid_app'>app</span><span class='comma'>,</span> <span class='label'>Port:</span> <span class='int'>3000</span></code></pre>
+
+<h4><code>config.ru</code> autoloading is disabled unless <code>require &#39;rack&#39;</code></h4>
+
+<p>Previously, rack modules like <code>rack/directory</code> were autoloaded because <code>rackup</code> did require &#39;rack&#39;. In Rack 3, you will need to write <code>require &#39;rack&#39;</code> or require specific module explicitly.</p>
+
+<pre class="code diff"><code class="diff">+require &#39;rack&#39;
+run Rack::Directory.new &#39;.&#39;
+</code></pre>
+
+<p>or</p>
+
+<pre class="code diff"><code class="diff">+require &#39;rack/directory&#39;
+run Rack::Directory.new &#39;.&#39;
+</code></pre>
+
+<h2>Request Changes</h2>
+
+<h3><code>rack.version</code> is no longer required</h3>
+
+<p>Previously, the &quot;rack protocol version&quot; was available in <code>rack.version</code> but it
+was not practically useful, so it has been removed as a requirement.</p>
+
+<h3><code>rack.multithread</code>/<code>rack.multiprocess</code>/<code>rack.run_once</code> are no longer required</h3>
+
+<p>Previously, servers tried to provide these keys to reflect the execution
+environment. These come too late to be useful, so they have been removed as  a
+requirement.</p>
+
+<h3><code>rack.hijack?</code> now only applies to partial hijack</h3>
+
+<p>Previously, both full and partial hijiack were controlled by the presence and
+value of <code>rack.hijack?</code>. Now, it only applies to partial hijack (which now can
+be replaced by streaming bodies).</p>
+
+<h3><code>rack.hijack</code> alone indicates that you can execute a full hijack</h3>
+
+<p>Previously, <code>rack.hijack?</code> had to be truthy, as well as having <code>rack.hijack</code>
+present in the request environment. Now, the presence of the <code>rack.hijack</code>
+callback is enough.</p>
+
+<h3><code>rack.hijack_io</code> is removed</h3>
+
+<p>Previously, the server would try to set <code>rack.hijack_io</code> into the request
+environment when <code>rack.hijack</code> was invoked for a full hijack. This was often
+impossible if a middleware had called <code>env.dup</code>, so this requirement has been
+dropped entirely.</p>
+
+<h3><code>rack.input</code> is no longer required to be rewindable</h3>
+
+<p>Previously, <code>rack.input</code> was required to be rewindable, i.e. <code>io.seek(0)</code> but
+this was only generally possible with a file based backing, which prevented
+efficient streaming of request bodies. Now, <code>rack.input</code> is not required to be
+rewindable.</p>
+
+<h3><code>rack.input</code> is no longer rewound after consuming form and multipart data</h3>
+
+<p>Previously <code>.rewind</code> was called after consuming form and multipart data. Use
+<a href="Rack/RewindableInput/Middleware.html" title="Rack::RewindableInput::Middleware (class)"><code>RewindableInput::Middleware</code></a> to make the body rewindable, and call
+<code>.rewind</code> explicitly to match this behavior.</p>
+
+<h3>Invalid nested query parsing syntax</h3>
+
+<p>Previously, Rack 2 was able to parse the query string <code>a[b[c]]=x</code> in the same
+way as <code>a[b][c]=x</code>. This invalid syntax was never officially supported. However,
+some libraries and applications used it anyway. Due to implementation details,
+Rack 2 ended up parsing it the same as the correct syntax. The implementation
+was changed in Rack 3, and this invalid syntax is no longer parsed the same way
+as the correct syntax:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rack.html" title="Rack (module)">Rack</a></span><span class='op'>::</span><span class='const'><a href="Rack/Utils.html" title="Rack::Utils (module)">Utils</a></span>.<span class='id identifier rubyid_parse_nested_query'><a href="Rack/Utils.html#parse_nested_query-class_method" title="Rack::Utils.parse_nested_query (method)">parse_nested_query</a></span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>a[b[c]]=x</span><span class='tstring_end'>&quot;</span></span>)
+<span class='comment'># Rack 3 =&gt; {&quot;a&quot;=&gt;{&quot;b[c&quot;=&gt;{&quot;]&quot;=&gt;&quot;x&quot;}}} ❌
+</span><span class='comment'># Rack 2 =&gt; {&quot;a&quot;=&gt;{&quot;b&quot;=&gt;{&quot;c&quot;=&gt;&quot;x&quot;}}} ✅</span></code></pre>
+
+<p>The correct syntax for nested parameters is <code>a[b][c]=x</code> and you&#39;ll need
+to change that in your application code to be compatible with Rack 3:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rack.html" title="Rack (module)">Rack</a></span><span class='op'>::</span><span class='const'><a href="Rack/Utils.html" title="Rack::Utils (module)">Utils</a></span>.<span class='id identifier rubyid_parse_nested_query'><a href="Rack/Utils.html#parse_nested_query-class_method" title="Rack::Utils.parse_nested_query (method)">parse_nested_query</a></span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>a[b][c]=x</span><span class='tstring_end'>&quot;</span></span>)
+<span class='comment'># Rack 3 =&gt; {&quot;a&quot;=&gt;{&quot;b&quot;=&gt;{&quot;c&quot;=&gt;&quot;x&quot;}}} ✅
+</span><span class='comment'># Rack 2 =&gt; {&quot;a&quot;=&gt;{&quot;b&quot;=&gt;{&quot;c&quot;=&gt;&quot;x&quot;}}} ✅</span></code></pre>
+
+<p>See <a href="https://github.com/rack/rack/issues/2128">https://github.com/rack/rack/issues/2128</a> for more context.</p>
+
+<h2>Response Changes</h2>
+
+<h3>Response must be mutable</h3>
+
+<p>Rack 3 requires the response Array <code>[status, headers, body]</code> to be mutable.
+Existing code that uses a frozen response will need to be changed:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>NOT_FOUND</span> <span class='op'>=</span> [<span class='int'>404</span><span class='comma'>,</span> {}<span class='comma'>,</span> [<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Not Found</span><span class='tstring_end'>&quot;</span></span>]].<span class='id identifier rubyid_freeze'>freeze</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_call'>call</span>(<span class='id identifier rubyid_env'>env</span>)
+  <span class='comment'>#...
+</span>  <span class='kw'>return</span> <span class='const'>NOT_FOUND</span>
+<span class='kw'>end</span></code></pre>
+
+<p>should be rewritten as:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_not_found'>not_found</span>
+  [<span class='int'>404</span><span class='comma'>,</span> {}<span class='comma'>,</span> [<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Not Found</span><span class='tstring_end'>&quot;</span></span>]]
+<span class='kw'>end</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_call'>call</span>(<span class='id identifier rubyid_env'>env</span>)
+  <span class='comment'>#...
+</span>  <span class='kw'>return</span> <span class='id identifier rubyid_not_found'>not_found</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Note there is a subtle bug in the former version: the headers hash is mutable
+and can be modified, and these modifications can leak into subsequent requests.</p>
+
+<h3>Response headers must be a mutable hash</h3>
+
+<p>Rack 3 requires response headers to be a mutable hash. Previously it could be
+any object that would respond to <code>#each</code> and yield <code>key</code>/<code>value</code> pairs.
+Previously, the following was acceptable:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_call'>call</span>(<span class='id identifier rubyid_env'>env</span>)
+  <span class='kw'>return</span> [<span class='int'>200</span><span class='comma'>,</span> [[<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>content-type</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>text/plain</span><span class='tstring_end'>&#39;</span></span>]]<span class='comma'>,</span> [<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Hello World</span><span class='tstring_end'>&quot;</span></span>]]
+<span class='kw'>end</span></code></pre>
+
+<p>Now you must use a hash instance:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_call'>call</span>(<span class='id identifier rubyid_env'>env</span>)
+  <span class='kw'>return</span> [<span class='int'>200</span><span class='comma'>,</span> {<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>content-type</span><span class='tstring_end'>&#39;</span></span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>text/plain</span><span class='tstring_end'>&#39;</span></span>}<span class='comma'>,</span> [<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Hello World</span><span class='tstring_end'>&quot;</span></span>]]
+<span class='kw'>end</span></code></pre>
+
+<p>This ensures middleware can predictably update headers as needed.</p>
+
+<h3>Response Headers must be lower case</h3>
+
+<p>Rack 3 requires all response headers to be lower case. This is to simplify
+fetching and updating response headers. Previously you had to use something like
+<code>Rack::HeadersHash</code></p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_call'>call</span>(<span class='id identifier rubyid_env'>env</span>)
+  <span class='id identifier rubyid_response'>response</span> <span class='op'>=</span> <span class='ivar'>@app</span>.<span class='id identifier rubyid_call'>call</span>(<span class='id identifier rubyid_env'>env</span>)
+  <span class='comment'># HeaderHash must allocate internal objects and compute lower case keys:
+</span>  <span class='id identifier rubyid_headers'>headers</span> <span class='op'>=</span> <span class='const'><a href="Rack.html" title="Rack (module)">Rack</a></span><span class='op'>::</span><span class='const'><a href="Rack/Utils.html" title="Rack::Utils (module)">Utils</a></span><span class='op'>::</span><span class='const'>HeaderHash</span>[<span class='id identifier rubyid_response'>response</span>[<span class='int'>1</span>]]
+
+  <span class='id identifier rubyid_cache_response'>cache_response</span>(<span class='id identifier rubyid_headers'>headers</span>[<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>ETag</span><span class='tstring_end'>&#39;</span></span>]<span class='comma'>,</span> <span class='id identifier rubyid_response'>response</span>)
+
+  <span class='comment'>#...
+</span><span class='kw'>end</span></code></pre>
+
+<p>but now you must just use the normal form for HTTP header:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_call'>call</span>(<span class='id identifier rubyid_env'>env</span>)
+  <span class='id identifier rubyid_response'>response</span> <span class='op'>=</span> <span class='ivar'>@app</span>.<span class='id identifier rubyid_call'>call</span>(<span class='id identifier rubyid_env'>env</span>)
+  <span class='comment'># A plain hash with lower case keys:
+</span>  <span class='id identifier rubyid_headers'>headers</span> <span class='op'>=</span> <span class='id identifier rubyid_response'>response</span>[<span class='int'>1</span>]
+
+  <span class='id identifier rubyid_cache_response'>cache_response</span>(<span class='id identifier rubyid_headers'>headers</span>[<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>etag</span><span class='tstring_end'>&#39;</span></span>]<span class='comma'>,</span> <span class='id identifier rubyid_response'>response</span>)
+
+  <span class='comment'>#...
+</span><span class='kw'>end</span></code></pre>
+
+<p>If you want your code to work with Rack 3 without having to manually lowercase
+each header key used, instead of using a plain hash for headers, you can use
+<a href="Rack/Headers.html" title="Rack::Headers (class)"><code>Headers</code></a> on Rack 3.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_headers'>headers</span> <span class='op'>=</span> <span class='kw'>defined?</span>(<span class='const'><a href="Rack.html" title="Rack (module)">Rack</a></span><span class='op'>::</span><span class='const'><a href="Rack/Headers.html" title="Rack::Headers (class)">Headers</a></span>) <span class='op'>?</span> <span class='const'><a href="Rack.html" title="Rack (module)">Rack</a></span><span class='op'>::</span><span class='const'><a href="Rack/Headers.html" title="Rack::Headers (class)">Headers</a></span>.<span class='id identifier rubyid_new'>new</span> <span class='op'>:</span> {}</code></pre>
+
+<p><a href="Rack/Headers.html" title="Rack::Headers (class)"><code>Headers</code></a> is a subclass of Hash that will automatically lowercase keys:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_headers'>headers</span> <span class='op'>=</span> <span class='const'><a href="Rack.html" title="Rack (module)">Rack</a></span><span class='op'>::</span><span class='const'><a href="Rack/Headers.html" title="Rack::Headers (class)">Headers</a></span>.<span class='id identifier rubyid_new'>new</span>
+<span class='id identifier rubyid_headers'>headers</span>[<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Foo</span><span class='tstring_end'>&#39;</span></span>] <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>bar</span><span class='tstring_end'>&#39;</span></span>
+<span class='id identifier rubyid_headers'>headers</span>[<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>FOO</span><span class='tstring_end'>&#39;</span></span>] <span class='comment'># =&gt; &#39;bar&#39;
+</span><span class='id identifier rubyid_headers'>headers</span>.<span class='id identifier rubyid_keys'>keys</span>   <span class='comment'># =&gt; [&#39;foo&#39;]</span></code></pre>
+
+<h3>Multiple response header values are encoded using an <code>Array</code></h3>
+
+<p>Response header values can be an Array to handle multiple values (and no longer
+supports <code>\n</code> encoded headers). If you use <a href="Rack/Response.html" title="Rack::Response (class)"><code>Response</code></a>, you don&#39;t need to
+do anything, but if manually append values to response headers, you will need to
+promote them to an Array, e.g.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_set_cookie_header!'>set_cookie_header!</span>(<span class='id identifier rubyid_headers'>headers</span><span class='comma'>,</span> <span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_value'>value</span>)
+  <span class='kw'>if</span> <span class='id identifier rubyid_header'>header</span> <span class='op'>=</span> <span class='id identifier rubyid_headers'>headers</span>[<span class='const'><a href="Rack.html#SET_COOKIE-constant" title="Rack::SET_COOKIE (constant)">SET_COOKIE</a></span>]
+    <span class='kw'>if</span> <span class='id identifier rubyid_header'>header</span>.<span class='id identifier rubyid_is_a?'>is_a?</span>(<span class='const'>Array</span>)
+      <span class='id identifier rubyid_header'>header</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_set_cookie_header'>set_cookie_header</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_value'>value</span>)
+    <span class='kw'>else</span>
+      <span class='id identifier rubyid_headers'>headers</span>[<span class='const'><a href="Rack.html#SET_COOKIE-constant" title="Rack::SET_COOKIE (constant)">SET_COOKIE</a></span>] <span class='op'>=</span> [<span class='id identifier rubyid_header'>header</span><span class='comma'>,</span> <span class='id identifier rubyid_set_cookie_header'>set_cookie_header</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_value'>value</span>)]
+    <span class='kw'>end</span>
+  <span class='kw'>else</span>
+    <span class='id identifier rubyid_headers'>headers</span>[<span class='const'><a href="Rack.html#SET_COOKIE-constant" title="Rack::SET_COOKIE (constant)">SET_COOKIE</a></span>] <span class='op'>=</span> <span class='id identifier rubyid_set_cookie_header'>set_cookie_header</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_value'>value</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<h3>Response body might not respond to <code>#each</code></h3>
+
+<p>Rack 3 has more strict requirements on response bodies. Previously, response
+body would only need to respond to <code>#each</code> and optionally <code>#close</code>. In addition,
+there was no way to determine whether it was safe to call <code>#each</code> and buffer the
+response.</p>
+
+<h3>Response bodies can be buffered if they expose <code>#to_ary</code></h3>
+
+<p>If your body responds to <code>#to_ary</code> then it must return an <code>Array</code> whose contents
+are identical to that produced by calling <code>#each</code>. If the body responds to both
+<code>#to_ary</code> and <code>#close</code> then its implementation of <code>#to_ary</code> must also call
+<code>#close</code>.</p>
+
+<p>Previously, it was not possible to determine whether a response body was
+immediately available (could be buffered) or was streaming chunks. This case is
+now unambiguously exposed by <code>#to_ary</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_call'>call</span>(<span class='id identifier rubyid_env'>env</span>)
+  <span class='id identifier rubyid_status'>status</span><span class='comma'>,</span> <span class='id identifier rubyid_headers'>headers</span><span class='comma'>,</span> <span class='id identifier rubyid_body'>body</span> <span class='op'>=</span> <span class='ivar'>@app</span>.<span class='id identifier rubyid_call'>call</span>(<span class='id identifier rubyid_env'>env</span>)
+
+  <span class='comment'># Check if we can buffer the body into an Array, so we can compute a digest:
+</span>  <span class='kw'>if</span> <span class='id identifier rubyid_body'>body</span>.<span class='id identifier rubyid_respond_to?'>respond_to?</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_to_ary'>to_ary</span>)
+    <span class='id identifier rubyid_body'>body</span> <span class='op'>=</span> <span class='id identifier rubyid_body'>body</span>.<span class='id identifier rubyid_to_ary'>to_ary</span>
+    <span class='id identifier rubyid_digest'>digest</span> <span class='op'>=</span> <span class='id identifier rubyid_digest_body'>digest_body</span>(<span class='id identifier rubyid_body'>body</span>)
+    <span class='id identifier rubyid_headers'>headers</span>[<span class='const'>ETAG_STRING</span>] <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>%(</span><span class='tstring_content'>W/&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_digest'>digest</span><span class='embexpr_end'>}</span><span class='tstring_content'>&quot;</span><span class='tstring_end'>)</span></span> <span class='kw'>if</span> <span class='id identifier rubyid_digest'>digest</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>return</span> [<span class='id identifier rubyid_status'>status</span><span class='comma'>,</span> <span class='id identifier rubyid_headers'>headers</span><span class='comma'>,</span> <span class='id identifier rubyid_body'>body</span>]
+<span class='kw'>end</span></code></pre>
+
+<h3>Middleware should not directly modify the response body</h3>
+
+<p>Be aware that the response body might not respond to <code>#each</code> and you must now
+check if the body responds to <code>#each</code> or not to determine if it is an enumerable
+or streaming body.</p>
+
+<p>You must not call <code>#each</code> directly on the body and instead you should return a
+new body that calls <code>#each</code> on the original body.</p>
+
+<h3>Status needs to be an <code>Integer</code></h3>
+
+<p>The response status is now required to be an <code>Integer</code> with a value greater or equal to 100.</p>
+
+<p>Previously any object that responded to <code>#to_i</code> was allowed, so a response like <code>[&quot;200&quot;, {}, &quot;&quot;]</code> will need to be replaced with <code>[200, {}, &quot;&quot;]</code> and so on. This can be done by calling <code>#to_i</code> on the status object yourself.</p>
+
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>

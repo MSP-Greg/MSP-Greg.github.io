@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen'       content='yes'>
+<meta name='apple-mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Ractor &mdash; Ruby-3.2.9</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "ractor",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>Ruby-3.2.9</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Ractor&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="file_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<h1>Ractor - Ruby&#39;s Actor-like concurrent abstraction</h1>
+
+<p>Ractor is designed to provide a parallel execution feature of Ruby without thread-safety concerns.</p>
+
+<h2>Summary</h2>
+
+<h3>Multiple Ractors in an interpreter process</h3>
+
+<p>You can make multiple Ractors and they run in parallel.</p>
+
+<ul>
+<li><code>Ractor.new{ expr }</code> creates a new Ractor and <code>expr</code> is run in parallel on a parallel computer.</li>
+<li>Interpreter invokes with the first Ractor (called <em>main Ractor</em>).</li>
+<li>If main Ractor terminated, all Ractors receive terminate request like Threads (if main thread (first invoked Thread), Ruby interpreter sends all running threads to terminate execution).</li>
+<li>Each Ractor has 1 or more Threads.
+
+<ul>
+<li>Threads in a Ractor shares a Ractor-wide global lock like GIL (GVL in MRI terminology), so they can&#39;t run in parallel (without releasing GVL explicitly in C-level). Threads in different ractors run in parallel.</li>
+<li>The overhead of creating a Ractor is similar to overhead of one Thread creation.</li>
+</ul></li>
+</ul>
+
+<h3>Limited sharing between multiple ractors</h3>
+
+<p>Ractors don&#39;t share everything, unlike threads.</p>
+
+<ul>
+<li>Most objects are <em>Unshareable objects</em>, so you don&#39;t need to care about thread-safety problems which are caused by sharing.</li>
+<li>Some objects are <em>Shareable objects</em>.
+
+<ul>
+<li>Immutable objects: frozen objects which don&#39;t refer to unshareable-objects.</li>
+<li><code>i = 123</code>: <code>i</code> is an immutable object.</li>
+<li><code>s = &quot;str&quot;.freeze</code>: <code>s</code> is an immutable object.</li>
+<li><code>a = [1, [2], 3].freeze</code>: <code>a</code> is not an immutable object because <code>a</code> refers unshareable-object <code>[2]</code> (which is not frozen).</li>
+<li><code>h = {c: Object}.freeze</code>: <code>h</code> is an immutable object because <code>h</code> refers Symbol <code>:c</code> and shareable <code>Object</code> class object which is not frozen.</li>
+<li>Class/Module objects</li>
+<li>Special shareable objects</li>
+<li>Ractor object itself.</li>
+<li>And more...</li>
+</ul></li>
+</ul>
+
+<h3>Two-types communication between Ractors</h3>
+
+<p>Ractors communicate with each other and synchronize the execution by message exchanging between Ractors. There are two message exchange protocols: push type (message passing) and pull type.</p>
+
+<ul>
+<li>Push type message passing: <code>Ractor#send(obj)</code> and <code>Ractor.receive()</code> pair.
+
+<ul>
+<li>Sender ractor passes the <code>obj</code> to the ractor <code>r</code> by <code>r.send(obj)</code> and receiver ractor receives the message with <code>Ractor.receive</code>.</li>
+<li>Sender knows the destination Ractor <code>r</code> and the receiver does not know the sender (accept all messages from any ractors).</li>
+<li>Receiver has infinite queue and sender enqueues the message. Sender doesn&#39;t block to put message into this queue.</li>
+<li>This type of message exchanging is employed by many other Actor-based languages.</li>
+<li><code>Ractor.receive_if{ filter_expr }</code> is a variant of <code>Ractor.receive</code> to select a message.</li>
+</ul></li>
+<li>Pull type communication: <code>Ractor.yield(obj)</code> and <code>Ractor#take()</code> pair.
+
+<ul>
+<li>Sender ractor declare to yield the <code>obj</code> by <code>Ractor.yield(obj)</code> and receiver Ractor take it with <code>r.take</code>.</li>
+<li>Sender doesn&#39;t know a destination Ractor and receiver knows the sender Ractor <code>r</code>.</li>
+<li>Sender or receiver will block if there is no other side.</li>
+</ul></li>
+</ul>
+
+<h3>Copy &amp; Move semantics to send messages</h3>
+
+<p>To send unshareable objects as messages, objects are copied or moved.</p>
+
+<ul>
+<li>Copy: use deep-copy.</li>
+<li>Move: move membership.
+
+<ul>
+<li>Sender can not access the moved object after moving the object.</li>
+<li>Guarantee that at least only 1 Ractor can access the object.</li>
+</ul></li>
+</ul>
+
+<h3>Thread-safety</h3>
+
+<p>Ractor helps to write a thread-safe concurrent program, but we can make thread-unsafe programs with Ractors.</p>
+
+<ul>
+<li>GOOD: Sharing limitation
+
+<ul>
+<li>Most objects are unshareable, so we can&#39;t make data-racy and race-conditional programs.</li>
+<li>Shareable objects are protected by an interpreter or locking mechanism.</li>
+</ul></li>
+<li>BAD: Class/Module can violate this assumption
+
+<ul>
+<li>To make it compatible with old behavior, classes and modules can introduce data-race and so on.</li>
+<li>Ruby programmers should take care if they modify class/module objects on multi Ractor programs.</li>
+</ul></li>
+<li>BAD: Ractor can&#39;t solve all thread-safety problems
+
+<ul>
+<li>There are several blocking operations (waiting send, waiting yield and waiting take) so you can make a program which has dead-lock and live-lock issues.</li>
+<li>Some kind of shareable objects can introduce transactions (STM, for example). However, misusing transactions will generate inconsistent state.</li>
+</ul></li>
+</ul>
+
+<p>Without Ractor, we need to trace all state-mutations to debug thread-safety issues.
+With Ractor, you can concentrate on suspicious code which are shared with Ractors.</p>
+
+<h2>Creation and termination</h2>
+
+<h3><code>Ractor.new</code></h3>
+
+<ul>
+<li><code>Ractor.new{ expr }</code> generates another Ractor.</li>
+</ul>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># Ractor.new with a block creates new Ractor
+</span><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+  <span class='comment'># This block will be run in parallel with other ractors
+</span><span class='kw'>end</span>
+
+<span class='comment'># You can name a Ractor with `name:` argument.
+</span><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='label'>name:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>test-name</span><span class='tstring_end'>&#39;</span></span> <span class='kw'>do</span>
+<span class='kw'>end</span>
+
+<span class='comment'># and Ractor#name returns its name.
+</span><span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_name'>name</span> <span class='comment'>#=&gt; &#39;test-name&#39;</span></code></pre>
+
+<h3>Given block isolation</h3>
+
+<p>The Ractor executes given <code>expr</code> in a given block.
+Given block will be isolated from outer scope by the <code>Proc#isolate</code> method (not exposed yet for Ruby users). To prevent sharing unshareable objects between ractors, block outer-variables, <code>self</code> and other information are isolated.</p>
+
+<p><code>Proc#isolate</code> is called at Ractor creation time (when <code>Ractor.new</code> is called). If given Proc object is not able to isolate because of outer variables and so on, an error will be raised.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>begin</span>
+  <span class='id identifier rubyid_a'>a</span> <span class='op'>=</span> <span class='kw'>true</span>
+  <span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_a'>a</span> <span class='comment'>#=&gt; ArgumentError because this block accesses `a`.
+</span>  <span class='kw'>end</span>
+  <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span> <span class='comment'># see later
+</span><span class='kw'>rescue</span> <span class='const'>ArgumentError</span>
+<span class='kw'>end</span></code></pre>
+
+<ul>
+<li>The <code>self</code> of the given block is the <code>Ractor</code> object itself.</li>
+</ul>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_p'>p</span> <span class='kw'>self</span>.<span class='id identifier rubyid_class'>class</span> <span class='comment'>#=&gt; Ractor
+</span>  <span class='kw'>self</span>.<span class='id identifier rubyid_object_id'>object_id</span>
+<span class='kw'>end</span>
+<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span> <span class='op'>==</span> <span class='kw'>self</span>.<span class='id identifier rubyid_object_id'>object_id</span> <span class='comment'>#=&gt; false</span></code></pre>
+
+<p>Passed arguments to <code>Ractor.new()</code> becomes block parameters for the given block. However, an interpreter does not pass the parameter object references, but send them as messages (see below for details).</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>ok</span><span class='tstring_end'>&#39;</span></span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_msg'>msg</span><span class='op'>|</span>
+  <span class='id identifier rubyid_msg'>msg</span> <span class='comment'>#=&gt; &#39;ok&#39;
+</span><span class='kw'>end</span>
+<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span> <span class='comment'>#=&gt; &#39;ok&#39;</span></code></pre>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># almost similar to the last example
+</span><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_msg'>msg</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive'>receive</span>
+  <span class='id identifier rubyid_msg'>msg</span>
+<span class='kw'>end</span>
+<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'>send</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>ok</span><span class='tstring_end'>&#39;</span></span>
+<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span> <span class='comment'>#=&gt; &#39;ok&#39;</span></code></pre>
+
+<h3>An execution result of given block</h3>
+
+<p>Return value of the given block becomes an outgoing message (see below for details).</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+  <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>ok</span><span class='tstring_end'>&#39;</span></span>
+<span class='kw'>end</span>
+<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span> <span class='comment'>#=&gt; `ok`</span></code></pre>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># almost similar to the last example
+</span><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+  <span class='const'>Ractor</span>.<span class='id identifier rubyid_yield'>yield</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>ok</span><span class='tstring_end'>&#39;</span></span>
+<span class='kw'>end</span>
+<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span> <span class='comment'>#=&gt; &#39;ok&#39;</span></code></pre>
+
+<p>Error in the given block will be propagated to the receiver of an outgoing message.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_raise'>raise</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>ok</span><span class='tstring_end'>&#39;</span></span> <span class='comment'># exception will be transferred to the receiver
+</span><span class='kw'>end</span>
+
+<span class='kw'>begin</span>
+  <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span>
+<span class='kw'>rescue</span> <span class='const'>Ractor</span><span class='op'>::</span><span class='const'>RemoteError</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
+  <span class='id identifier rubyid_e'>e</span>.<span class='id identifier rubyid_cause'>cause</span>.<span class='id identifier rubyid_class'>class</span>   <span class='comment'>#=&gt; RuntimeError
+</span>  <span class='id identifier rubyid_e'>e</span>.<span class='id identifier rubyid_cause'>cause</span>.<span class='id identifier rubyid_message'>message</span> <span class='comment'>#=&gt; &#39;ok&#39;
+</span>  <span class='id identifier rubyid_e'>e</span>.<span class='id identifier rubyid_ractor'>ractor</span>        <span class='comment'>#=&gt; r
+</span><span class='kw'>end</span></code></pre>
+
+<h2>Communication between Ractors</h2>
+
+<p>Communication between Ractors is achieved by sending and receiving messages. There are two ways to communicate with each other.</p>
+
+<ul>
+<li>(1) Message sending/receiving
+
+<ul>
+<li>(1-1) push type send/receive (sender knows receiver). Similar to the Actor model.</li>
+<li>(1-2) pull type yield/take (receiver knows sender).</li>
+</ul></li>
+<li>(2) Using shareable container objects
+
+<ul>
+<li>Ractor::TVar gem (<a href="https://github.com/ko1/ractor-tvar">ko1/ractor-tvar</a>)</li>
+<li>more?</li>
+</ul></li>
+</ul>
+
+<p>Users can control program execution timing with (1), but should not control with (2) (only manage as critical section).</p>
+
+<p>For message sending and receiving, there are two types of APIs: push type and pull type.</p>
+
+<ul>
+<li>(1-1) send/receive (push type)
+
+<ul>
+<li><code>Ractor#send(obj)</code> (<code>Ractor#<<(obj)</code> is an alias) send a message to the Ractor&#39;s incoming port. Incoming port is connected to the infinite size incoming queue so <code>Ractor#send</code> will never block.</li>
+<li><code>Ractor.receive</code> dequeue a message from its own incoming queue. If the incoming queue is empty, <code>Ractor.receive</code> calling will block.</li>
+<li><code>Ractor.receive_if{|msg| filter_expr }</code> is variant of <code>Ractor.receive</code>. <code>receive_if</code> only receives a message which <code>filter_expr</code> is true (So <code>Ractor.receive</code> is the same as <code>Ractor.receive_if{ true }</code>.</li>
+</ul></li>
+<li>(1-2) yield/take (pull type)
+
+<ul>
+<li><code>Ractor.yield(obj)</code> send an message to a Ractor which are calling <code>Ractor#take</code> via outgoing port . If no Ractors are waiting for it, the <code>Ractor.yield(obj)</code> will block. If multiple Ractors are waiting for <code>Ractor.yield(obj)</code>, only one Ractor can receive the message.</li>
+<li><code>Ractor#take</code> receives a message which is waiting by <code>Ractor.yield(obj)</code> method from the specified Ractor. If the Ractor does not call <code>Ractor.yield</code> yet, the <code>Ractor#take</code> call will block.</li>
+</ul></li>
+<li><code>Ractor.select()</code> can wait for the success of <code>take</code>, <code>yield</code> and <code>receive</code>.</li>
+<li>You can close the incoming port or outgoing port.
+
+<ul>
+<li>You can close then with <code>Ractor#close_incoming</code> and <code>Ractor#close_outgoing</code>.</li>
+<li>If the incoming port is closed for a Ractor, you can&#39;t <code>send</code> to the Ractor. If <code>Ractor.receive</code> is blocked for the closed incoming port, then it will raise an exception.</li>
+<li>If the outgoing port is closed for a Ractor, you can&#39;t call <code>Ractor#take</code> and <code>Ractor.yield</code> on the Ractor. If ractors are blocking by <code>Ractor#take</code> or <code>Ractor.yield</code>, closing outgoing port will raise an exception on these blocking ractors.</li>
+<li>When a Ractor is terminated, the Ractor&#39;s ports are closed.</li>
+</ul></li>
+<li>There are 3 ways to send an object as a message
+
+<ul>
+<li>(1) Send a reference: Sending a shareable object, send only a reference to the object (fast)</li>
+<li>(2) Copy an object: Sending an unshareable object by copying an object deeply (slow). Note that you can not send an object which does not support deep copy. Some <code>T_DATA</code> objects are not supported.</li>
+<li>(3) Move an object: Sending an unshareable object reference with a membership. Sender Ractor can not access moved objects anymore (raise an exception) after moving it. Current implementation makes new object as a moved object for receiver Ractor and copies references of sending object to moved object.</li>
+<li>You can choose &quot;Copy&quot; and &quot;Move&quot; by the <code>move:</code> keyword, <code>Ractor#send(obj, move: true/false)</code> and <code>Ractor.yield(obj, move: true/false)</code> (default is <code>false</code> (COPY)).</li>
+</ul></li>
+</ul>
+
+<h3>Sending/Receiving ports</h3>
+
+<p>Each Ractor has <em>incoming-port</em> and <em>outgoing-port</em>. Incoming-port is connected to the infinite sized incoming queue.</p>
+
+<pre class="code ruby"><code class="ruby">                  <span class='const'>Ractor</span> <span class='id identifier rubyid_r'>r</span>
+                 <span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span>
+                 <span class='op'>|</span> <span class='id identifier rubyid_incoming'>incoming</span>                         <span class='id identifier rubyid_outgoing'>outgoing</span> <span class='op'>|</span>
+                 <span class='op'>|</span> <span class='id identifier rubyid_port'>port</span>                                 <span class='id identifier rubyid_port'>port</span> <span class='op'>|</span>
+   <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'>send</span>(<span class='id identifier rubyid_obj'>obj</span>) <span class='tlambda'>-&gt;</span><span class='op'>*</span><span class='tlambda'>-&gt;</span>[<span class='id identifier rubyid_incoming'>incoming</span> <span class='id identifier rubyid_queue'>queue</span>]     <span class='const'>Ractor</span>.<span class='id identifier rubyid_yield'>yield</span>(<span class='id identifier rubyid_obj'>obj</span>) <span class='tlambda'>-&gt;</span><span class='op'>*</span><span class='tlambda'>-&gt;</span> <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span>
+                 <span class='op'>|</span>                <span class='op'>|</span>                          <span class='op'>|</span>
+                 <span class='op'>|</span>                <span class='id identifier rubyid_v'>v</span>                          <span class='op'>|</span>
+                 <span class='op'>|</span>           <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive'>receive</span>                  <span class='op'>|</span>
+                 <span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span>
+
+
+<span class='const'>Connection</span> <span class='label'>example:</span> <span class='id identifier rubyid_r2'>r2</span>.<span class='id identifier rubyid_send'>send</span> <span class='id identifier rubyid_obj'>obj</span> <span class='id identifier rubyid_on'>on</span> <span class='id identifier rubyid_r1、Ractor'>r1、Ractor</span>.<span class='id identifier rubyid_receive'>receive</span> <span class='id identifier rubyid_on'>on</span> <span class='id identifier rubyid_r2'>r2</span>
+  <span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span>     <span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span>
+  <span class='op'>*</span> <span class='id identifier rubyid_r1'>r1</span> <span class='op'>|</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='tlambda'>-&gt;</span><span class='op'>*</span> <span class='id identifier rubyid_r2'>r2</span> <span class='op'>*</span>
+  <span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span>     <span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span>
+
+
+<span class='const'>Connection</span> <span class='label'>example:</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_yield'>yield</span>(<span class='id identifier rubyid_obj'>obj</span>) <span class='id identifier rubyid_on'>on</span> <span class='id identifier rubyid_r1'>r1</span><span class='comma'>,</span> <span class='id identifier rubyid_r1'>r1</span>.<span class='id identifier rubyid_take'>take</span> <span class='id identifier rubyid_on'>on</span> <span class='id identifier rubyid_r2'>r2</span>
+  <span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span>     <span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span>
+  <span class='op'>*</span> <span class='id identifier rubyid_r1'>r1</span> <span class='op'>*</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='tlambda'>-&gt;</span><span class='op'>-</span> <span class='id identifier rubyid_r2'>r2</span> <span class='op'>*</span>
+  <span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span>     <span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span>
+
+<span class='const'>Connection</span> <span class='label'>example:</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_yield'>yield</span>(<span class='id identifier rubyid_obj'>obj</span>) <span class='id identifier rubyid_on'>on</span> <span class='id identifier rubyid_r1'>r1</span> <span class='kw'>and</span> <span class='id identifier rubyid_r2'>r2</span><span class='comma'>,</span>
+                    <span class='kw'>and</span> <span class='id identifier rubyid_waiting'>waiting</span> <span class='kw'>for</span> <span class='id identifier rubyid_both'>both</span> <span class='id identifier rubyid_simultaneously'>simultaneously</span> <span class='id identifier rubyid_by'>by</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_select'>select</span>(<span class='id identifier rubyid_r1'>r1</span><span class='comma'>,</span> <span class='id identifier rubyid_r2'>r2</span>)
+
+  <span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span>
+  <span class='op'>*</span> <span class='id identifier rubyid_r1'>r1</span> <span class='op'>*</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>+</span>
+  <span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span>      <span class='op'>|</span>
+              <span class='op'>+</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='tlambda'>-&gt;</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_select'>select</span>(<span class='id identifier rubyid_r1'>r1</span><span class='comma'>,</span> <span class='id identifier rubyid_r2'>r2</span>)
+  <span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span>      <span class='op'>|</span>
+  <span class='op'>*</span> <span class='id identifier rubyid_r2'>r2</span> <span class='op'>*</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>|</span>
+  <span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span></code></pre>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_msg'>msg</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive'>receive</span> <span class='comment'># Receive from r&#39;s incoming queue
+</span>  <span class='id identifier rubyid_msg'>msg</span> <span class='comment'># send back msg as block return value
+</span><span class='kw'>end</span>
+<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'>send</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>ok</span><span class='tstring_end'>&#39;</span></span> <span class='comment'># Send &#39;ok&#39; to r&#39;s incoming port -&gt; incoming queue
+</span><span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span>      <span class='comment'># Receive from r&#39;s outgoing port</span></code></pre>
+
+<p>The last example shows the following ractor network.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span>        <span class='op'>-</span><span class='op'>-</span><span class='op'>-</span>
+<span class='op'>*</span> <span class='id identifier rubyid_main'>main</span> <span class='op'>|</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='tlambda'>-&gt;</span> <span class='op'>*</span> <span class='id identifier rubyid_r'>r</span> <span class='op'>*</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>+</span>
+<span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span>        <span class='op'>-</span><span class='op'>-</span><span class='op'>-</span>   <span class='op'>|</span>
+    <span class='op'>^</span>                   <span class='op'>|</span>
+    <span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span></code></pre>
+
+<p>And this code can be simplified by using an argument for <code>Ractor.new</code>.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># Actual argument &#39;ok&#39; for {Ractor.new()} will be sent to created Ractor.
+</span><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>ok</span><span class='tstring_end'>&#39;</span></span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_msg'>msg</span><span class='op'>|</span>
+  <span class='comment'># Values for formal parameters will be received from incoming queue.
+</span>  <span class='comment'># Similar to: msg = Ractor.receive
+</span>
+  <span class='id identifier rubyid_msg'>msg</span> <span class='comment'># Return value of the given block will be sent via outgoing port
+</span><span class='kw'>end</span>
+
+<span class='comment'># receive from the r&#39;s outgoing port.
+</span><span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span> <span class='comment'>#=&gt; `ok`</span></code></pre>
+
+<h3>Return value of a block for <code>Ractor.new</code></h3>
+
+<p>As already explained, the return value of <code>Ractor.new</code> (an evaluated value of <code>expr</code> in <code>Ractor.new{ expr }</code>) can be taken by <code>Ractor#take</code>.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span>{ <span class='int'>42</span> }.<span class='id identifier rubyid_take'>take</span> <span class='comment'>#=&gt; 42</span></code></pre>
+
+<p>When the block return value is available, the Ractor is dead so that no ractors except taken Ractor can touch the return value, so any values can be sent with this communication path without any modification.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_a'>a</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>hello</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_binding'>binding</span>
+<span class='kw'>end</span>
+
+<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span>.<span class='id identifier rubyid_eval'>eval</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>p a</span><span class='tstring_end'>&quot;</span></span>) <span class='comment'>#=&gt; &quot;hello&quot; (other communication path can not send a Binding object directly)</span></code></pre>
+
+<h3>Wait for multiple Ractors with <code>Ractor.select</code></h3>
+
+<p>You can wait multiple Ractor&#39;s <code>yield</code> with <code>Ractor.select(*ractors)</code>.
+The return value of <code>Ractor.select()</code> is <code>[r, msg]</code> where <code>r</code> is yielding Ractor and <code>msg</code> is yielded message.</p>
+
+<p>Wait for a single ractor (same as <code>Ractor.take</code>):</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r1'>r1</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span>{<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>r1</span><span class='tstring_end'>&#39;</span></span>}
+
+<span class='id identifier rubyid_r'>r</span><span class='comma'>,</span> <span class='id identifier rubyid_obj'>obj</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_select'>select</span>(<span class='id identifier rubyid_r1'>r1</span>)
+<span class='id identifier rubyid_r'>r</span> <span class='op'>==</span> <span class='id identifier rubyid_r1'>r1</span> <span class='kw'>and</span> <span class='id identifier rubyid_obj'>obj</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>r1</span><span class='tstring_end'>&#39;</span></span> <span class='comment'>#=&gt; true</span></code></pre>
+
+<p>Wait for two ractors:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r1'>r1</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span>{<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>r1</span><span class='tstring_end'>&#39;</span></span>}
+<span class='id identifier rubyid_r2'>r2</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span>{<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>r2</span><span class='tstring_end'>&#39;</span></span>}
+<span class='id identifier rubyid_rs'>rs</span> <span class='op'>=</span> [<span class='id identifier rubyid_r1'>r1</span><span class='comma'>,</span> <span class='id identifier rubyid_r2'>r2</span>]
+<span class='id identifier rubyid_as'>as</span> <span class='op'>=</span> []
+
+<span class='comment'># Wait for r1 or r2&#39;s Ractor.yield
+</span><span class='id identifier rubyid_r'>r</span><span class='comma'>,</span> <span class='id identifier rubyid_obj'>obj</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_select'>select</span>(<span class='op'>*</span><span class='id identifier rubyid_rs'>rs</span>)
+<span class='id identifier rubyid_rs'>rs</span>.<span class='id identifier rubyid_delete'>delete</span>(<span class='id identifier rubyid_r'>r</span>)
+<span class='id identifier rubyid_as'>as</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_obj'>obj</span>
+
+<span class='comment'># Second try (rs only contain not-closed ractors)
+</span><span class='id identifier rubyid_r'>r</span><span class='comma'>,</span> <span class='id identifier rubyid_obj'>obj</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_select'>select</span>(<span class='op'>*</span><span class='id identifier rubyid_rs'>rs</span>)
+<span class='id identifier rubyid_rs'>rs</span>.<span class='id identifier rubyid_delete'>delete</span>(<span class='id identifier rubyid_r'>r</span>)
+<span class='id identifier rubyid_as'>as</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_obj'>obj</span>
+<span class='id identifier rubyid_as'>as</span>.<span class='id identifier rubyid_sort'>sort</span> <span class='op'>==</span> [<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>r1</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>r2</span><span class='tstring_end'>&#39;</span></span>] <span class='comment'>#=&gt; true</span></code></pre>
+
+<p>Complex example:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_pipe'>pipe</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_loop'>loop</span> <span class='kw'>do</span>
+    <span class='const'>Ractor</span>.<span class='id identifier rubyid_yield'>yield</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive'>receive</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+
+<span class='const'>RN</span> <span class='op'>=</span> <span class='int'>10</span>
+<span class='id identifier rubyid_rs'>rs</span> <span class='op'>=</span> <span class='const'>RN</span>.<span class='id identifier rubyid_times'>times</span>.<span class='id identifier rubyid_map'>map</span>{<span class='op'>|</span><span class='id identifier rubyid_i'>i</span><span class='op'>|</span>
+  <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='id identifier rubyid_pipe'>pipe</span><span class='comma'>,</span> <span class='id identifier rubyid_i'>i</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_pipe'>pipe</span><span class='comma'>,</span> <span class='id identifier rubyid_i'>i</span><span class='op'>|</span>
+    <span class='id identifier rubyid_msg'>msg</span> <span class='op'>=</span> <span class='id identifier rubyid_pipe'>pipe</span>.<span class='id identifier rubyid_take'>take</span>
+    <span class='id identifier rubyid_msg'>msg</span> <span class='comment'># ping-pong
+</span>  <span class='kw'>end</span>
+}
+<span class='const'>RN</span>.<span class='id identifier rubyid_times'>times</span>{<span class='op'>|</span><span class='id identifier rubyid_i'>i</span><span class='op'>|</span>
+  <span class='id identifier rubyid_pipe'>pipe</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_i'>i</span>
+}
+<span class='const'>RN</span>.<span class='id identifier rubyid_times'>times</span>.<span class='id identifier rubyid_map'>map</span>{
+  <span class='id identifier rubyid_r'>r</span><span class='comma'>,</span> <span class='id identifier rubyid_n'>n</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_select'>select</span>(<span class='op'>*</span><span class='id identifier rubyid_rs'>rs</span>)
+  <span class='id identifier rubyid_rs'>rs</span>.<span class='id identifier rubyid_delete'>delete</span> <span class='id identifier rubyid_r'>r</span>
+  <span class='id identifier rubyid_n'>n</span>
+}.<span class='id identifier rubyid_sort'>sort</span> <span class='comment'>#=&gt; [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]</span></code></pre>
+
+<p>Multiple Ractors can send to one Ractor.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># Create 10 ractors and they send objects to pipe ractor.
+</span><span class='comment'># pipe ractor yield received objects
+</span>
+<span class='id identifier rubyid_pipe'>pipe</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_loop'>loop</span> <span class='kw'>do</span>
+    <span class='const'>Ractor</span>.<span class='id identifier rubyid_yield'>yield</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive'>receive</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+
+<span class='const'>RN</span> <span class='op'>=</span> <span class='int'>10</span>
+<span class='id identifier rubyid_rs'>rs</span> <span class='op'>=</span> <span class='const'>RN</span>.<span class='id identifier rubyid_times'>times</span>.<span class='id identifier rubyid_map'>map</span>{<span class='op'>|</span><span class='id identifier rubyid_i'>i</span><span class='op'>|</span>
+  <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='id identifier rubyid_pipe'>pipe</span><span class='comma'>,</span> <span class='id identifier rubyid_i'>i</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_pipe'>pipe</span><span class='comma'>,</span> <span class='id identifier rubyid_i'>i</span><span class='op'>|</span>
+    <span class='id identifier rubyid_pipe'>pipe</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_i'>i</span>
+  <span class='kw'>end</span>
+}
+
+<span class='const'>RN</span>.<span class='id identifier rubyid_times'>times</span>.<span class='id identifier rubyid_map'>map</span>{
+  <span class='id identifier rubyid_pipe'>pipe</span>.<span class='id identifier rubyid_take'>take</span>
+}.<span class='id identifier rubyid_sort'>sort</span> <span class='comment'>#=&gt; [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]</span></code></pre>
+
+<p>TODO: Current <code>Ractor.select()</code> has the same issue of <code>select(2)</code>, so this interface should be refined.</p>
+
+<p>TODO: <code>select</code> syntax of go-language uses round-robin technique to make fair scheduling. Now <code>Ractor.select()</code> doesn&#39;t use it.</p>
+
+<h3>Closing Ractor&#39;s ports</h3>
+
+<ul>
+<li><code>Ractor#close_incoming/outgoing</code> close incoming/outgoing ports (similar to <code>Queue#close</code>).</li>
+<li><code>Ractor#close_incoming</code>
+
+<ul>
+<li><code>r.send(obj)</code> where <code>r</code>&#39;s incoming port is closed, will raise an exception.</li>
+<li>When the incoming queue is empty and incoming port is closed, <code>Ractor.receive</code> raises an exception. If the incoming queue is not empty, it dequeues an object without exceptions.</li>
+</ul></li>
+<li><code>Ractor#close_outgoing</code>
+
+<ul>
+<li><code>Ractor.yield</code> on a Ractor which closed the outgoing port, it will raise an exception.</li>
+<li><code>Ractor#take</code> for a Ractor which closed the outgoing port, it will raise an exception. If <code>Ractor#take</code> is blocking, it will raise an exception.</li>
+</ul></li>
+<li>When a Ractor terminates, the ports are closed automatically.
+
+<ul>
+<li>Return value of the Ractor&#39;s block will be yielded as <code>Ractor.yield(ret_val)</code>, even if the implementation terminates the based native thread.</li>
+</ul></li>
+</ul>
+
+<p>Example (try to take from closed Ractor):</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+  <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>finish</span><span class='tstring_end'>&#39;</span></span>
+<span class='kw'>end</span>
+<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span> <span class='comment'># success (will return &#39;finish&#39;)
+</span><span class='kw'>begin</span>
+  <span class='id identifier rubyid_o'>o</span> <span class='op'>=</span> <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span> <span class='comment'># try to take from closed Ractor
+</span><span class='kw'>rescue</span> <span class='const'>Ractor</span><span class='op'>::</span><span class='const'>ClosedError</span>
+  <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>ok</span><span class='tstring_end'>&#39;</span></span>
+<span class='kw'>else</span>
+  <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ng: </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_o'>o</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
+<span class='kw'>end</span></code></pre>
+
+<p>Example (try to send to closed (terminated) Ractor):</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+<span class='kw'>end</span>
+
+<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span> <span class='comment'># wait terminate
+</span>
+<span class='kw'>begin</span>
+  <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'>send</span>(<span class='int'>1</span>)
+<span class='kw'>rescue</span> <span class='const'>Ractor</span><span class='op'>::</span><span class='const'>ClosedError</span>
+  <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>ok</span><span class='tstring_end'>&#39;</span></span>
+<span class='kw'>else</span>
+  <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>ng</span><span class='tstring_end'>&#39;</span></span>
+<span class='kw'>end</span></code></pre>
+
+<p>When multiple Ractors are waiting for <code>Ractor.yield()</code>, <code>Ractor#close_outgoing</code> will cancel all blocking by raising an exception (<code>ClosedError</code>).</p>
+
+<h3>Send a message by copying</h3>
+
+<p><code>Ractor#send(obj)</code> or <code>Ractor.yield(obj)</code> copy <code>obj</code> deeply if <code>obj</code> is an unshareable object.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_obj'>obj</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>str</span><span class='tstring_end'>&#39;</span></span>.<span class='id identifier rubyid_dup'>dup</span>
+<span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='id identifier rubyid_obj'>obj</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_msg'>msg</span><span class='op'>|</span>
+  <span class='comment'># return received msg&#39;s object_id
+</span>  <span class='id identifier rubyid_msg'>msg</span>.<span class='id identifier rubyid_object_id'>object_id</span>
+<span class='kw'>end</span>
+
+<span class='id identifier rubyid_obj'>obj</span>.<span class='id identifier rubyid_object_id'>object_id</span> <span class='op'>==</span> <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span> <span class='comment'>#=&gt; false</span></code></pre>
+
+<p>Some objects are not supported to copy the value, and raise an exception.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_obj'>obj</span> <span class='op'>=</span> <span class='const'>Thread</span>.<span class='id identifier rubyid_new'>new</span>{}
+<span class='kw'>begin</span>
+  <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='id identifier rubyid_obj'>obj</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_msg'>msg</span><span class='op'>|</span>
+    <span class='id identifier rubyid_msg'>msg</span>
+  <span class='kw'>end</span>
+<span class='kw'>rescue</span> <span class='const'>TypeError</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
+  <span class='id identifier rubyid_e'>e</span>.<span class='id identifier rubyid_message'>message</span> <span class='comment'>#=&gt; #&lt;TypeError: allocator undefined for Thread&gt;
+</span><span class='kw'>else</span>
+  <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>ng</span><span class='tstring_end'>&#39;</span></span> <span class='comment'># unreachable here
+</span><span class='kw'>end</span></code></pre>
+
+<h3>Send a message by moving</h3>
+
+<p><code>Ractor#send(obj, move: true)</code> or <code>Ractor.yield(obj, move: true)</code> move <code>obj</code> to the destination Ractor.
+If the source Ractor touches the moved object (for example, call the method like <code>obj.foo()</code>), it will be an error.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># move with Ractor#send
+</span><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_obj'>obj</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive'>receive</span>
+  <span class='id identifier rubyid_obj'>obj</span> <span class='op'>&lt;&lt;</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'> world</span><span class='tstring_end'>&#39;</span></span>
+<span class='kw'>end</span>
+
+<span class='id identifier rubyid_str'>str</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>hello</span><span class='tstring_end'>&#39;</span></span>
+<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'>send</span> <span class='id identifier rubyid_str'>str</span><span class='comma'>,</span> <span class='label'>move:</span> <span class='kw'>true</span>
+<span class='id identifier rubyid_modified'>modified</span> <span class='op'>=</span> <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span> <span class='comment'>#=&gt; &#39;hello world&#39;
+</span>
+<span class='comment'># str is moved, and accessing str from this Ractor is prohibited
+</span>
+<span class='kw'>begin</span>
+  <span class='comment'># Error because it touches moved str.
+</span>  <span class='id identifier rubyid_str'>str</span> <span class='op'>&lt;&lt;</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'> exception</span><span class='tstring_end'>&#39;</span></span> <span class='comment'># raise Ractor::MovedError
+</span><span class='kw'>rescue</span> <span class='const'>Ractor</span><span class='op'>::</span><span class='const'>MovedError</span>
+  <span class='id identifier rubyid_modified'>modified</span> <span class='comment'>#=&gt; &#39;hello world&#39;
+</span><span class='kw'>else</span>
+  <span class='id identifier rubyid_raise'>raise</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>unreachable</span><span class='tstring_end'>&#39;</span></span>
+<span class='kw'>end</span></code></pre>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># move with Ractor.yield
+</span><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_obj'>obj</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>hello</span><span class='tstring_end'>&#39;</span></span>
+  <span class='const'>Ractor</span>.<span class='id identifier rubyid_yield'>yield</span> <span class='id identifier rubyid_obj'>obj</span><span class='comma'>,</span> <span class='label'>move:</span> <span class='kw'>true</span>
+  <span class='id identifier rubyid_obj'>obj</span> <span class='op'>&lt;&lt;</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>world</span><span class='tstring_end'>&#39;</span></span>  <span class='comment'># raise Ractor::MovedError
+</span><span class='kw'>end</span>
+
+<span class='id identifier rubyid_str'>str</span> <span class='op'>=</span> <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span>
+<span class='kw'>begin</span>
+  <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span>
+<span class='kw'>rescue</span> <span class='const'>Ractor</span><span class='op'>::</span><span class='const'>RemoteError</span>
+  <span class='id identifier rubyid_p'>p</span> <span class='id identifier rubyid_str'>str</span> <span class='comment'>#=&gt; &quot;hello&quot;
+</span><span class='kw'>end</span></code></pre>
+
+<p>Some objects are not supported to move, and an exception will be raised.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+  <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive'>receive</span>
+<span class='kw'>end</span>
+
+<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'>send</span>(<span class='const'>Thread</span>.<span class='id identifier rubyid_new'>new</span>{}<span class='comma'>,</span> <span class='label'>move:</span> <span class='kw'>true</span>) <span class='comment'>#=&gt; allocator undefined for Thread (TypeError)</span></code></pre>
+
+<p>To achieve the access prohibition for moved objects, <em>class replacement</em> technique is used to implement it.</p>
+
+<h3>Shareable objects</h3>
+
+<p>The following objects are shareable.</p>
+
+<ul>
+<li>Immutable objects
+
+<ul>
+<li>Small integers, some symbols, <code>true</code>, <code>false</code>, <code>nil</code> (a.k.a. <code>SPECIAL_CONST_P()</code> objects in internal)</li>
+<li>Frozen native objects</li>
+<li>Numeric objects: <code>Float</code>, <code>Complex</code>, <code>Rational</code>, big integers (<code>T_BIGNUM</code> in internal)</li>
+<li>All Symbols.</li>
+<li>Frozen <code>String</code> and <code>Regexp</code> objects (their instance variables should refer only shareable objects)</li>
+</ul></li>
+<li>Class, Module objects (<code>T_CLASS</code>, <code>T_MODULE</code> and <code>T_ICLASS</code> in internal)</li>
+<li><code>Ractor</code> and other special objects which care about synchronization.</li>
+</ul>
+
+<p>Implementation: Now shareable objects (<code>RVALUE</code>) have <code>FL_SHAREABLE</code> flag. This flag can be added lazily.</p>
+
+<p>To make shareable objects, <code>Ractor.make_shareable(obj)</code> method is provided. In this case, try to make sharaeble by freezing <code>obj</code> and recursively travasible objects. This method accepts <code>copy:</code> keyword (default value is false).<code>Ractor.make_shareable(obj, copy: true)</code> tries to make a deep copy of <code>obj</code> and make the copied object shareable.</p>
+
+<h2>Language changes to isolate unshareable objects between Ractors</h2>
+
+<p>To isolate unshareable objects between Ractors, we introduced additional language semantics on multi-Ractor Ruby programs.</p>
+
+<p>Note that without using Ractors, these additional semantics is not needed (100% compatible with Ruby 2).</p>
+
+<h3>Global variables</h3>
+
+<p>Only the main Ractor (a Ractor created at starting of interpreter) can access global variables.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='gvar'>$gv</span> <span class='op'>=</span> <span class='int'>1</span>
+<span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+  <span class='gvar'>$gv</span>
+<span class='kw'>end</span>
+
+<span class='kw'>begin</span>
+  <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span>
+<span class='kw'>rescue</span> <span class='const'>Ractor</span><span class='op'>::</span><span class='const'>RemoteError</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
+  <span class='id identifier rubyid_e'>e</span>.<span class='id identifier rubyid_cause'>cause</span>.<span class='id identifier rubyid_message'>message</span> <span class='comment'>#=&gt; &#39;can not access global variables from non-main Ractors&#39;
+</span><span class='kw'>end</span></code></pre>
+
+<p>Note that some special global variables are ractor-local, like <code>$stdin</code>, <code>$stdout</code>, <code>$stderr</code>. See <a href="https://bugs.ruby-lang.org/issues/17268">[Bug #17268]</a> for more details.</p>
+
+<h3>Instance variables of shareable objects</h3>
+
+<p>Instance variables of classes/modules can be get from non-main Ractors if the referring values are shareable objects.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>C</span>
+  <span class='ivar'>@iv</span> <span class='op'>=</span> <span class='int'>1</span>
+<span class='kw'>end</span>
+
+<span class='id identifier rubyid_p'>p</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+  <span class='kw'>class</span> <span class='const'>C</span>
+     <span class='ivar'>@iv</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>.<span class='id identifier rubyid_take'>take</span> <span class='comment'>#=&gt; 1</span></code></pre>
+
+<p>Otherwise, only the main Ractor can access instance variables of shareable objects.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>C</span>
+  <span class='ivar'>@iv</span> <span class='op'>=</span> [] <span class='comment'># unshareable object
+</span><span class='kw'>end</span>
+
+<span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+  <span class='kw'>class</span> <span class='const'>C</span>
+    <span class='kw'>begin</span>
+      <span class='id identifier rubyid_p'>p</span> <span class='ivar'>@iv</span>
+    <span class='kw'>rescue</span> <span class='const'>Ractor</span><span class='op'>::</span><span class='const'>IsolationError</span>
+      <span class='id identifier rubyid_p'>p</span> <span class='gvar'>$!</span>.<span class='id identifier rubyid_message'>message</span>
+      <span class='comment'>#=&gt; &quot;can not get unshareable values from instance variables of classes/modules from non-main Ractors&quot;
+</span>    <span class='kw'>end</span>
+
+    <span class='kw'>begin</span>
+      <span class='ivar'>@iv</span> <span class='op'>=</span> <span class='int'>42</span>
+    <span class='kw'>rescue</span> <span class='const'>Ractor</span><span class='op'>::</span><span class='const'>IsolationError</span>
+      <span class='id identifier rubyid_p'>p</span> <span class='gvar'>$!</span>.<span class='id identifier rubyid_message'>message</span>
+      <span class='comment'>#=&gt; &quot;can not set instance variables of classes/modules by non-main Ractors&quot;
+</span>    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>.<span class='id identifier rubyid_take'>take</span></code></pre>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_shared'>shared</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span>{}
+<span class='id identifier rubyid_shared'>shared</span>.<span class='id identifier rubyid_instance_variable_set'>instance_variable_set</span>(<span class='symbeg'>:</span><span class='ivar'>@iv</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>str</span><span class='tstring_end'>&#39;</span></span>)
+
+<span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='id identifier rubyid_shared'>shared</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_shared'>shared</span><span class='op'>|</span>
+  <span class='id identifier rubyid_p'>p</span> <span class='id identifier rubyid_shared'>shared</span>.<span class='id identifier rubyid_instance_variable_get'>instance_variable_get</span>(<span class='symbeg'>:</span><span class='ivar'>@iv</span>)
+<span class='kw'>end</span>
+
+<span class='kw'>begin</span>
+  <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span>
+<span class='kw'>rescue</span> <span class='const'>Ractor</span><span class='op'>::</span><span class='const'>RemoteError</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
+  <span class='id identifier rubyid_e'>e</span>.<span class='id identifier rubyid_cause'>cause</span>.<span class='id identifier rubyid_message'>message</span> <span class='comment'>#=&gt; can not access instance variables of shareable objects from non-main Ractors (Ractor::IsolationError)
+</span><span class='kw'>end</span></code></pre>
+
+<p>Note that instance variables for class/module objects are also prohibited on Ractors.</p>
+
+<h3>Class variables</h3>
+
+<p>Only the main Ractor can access class variables.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>C</span>
+  <span class='cvar'>@@cv</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>str</span><span class='tstring_end'>&#39;</span></span>
+<span class='kw'>end</span>
+
+<span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+  <span class='kw'>class</span> <span class='const'>C</span>
+    <span class='id identifier rubyid_p'>p</span> <span class='cvar'>@@cv</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+
+
+<span class='kw'>begin</span>
+  <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span>
+<span class='kw'>rescue</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
+  <span class='id identifier rubyid_e'>e</span>.<span class='id identifier rubyid_class'>class</span> <span class='comment'>#=&gt; Ractor::IsolationError
+</span><span class='kw'>end</span></code></pre>
+
+<h3>Constants</h3>
+
+<p>Only the main Ractor can read constants which refer to the unshareable object.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>C</span>
+  <span class='const'>CONST</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>str</span><span class='tstring_end'>&#39;</span></span>
+<span class='kw'>end</span>
+<span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+  <span class='const'>C</span><span class='op'>::</span><span class='const'>CONST</span>
+<span class='kw'>end</span>
+<span class='kw'>begin</span>
+  <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span>
+<span class='kw'>rescue</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
+  <span class='id identifier rubyid_e'>e</span>.<span class='id identifier rubyid_class'>class</span> <span class='comment'>#=&gt; Ractor::IsolationError
+</span><span class='kw'>end</span></code></pre>
+
+<p>Only the main Ractor can define constants which refer to the unshareable object.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>C</span>
+<span class='kw'>end</span>
+<span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+  <span class='const'>C</span><span class='op'>::</span><span class='const'>CONST</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>str</span><span class='tstring_end'>&#39;</span></span>
+<span class='kw'>end</span>
+<span class='kw'>begin</span>
+  <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_take'>take</span>
+<span class='kw'>rescue</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
+  <span class='id identifier rubyid_e'>e</span>.<span class='id identifier rubyid_class'>class</span> <span class='comment'>#=&gt; Ractor::IsolationError
+</span><span class='kw'>end</span></code></pre>
+
+<p>To make multi-ractor supported library, the constants should only refer shareable objects.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>TABLE</span> <span class='op'>=</span> {<span class='label'>a:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>ko1</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='label'>b:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>ko2</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='label'>c:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>ko3</span><span class='tstring_end'>&#39;</span></span>}</code></pre>
+
+<p>In this case, <code>TABLE</code> references an unshareable Hash object. So that other ractors can not refer <code>TABLE</code> constant. To make it shareable, we can use <code>Ractor.make_shareable()</code> like that.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>TABLE</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_make_shareable'>make_shareable</span>( {<span class='label'>a:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>ko1</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='label'>b:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>ko2</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='label'>c:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>ko3</span><span class='tstring_end'>&#39;</span></span>} )</code></pre>
+
+<p>To make it easy, Ruby 3.0 introduced new <code>shareable_constant_value</code> Directive.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># shareable_constant_value: literal
+</span>
+<span class='const'>TABLE</span> <span class='op'>=</span> {<span class='label'>a:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>ko1</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='label'>b:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>ko2</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='label'>c:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>ko3</span><span class='tstring_end'>&#39;</span></span>}
+<span class='comment'>#=&gt; Same as: TABLE = Ractor.make_shareable( {a: &#39;ko1&#39;, b: &#39;ko2&#39;, c: &#39;ko3&#39;} )</span></code></pre>
+
+<p><code>shareable_constant_value</code> directive accepts the following modes (descriptions use the example: <code>CONST = expr</code>):</p>
+
+<ul>
+<li>none: Do nothing. Same as: <code>CONST = expr</code></li>
+<li>literal:
+
+<ul>
+<li>if <code>expr</code> is consites of literals, replaced to <code>CONST = Ractor.make_shareable(expr)</code>.</li>
+<li>otherwise: replaced to <code>CONST = expr.tap{|o| raise unless Ractor.shareable?}</code>.</li>
+</ul></li>
+<li>experimental_everything: replaced to <code>CONST = Ractor.make_shareable(expr)</code>.</li>
+<li>experimental_copy: replaced to <code>CONST = Ractor.make_shareable(expr, copy: true)</code>.</li>
+</ul>
+
+<p>Except the <code>none</code> mode (default), it is guaranteed that the assigned constants refer to only shareable objects.</p>
+
+<p>See <a href="syntax/comments.rdoc">doc/syntax/comments.rdoc</a> for more details.</p>
+
+<h2>Implementation note</h2>
+
+<ul>
+<li>Each Ractor has its own thread, it means each Ractor has at least 1 native thread.</li>
+<li>Each Ractor has its own ID (<code>rb_ractor_t::pub::id</code>).
+
+<ul>
+<li>On debug mode, all unshareable objects are labeled with current Ractor&#39;s id, and it is checked to detect unshareable object leak (access an object from different Ractor) in VM.</li>
+</ul></li>
+</ul>
+
+<h2>Examples</h2>
+
+<h3>Traditional Ring example in Actor-model</h3>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>RN</span> <span class='op'>=</span> <span class='int'>1_000</span>
+<span class='const'>CR</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_current'>current</span>
+
+<span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_p'>p</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive'>receive</span>
+  <span class='const'>CR</span> <span class='op'>&lt;&lt;</span> <span class='symbeg'>:</span><span class='id identifier rubyid_fin'>fin</span>
+<span class='kw'>end</span>
+
+<span class='const'>RN</span>.<span class='id identifier rubyid_times'>times</span>{
+  <span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='id identifier rubyid_r'>r</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_next_r'>next_r</span><span class='op'>|</span>
+    <span class='id identifier rubyid_next_r'>next_r</span> <span class='op'>&lt;&lt;</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive'>receive</span>
+  <span class='kw'>end</span>
+}
+
+<span class='id identifier rubyid_p'>p</span> <span class='symbeg'>:</span><span class='id identifier rubyid_setup_ok'>setup_ok</span>
+<span class='id identifier rubyid_r'>r</span> <span class='op'>&lt;&lt;</span> <span class='int'>1</span>
+<span class='id identifier rubyid_p'>p</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive'>receive</span></code></pre>
+
+<h3>Fork-join</h3>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_fib'>fib</span> <span class='id identifier rubyid_n'>n</span>
+  <span class='kw'>if</span> <span class='id identifier rubyid_n'>n</span> <span class='op'>&lt;</span> <span class='int'>2</span>
+    <span class='int'>1</span>
+  <span class='kw'>else</span>
+    <span class='id identifier rubyid_fib'>fib</span>(<span class='id identifier rubyid_n'>n</span><span class='op'>-</span><span class='int'>2</span>) <span class='op'>+</span> <span class='id identifier rubyid_fib'>fib</span>(<span class='id identifier rubyid_n'>n</span><span class='op'>-</span><span class='int'>1</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+
+<span class='const'>RN</span> <span class='op'>=</span> <span class='int'>10</span>
+<span class='id identifier rubyid_rs'>rs</span> <span class='op'>=</span> (<span class='int'>1</span><span class='op'>..</span><span class='const'>RN</span>).<span class='id identifier rubyid_map'>map</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_i'>i</span><span class='op'>|</span>
+  <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='id identifier rubyid_i'>i</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_i'>i</span><span class='op'>|</span>
+    [<span class='id identifier rubyid_i'>i</span><span class='comma'>,</span> <span class='id identifier rubyid_fib'>fib</span>(<span class='id identifier rubyid_i'>i</span>)]
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+
+<span class='kw'>until</span> <span class='id identifier rubyid_rs'>rs</span>.<span class='id identifier rubyid_empty?'>empty?</span>
+  <span class='id identifier rubyid_r'>r</span><span class='comma'>,</span> <span class='id identifier rubyid_v'>v</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_select'>select</span>(<span class='op'>*</span><span class='id identifier rubyid_rs'>rs</span>)
+  <span class='id identifier rubyid_rs'>rs</span>.<span class='id identifier rubyid_delete'>delete</span> <span class='id identifier rubyid_r'>r</span>
+  <span class='id identifier rubyid_p'>p</span> <span class='label'>answer:</span> <span class='id identifier rubyid_v'>v</span>
+<span class='kw'>end</span></code></pre>
+
+<h3>Worker pool</h3>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>prime</span><span class='tstring_end'>&#39;</span></span>
+
+<span class='id identifier rubyid_pipe'>pipe</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_loop'>loop</span> <span class='kw'>do</span>
+    <span class='const'>Ractor</span>.<span class='id identifier rubyid_yield'>yield</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive'>receive</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+
+<span class='const'>N</span> <span class='op'>=</span> <span class='int'>1000</span>
+<span class='const'>RN</span> <span class='op'>=</span> <span class='int'>10</span>
+<span class='id identifier rubyid_workers'>workers</span> <span class='op'>=</span> (<span class='int'>1</span><span class='op'>..</span><span class='const'>RN</span>).<span class='id identifier rubyid_map'>map</span> <span class='kw'>do</span>
+  <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='id identifier rubyid_pipe'>pipe</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_pipe'>pipe</span><span class='op'>|</span>
+    <span class='kw'>while</span> <span class='id identifier rubyid_n'>n</span> <span class='op'>=</span> <span class='id identifier rubyid_pipe'>pipe</span>.<span class='id identifier rubyid_take'>take</span>
+      <span class='const'>Ractor</span>.<span class='id identifier rubyid_yield'>yield</span> [<span class='id identifier rubyid_n'>n</span><span class='comma'>,</span> <span class='id identifier rubyid_n'>n</span>.<span class='id identifier rubyid_prime?'>prime?</span>]
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+
+(<span class='int'>1</span><span class='op'>..</span><span class='const'>N</span>).<span class='id identifier rubyid_each'>each</span>{<span class='op'>|</span><span class='id identifier rubyid_i'>i</span><span class='op'>|</span>
+  <span class='id identifier rubyid_pipe'>pipe</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_i'>i</span>
+}
+
+<span class='id identifier rubyid_pp'>pp</span> (<span class='int'>1</span><span class='op'>..</span><span class='const'>N</span>).<span class='id identifier rubyid_map'>map</span>{
+  <span class='id identifier rubyid__r'>_r</span><span class='comma'>,</span> (<span class='id identifier rubyid_n'>n</span><span class='comma'>,</span> <span class='id identifier rubyid_b'>b</span>) <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_select'>select</span>(<span class='op'>*</span><span class='id identifier rubyid_workers'>workers</span>)
+  [<span class='id identifier rubyid_n'>n</span><span class='comma'>,</span> <span class='id identifier rubyid_b'>b</span>]
+}.<span class='id identifier rubyid_sort_by'>sort_by</span>{<span class='op'>|</span>(<span class='id identifier rubyid_n'>n</span><span class='comma'>,</span> <span class='id identifier rubyid_b'>b</span>)<span class='op'>|</span> <span class='id identifier rubyid_n'>n</span>}</code></pre>
+
+<h3>Pipeline</h3>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># pipeline with yield/take
+</span><span class='id identifier rubyid_r1'>r1</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+  <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>r1</span><span class='tstring_end'>&#39;</span></span>
+<span class='kw'>end</span>
+
+<span class='id identifier rubyid_r2'>r2</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='id identifier rubyid_r1'>r1</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_r1'>r1</span><span class='op'>|</span>
+  <span class='id identifier rubyid_r1'>r1</span>.<span class='id identifier rubyid_take'>take</span> <span class='op'>+</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>r2</span><span class='tstring_end'>&#39;</span></span>
+<span class='kw'>end</span>
+
+<span class='id identifier rubyid_r3'>r3</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='id identifier rubyid_r2'>r2</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_r2'>r2</span><span class='op'>|</span>
+  <span class='id identifier rubyid_r2'>r2</span>.<span class='id identifier rubyid_take'>take</span> <span class='op'>+</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>r3</span><span class='tstring_end'>&#39;</span></span>
+<span class='kw'>end</span>
+
+<span class='id identifier rubyid_p'>p</span> <span class='id identifier rubyid_r3'>r3</span>.<span class='id identifier rubyid_take'>take</span> <span class='comment'>#=&gt; &#39;r1r2r3&#39;</span></code></pre>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># pipeline with send/receive
+</span>
+<span class='id identifier rubyid_r3'>r3</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_current'>current</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_cr'>cr</span><span class='op'>|</span>
+  <span class='id identifier rubyid_cr'>cr</span>.<span class='id identifier rubyid_send'>send</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive'>receive</span> <span class='op'>+</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>r3</span><span class='tstring_end'>&#39;</span></span>
+<span class='kw'>end</span>
+
+<span class='id identifier rubyid_r2'>r2</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='id identifier rubyid_r3'>r3</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_r3'>r3</span><span class='op'>|</span>
+  <span class='id identifier rubyid_r3'>r3</span>.<span class='id identifier rubyid_send'>send</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive'>receive</span> <span class='op'>+</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>r2</span><span class='tstring_end'>&#39;</span></span>
+<span class='kw'>end</span>
+
+<span class='id identifier rubyid_r1'>r1</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='id identifier rubyid_r2'>r2</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_r2'>r2</span><span class='op'>|</span>
+  <span class='id identifier rubyid_r2'>r2</span>.<span class='id identifier rubyid_send'>send</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive'>receive</span> <span class='op'>+</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>r1</span><span class='tstring_end'>&#39;</span></span>
+<span class='kw'>end</span>
+
+<span class='id identifier rubyid_r1'>r1</span> <span class='op'>&lt;&lt;</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>r0</span><span class='tstring_end'>&#39;</span></span>
+<span class='id identifier rubyid_p'>p</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive'>receive</span> <span class='comment'>#=&gt; &quot;r0r1r2r3&quot;</span></code></pre>
+
+<h3>Supervise</h3>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># ring example again
+</span>
+<span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_current'>current</span>
+(<span class='int'>1</span><span class='op'>..</span><span class='int'>10</span>).<span class='id identifier rubyid_map'>map</span>{<span class='op'>|</span><span class='id identifier rubyid_i'>i</span><span class='op'>|</span>
+  <span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='id identifier rubyid_r'>r</span><span class='comma'>,</span> <span class='id identifier rubyid_i'>i</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_r'>r</span><span class='comma'>,</span> <span class='id identifier rubyid_i'>i</span><span class='op'>|</span>
+    <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'>send</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive'>receive</span> <span class='op'>+</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>r</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_i'>i</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
+  <span class='kw'>end</span>
+}
+
+<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'>send</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>r0</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_p'>p</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive'>receive</span> <span class='comment'>#=&gt; &quot;r0r10r9r8r7r6r5r4r3r2r1&quot;</span></code></pre>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># ring example with an error
+</span>
+<span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_current'>current</span>
+<span class='id identifier rubyid_rs'>rs</span> <span class='op'>=</span> (<span class='int'>1</span><span class='op'>..</span><span class='int'>10</span>).<span class='id identifier rubyid_map'>map</span>{<span class='op'>|</span><span class='id identifier rubyid_i'>i</span><span class='op'>|</span>
+  <span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='id identifier rubyid_r'>r</span><span class='comma'>,</span> <span class='id identifier rubyid_i'>i</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_r'>r</span><span class='comma'>,</span> <span class='id identifier rubyid_i'>i</span><span class='op'>|</span>
+    <span class='id identifier rubyid_loop'>loop</span> <span class='kw'>do</span>
+      <span class='id identifier rubyid_msg'>msg</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive'>receive</span>
+      <span class='id identifier rubyid_raise'>raise</span> <span class='kw'>if</span> <span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>e</span><span class='regexp_end'>/</span></span> <span class='op'>=~</span> <span class='id identifier rubyid_msg'>msg</span>
+      <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'>send</span> <span class='id identifier rubyid_msg'>msg</span> <span class='op'>+</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>r</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_i'>i</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+}
+
+<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'>send</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>r0</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_p'>p</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive'>receive</span> <span class='comment'>#=&gt; &quot;r0r10r9r8r7r6r5r4r3r2r1&quot;
+</span><span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'>send</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>r0</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_p'>p</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_select'>select</span>(<span class='op'>*</span><span class='id identifier rubyid_rs'>rs</span><span class='comma'>,</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_current'>current</span>) <span class='comment'>#=&gt; [:receive, &quot;r0r10r9r8r7r6r5r4r3r2r1&quot;]
+</span><span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'>send</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>e0</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_p'>p</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_select'>select</span>(<span class='op'>*</span><span class='id identifier rubyid_rs'>rs</span><span class='comma'>,</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_current'>current</span>)
+<span class='comment'>#=&gt;
+</span><span class='comment'>#&lt;Thread:0x000056262de28bd8 run&gt; terminated with exception (report_on_exception is true):
+</span><span class='const'>Traceback</span> (<span class='id identifier rubyid_most'>most</span> <span class='id identifier rubyid_recent'>recent</span> <span class='id identifier rubyid_call'>call</span> <span class='id identifier rubyid_last'>last</span>)<span class='op'>:</span>
+        <span class='int'>2</span><span class='op'>:</span> <span class='id identifier rubyid_from'>from</span> <span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>home</span><span class='regexp_end'>/ko</span></span><span class='int'>1</span><span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>src</span><span class='regexp_end'>/ruby</span></span><span class='op'>/</span><span class='id identifier rubyid_trunk'>trunk</span><span class='op'>/</span><span class='id identifier rubyid_test'>test</span>.<span class='id identifier rubyid_rb'>rb</span><span class='symbeg'>:</span><span class='int'>7</span><span class='op'>:</span><span class='kw'>in</span> <span class='backtick'>`</span><span class='tstring_content'>block (2 levels) in &lt;main&gt;&#39;
+        1: from /home/ko1/src/ruby/trunk/test.rb:7:in </span><span class='tstring_end'>`</span></span><span class='id identifier rubyid_loop'>loop</span><span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>
+/home/ko1/src/ruby/trunk/test.rb:9:in `block (3 levels) in &lt;main&gt;</span><span class='tstring_end'>&#39;</span></span><span class='op'>:</span> <span class='id identifier rubyid_unhandled'>unhandled</span> <span class='id identifier rubyid_exception'>exception</span>
+<span class='const'>Traceback</span> (<span class='id identifier rubyid_most'>most</span> <span class='id identifier rubyid_recent'>recent</span> <span class='id identifier rubyid_call'>call</span> <span class='id identifier rubyid_last'>last</span>)<span class='op'>:</span>
+        <span class='int'>2</span><span class='op'>:</span> <span class='id identifier rubyid_from'>from</span> <span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>home</span><span class='regexp_end'>/ko</span></span><span class='int'>1</span><span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>src</span><span class='regexp_end'>/ruby</span></span><span class='op'>/</span><span class='id identifier rubyid_trunk'>trunk</span><span class='op'>/</span><span class='id identifier rubyid_test'>test</span>.<span class='id identifier rubyid_rb'>rb</span><span class='symbeg'>:</span><span class='int'>7</span><span class='op'>:</span><span class='kw'>in</span> <span class='backtick'>`</span><span class='tstring_content'>block (2 levels) in &lt;main&gt;&#39;
+        1: from /home/ko1/src/ruby/trunk/test.rb:7:in </span><span class='tstring_end'>`</span></span><span class='id identifier rubyid_loop'>loop</span><span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>
+/home/ko1/src/ruby/trunk/test.rb:9:in `block (3 levels) in &lt;main&gt;</span><span class='tstring_end'>&#39;</span></span><span class='op'>:</span> <span class='id identifier rubyid_unhandled'>unhandled</span> <span class='id identifier rubyid_exception'>exception</span>
+        <span class='int'>1</span><span class='op'>:</span> <span class='id identifier rubyid_from'>from</span> <span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>home</span><span class='regexp_end'>/ko</span></span><span class='int'>1</span><span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>src</span><span class='regexp_end'>/ruby</span></span><span class='op'>/</span><span class='id identifier rubyid_trunk'>trunk</span><span class='op'>/</span><span class='id identifier rubyid_test'>test</span>.<span class='id identifier rubyid_rb'>rb</span><span class='symbeg'>:</span><span class='int'>21</span><span class='op'>:</span><span class='kw'>in</span> <span class='backtick'>`</span><span class='tstring_content'>&lt;main&gt;&#39;
+&lt;internal:ractor&gt;:69:in </span><span class='tstring_end'>`</span></span><span class='id identifier rubyid_select'>select</span><span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>: thrown by remote Ractor. (Ractor::RemoteError)</span></code></pre>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># resend non-error message
+</span>
+<span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_current'>current</span>
+<span class='id identifier rubyid_rs'>rs</span> <span class='op'>=</span> (<span class='int'>1</span><span class='op'>..</span><span class='int'>10</span>).<span class='id identifier rubyid_map'>map</span>{<span class='op'>|</span><span class='id identifier rubyid_i'>i</span><span class='op'>|</span>
+  <span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='id identifier rubyid_r'>r</span><span class='comma'>,</span> <span class='id identifier rubyid_i'>i</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_r'>r</span><span class='comma'>,</span> <span class='id identifier rubyid_i'>i</span><span class='op'>|</span>
+    <span class='id identifier rubyid_loop'>loop</span> <span class='kw'>do</span>
+      <span class='id identifier rubyid_msg'>msg</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive'>receive</span>
+      <span class='id identifier rubyid_raise'>raise</span> <span class='kw'>if</span> <span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>e</span><span class='regexp_end'>/</span></span> <span class='op'>=~</span> <span class='id identifier rubyid_msg'>msg</span>
+      <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'>send</span> <span class='id identifier rubyid_msg'>msg</span> <span class='op'>+</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>r</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_i'>i</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+}
+
+<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'>send</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>r0</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_p'>p</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive'>receive</span> <span class='comment'>#=&gt; &quot;r0r10r9r8r7r6r5r4r3r2r1&quot;
+</span><span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'>send</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>r0</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_p'>p</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_select'>select</span>(<span class='op'>*</span><span class='id identifier rubyid_rs'>rs</span><span class='comma'>,</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_current'>current</span>)
+[<span class='symbeg'>:</span><span class='id identifier rubyid_receive'>receive</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>r0r10r9r8r7r6r5r4r3r2r1</span><span class='tstring_end'>&quot;</span></span>]
+<span class='id identifier rubyid_msg'>msg</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>e0</span><span class='tstring_end'>&#39;</span></span>
+<span class='kw'>begin</span>
+  <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'>send</span> <span class='id identifier rubyid_msg'>msg</span>
+  <span class='id identifier rubyid_p'>p</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_select'>select</span>(<span class='op'>*</span><span class='id identifier rubyid_rs'>rs</span><span class='comma'>,</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_current'>current</span>)
+<span class='kw'>rescue</span> <span class='const'>Ractor</span><span class='op'>::</span><span class='const'>RemoteError</span>
+  <span class='id identifier rubyid_msg'>msg</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>r0</span><span class='tstring_end'>&#39;</span></span>
+  <span class='kw'>retry</span>
+<span class='kw'>end</span>
+
+<span class='comment'>#=&gt; &lt;internal:ractor&gt;:100:in `send&#39;: The incoming-port is already closed (Ractor::ClosedError)
+</span><span class='comment'># because r == r[-1] is terminated.</span></code></pre>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># ring example with supervisor and re-start
+</span>
+<span class='kw'>def</span> <span class='id identifier rubyid_make_ractor'>make_ractor</span> <span class='id identifier rubyid_r'>r</span><span class='comma'>,</span> <span class='id identifier rubyid_i'>i</span>
+  <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> <span class='id identifier rubyid_r'>r</span><span class='comma'>,</span> <span class='id identifier rubyid_i'>i</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_r'>r</span><span class='comma'>,</span> <span class='id identifier rubyid_i'>i</span><span class='op'>|</span>
+    <span class='id identifier rubyid_loop'>loop</span> <span class='kw'>do</span>
+      <span class='id identifier rubyid_msg'>msg</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive'>receive</span>
+      <span class='id identifier rubyid_raise'>raise</span> <span class='kw'>if</span> <span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>e</span><span class='regexp_end'>/</span></span> <span class='op'>=~</span> <span class='id identifier rubyid_msg'>msg</span>
+      <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'>send</span> <span class='id identifier rubyid_msg'>msg</span> <span class='op'>+</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>r</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_i'>i</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+
+<span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_current'>current</span>
+<span class='id identifier rubyid_rs'>rs</span> <span class='op'>=</span> (<span class='int'>1</span><span class='op'>..</span><span class='int'>10</span>).<span class='id identifier rubyid_map'>map</span>{<span class='op'>|</span><span class='id identifier rubyid_i'>i</span><span class='op'>|</span>
+  <span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='id identifier rubyid_make_ractor'>make_ractor</span>(<span class='id identifier rubyid_r'>r</span><span class='comma'>,</span> <span class='id identifier rubyid_i'>i</span>)
+}
+
+<span class='id identifier rubyid_msg'>msg</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>e0</span><span class='tstring_end'>&#39;</span></span> <span class='comment'># error causing message
+</span><span class='kw'>begin</span>
+  <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'>send</span> <span class='id identifier rubyid_msg'>msg</span>
+  <span class='id identifier rubyid_p'>p</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_select'>select</span>(<span class='op'>*</span><span class='id identifier rubyid_rs'>rs</span><span class='comma'>,</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_current'>current</span>)
+<span class='kw'>rescue</span> <span class='const'>Ractor</span><span class='op'>::</span><span class='const'>RemoteError</span>
+  <span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='id identifier rubyid_rs'>rs</span>[<span class='op'>-</span><span class='int'>1</span>] <span class='op'>=</span> <span class='id identifier rubyid_make_ractor'>make_ractor</span>(<span class='id identifier rubyid_rs'>rs</span>[<span class='op'>-</span><span class='int'>2</span>]<span class='comma'>,</span> <span class='id identifier rubyid_rs'>rs</span>.<span class='id identifier rubyid_size'>size</span><span class='op'>-</span><span class='int'>1</span>)
+  <span class='id identifier rubyid_msg'>msg</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>x0</span><span class='tstring_end'>&#39;</span></span>
+  <span class='kw'>retry</span>
+<span class='kw'>end</span>
+
+<span class='comment'>#=&gt; [:receive, &quot;x0r9r9r8r7r6r5r4r3r2r1&quot;]</span></code></pre>
+
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>
