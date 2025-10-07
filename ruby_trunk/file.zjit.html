@@ -67,95 +67,88 @@
 
 <p>To build ZJIT on macOS:</p>
 
-<pre class="code ruby"><code class="ruby">.<span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>autogen.sh
-.</span><span class='regexp_end'>/configure</span></span> <span class='op'>-</span><span class='op'>-</span><span class='id identifier rubyid_enable'>enable</span><span class='op'>-</span><span class='id identifier rubyid_zjit'>zjit</span><span class='op'>=</span><span class='id identifier rubyid_dev'>dev</span> <span class='op'>-</span><span class='op'>-</span><span class='id identifier rubyid_prefix'>prefix</span><span class='op'>=</span><span class='gvar'>$HOME</span><span class='op'>/</span>.<span class='id identifier rubyid_rubies'>rubies</span><span class='op'>/</span><span class='id identifier rubyid_ruby'>ruby</span><span class='op'>-</span><span class='id identifier rubyid_zjit'>zjit</span> <span class='op'>-</span><span class='op'>-</span><span class='id identifier rubyid_disable'>disable</span><span class='op'>-</span><span class='id identifier rubyid_install'>install</span><span class='op'>-</span><span class='id identifier rubyid_doc'>doc</span> <span class='op'>-</span><span class='op'>-</span><span class='id identifier rubyid_with'>with</span><span class='op'>-</span><span class='id identifier rubyid_opt'>opt</span><span class='op'>-</span><span class='id identifier rubyid_dir'>dir</span><span class='op'>=</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>$(brew --prefix openssl):$(brew --prefix readline):$(brew --prefix libyaml)</span><span class='tstring_end'>&quot;</span></span>
-<span class='id identifier rubyid_make'>make</span> <span class='op'>-</span><span class='id identifier rubyid_j'>j</span> <span class='id identifier rubyid_miniruby'>miniruby</span></code></pre>
+<pre class="code bash"><code class="bash">./autogen.sh
 
-<h2>Useful dev commands</h2>
+./configure \
+    --enable-zjit=dev \
+    --prefix=&quot;$HOME&quot;/.rubies/ruby-zjit \
+    --disable-install-doc \
+    --with-opt-dir=&quot;$(brew --prefix openssl):$(brew --prefix readline):$(brew --prefix libyaml)&quot;
 
-<p>To view YARV output for code snippets:</p>
-
-<pre class="code ruby"><code class="ruby">.<span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>miniruby --dump=insns -e0</span></code></pre>
-
-<p>To run code snippets with ZJIT:</p>
-
-<pre class="code ruby"><code class="ruby">.<span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>miniruby --zjit -e0</span></code></pre>
-
-<p>You can also try <a href="https://www.rubyexplorer.xyz/">https://www.rubyexplorer.xyz/</a> to view Ruby YARV disasm output with syntax highlighting
-in a way that can be easily shared with other team members.</p>
+make -j miniruby
+</code></pre>
 
 <h2>Documentation</h2>
 
-<p>You can generate and open the source level documentation in your browser using <code>cargo doc --open --document-private-items</code>.</p>
+<p>You can generate and open the source level documentation in your browser using:</p>
+
+<pre class="code bash"><code class="bash">cargo doc --document-private-items -p zjit --open
+</code></pre>
 
 <h2>Testing</h2>
 
-<p>Make sure you have a <code>--enable-zjit=dev</code> build, and install the following tools:</p>
+<p>Note that tests link against CRuby, so directly calling <code>cargo test</code>, or <code>cargo nextest</code> should not build. All tests are instead accessed through <code>make</code>.</p>
 
-<ul>
-<li><code>brew install cargo-nextest</code> - Required for running tests</li>
-<li><code>cargo install cargo-insta</code> - Required for updating snapshots</li>
-</ul>
+<h3>Setup</h3>
 
-<h3>make zjit-check</h3>
+<p>First, ensure you have <code>cargo</code> installed. If you do not already have it, you can use <a href="https://rustup.rs/">rustup.rs</a>.</p>
 
-<p>This command runs all ZJIT tests: <code>make zjit-test</code> and <code>test/ruby/test_zjit.rb</code>.</p>
+<p>Make sure to add <code>--enable-zjit=dev</code> when you run <code>configure</code>, then install the following tools:</p>
 
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_make'>make</span> <span class='id identifier rubyid_zjit'>zjit</span><span class='op'>-</span><span class='id identifier rubyid_check'>check</span></code></pre>
+<pre class="code bash"><code class="bash">cargo install cargo-nextest
+cargo install cargo-insta
+</code></pre>
 
-<h3>make zjit-test</h3>
+<p><code>cargo-insta</code> is used for updating snapshots. <code>cargo-nextest</code> runs each test in its own process, which is valuable since CRuby only supports booting once per process, and most APIs are not thread safe.</p>
 
-<p>This command runs Rust unit tests using <code>insta</code> for snapshot testing.</p>
+<h3>Running unit tests</h3>
 
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_make'>make</span> <span class='id identifier rubyid_zjit'>zjit</span><span class='op'>-</span><span class='id identifier rubyid_test'>test</span></code></pre>
+<p>For testing functionality within ZJIT, use:</p>
+
+<pre class="code bash"><code class="bash">make zjit-test
+</code></pre>
 
 <p>You can also run a single test case by specifying the function name:</p>
 
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_make'>make</span> <span class='id identifier rubyid_zjit'>zjit</span><span class='op'>-</span><span class='id identifier rubyid_test'>test</span> <span class='const'>ZJIT_TESTS</span><span class='op'>=</span><span class='id identifier rubyid_test_putobject'>test_putobject</span></code></pre>
+<pre class="code bash"><code class="bash">make zjit-test ZJIT_TESTS=test_putobject
+</code></pre>
 
 <h4>Snapshot Testing</h4>
 
-<p>ZJIT uses <a href="https://insta.rs/">insta</a> for snapshot testing. When tests fail due to snapshot mismatches, pending snapshots are created. The test command will notify you if there are pending snapshots:</p>
+<p>ZJIT uses <a href="https://insta.rs/">insta</a> for snapshot testing within unit tests. When tests fail due to snapshot mismatches, pending snapshots are created. The test command will notify you if there are pending snapshots:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='const'>Pending</span> <span class='id identifier rubyid_snapshots'>snapshots</span> <span class='id identifier rubyid_found'>found</span>. <span class='const'>Accept</span> <span class='label'>with:</span> <span class='id identifier rubyid_make'>make</span> <span class='id identifier rubyid_zjit'>zjit</span><span class='op'>-</span><span class='id identifier rubyid_test'>test</span><span class='op'>-</span><span class='id identifier rubyid_update'>update</span></code></pre>
 
 <p>To update/accept all the snapshot changes:</p>
 
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_make'>make</span> <span class='id identifier rubyid_zjit'>zjit</span><span class='op'>-</span><span class='id identifier rubyid_test'>test</span><span class='op'>-</span><span class='id identifier rubyid_update'>update</span></code></pre>
+<pre class="code bash"><code class="bash">make zjit-test-update
+</code></pre>
 
 <p>You can also review snapshot changes interactively one by one:</p>
 
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_cd'>cd</span> <span class='id identifier rubyid_zjit'>zjit</span> <span class='op'>&amp;&amp;</span> <span class='id identifier rubyid_cargo'>cargo</span> <span class='id identifier rubyid_insta'>insta</span> <span class='id identifier rubyid_review'>review</span></code></pre>
+<pre class="code bash"><code class="bash">cd zjit &amp;&amp; cargo insta review
+</code></pre>
 
 <p>Test changes will be reviewed alongside code changes.</p>
 
-<details>
-
-<summary>Setting up zjit-test</summary>
-
-ZJIT uses <code>cargo-nextest</code> for Rust unit tests instead of `cargo test`.
-<code>cargo-nextest</code> runs each test in its own process, which is valuable since
-CRuby only supports booting once per process, and most APIs are not thread
-safe. Use `brew install cargo-nextest` to install it on macOS, otherwise, refer
-to <https://nexte.st/docs/installation/pre-built-binaries/> for installation
-instructions.
-
-Since it uses Cargo, you'll also need a `configure --enable-zjit=dev ...` build
-for `make zjit-test`. Since the tests need to link against CRuby, directly
-calling `cargo test`, or `cargo nextest` likely won't build. Make sure to
-use <code>make</code>.
-
-</details>
-
-<h3>test/ruby/test_zjit.rb</h3>
+<h3>Running integration tests</h3>
 
 <p>This command runs Ruby execution tests.</p>
 
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_make'>make</span> <span class='id identifier rubyid_test'>test</span><span class='op'>-</span><span class='id identifier rubyid_all'>all</span> <span class='const'>TESTS</span><span class='op'>=</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>test/ruby/test_zjit.rb</span><span class='tstring_end'>&quot;</span></span></code></pre>
+<pre class="code bash"><code class="bash">make test-all TESTS=&quot;test/ruby/test_zjit.rb&quot;
+</code></pre>
 
 <p>You can also run a single test case by matching the method name:</p>
 
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_make'>make</span> <span class='id identifier rubyid_test'>test</span><span class='op'>-</span><span class='id identifier rubyid_all'>all</span> <span class='const'>TESTS</span><span class='op'>=</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>test/ruby/test_zjit.rb -n TestZJIT#test_putobject</span><span class='tstring_end'>&quot;</span></span></code></pre>
+<pre class="code bash"><code class="bash">make test-all TESTS=&quot;test/ruby/test_zjit.rb -n TestZJIT#test_putobject&quot;
+</code></pre>
+
+<h3>Running all tests</h3>
+
+<p>Runs both <code>make zjit-test</code> and <code>test/ruby/test_zjit.rb</code>:</p>
+
+<pre class="code bash"><code class="bash">make zjit-check
+</code></pre>
 
 <h2>Statistics Collection</h2>
 
@@ -202,10 +195,25 @@ make -j
 <pre class="code bash"><code class="bash">./miniruby --zjit-trace-exits script.rb
 </code></pre>
 
-<p>A file called <code>zjit_exit_locations.dump</code> will be created in the same directory as <code>script.rb</code>. Viewing the side exited methods can be done with Stackprof:</p>
+<p>A file called <code>zjit_exit_locations{timestamp}.dump</code> will be created in the same directory as <code>script.rb</code>. Viewing the side exited methods can be done with Stackprof:</p>
 
-<pre class="code bash"><code class="bash">stackprof path/to/zjit_exit_locations.dump
+<pre class="code bash"><code class="bash">stackprof path/to/zjit_exit_locations{timestamp}.dump
 </code></pre>
+
+<h2>Useful dev commands</h2>
+
+<p>To view YARV output for code snippets:</p>
+
+<pre class="code bash"><code class="bash">./miniruby --dump=insns -e0
+</code></pre>
+
+<p>To run code snippets with ZJIT:</p>
+
+<pre class="code bash"><code class="bash">./miniruby --zjit -e0
+</code></pre>
+
+<p>You can also try <a href="https://www.rubyexplorer.xyz/">https://www.rubyexplorer.xyz/</a> to view Ruby YARV disasm output with syntax highlighting
+in a way that can be easily shared with other team members.</p>
 
 <h2>ZJIT Glossary</h2>
 
