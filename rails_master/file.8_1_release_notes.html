@@ -67,6 +67,21 @@
 
 <p>Highlights in <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> 8.1:</p>
 
+<ul>
+<li>Active Job Continuations.</li>
+<li>Structured Event Reporting.</li>
+<li>Local CI.</li>
+<li>Markdown Rendering.</li>
+<li>Command-line Credentials Fetching.</li>
+<li>Deprecated Associations.</li>
+<li>Registry-Free Kamal Deployments</li>
+</ul>
+
+<p>These release notes cover only the major changes. To learn about various bug
+fixes and changes, please refer to the changelogs or check out the <a href="https://github.com/rails/rails/commits/8-1-stable">list of
+commits</a> in the main <a href="Rails.html" title="Rails (module)"><code>Rails</code></a>
+repository on GitHub.</p>
+
 <hr>
 
 <h2>Upgrading to <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> 8.1</h2>
@@ -80,6 +95,169 @@ available in the
 guide.</p>
 
 <h2>Major Features</h2>
+
+<h3>Active Job Continuations</h3>
+
+<p>Long-running jobs can now be broken into discrete steps that allow execution to
+continue from the last completed step rather than the beginning after a restart.
+This is especially helpful when doing deploys with Kamal, which will only give
+job-running containers thirty seconds to shut down by default.</p>
+
+<p>Example:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ProcessImportJob</span> <span class='op'>&lt;</span> <span class='const'>ApplicationJob</span>
+  <span class='id identifier rubyid_include'>include</span> <span class='const'><a href="ActiveJob.html" title="ActiveJob (module)">ActiveJob</a></span><span class='op'>::</span><span class='const'><a href="ActiveJob/Continuable.html" title="ActiveJob::Continuable (module)">Continuable</a></span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_perform'>perform</span>(<span class='id identifier rubyid_import_id'>import_id</span>)
+    <span class='ivar'>@import</span> <span class='op'>=</span> <span class='const'>Import</span>.<span class='id identifier rubyid_find'>find</span>(<span class='id identifier rubyid_import_id'>import_id</span>)
+
+    <span class='comment'># block format
+</span>    <span class='id identifier rubyid_step'>step</span> <span class='symbeg'>:</span><span class='id identifier rubyid_initialize'>initialize</span> <span class='kw'>do</span>
+      <span class='ivar'>@import</span>.<span class='id identifier rubyid_initialize'>initialize</span>
+    <span class='kw'>end</span>
+
+    <span class='comment'># step with cursor, the cursor is saved when the job is interrupted
+</span>    <span class='id identifier rubyid_step'>step</span> <span class='symbeg'>:</span><span class='id identifier rubyid_process'>process</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_step'>step</span><span class='op'>|</span>
+      <span class='ivar'>@import</span>.<span class='id identifier rubyid_records'>records</span>.<span class='id identifier rubyid_find_each'>find_each</span>(<span class='label'>start:</span> <span class='id identifier rubyid_step'>step</span>.<span class='id identifier rubyid_cursor'>cursor</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_record'>record</span><span class='op'>|</span>
+        <span class='id identifier rubyid_record'>record</span>.<span class='id identifier rubyid_process'>process</span>
+        <span class='id identifier rubyid_step'>step</span>.<span class='id identifier rubyid_advance!'>advance!</span> <span class='label'>from:</span> <span class='id identifier rubyid_record'>record</span>.<span class='id identifier rubyid_id'>id</span>
+      <span class='kw'>end</span>
+    <span class='kw'>end</span>
+
+    <span class='comment'># method format
+</span>    <span class='id identifier rubyid_step'>step</span> <span class='symbeg'>:</span><span class='id identifier rubyid_finalize'>finalize</span>
+  <span class='kw'>end</span>
+
+  <span class='id identifier rubyid_private'>private</span>
+    <span class='kw'>def</span> <span class='id identifier rubyid_finalize'>finalize</span>
+      <span class='ivar'>@import</span>.<span class='id identifier rubyid_finalize'>finalize</span>
+    <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<h2>Structured Event Reporting</h2>
+
+<p>The default logger in Rails is great for human consumption, but less ideal for
+post-processing. The new Event Reporter provides a unified interface for
+producing structured events in Rails applications:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_event'><a href="Rails.html#event-class_method" title="Rails.event (method)">event</a></span>.<span class='id identifier rubyid_notify'>notify</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>user.signup</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>user_id:</span> <span class='int'>123</span><span class='comma'>,</span> <span class='label'>email:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>user@example.com</span><span class='tstring_end'>&quot;</span></span>)</code></pre>
+
+<p>It supports adding tags to events:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_event'><a href="Rails.html#event-class_method" title="Rails.event (method)">event</a></span>.<span class='id identifier rubyid_tagged'>tagged</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>graphql</span><span class='tstring_end'>&quot;</span></span>) <span class='kw'>do</span>
+  <span class='comment'># Event includes tags: { graphql: true }
+</span>  <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_event'><a href="Rails.html#event-class_method" title="Rails.event (method)">event</a></span>.<span class='id identifier rubyid_notify'>notify</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>user.signup</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>user_id:</span> <span class='int'>123</span><span class='comma'>,</span> <span class='label'>email:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>user@example.com</span><span class='tstring_end'>&quot;</span></span>)
+<span class='kw'>end</span></code></pre>
+
+<p>As well as context:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># All events will contain context: {request_id: &quot;abc123&quot;, shop_id: 456}
+</span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_event'><a href="Rails.html#event-class_method" title="Rails.event (method)">event</a></span>.<span class='id identifier rubyid_set_context'>set_context</span>(<span class='label'>request_id:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>abc123</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>shop_id:</span> <span class='int'>456</span>)</code></pre>
+
+<p>Events are emitted to subscribers. Applications register subscribers to
+control how events are serialized and emitted. Subscribers must implement
+an <code>#emit</code> method, which receives the event hash:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>LogSubscriber</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_emit'>emit</span>(<span class='id identifier rubyid_event'>event</span>)
+    <span class='id identifier rubyid_payload'>payload</span> <span class='op'>=</span> <span class='id identifier rubyid_event'>event</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_payload'>payload</span>].<span class='id identifier rubyid_map'>map</span> { <span class='op'>|</span><span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_value'>value</span><span class='op'>|</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_key'>key</span><span class='embexpr_end'>}</span><span class='tstring_content'>=</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_value'>value</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span> }.<span class='id identifier rubyid_join'>join</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'> </span><span class='tstring_end'>&quot;</span></span>)
+    <span class='id identifier rubyid_source_location'>source_location</span> <span class='op'>=</span> <span class='id identifier rubyid_event'>event</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_source_location'>source_location</span>]
+    <span class='id identifier rubyid_log'>log</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>[</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_event'>event</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_name'>name</span>]<span class='embexpr_end'>}</span><span class='tstring_content'>] </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_payload'>payload</span><span class='embexpr_end'>}</span><span class='tstring_content'> at </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_source_location'>source_location</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_filepath'>filepath</span>]<span class='embexpr_end'>}</span><span class='tstring_content'>:</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_source_location'>source_location</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_lineno'>lineno</span>]<span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
+    <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_logger'><a href="Rails.html#logger-class_method" title="Rails.logger (method)">logger</a></span>.<span class='id identifier rubyid_info'>info</span>(<span class='id identifier rubyid_log'>log</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<h2>Local CI</h2>
+
+<p>Developer machines have gotten incredibly quick with loads of cores, which make
+them great local runners of even relatively large test suites.</p>
+
+<p>This makes getting rid of a cloud-setup for all of CI not just feasible but
+desirable for many small-to-mid-sized applications, and Rails has therefore
+added a default CI declaration DSL, which is defined in <code>config/ci.rb</code> and run
+by <code>bin/ci</code>. It looks like this:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>CI</span>.<span class='id identifier rubyid_run'>run</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_step'>step</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Setup</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>bin/setup --skip-server</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_step'>step</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Style: Ruby</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>bin/rubocop</span><span class='tstring_end'>&quot;</span></span>
+
+  <span class='id identifier rubyid_step'>step</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Security: Gem audit</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>bin/bundler-audit</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_step'>step</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Security: Importmap vulnerability audit</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>bin/importmap audit</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_step'>step</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Security: Brakeman code analysis</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>bin/brakeman --quiet --no-pager --exit-on-warn --exit-on-error</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_step'>step</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Tests: Rails</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>bin/rails test</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_step'>step</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Tests: Seeds</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>env RAILS_ENV=test bin/rails db:seed:replant</span><span class='tstring_end'>&quot;</span></span>
+
+  <span class='comment'># Requires the `gh` CLI and `gh extension install basecamp/gh-signoff`.
+</span>  <span class='kw'>if</span> <span class='id identifier rubyid_success?'>success?</span>
+    <span class='id identifier rubyid_step'>step</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Signoff: All systems go. Ready for merge and deploy.</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>gh signoff</span><span class='tstring_end'>&quot;</span></span>
+  <span class='kw'>else</span>
+    <span class='id identifier rubyid_failure'>failure</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Signoff: CI failed. Do not merge or deploy.</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Fix the issues and try again.</span><span class='tstring_end'>&quot;</span></span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>The optional integration with gh ensures that PRs must be signed off by a
+passing CI run in order to be eligible to be merged.</p>
+
+<h2>Markdown Rendering</h2>
+
+<p>Markdown has become the lingua franca of AI, and Rails has embraced this
+adoption by making it easier to respond to markdown requests and render them
+directly:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Page</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_to_markdown'>to_markdown</span>
+    <span class='id identifier rubyid_body'>body</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+
+<span class='kw'>class</span> <span class='const'>PagesController</span> <span class='op'>&lt;</span> <span class='const'><a href="ActionController.html" title="ActionController (module)">ActionController</a></span><span class='op'>::</span><span class='const'><a href="ActionController/Base.html" title="ActionController::Base (class)">Base</a></span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_show'>show</span>
+    <span class='ivar'>@page</span> <span class='op'>=</span> <span class='const'>Page</span>.<span class='id identifier rubyid_find'>find</span>(<span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span>])
+
+    <span class='id identifier rubyid_respond_to'>respond_to</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_format'>format</span><span class='op'>|</span>
+      <span class='id identifier rubyid_format'>format</span>.<span class='id identifier rubyid_html'>html</span>
+      <span class='id identifier rubyid_format'>format</span>.<span class='id identifier rubyid_md'>md</span> { <span class='id identifier rubyid_render'>render</span> <span class='label'>markdown:</span> <span class='ivar'>@page</span> }
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<h2>Command-line Credentials Fetching</h2>
+
+<p>Kamal can now easily grab its secrets from the encrypted Rails credentials store
+for deploys. This makes it a low-fi alternative to external secret stores that
+only needs the master key available to work:</p>
+
+<pre class="code bash"><code class="bash"># .kamal/secrets
+KAMAL_REGISTRY_PASSWORD=$(rails credentials:fetch kamal.registry_password)
+</code></pre>
+
+<h2>Deprecated Associations</h2>
+
+<p>Active Record associations can now be marked as being deprecated:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Author</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_has_many'>has_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_posts'>posts</span><span class='comma'>,</span> <span class='label'>deprecated:</span> <span class='kw'>true</span>
+<span class='kw'>end</span></code></pre>
+
+<p>With that, usage of the <code>posts</code> association will be reported. This includes
+explicit API calls like</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_author'>author</span>.<span class='id identifier rubyid_posts'>posts</span>
+<span class='id identifier rubyid_author'>author</span>.<span class='id identifier rubyid_posts'>posts</span> <span class='op'>=</span> <span class='op'>...</span></code></pre>
+
+<p>and others, as well as indirect usage like</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_author'>author</span>.<span class='id identifier rubyid_preload'>preload</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_posts'>posts</span>)</code></pre>
+
+<p>usage via nested attributes, and more.</p>
+
+<p>Three reporting modes are supported (<code>:warn</code>, <code>:raise</code>, and <code>:notify</code>), and
+backtraces can be enabled or disabled, though you always get the location of the
+reported usage regardless. Defaults are <code>:warn</code> mode and disabled backtraces.</p>
+
+<h2>Registry-Free Kamal Deployments</h2>
+
+<p>Kamal no longer needs a remote registry, like Docker Hub or GHCR, to do basic deploys. By default, Kamal 2.8 will now use a local registry for simple deploys. For large-scale deploys, you&#39;ll still want to use a remote registry, but this makes it easier to get started and see your first Hello World deployment in the wild.</p>
 
 <h2>Railties</h2>
 
@@ -148,7 +326,7 @@ guide.</p>
 <h3>Notable changes</h3>
 
 <ul>
-<li>  Redirects are now verbose in development for new <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> apps. To enable it in an existing app, add <code>config.action_dispatch.verbose_redirect_logs = true</code> to your <code>config/development.rb</code> file.</li>
+<li>  Redirects are now verbose in development for new Rails apps. To enable it in an existing app, add <code>config.action_dispatch.verbose_redirect_logs = true</code> to your <code>config/development.rb</code> file.</li>
 </ul>
 
 <h2>Action View</h2>
@@ -234,7 +412,7 @@ associations.</p></li>
 <h3>Removals</h3>
 
 <ul>
-<li><p>Remove deprecated passing a <a href="Time.html" title="Time (class)"><code>Time</code></a> object to <a href="Time.html#since-instance_method" title="Time#since (method)">Time#since</a>.</p></li>
+<li><p>Remove deprecated passing a Time object to <a href="Time.html#since-instance_method" title="Time#since (method)">Time#since</a>.</p></li>
 <li><p>Remove deprecated <code>Benchmark.ms</code> method. It is now defined in the <code>benchmark</code> gem.</p></li>
 <li><p>Remove deprecated addition for <a href="Time.html" title="Time (class)"><code>Time</code></a> instances with <a href="ActiveSupport/TimeWithZone.html" title="ActiveSupport::TimeWithZone (class)"><code>::ActiveSupport::TimeWithZone</code></a>.</p></li>
 <li><p>Remove deprecated support for <code>to_time</code> to preserve the system local time. It will now always preserve the receiver
@@ -292,7 +470,7 @@ timezone.</p></li>
 
 <h3>Notable changes</h3>
 
-<h2>Ruby on <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> Guides</h2>
+<h2>Ruby on Rails Guides</h2>
 
 <p>Please refer to the <a href="https://github.com/rails/rails/blob/main/guides/CHANGELOG.md">Changelog</a> for detailed changes.</p>
 
@@ -302,7 +480,7 @@ timezone.</p></li>
 
 <p>See the
 <a href="https://contributors.rubyonrails.org/">full list of contributors to Rails</a>
-for the many people who spent many hours making <a href="Rails.html" title="Rails (module)"><code>Rails</code></a>, the stable and robust
+for the many people who spent many hours making Rails, the stable and robust
 framework it is. Kudos to all of them.</p>
 
 <div id='footer'></div>
