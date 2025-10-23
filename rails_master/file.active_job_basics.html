@@ -688,6 +688,53 @@ number depends on the adapter implementation. Refer to documentation of your
 backend for more information. Adapter authors are encouraged to treat a lower
 number as more important.</p>
 
+<h2>Job Continuations</h2>
+
+<p>Jobs can be split into resumable steps using continuations. This is useful when
+a job may be interrupted - for example, during queue shutdown. When using
+continuations, the job can resume from the last completed step, avoiding the
+need to restart from the beginning.</p>
+
+<p>To use continuations, include the <a href="ActiveJob/Continuable.html" title="ActiveJob::Continuable (module)"><code>::ActiveJob::Continuable</code></a> module. You can then
+define each step using the <code>step</code> method inside the <code>perform</code> method. Each step can
+be declared with a block or by referencing a method name.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ProcessImportJob</span> <span class='op'>&lt;</span> <span class='const'>ApplicationJob</span>
+  <span class='id identifier rubyid_include'>include</span> <span class='const'><a href="ActiveJob.html" title="ActiveJob (module)">ActiveJob</a></span><span class='op'>::</span><span class='const'><a href="ActiveJob/Continuable.html" title="ActiveJob::Continuable (module)">Continuable</a></span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_perform'>perform</span>(<span class='id identifier rubyid_import_id'>import_id</span>)
+    <span class='comment'># Always runs on job start, even when resuming from an interrupted step.
+</span>    <span class='ivar'>@import</span> <span class='op'>=</span> <span class='const'>Import</span>.<span class='id identifier rubyid_find'>find</span>(<span class='id identifier rubyid_import_id'>import_id</span>)
+
+    <span class='comment'># Step defined using a block
+</span>    <span class='id identifier rubyid_step'>step</span> <span class='symbeg'>:</span><span class='id identifier rubyid_initialize'>initialize</span> <span class='kw'>do</span>
+      <span class='ivar'>@import</span>.<span class='id identifier rubyid_initialize'>initialize</span>
+    <span class='kw'>end</span>
+
+    <span class='comment'># Step with a cursor — progress is saved and resumed if the job is interrupted
+</span>    <span class='id identifier rubyid_step'>step</span> <span class='symbeg'>:</span><span class='id identifier rubyid_process'>process</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_step'>step</span><span class='op'>|</span>
+      <span class='ivar'>@import</span>.<span class='id identifier rubyid_records'>records</span>.<span class='id identifier rubyid_find_each'>find_each</span>(<span class='label'>start:</span> <span class='id identifier rubyid_step'>step</span>.<span class='id identifier rubyid_cursor'>cursor</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_record'>record</span><span class='op'>|</span>
+        <span class='id identifier rubyid_record'>record</span>.<span class='id identifier rubyid_process'>process</span>
+        <span class='id identifier rubyid_step'>step</span>.<span class='id identifier rubyid_advance!'>advance!</span> <span class='label'>from:</span> <span class='id identifier rubyid_record'>record</span>.<span class='id identifier rubyid_id'>id</span>
+      <span class='kw'>end</span>
+    <span class='kw'>end</span>
+
+    <span class='comment'># Step defined by referencing a method
+</span>    <span class='id identifier rubyid_step'>step</span> <span class='symbeg'>:</span><span class='id identifier rubyid_finalize'>finalize</span>
+  <span class='kw'>end</span>
+
+  <span class='id identifier rubyid_private'>private</span>
+    <span class='kw'>def</span> <span class='id identifier rubyid_finalize'>finalize</span>
+      <span class='ivar'>@import</span>.<span class='id identifier rubyid_finalize'>finalize</span>
+    <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Each step runs sequentially. If the job is interrupted between steps, or within a
+step that uses a cursor, the job resumes from the last recorded position. This
+makes it easier to build long-running or multi-phase jobs that can safely pause
+and resume without losing progress.
+For more details, see <a href="https://api.rubyonrails.org/classes/ActiveJob/Continuation.html">ActiveJob::Continuation</a>.</p>
+
 <h2>Callbacks</h2>
 
 <p>Active Job provides hooks to trigger logic during the life cycle of a job. Like
