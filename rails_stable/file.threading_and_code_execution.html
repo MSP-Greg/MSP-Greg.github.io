@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen' content='yes'>
+<meta name='mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Threading and Code Execution &mdash; Rails 8-0-stable</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "threading_and_code_execution",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>Rails 8-0-stable</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Threading and Code Execution&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<p><strong>DO NOT READ THIS FILE ON GITHUB, GUIDES ARE PUBLISHED ON <a href="https://guides.rubyonrails.org">https://guides.rubyonrails.org</a>.</strong></p>
+
+<h1>Threading and Code Execution in <a href="Rails.html" title="Rails (module)"><code>Rails</code></a></h1>
+
+<p>After reading this guide, you will know:</p>
+
+<ul>
+<li>What code <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> will automatically execute concurrently</li>
+<li>How to integrate manual concurrency with <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> internals</li>
+<li>How to wrap all application code</li>
+<li>How to affect application reloading</li>
+</ul>
+
+<hr>
+
+<h2>Automatic Concurrency</h2>
+
+<p><a href="Rails.html" title="Rails (module)"><code>Rails</code></a> automatically allows various operations to be performed at the same time.</p>
+
+<p>When using a threaded web server, such as the default Puma, multiple HTTP
+requests will be served simultaneously, with each request provided its own
+controller instance.</p>
+
+<p>Threaded Active Job adapters, including the built-in Async, will likewise
+execute several jobs at the same time. Action Cable channels are managed this
+way too.</p>
+
+<p>These mechanisms all involve multiple threads, each managing work for a unique
+instance of some object (controller, job, channel), while sharing the global
+process space (such as classes and their configurations, and global variables).
+As long as your code doesn&#39;t modify any of those shared things, it can mostly
+ignore that other threads exist.</p>
+
+<p>The rest of this guide describes the mechanisms <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> uses to make it &quot;mostly
+ignorable&quot;, and how extensions and applications with special needs can use them.</p>
+
+<h2>Executor</h2>
+
+<p>The Rails Executor separates application code from framework code: any time the
+framework invokes code you&#39;ve written in your application, it will be wrapped by
+the Executor.</p>
+
+<p>The Executor consists of two callbacks: <code>to_run</code> and <code>to_complete</code>. The Run
+callback is called before the application code, and the Complete callback is
+called after.</p>
+
+<h3>Default Callbacks</h3>
+
+<p>In a default <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> application, the Executor callbacks are used to:</p>
+
+<ul>
+<li>track which threads are in safe positions for autoloading and reloading</li>
+<li>enable and disable the Active Record query cache</li>
+<li>return acquired Active Record connections to the pool</li>
+<li>constrain internal cache lifetimes</li>
+</ul>
+
+<p>Prior to <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> 5.0, some of these were handled by separate <a href="Rack.html" title="Rack (module)"><code>Rack</code></a> middleware
+classes (such as <code>ActiveRecord::ConnectionAdapters::ConnectionManagement</code>), or
+directly wrapping code with methods like
+<code>ActiveRecord::Base.connection_pool.with_connection</code>. The Executor replaces
+these with a single more abstract interface.</p>
+
+<h3>Wrapping Application Code</h3>
+
+<p>If you&#39;re writing a library or component that will invoke application code, you
+should wrap it with a call to the executor:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_executor'>executor</span>.<span class='id identifier rubyid_wrap'>wrap</span> <span class='kw'>do</span>
+  <span class='comment'># call application code here
+</span><span class='kw'>end</span></code></pre>
+
+<p>TIP: If you repeatedly invoke application code from a long-running process, you
+may want to wrap using the <a href="#reloader">Reloader</a> instead.</p>
+
+<p>Each thread should be wrapped before it runs application code, so if your
+application manually delegates work to other threads, such as via <code>Thread.new</code>
+or Concurrent Ruby features that use thread pools, you should immediately wrap
+the block:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Thread</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+  <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_executor'>executor</span>.<span class='id identifier rubyid_wrap'>wrap</span> <span class='kw'>do</span>
+    <span class='comment'># your code here
+</span>  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>NOTE: Concurrent Ruby uses a <code>ThreadPoolExecutor</code>, which it sometimes configures
+with an <code>executor</code> option. Despite the name, it is unrelated.</p>
+
+<p>The Executor is safely re-entrant; if it is already active on the current
+thread, <code>wrap</code> is a no-op.</p>
+
+<p>If it&#39;s impractical to wrap the application code in a block (for
+example, the Rack API makes this problematic), you can also use the <code>run!</code> /
+<code>complete!</code> pair:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Thread</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_execution_context'>execution_context</span> <span class='op'>=</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_executor'>executor</span>.<span class='id identifier rubyid_run!'>run!</span>
+  <span class='comment'># your code here
+</span><span class='kw'>ensure</span>
+  <span class='id identifier rubyid_execution_context'>execution_context</span>.<span class='id identifier rubyid_complete!'>complete!</span> <span class='kw'>if</span> <span class='id identifier rubyid_execution_context'>execution_context</span>
+<span class='kw'>end</span></code></pre>
+
+<h3>Concurrency</h3>
+
+<p>The Executor will put the current thread into <code>running</code> mode in the <a href="#load-interlock">Load
+Interlock</a>. This operation will block temporarily if another
+thread is currently either autoloading a constant or unloading/reloading
+the application.</p>
+
+<h2>Reloader</h2>
+
+<p>Like the Executor, the Reloader also wraps application code. If the Executor is
+not already active on the current thread, the Reloader will invoke it for you,
+so you only need to call one. This also guarantees that everything the Reloader
+does, including all its callback invocations, occurs wrapped inside the
+Executor.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_reloader'>reloader</span>.<span class='id identifier rubyid_wrap'>wrap</span> <span class='kw'>do</span>
+  <span class='comment'># call application code here
+</span><span class='kw'>end</span></code></pre>
+
+<p>The Reloader is only suitable where a long-running framework-level process
+repeatedly calls into application code, such as for a web server or job queue.
+Rails automatically wraps web requests and Active Job workers, so you&#39;ll rarely
+need to invoke the Reloader for yourself. Always consider whether the Executor
+is a better fit for your use case.</p>
+
+<h3>Callbacks</h3>
+
+<p>Before entering the wrapped block, the Reloader will check whether the running
+application needs to be reloaded -- for example, because a model&#39;s source file has
+been modified. If it determines a reload is required, it will wait until it&#39;s
+safe, and then do so, before continuing. When the application is configured to
+always reload regardless of whether any changes are detected, the reload is
+instead performed at the end of the block.</p>
+
+<p>The Reloader also provides <code>to_run</code> and <code>to_complete</code> callbacks; they are
+invoked at the same points as those of the Executor, but only when the current
+execution has initiated an application reload. When no reload is deemed
+necessary, the Reloader will invoke the wrapped block with no other callbacks.</p>
+
+<h3>Class Unload</h3>
+
+<p>The most significant part of the reloading process is the Class Unload, where
+all autoloaded classes are removed, ready to be loaded again. This will occur
+immediately before either the Run or Complete callback, depending on the
+<code>reload_classes_only_on_change</code> setting.</p>
+
+<p>Often, additional reloading actions need to be performed either just before or
+just after the Class Unload, so the Reloader also provides <code>before_class_unload</code>
+and <code>after_class_unload</code> callbacks.</p>
+
+<h3>Concurrency</h3>
+
+<p>Only long-running &quot;top level&quot; processes should invoke the Reloader, because if
+it determines a reload is needed, it will block until all other threads have
+completed any Executor invocations.</p>
+
+<p>If this were to occur in a &quot;child&quot; thread, with a waiting parent inside the
+Executor, it would cause an unavoidable deadlock: the reload must occur before
+the child thread is executed, but it cannot be safely performed while the parent
+thread is mid-execution. Child threads should use the Executor instead.</p>
+
+<h2>Framework Behavior</h2>
+
+<p>The Rails framework components use these tools to manage their own concurrency
+needs too.</p>
+
+<p><a href="ActionDispatch/Executor.html" title="ActionDispatch::Executor (class)"><code>::ActionDispatch::Executor</code></a> and <a href="ActionDispatch/Reloader.html" title="ActionDispatch::Reloader (class)"><code>::ActionDispatch::Reloader</code></a> are Rack middlewares
+that wrap requests with a supplied Executor or Reloader, respectively. They
+are automatically included in the default application stack. The Reloader will
+ensure any arriving HTTP request is served with a freshly-loaded copy of the
+application if any code changes have occurred.</p>
+
+<p>Active Job also wraps its job executions with the Reloader, loading the latest
+code to execute each job as it comes off the queue.</p>
+
+<p>Action Cable uses the Executor instead: because a Cable connection is linked to
+a specific instance of a class, it&#39;s not possible to reload for every arriving
+WebSocket message. Only the message handler is wrapped, though; a long-running
+Cable connection does not prevent a reload that&#39;s triggered by a new incoming
+request or job. Instead, Action Cable uses the Reloader&#39;s <code>before_class_unload</code>
+callback to disconnect all its connections. When the client automatically
+reconnects, it will be speaking to the new version of the code.</p>
+
+<p>The above are the entry points to the framework, so they are responsible for
+ensuring their respective threads are protected, and deciding whether a reload
+is necessary. Other components only need to use the Executor when they spawn
+additional threads.</p>
+
+<h3>Configuration</h3>
+
+<p>The Reloader only checks for file changes when <code>config.enable_reloading</code> is
+<code>true</code> and so is <code>config.reload_classes_only_on_change</code>. These are the defaults in the
+<code>development</code> environment.</p>
+
+<p>When <code>config.enable_reloading</code> is <code>false</code> (in <code>production</code>, by default), the
+Reloader is only a pass-through to the Executor.</p>
+
+<p>The Executor always has important work to do, like database connection
+management. When <code>config.enable_reloading</code> is <code>false</code> and <code>config.eager_load</code> is
+<code>true</code> (<code>production</code> defaults), no reloading will occur, so it does not need the
+Load Interlock. With the default settings in the <code>development</code> environment, the
+Executor will use the Load Interlock to ensure constants are only loaded when it
+is safe.</p>
+
+<h2>Load Interlock</h2>
+
+<p>The Load Interlock allows autoloading and reloading to be enabled in a
+multi-threaded runtime environment.</p>
+
+<p>When one thread is performing an autoload by evaluating the class definition
+from the appropriate file, it is important no other thread encounters a
+reference to the partially-defined constant.</p>
+
+<p>Similarly, it is only safe to perform an unload/reload when no application code
+is in mid-execution: after the reload, the <code>User</code> constant, for example, may
+point to a different class. Without this rule, a poorly-timed reload would mean
+<code>User.new.class == User</code>, or even <code>User == User</code>, could be false.</p>
+
+<p>Both of these constraints are addressed by the Load Interlock. It keeps track of
+which threads are currently running application code, loading a class, or
+unloading autoloaded constants.</p>
+
+<p>Only one thread may load or unload at a time, and to do either, it must wait
+until no other threads are running application code. If a thread is waiting to
+perform a load, it doesn&#39;t prevent other threads from loading (in fact, they&#39;ll
+cooperate, and each perform their queued load in turn, before all resuming
+running together).</p>
+
+<h3><code>permit_concurrent_loads</code></h3>
+
+<p>The Executor automatically acquires a <code>running</code> lock for the duration of its
+block, and autoload knows when to upgrade to a <code>load</code> lock, and switch back to
+<code>running</code> again afterwards.</p>
+
+<p>Other blocking operations performed inside the Executor block (which includes
+all application code), however, can needlessly retain the <code>running</code> lock. If
+another thread encounters a constant it must autoload, this can cause a
+deadlock.</p>
+
+<p>For example, assuming <code>User</code> is not yet loaded, the following will deadlock:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_executor'>executor</span>.<span class='id identifier rubyid_wrap'>wrap</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_th'>th</span> <span class='op'>=</span> <span class='const'>Thread</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+    <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_executor'>executor</span>.<span class='id identifier rubyid_wrap'>wrap</span> <span class='kw'>do</span>
+      <span class='const'>User</span> <span class='comment'># inner thread waits here; it cannot load
+</span>           <span class='comment'># User while another thread is running
+</span>    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+
+  <span class='id identifier rubyid_th'>th</span>.<span class='id identifier rubyid_join'>join</span> <span class='comment'># outer thread waits here, holding &#39;running&#39; lock
+</span><span class='kw'>end</span></code></pre>
+
+<p>To prevent this deadlock, the outer thread can <code>permit_concurrent_loads</code>. By
+calling this method, the thread guarantees it will not dereference any
+possibly-autoloaded constant inside the supplied block. The safest way to meet
+that promise is to put it as close as possible to the blocking call:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_executor'>executor</span>.<span class='id identifier rubyid_wrap'>wrap</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_th'>th</span> <span class='op'>=</span> <span class='const'>Thread</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
+    <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_executor'>executor</span>.<span class='id identifier rubyid_wrap'>wrap</span> <span class='kw'>do</span>
+      <span class='const'>User</span> <span class='comment'># inner thread can acquire the &#39;load&#39; lock,
+</span>           <span class='comment'># load User, and continue
+</span>    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+
+  <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/Dependencies.html" title="ActiveSupport::Dependencies (module)">Dependencies</a></span>.<span class='id identifier rubyid_interlock'><a href="ActiveSupport/Dependencies.html#interlock-instance_method" title="ActiveSupport::Dependencies#interlock (method)">interlock</a></span>.<span class='id identifier rubyid_permit_concurrent_loads'>permit_concurrent_loads</span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_th'>th</span>.<span class='id identifier rubyid_join'>join</span> <span class='comment'># outer thread waits here, but has no lock
+</span>  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Another example, using Concurrent Ruby:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_executor'>executor</span>.<span class='id identifier rubyid_wrap'>wrap</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_futures'>futures</span> <span class='op'>=</span> <span class='int'>3</span>.<span class='id identifier rubyid_times'>times</span>.<span class='id identifier rubyid_collect'>collect</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_i'>i</span><span class='op'>|</span>
+    <span class='const'>Concurrent</span><span class='op'>::</span><span class='const'>Promises</span>.<span class='id identifier rubyid_future'>future</span> <span class='kw'>do</span>
+      <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_executor'>executor</span>.<span class='id identifier rubyid_wrap'>wrap</span> <span class='kw'>do</span>
+        <span class='comment'># do work here
+</span>      <span class='kw'>end</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+
+  <span class='id identifier rubyid_values'>values</span> <span class='op'>=</span> <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/Dependencies.html" title="ActiveSupport::Dependencies (module)">Dependencies</a></span>.<span class='id identifier rubyid_interlock'><a href="ActiveSupport/Dependencies.html#interlock-instance_method" title="ActiveSupport::Dependencies#interlock (method)">interlock</a></span>.<span class='id identifier rubyid_permit_concurrent_loads'>permit_concurrent_loads</span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_futures'>futures</span>.<span class='id identifier rubyid_collect'>collect</span>(<span class='op'>&amp;</span><span class='symbeg'>:</span><span class='id identifier rubyid_value'>value</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<h3>ActionDispatch::DebugLocks</h3>
+
+<p>If your application is deadlocking and you think the Load Interlock may be
+involved, you can temporarily add the ActionDispatch::DebugLocks middleware to
+<code>config/application.rb</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_middleware'>middleware</span>.<span class='id identifier rubyid_insert_before'>insert_before</span> <span class='const'><a href="Rack.html" title="Rack (module)">Rack</a></span><span class='op'>::</span><span class='const'>Sendfile</span><span class='comma'>,</span>
+                                  <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/DebugLocks.html" title="ActionDispatch::DebugLocks (class)">DebugLocks</a></span></code></pre>
+
+<p>If you then restart the application and re-trigger the deadlock condition,
+<code>/rails/locks</code> will show a summary of all threads currently known to the
+interlock, which lock level they are holding or awaiting, and their current
+backtrace.</p>
+
+<p>Generally a deadlock will be caused by the interlock conflicting with some other
+external lock or blocking I/O call. Once you find it, you can wrap it with
+<code>permit_concurrent_loads</code>.</p>
+
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>
