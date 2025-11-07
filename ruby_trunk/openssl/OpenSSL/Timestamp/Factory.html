@@ -79,7 +79,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ts.c#L1593'>ext/openssl/ossl_ts.c</a>      </td>
+      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ts.c#L1602'>ext/openssl/ossl_ts.c</a>      </td>
     </tr>
   </tbody>
 </table>
@@ -216,7 +216,7 @@
   <h3 class='signature rw first'>
     #<strong>additional_certs</strong>   <span class="extras">(<span class='rw'>rw</span>)</span>
   </h3>
-  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ts.c#L1598'>GitHub</a> ]</span>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ts.c#L1607'>GitHub</a> ]</span>
 
 </section>
 
@@ -224,7 +224,7 @@
   <h3 class='signature rw'>
     #<strong>allowed_digests</strong>   <span class="extras">(<span class='rw'>rw</span>)</span>
   </h3>
-  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ts.c#L1594'>GitHub</a> ]</span>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ts.c#L1603'>GitHub</a> ]</span>
 
 </section>
 
@@ -232,7 +232,7 @@
   <h3 class='signature rw'>
     #<strong>default_policy_id</strong>   <span class="extras">(<span class='rw'>rw</span>)</span>
   </h3>
-  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ts.c#L1595'>GitHub</a> ]</span>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ts.c#L1604'>GitHub</a> ]</span>
 
 </section>
 
@@ -240,7 +240,7 @@
   <h3 class='signature rw'>
     #<strong>gen_time</strong>   <span class="extras">(<span class='rw'>rw</span>)</span>
   </h3>
-  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ts.c#L1597'>GitHub</a> ]</span>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ts.c#L1606'>GitHub</a> ]</span>
 
 </section>
 
@@ -248,7 +248,7 @@
   <h3 class='signature rw'>
     #<strong>serial_number</strong>   <span class="extras">(<span class='rw'>rw</span>)</span>
   </h3>
-  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ts.c#L1596'>GitHub</a> ]</span>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ts.c#L1605'>GitHub</a> ]</span>
 
 </section>
 
@@ -283,17 +283,18 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ts.c#L1193-L1318'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ts.c#L1198-L1327'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1193' data-end='1318'></pre>
+  <pre class='lines_num' data-start='1198' data-end='1327'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ts.c', line 1193</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ts.c', line 1198</span></pre>
 <pre class='code cpp'>
 
 static VALUE
 ossl_tsfac_create_ts(VALUE self, VALUE key, VALUE certificate, VALUE request)
 {
-    VALUE serial_number, def_policy_id, gen_time, additional_certs, allowed_digests;
+    VALUE serial_number, def_policy_id, gen_time, additional_certs,
+          allowed_digests, allowed_digests_tmp = Qnil;
     VALUE str;
     STACK_OF(X509) *inter_certs;
     VALUE tsresp, ret = Qnil;
@@ -370,16 +371,18 @@ ossl_tsfac_create_ts(VALUE self, VALUE key, VALUE certificate, VALUE request)
 
     allowed_digests = ossl_tsfac_get_allowed_digests(self);
     if (rb_obj_is_kind_of(allowed_digests, rb_cArray)) {
-        int i;
-        VALUE rbmd;
-        const EVP_MD *md;
-
-        for (i = 0; i &lt; RARRAY_LEN(allowed_digests); i++) {
-            rbmd = rb_ary_entry(allowed_digests, i);
-            md = (const EVP_MD *)rb_protect(ossl_evp_get_digestbyname_i, rbmd, &amp;status);
+        allowed_digests_tmp = rb_ary_new_capa(RARRAY_LEN(allowed_digests));
+        for (long i = 0; i &lt; RARRAY_LEN(allowed_digests); i++) {
+            VALUE args[] = {
+                allowed_digests_tmp,
+                rb_ary_entry(allowed_digests, i),
+            };
+            const EVP_MD *md = (const EVP_MD *)rb_protect(ossl_evp_md_fetch_i,
+                                                          (VALUE)args, &amp;status);
             if (status)
                 goto end;
-            TS_RESP_CTX_add_md(ctx, md);
+            if (!TS_RESP_CTX_add_md(ctx, md))
+                goto end;
         }
     }
 
@@ -393,6 +396,7 @@ ossl_tsfac_create_ts(VALUE self, VALUE key, VALUE certificate, VALUE request)
 
     response = TS_RESP_create_response(ctx, req_bio);
     BIO_free(req_bio);
+    RB_GC_GUARD(allowed_digests_tmp);
 
     if (!response) {
         err_msg = &quot;Error during response generation&quot;;
