@@ -53,7 +53,7 @@
       <a href='../../'>Ruby-master</a> &raquo; 
       <a href='../'>Core</a> &raquo; 
       <a href='../_index.html#alpha_B'>Index (B)</a> &raquo; 
-        Ruby &raquo; 
+        <a href="../Ruby.html" title="Ruby (module)">Ruby</a> &raquo; 
       <span class='title'><a id='t2_doc_top' href='#'>Box&nbsp;&#x25B2;</a></span>
     </div>
 
@@ -113,7 +113,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2 o'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/box.c#L1062'>box.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/box.c#L1054'>box.c</a></span>
+      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/box.c#L1067'>box.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/box.c#L1059'>box.c</a></span>
       </td>
     </tr>
   </tbody>
@@ -123,8 +123,350 @@
 <div id='overview_ds'>
 <div class='docstring'>
   <div class='discussion'>
-    
-<p><code>Box</code> is designed to provide separated spaces in a Ruby process, to isolate applications and libraries. See {file:box.html }.</p>
+    <h1><a href="../Ruby.html" title="Ruby (module)"><code>::Ruby</code></a> Box - Ruby&#39;s in-process separation of Classes and Modules</h1>
+
+<p><a href="../Ruby.html" title="Ruby (module)"><code>::Ruby</code></a> Box is designed to provide separated spaces in a <a href="../Ruby.html" title="Ruby (module)"><code>::Ruby</code></a> process, to isolate applications and libraries.</p>
+
+<h2>Known issues</h2>
+
+<ul>
+<li>Experimental warning is shown when ruby starts with <code>RUBY_BOX=1</code> (specify <code>-W:no-experimental</code> option to hide it)</li>
+<li><code>bundle install</code> may fail</li>
+<li><code>require &#39;active_support&#39;</code> may fail</li>
+<li>A wrong current namespace detection happens sometimes in the root namespace</li>
+</ul>
+
+<h2>TODOs</h2>
+
+<ul>
+<li>Add the loaded namespace on iseq to check if another namespace tries running the iseq (add a field only when VM_CHECK_MODE?)</li>
+<li>Delete per-box extension files (.so) lazily or process exit</li>
+<li>Collect <code>rb_classext_t</code> entries for a box when <a href="../GC.html" title="GC (module)"><code>::GC</code></a> collects the box</li>
+<li>Assign its own <a href="../top-level-namespace.html#TOPLEVEL_BINDING-constant" title="TOPLEVEL_BINDING (constant)">TOPLEVEL_BINDING</a> in boxes</li>
+<li>Fix calling <code>warn</code> in boxes to refer <code>$VERBOSE</code> and <code>Warning.warn</code> in the box</li>
+<li>Make an internal data container <a href="Box/Entry.html" title="Ruby::Box::Entry (class)"><code>Entry</code></a> invisible</li>
+<li>More test cases about <code>$LOAD_PATH</code> and <code>$LOADED_FEATURES</code></li>
+<li>Return classpath and nesting without the namespace prefix in the namespace itself <a href="https://bugs.ruby-lang.org/issues/21316" target="_parent" title="{#21316">{#21316</a>}, <a href="https://bugs.ruby-lang.org/issues/21318" target="_parent" title="{#21318">{#21318</a>}</li>
+</ul>
+
+<h2>How to use</h2>
+
+<h3>Enabling Ruby Box</h3>
+
+<p>First, an environment variable should be set at the ruby process bootup: <code>RUBY_BOX=1</code>.
+The only valid value is <code>1</code> to enable namespace. Other values (or unset <code>RUBY_BOX</code>) means disabling namespace. And setting the value after <a href="../Ruby.html" title="Ruby (module)"><code>::Ruby</code></a> program starts doesn&#39;t work.</p>
+
+<h3>Using Ruby Box</h3>
+
+<p><code>Box</code> class is the entrypoint of <a href="../Ruby.html" title="Ruby (module)"><code>::Ruby</code></a> Box.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_box'>box</span> <span class='op'>=</span> <span class='const'><a href="../Ruby.html" title="Ruby (module)">Ruby</a></span><span class='op'>::</span><span class='const'>Box</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ruby::Box.new (method)">new</a></span>
+<span class='id identifier rubyid_box'>box</span>.<span class='id identifier rubyid_require'><a href="#require-instance_method" title="Ruby::Box#require (method)">require</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>something</span><span class='tstring_end'>&#39;</span></span>) <span class='comment'># or require_relative, load</span></code></pre>
+
+<p>The required file (either <code>.rb</code> or .so/.dll/.bundle) is loaded in the box (<code>box</code> here). The required/loaded files from <code>something</code> will be loaded in the box recursively.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># something.rb
+</span>
+<span class='const'>X</span> <span class='op'>=</span> <span class='int'>1</span>
+
+<span class='kw'>class</span> <span class='const'>Something</span>
+  <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_x'>x</span> <span class='op'>=</span> <span class='const'>X</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_x'>x</span> <span class='op'>=</span> <span class='op'>::</span><span class='const'>X</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Classes/modules, those methods and constants defined in the box can be accessed via <code>box</code> object.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>X</span> <span class='op'>=</span> <span class='int'>2</span>
+<span class='id identifier rubyid_p'>p</span> <span class='const'>X</span>                 <span class='comment'># 2
+</span><span class='id identifier rubyid_p'>p</span> <span class='op'>::</span><span class='const'>X</span>               <span class='comment'># 2
+</span><span class='id identifier rubyid_p'>p</span> <span class='id identifier rubyid_box'>box</span><span class='op'>::</span><span class='const'>Something</span>.<span class='id identifier rubyid_x'>x</span>  <span class='comment'># 1
+</span><span class='id identifier rubyid_p'>p</span> <span class='id identifier rubyid_box'>box</span><span class='op'>::</span><span class='const'>X</span>            <span class='comment'># 1</span></code></pre>
+
+<p>Instance methods defined in the box also run with definitions in the box.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_s'>s</span> <span class='op'>=</span> <span class='id identifier rubyid_box'>box</span><span class='op'>::</span><span class='const'>Something</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ruby::Box.new (method)">new</a></span>
+
+<span class='id identifier rubyid_p'>p</span> <span class='id identifier rubyid_s'>s</span>.<span class='id identifier rubyid_x'>x</span>  <span class='comment'># 1</span></code></pre>
+
+<h2>Specifications</h2>
+
+<h3>Ruby Box types</h3>
+
+<p>There are two box types:</p>
+
+<ul>
+<li>Root box</li>
+<li>User boxes</li>
+</ul>
+
+<p>There is the root box, just a single box in a Ruby process. Ruby bootstrap runs in the root box, and all builtin classes/modules are defined in the root box. (See &quot;Builtin classes and modules&quot;.)</p>
+
+<p>User boxes are to run user-written programs and libraries loaded from user programs. The user&#39;s main program (specified by the <code>ruby</code> command line argument) is executed in the &quot;main&quot; box, which is a user namespace automatically created at the end of Ruby&#39;s bootstrap, copied from the root box.</p>
+
+<p>When <a href="#new-class_method" title="Ruby::Box.new (method)">.new</a> is called, an &quot;optional&quot; box (a user, non-main box) is created, copied from the root box. All user boxes are flat, copied from the root box.</p>
+
+<h3>Ruby Box class and instances</h3>
+
+<p><code>Box</code> is a class, as a subclass of <a href="../Module.html" title="Module (class)"><code>::Module</code></a>. <code>Box</code> instances are a kind of <a href="../Module.html" title="Module (class)"><code>::Module</code></a>.</p>
+
+<h3>Classes and modules defined in boxes</h3>
+
+<p>The classes and modules, newly defined in a box <code>box</code>, are accessible via <code>box</code>. For example, if a class <code>A</code> is defined in <code>box</code>, it is accessible as <code>box::A</code> from outside of the box.</p>
+
+<p>In the box <code>box</code>, <code>A</code> can be referred to as <code>A</code> (and <code>::A</code>).</p>
+
+<h3>Built-in classes and modules reopened in boxes</h3>
+
+<p>In boxes, builtin classes/modules are visible and can be reopened. Those classes/modules can be reopened using <code>class</code> or <code>module</code> clauses, and class/module definitions can be changed.</p>
+
+<p>The changed definitions are visible only in the box. In other boxes, builtin classes/modules and those instances work without changed definitions.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># in foo.rb
+</span><span class='kw'>class</span> <span class='const'><a href="../String.html" title="String (class)">String</a></span>
+  <span class='const'>BLANK_PATTERN</span> <span class='op'>=</span> <span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>\A\s*\z</span><span class='regexp_end'>/</span></span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_blank?'>blank?</span>
+    <span class='kw'>self</span> <span class='op'>=~</span> <span class='const'>BLANK_PATTERN</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+
+<span class='kw'>module</span> <span class='const'>Foo</span>
+  <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_foo'>foo</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&quot;</span></span>
+
+  <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_foo_is_blank?'>foo_is_blank?</span>
+    <span class='id identifier rubyid_foo'>foo</span>.<span class='id identifier rubyid_blank?'>blank?</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+
+<span class='const'>Foo</span>.<span class='id identifier rubyid_foo'>foo</span>.<span class='id identifier rubyid_blank?'>blank?</span> <span class='comment'>#=&gt; false
+</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&quot;</span></span>.<span class='id identifier rubyid_blank?'>blank?</span>   <span class='comment'>#=&gt; false
+</span>
+<span class='comment'># in main.rb
+</span><span class='id identifier rubyid_box'>box</span> <span class='op'>=</span> <span class='const'><a href="../Ruby.html" title="Ruby (module)">Ruby</a></span><span class='op'>::</span><span class='const'>Box</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ruby::Box.new (method)">new</a></span>
+<span class='id identifier rubyid_box'>box</span>.<span class='id identifier rubyid_require'><a href="#require-instance_method" title="Ruby::Box#require (method)">require</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&#39;</span></span>)
+
+<span class='id identifier rubyid_box'>box</span><span class='op'>::</span><span class='const'>Foo</span>.<span class='id identifier rubyid_foo_is_blank?'>foo_is_blank?</span> <span class='comment'>#=&gt; false   (#blank? called in box)
+</span>
+<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&quot;</span></span>.<span class='id identifier rubyid_blank?'>blank?</span>          <span class='comment'># NoMethodError
+</span><span class='const'><a href="../String.html" title="String (class)">String</a></span><span class='op'>::</span><span class='const'>BLANK_PATTERN</span> <span class='comment'># NameError</span></code></pre>
+
+<p>The main box and <code>box</code> are different boxes, so monkey patches in main are also invisible in <code>box</code>.</p>
+
+<h3>Builtin classes and modules</h3>
+
+<p>In the box context, &quot;builtin&quot; classes and modules are classes and modules:</p>
+
+<ul>
+<li>Accessible without any <a href="#require-instance_method" title="Ruby::Box#require (method)">#require</a> calls in user scripts</li>
+<li>Defined before any user program start running</li>
+<li>Including classes/modules loaded by <code>prelude.rb</code> (including RubyGems <code>Gem</code>, for example)</li>
+</ul>
+
+<p>Hereafter, &quot;builtin classes and modules&quot; will be referred to as just &quot;builtin classes&quot;.</p>
+
+<h3>Builtin classes referred via box objects</h3>
+
+<p>Builtin classes in a box <code>box</code> can be referred from other boxes. For example, <code>box::String</code> is a valid reference, and <a href="../String.html" title="String (class)"><code>::String</code></a> and <code>box::String</code> are identical (<code>String == box::String</code>, <code>String.object_id == box::String.object_id</code>).</p>
+
+<p><code>box::String</code>-like reference returns just a <a href="../String.html" title="String (class)"><code>::String</code></a> in the current box, so its definition is <a href="../String.html" title="String (class)"><code>::String</code></a> in the box, not in <code>box</code>.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># foo.rb
+</span><span class='kw'>class</span> <span class='const'><a href="../String.html" title="String (class)">String</a></span>
+  <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_foo'>foo</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&quot;</span></span>
+<span class='kw'>end</span>
+
+<span class='comment'># main.rb
+</span><span class='id identifier rubyid_box'>box</span> <span class='op'>=</span> <span class='const'><a href="../Ruby.html" title="Ruby (module)">Ruby</a></span><span class='op'>::</span><span class='const'>Box</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ruby::Box.new (method)">new</a></span>
+<span class='id identifier rubyid_box'>box</span>.<span class='id identifier rubyid_require'><a href="#require-instance_method" title="Ruby::Box#require (method)">require</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&#39;</span></span>)
+
+<span class='id identifier rubyid_box'>box</span><span class='op'>::</span><span class='const'><a href="../String.html" title="String (class)">String</a></span>.<span class='id identifier rubyid_foo'>foo</span>  <span class='comment'># NoMethodError</span></code></pre>
+
+<h3>Class instance variables, class variables, constants</h3>
+
+<p>Builtin classes can have different sets of class instance variables, class variables and constants between boxes.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># foo.rb
+</span><span class='kw'>class</span> <span class='const'><a href="../Array.html" title="Array (class)">Array</a></span>
+  <span class='ivar'>@v</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&quot;</span></span>
+  <span class='cvar'>@@v</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>_foo_</span><span class='tstring_end'>&quot;</span></span>
+  <span class='const'>V</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>FOO</span><span class='tstring_end'>&quot;</span></span>
+<span class='kw'>end</span>
+
+<span class='const'><a href="../Array.html" title="Array (class)">Array</a></span>.<span class='id identifier rubyid_instance_variable_get'><a href="../Object.html#instance_variable_get-instance_method" title="Object#instance_variable_get (method)">instance_variable_get</a></span>(<span class='symbeg'>:</span><span class='ivar'>@v</span>) <span class='comment'>#=&gt; &quot;foo&quot;
+</span><span class='const'><a href="../Array.html" title="Array (class)">Array</a></span>.<span class='id identifier rubyid_class_variable_get'>class_variable_get</span>(<span class='symbeg'>:</span><span class='cvar'>@@v</span>)   <span class='comment'>#=&gt; &quot;_foo_&quot;
+</span><span class='const'><a href="../Array.html" title="Array (class)">Array</a></span>.<span class='id identifier rubyid_const_get'>const_get</span>(<span class='symbeg'>:</span><span class='const'>V</span>)              <span class='comment'>#=&gt; &quot;FOO&quot;
+</span>
+<span class='comment'># main.rb
+</span><span class='id identifier rubyid_box'>box</span> <span class='op'>=</span> <span class='const'><a href="../Ruby.html" title="Ruby (module)">Ruby</a></span><span class='op'>::</span><span class='const'>Box</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ruby::Box.new (method)">new</a></span>
+<span class='id identifier rubyid_box'>box</span>.<span class='id identifier rubyid_require'><a href="#require-instance_method" title="Ruby::Box#require (method)">require</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&#39;</span></span>)
+
+<span class='const'><a href="../Array.html" title="Array (class)">Array</a></span>.<span class='id identifier rubyid_instance_variable_get'><a href="../Object.html#instance_variable_get-instance_method" title="Object#instance_variable_get (method)">instance_variable_get</a></span>(<span class='symbeg'>:</span><span class='ivar'>@v</span>) <span class='comment'>#=&gt; nil
+</span><span class='const'><a href="../Array.html" title="Array (class)">Array</a></span>.<span class='id identifier rubyid_class_variable_get'>class_variable_get</span>(<span class='symbeg'>:</span><span class='cvar'>@@v</span>)   <span class='comment'># NameError
+</span><span class='const'><a href="../Array.html" title="Array (class)">Array</a></span>.<span class='id identifier rubyid_const_get'>const_get</span>(<span class='symbeg'>:</span><span class='const'>V</span>)              <span class='comment'># NameError</span></code></pre>
+
+<h3>Global variables</h3>
+
+<p>In boxes, changes on global variables are also isolated in the boxes. Changes on global variables in a box are visible/applied only in the box.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># foo.rb
+</span><span class='gvar'>$foo</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&quot;</span></span>
+<span class='gvar'>$VERBOSE</span> <span class='op'>=</span> <span class='kw'>nil</span>
+
+<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>This appears: &#39;</span><span class='embexpr_beg'>#{</span><span class='gvar'>$foo</span><span class='embexpr_end'>}</span><span class='tstring_content'>&#39;</span><span class='tstring_end'>&quot;</span></span>
+
+<span class='comment'># main.rb
+</span><span class='id identifier rubyid_p'>p</span> <span class='gvar'>$foo</span>      <span class='comment'>#=&gt; nil
+</span><span class='id identifier rubyid_p'>p</span> <span class='gvar'>$VERBOSE</span>  <span class='comment'>#=&gt; false
+</span>
+<span class='id identifier rubyid_box'>box</span> <span class='op'>=</span> <span class='const'><a href="../Ruby.html" title="Ruby (module)">Ruby</a></span><span class='op'>::</span><span class='const'>Box</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ruby::Box.new (method)">new</a></span>
+<span class='id identifier rubyid_box'>box</span>.<span class='id identifier rubyid_require'><a href="#require-instance_method" title="Ruby::Box#require (method)">require</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&#39;</span></span>)  <span class='comment'># &quot;This appears: &#39;foo&#39;&quot;
+</span>
+<span class='id identifier rubyid_p'>p</span> <span class='gvar'>$foo</span>      <span class='comment'>#=&gt; nil
+</span><span class='id identifier rubyid_p'>p</span> <span class='gvar'>$VERBOSE</span>  <span class='comment'>#=&gt; false</span></code></pre>
+
+<h3>Top level constants</h3>
+
+<p>Usually, top level constants are defined as constants of <a href="../Object.html" title="Object (class)"><code>::Object</code></a>. In boxes, top level constants are constants of <a href="../Object.html" title="Object (class)"><code>::Object</code></a> in the box. And the box object <code>box</code>&#39;s constants are strictly equal to constants of <a href="../Object.html" title="Object (class)"><code>::Object</code></a>.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># foo.rb
+</span><span class='const'>FOO</span> <span class='op'>=</span> <span class='int'>100</span>
+
+<span class='const'>FOO</span>         <span class='comment'>#=&gt; 100
+</span><span class='const'><a href="../Object.html" title="Object (class)">Object</a></span><span class='op'>::</span><span class='const'>FOO</span> <span class='comment'>#=&gt; 100
+</span>
+<span class='comment'># main.rb
+</span><span class='id identifier rubyid_box'>box</span> <span class='op'>=</span> <span class='const'><a href="../Ruby.html" title="Ruby (module)">Ruby</a></span><span class='op'>::</span><span class='const'>Box</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ruby::Box.new (method)">new</a></span>
+<span class='id identifier rubyid_box'>box</span>.<span class='id identifier rubyid_require'><a href="#require-instance_method" title="Ruby::Box#require (method)">require</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&#39;</span></span>)
+
+<span class='id identifier rubyid_box'>box</span><span class='op'>::</span><span class='const'>FOO</span>      <span class='comment'>#=&gt; 100
+</span>
+<span class='const'>FOO</span>          <span class='comment'># NameError
+</span><span class='const'><a href="../Object.html" title="Object (class)">Object</a></span><span class='op'>::</span><span class='const'>FOO</span>  <span class='comment'># NameError</span></code></pre>
+
+<h3>Top level methods</h3>
+
+<p>Top level methods are private instance methods of <a href="../Object.html" title="Object (class)"><code>::Object</code></a>, in each box.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># foo.rb
+</span><span class='kw'>def</span> <span class='id identifier rubyid_yay'>yay</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&quot;</span></span>
+
+<span class='kw'>class</span> <span class='const'>Foo</span>
+  <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_say'>say</span> <span class='op'>=</span> <span class='id identifier rubyid_yay'>yay</span>
+<span class='kw'>end</span>
+
+<span class='const'>Foo</span>.<span class='id identifier rubyid_say'>say</span> <span class='comment'>#=&gt; &quot;foo&quot;
+</span><span class='id identifier rubyid_yay'>yay</span>     <span class='comment'>#=&gt; &quot;foo&quot;
+</span>
+<span class='comment'># main.rb
+</span><span class='id identifier rubyid_box'>box</span> <span class='op'>=</span> <span class='const'><a href="../Ruby.html" title="Ruby (module)">Ruby</a></span><span class='op'>::</span><span class='const'>Box</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ruby::Box.new (method)">new</a></span>
+<span class='id identifier rubyid_box'>box</span>.<span class='id identifier rubyid_require'><a href="#require-instance_method" title="Ruby::Box#require (method)">require</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&#39;</span></span>)
+
+<span class='id identifier rubyid_box'>box</span>.<span class='const'>Foo</span>.<span class='id identifier rubyid_say'>say</span>  <span class='comment'>#=&gt; &quot;foo&quot;
+</span>
+<span class='id identifier rubyid_yay'>yay</span>  <span class='comment'># NoMethodError</span></code></pre>
+
+<p>There is no way to expose top level methods in boxes to others.
+(See &quot;Expose top level methods as a method of the box object&quot; in &quot;Discussions&quot; section below)</p>
+
+<h3>Ruby Box scopes</h3>
+
+<p>Ruby Box works in file scope. One <code>.rb</code> file runs in a single box.</p>
+
+<p>Once a file is loaded in a box <code>box</code>, all methods/procs defined/created in the file run in <code>box</code>.</p>
+
+<h2>Implementation details</h2>
+
+<h4>ISeq inline method/constant cache</h4>
+
+<p>As described above in &quot;Ruby Box scopes&quot;, an &quot;.rb&quot; file runs in a box. So method/constant resolution will be done in a box consistently.</p>
+
+<p>That means ISeq inline caches work well even with boxes. Otherwise, it&#39;s a bug.</p>
+
+<h4>Method call global cache (gccct)</h4>
+
+<p><code>rb_funcall()</code> C function refers to the global cc cache table (gccct), and the cache key is calculated with the current box.</p>
+
+<p>So, <code>rb_funcall()</code> calls have a performance penalty when Ruby Box is enabled.</p>
+
+<h4>Current box and loading box</h4>
+
+<p>The current box is the box that the executing code is in. <a href="#current-class_method" title="Ruby::Box.current (method)">.current</a> returns the current box object.</p>
+
+<p>The loading box is an internally managed box to determine the box to load newly required/loaded files. For example, <code>box</code> is the loading box when <code>box.require(&quot;foo&quot;)</code> is called.</p>
+
+<h2>Discussions</h2>
+
+<h4>More builtin methods written in Ruby</h4>
+
+<p>If Ruby Box is enabled by default, builtin methods can be written in Ruby because it can&#39;t be overridden by users&#39; monkey patches. Builtin Ruby methods can be JIT-ed, and it could bring performance reward.</p>
+
+<h4>Monkey patching methods called by builtin methods</h4>
+
+<p>Builtin methods sometimes call other builtin methods. For example, <code>Hash#map</code> calls <a href="../Hash.html#each-instance_method" title="Hash#each (method)">Hash#each</a> to retrieve entries to be mapped. Without Ruby Box, Ruby users can overwrite <a href="../Hash.html#each-instance_method" title="Hash#each (method)">Hash#each</a> and expect the behavior change of <code>Hash#map</code> as a result.</p>
+
+<p>But with boxes, <code>Hash#map</code> runs in the root box. Ruby users can define <a href="../Hash.html#each-instance_method" title="Hash#each (method)">Hash#each</a> only in user boxes, so users cannot change <code>Hash#map</code>&#39;s behavior in this case. To achieve it, users should override both<code>Hash#map</code> and <a href="../Hash.html#each-instance_method" title="Hash#each (method)">Hash#each</a> (or only <code>Hash#map</code>).</p>
+
+<p>It is a breaking change.</p>
+
+<p>Users can define methods using <code>Ruby::Box.root.eval(...)</code>, but it&#39;s clearly not ideal API.</p>
+
+<h4>Context of <code>$LOAD_PATH</code> and <code>$LOADED_FEATURES</code></h4>
+
+<p>Global variables <code>$LOAD_PATH</code> and <code>$LOADED_FEATURES</code> control <a href="#require-instance_method" title="Ruby::Box#require (method)">#require</a> method behaviors. So those variables are determined by the loading box instead of the current box.</p>
+
+<p>This could potentially conflict with the user&#39;s expectations. We should find the solution.</p>
+
+<h4>Expose top level methods as a method of the box object</h4>
+
+<p>Currently, top level methods in boxes are not accessible from outside of the box. But there might be a use case to call other box&#39;s top level methods.</p>
+
+<h4>Split root and builtin box</h4>
+
+<p>Currently, the single &quot;root&quot; box is the source of classext CoW. And also, the &quot;root&quot; box can load additional files after starting main script evaluation by calling methods which contain lines like <code>require &quot;openssl&quot;</code>.</p>
+
+<p>That means, user boxes can have different sets of definitions according to when it is created.</p>
+
+<pre class="code ruby"><code class="ruby">[<span class='id identifier rubyid_root'><a href="../top-level-namespace.html" title="Top Level Namespace (root)">root</a></span>]
+ <span class='op'>|</span>
+ <span class='op'>|</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span>[<span class='id identifier rubyid_main'><a href="#main-class_method" title="Ruby::Box.main (method)">main</a></span>]
+ <span class='op'>|</span>
+ <span class='op'>|</span>(<span class='id identifier rubyid_require'><a href="#require-instance_method" title="Ruby::Box#require (method)">require</a></span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>openssl</span><span class='tstring_end'>&quot;</span></span> <span class='id identifier rubyid_called'>called</span> <span class='kw'>in</span> <span class='id identifier rubyid_root'><a href="../top-level-namespace.html" title="Top Level Namespace (root)">root</a></span>)
+ <span class='op'>|</span>
+ <span class='op'>|</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span>[<span class='id identifier rubyid_box1'>box1</span>] <span class='id identifier rubyid_having'>having</span> <span class='const'>OpenSSL</span>
+ <span class='op'>|</span>
+ <span class='op'>|</span>(<span class='id identifier rubyid_remove_const'>remove_const</span> <span class='id identifier rubyid_called'>called</span> <span class='kw'>for</span> <span class='const'>OpenSSL</span> <span class='kw'>in</span> <span class='id identifier rubyid_root'><a href="../top-level-namespace.html" title="Top Level Namespace (root)">root</a></span>)
+ <span class='op'>|</span>
+ <span class='op'>|</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span>[<span class='id identifier rubyid_box2'>box2</span>] <span class='id identifier rubyid_without'>without</span> <span class='const'>OpenSSL</span></code></pre>
+
+<p>This could cause unexpected behavior differences between user boxes. It should NOT be a problem because user scripts which refer to <code>OpenSSL</code> should call <code>require &quot;openssl&quot;</code> by themselves.
+But in the worst case, a script (without <code>require &quot;openssl&quot;</code>) runs well in <code>box1</code>, but doesn&#39;t run in <code>box2</code>. This situation looks like a &quot;random failure&quot; to users.</p>
+
+<p>An option possible to prevent this situation is to have &quot;root&quot; and &quot;builtin&quot; boxes.</p>
+
+<ul>
+<li>root
+
+<ul>
+<li>The box for the Ruby process bootstrap, then the source of CoW</li>
+<li>After starting the main box, no code runs in this box</li>
+</ul></li>
+<li>builtin
+
+<ul>
+<li>The box copied from the root box at the same time with &quot;main&quot;</li>
+<li>Methods and procs defined in the &quot;root&quot; box run in this box</li>
+<li>Classes and modules required will be loaded in this box</li>
+</ul></li>
+</ul>
+
+<p>This design realizes a consistent source of box CoW.</p>
+
+<h4>Separate <code>cc_tbl</code> and <code>callable_m_tbl</code>, <code>cvc_tbl</code> for less classext CoW</h4>
+
+<p>The fields of <code>rb_classext_t</code> contains several cache(-like) data, <code>cc_tbl</code>(callcache table), <code>callable_m_tbl</code>(table of resolved complemented methods) and <code>cvc_tbl</code>(class variable cache table).</p>
+
+<p>The classext CoW is triggered when the contents of <code>rb_classext_t</code> are changed, including <code>cc_tbl</code>, <code>callable_m_tbl</code>, and <code>cvc_tbl</code>. But those three tables are changed by just calling methods or referring class variables. So, currently, classext CoW is triggered much more times than the original expectation.</p>
+
+<p>If we can move those three tables outside of <code>rb_classext_t</code>, the number of copied <code>rb_classext_t</code> will be much less than the current implementation.</p>
 
   </div>
 </div>
@@ -289,7 +631,7 @@
     </tr>
     <tr class='i_ds'>
       <td><a class='i_m ' href="../Module.html#<=>-instance_method" title="Module#&lt;=&gt; (method)">#<=></a></td>
-      <td><div class='inline'><p>Comparison—Returns -1, 0, +1 or nil depending on whether <code>module</code> includes <code>other_module</code>, they are the same, or if <code>module</code> is included by <code>other_module</code>.</p></div></td>
+      <td><div class='inline'><p>Returns:</p></div></td>
     </tr>
     <tr class='i_ds'>
       <td><a class='i_m ' href="../Module.html#==-instance_method" title="Module#== (method)">#==</a></td>
@@ -381,7 +723,7 @@
     </tr>
     <tr class='i_ds'>
       <td><a class='i_m ' href="../Module.html#const_source_location-instance_method" title="Module#const_source_location (method)">#const_source_location</a></td>
-      <td><div class='inline'><p>Returns the Ruby source filename and line number containing the definition of the constant specified.</p></div></td>
+      <td><div class='inline'><p>Returns the <a href="../Ruby.html" title="Ruby (module)"><code>::Ruby</code></a> source filename and line number containing the definition of the constant specified.</p></div></td>
     </tr>
     <tr class='i_ds'>
       <td><a class='i_m ' href="../Module.html#constants-instance_method" title="Module#constants (method)">#constants</a></td>
@@ -517,7 +859,7 @@
     </tr>
     <tr class='i_ds'>
       <td><a class='i_m priv' href="../Module.html#append_features-instance_method" title="Module#append_features (method)">#append_features</a></td>
-      <td><div class='inline'><p>When this module is included in another, Ruby calls <code>#append_features</code> in this module, passing it the receiving module in <em>mod</em>.</p></div></td>
+      <td><div class='inline'><p>When this module is included in another, <a href="../Ruby.html" title="Ruby (module)"><code>::Ruby</code></a> calls <code>#append_features</code> in this module, passing it the receiving module in <em>mod</em>.</p></div></td>
     </tr>
     <tr class='i_ds'>
       <td><a class='i_m priv' href="../Module.html#const_added-instance_method" title="Module#const_added (method)">#const_added</a></td>
@@ -553,7 +895,7 @@
     </tr>
     <tr class='i_ds'>
       <td><a class='i_m priv' href="../Module.html#prepend_features-instance_method" title="Module#prepend_features (method)">#prepend_features</a></td>
-      <td><div class='inline'><p>When this module is prepended in another, Ruby calls <code>#prepend_features</code> in this module, passing it the receiving module in <em>mod</em>.</p></div></td>
+      <td><div class='inline'><p>When this module is prepended in another, <a href="../Ruby.html" title="Ruby (module)"><code>::Ruby</code></a> calls <code>#prepend_features</code> in this module, passing it the receiving module in <em>mod</em>.</p></div></td>
     </tr>
     <tr class='i_ds'>
       <td><a class='i_m priv' href="../Module.html#prepended-instance_method" title="Module#prepended (method)">#prepended</a></td>
@@ -692,7 +1034,7 @@ rb_box_s_getenabled(VALUE recv)
 <div class='docstring'>
   <div class='discussion'>
     
-<p>Returns the current box. Returns <code>nil</code> if Ruby Box is not enabled.</p>
+<p>Returns the current box. Returns <code>nil</code> if <a href="../Ruby.html" title="Ruby (module)"><code>::Ruby</code></a> Box is not enabled.</p>
 
   </div>
 </div>
@@ -727,11 +1069,11 @@ rb_box_s_current(VALUE recv)
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/box.c#L886-L890'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/box.c#L892-L896'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='886' data-end='890'></pre>
+  <pre class='lines_num' data-start='892' data-end='896'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'box.c', line 886</span></pre>
+<pre><span class='info file'># File 'box.c', line 892</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -751,11 +1093,11 @@ rb_box_s_main(VALUE recv)
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/box.c#L879-L883'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/box.c#L885-L889'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='879' data-end='883'></pre>
+  <pre class='lines_num' data-start='885' data-end='889'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'box.c', line 879</span></pre>
+<pre><span class='info file'># File 'box.c', line 885</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -776,11 +1118,11 @@ rb_box_s_root(VALUE recv)
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/box.c#L901-L906'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/box.c#L907-L912'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='901' data-end='906'></pre>
+  <pre class='lines_num' data-start='907' data-end='912'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'box.c', line 901</span></pre>
+<pre><span class='info file'># File 'box.c', line 907</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -801,11 +1143,11 @@ rb_box_main_p(VALUE box_value)
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/box.c#L893-L898'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/box.c#L899-L904'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='893' data-end='898'></pre>
+  <pre class='lines_num' data-start='899' data-end='904'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'box.c', line 893</span></pre>
+<pre><span class='info file'># File 'box.c', line 899</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -824,11 +1166,11 @@ rb_box_root_p(VALUE box_value)
   <h3 class='signature  first'>
     #<strong>eval</strong>(str)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/box.c#L769-L783'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/box.c#L775-L789'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='769' data-end='783'></pre>
+  <pre class='lines_num' data-start='775' data-end='789'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'box.c', line 769</span></pre>
+<pre><span class='info file'># File 'box.c', line 775</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -855,11 +1197,11 @@ rb_box_eval(VALUE box_value, VALUE str)
   <h3 class='signature '>
     #<strong>inspect</strong>  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/box.c#L818-L844'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/box.c#L824-L850'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='818' data-end='844'></pre>
+  <pre class='lines_num' data-start='824' data-end='850'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'box.c', line 818</span></pre>
+<pre><span class='info file'># File 'box.c', line 824</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -905,11 +1247,11 @@ rb_box_inspect(VALUE obj)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/box.c#L695-L705'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/box.c#L701-L711'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='695' data-end='705'></pre>
+  <pre class='lines_num' data-start='701' data-end='711'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'box.c', line 695</span></pre>
+<pre><span class='info file'># File 'box.c', line 701</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -960,11 +1302,11 @@ rb_box_load_path(VALUE box)
   <h3 class='signature '>
     #<strong>require</strong>(fname)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/box.c#L707-L713'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/box.c#L713-L719'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='707' data-end='713'></pre>
+  <pre class='lines_num' data-start='713' data-end='719'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'box.c', line 707</span></pre>
+<pre><span class='info file'># File 'box.c', line 713</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -983,11 +1325,11 @@ rb_box_require(VALUE box, VALUE fname)
   <h3 class='signature '>
     #<strong>require_relative</strong>(fname)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/box.c#L715-L721'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/box.c#L721-L727'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='715' data-end='721'></pre>
+  <pre class='lines_num' data-start='721' data-end='727'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'box.c', line 715</span></pre>
+<pre><span class='info file'># File 'box.c', line 721</span></pre>
 <pre class='code cpp'>
 
 static VALUE
