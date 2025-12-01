@@ -4,8 +4,8 @@
 
 <meta charset='utf-8'>
 <meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
-<meta name='apple-touch-fullscreen'       content='yes'>
-<meta name='apple-mobile-web-app-capable' content='yes'>
+<meta name='apple-touch-fullscreen' content='yes'>
+<meta name='mobile-web-app-capable' content='yes'>
 <meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
 
 <title>Class: Concurrent::TimerTask &mdash; Concurrent Ruby master</title>
@@ -121,42 +121,93 @@
 <div id='overview_ds'>
 <div class='docstring'>
   <div class='discussion'>
-    
-<p>A very common concurrency pattern is to run a thread that performs a task at regular intervals. The thread that performs the task sleeps for the given interval then wakes up and performs the task. Lather, rinse, repeat… This pattern causes two problems. First, it is difficult to test the business logic of the task because the task itself is tightly coupled with the concurrency logic. Second, an exception raised while performing the task can cause the entire thread to abend. In a long-running application where the task thread is intended to run for days/weeks/years a crashed task thread can pose a significant problem. <code>TimerTask</code> alleviates both problems.</p>
+    <p>A very common concurrency pattern is to run a thread that performs a task at
+regular intervals. The thread that performs the task sleeps for the given
+interval then wakes up and performs the task. Lather, rinse, repeat... This
+pattern causes two problems. First, it is difficult to test the business
+logic of the task because the task itself is tightly coupled with the
+concurrency logic. Second, an exception raised while performing the task can
+cause the entire thread to abend. In a long-running application where the
+task thread is intended to run for days/weeks/years a crashed task thread
+can pose a significant problem. <code>TimerTask</code> alleviates both problems.</p>
 
-<p>When a <code>TimerTask</code> is launched it starts a thread for monitoring the execution interval. The <code>TimerTask</code> thread does not perform the task, however. Instead, the <code>TimerTask</code> launches the task on a separate thread. Should the task experience an unrecoverable crash only the task thread will crash. This makes the <code>TimerTask</code> very fault tolerant. Additionally, the <code>TimerTask</code> thread can respond to the success or failure of the task, performing logging or ancillary operations.</p>
+<p>When a <code>TimerTask</code> is launched it starts a thread for monitoring the
+execution interval. The <code>TimerTask</code> thread does not perform the task,
+however. Instead, the <code>TimerTask</code> launches the task on a separate thread.
+Should the task experience an unrecoverable crash only the task thread will
+crash. This makes the <code>TimerTask</code> very fault tolerant. Additionally, the
+<code>TimerTask</code> thread can respond to the success or failure of the task,
+performing logging or ancillary operations.</p>
 
-<p>One other advantage of <code>TimerTask</code> is that it forces the business logic to be completely decoupled from the concurrency logic. The business logic can be tested separately then passed to the <code>TimerTask</code> for scheduling and running.</p>
+<p>One other advantage of <code>TimerTask</code> is that it forces the business logic to
+be completely decoupled from the concurrency logic. The business logic can
+be tested separately then passed to the <code>TimerTask</code> for scheduling and
+running.</p>
 
-<p>A <code>TimerTask</code> supports two different types of interval calculations. A fixed delay will always wait the same amount of time between the completion of one task and the start of the next. A fixed rate will attempt to maintain a constant rate of execution regardless of the duration of the task. For example, if a fixed rate task is scheduled to run every 60 seconds but the task itself takes 10 seconds to complete, the next task will be scheduled to run 50 seconds after the start of the previous task. If the task takes 70 seconds to complete, the next task will be start immediately after the previous task completes. Tasks will not be executed concurrently.</p>
+<p>A <code>TimerTask</code> supports two different types of interval calculations.
+A fixed delay will always wait the same amount of time between the
+completion of one task and the start of the next. A fixed rate will
+attempt to maintain a constant rate of execution regardless of the
+duration of the task. For example, if a fixed rate task is scheduled
+to run every 60 seconds but the task itself takes 10 seconds to
+complete, the next task will be scheduled to run 50 seconds after
+the start of the previous task. If the task takes 70 seconds to
+complete, the next task will be start immediately after the previous
+task completes. Tasks will not be executed concurrently.</p>
 
-<p>In some cases it may be necessary for a <code>TimerTask</code> to affect its own execution cycle. To facilitate this, a reference to the <code>TimerTask</code> instance is passed as an argument to the provided block every time the task is executed.</p>
+<p>In some cases it may be necessary for a <code>TimerTask</code> to affect its own
+execution cycle. To facilitate this, a reference to the <code>TimerTask</code> instance
+is passed as an argument to the provided block every time the task is
+executed.</p>
 
-<p>The <code>TimerTask</code> class includes the <code>Dereferenceable</code> mixin module so the result of the last execution is always available via the <code>#value</code> method. Dereferencing options can be passed to the <code>TimerTask</code> during construction or at any later time using the <code>#set_deref_options</code> method.</p>
+<p>The <code>TimerTask</code> class includes the <code>Dereferenceable</code> mixin module so the
+result of the last execution is always available via the <code>#value</code> method.
+Dereferencing options can be passed to the <code>TimerTask</code> during construction or
+at any later time using the <code>#set_deref_options</code> method.</p>
 
-<p><code>TimerTask</code> supports notification through the Ruby standard library <a href="http://ruby-doc.org/stdlib-2.0/libdoc/observer/rdoc/Observable.html" target="_parent" title="Observable">Observable</a> module. On execution the <code>TimerTask</code> will notify the observers with three arguments: time of execution, the result of the block (or nil on failure), and any raised exceptions (or nil on success).</p>
+<p><code>TimerTask</code> supports notification through the Ruby standard library
+<a href="http://ruby-doc.org/stdlib-2.0/libdoc/observer/rdoc/Observable.html" target="_parent" title="Observable">Observable</a> module. On execution the <code>TimerTask</code> will notify the observers
+with three arguments: time of execution, the result of the block (or nil on
+failure), and any raised exceptions (or nil on success).</p>
 
-<p>## Copy Options</p>
+<h2>Copy Options</h2>
 
-<p><a href="../Object.html" title="Object (class)"><code>::Object</code></a> references in Ruby are mutable. This can lead to serious problems when the <code>#value</code> of an object is a mutable reference. Which is always the case unless the value is a <code>Fixnum</code>, <code>Symbol</code>, or similar “primitive” data type. Each instance can be configured with a few options that can help protect the program from potentially dangerous operations. Each of these options can be optionally set when the object instance is created:</p>
-<ul><li>
-<p><code>:dup_on_deref</code> When true the object will call the <code>#dup</code> method on the <code>value</code> object every time the <code>#value</code> method is called (default: false)</p>
-</li><li>
-<p><code>:freeze_on_deref</code> When true the object will call the <code>#freeze</code> method on the <code>value</code> object every time the <code>#value</code> method is called (default: false)</p>
-</li><li>
-<p><code>:copy_on_deref</code> When given a <code>Proc</code> object the <code>Proc</code> will be run every time   the <code>#value</code> method is called. The <code>Proc</code> will be given the current <code>value</code> as its only argument and the result returned by the block will be the return   value of the <code>#value</code> call. When <code>nil</code> this option will be ignored (default: nil)</p>
-</li></ul>
+<p><a href="../Object.html" title="Object (class)"><code>::Object</code></a> references in Ruby are mutable. This can lead to serious
+problems when the <code>#value</code> of an object is a mutable reference. Which
+is always the case unless the value is a <code>Fixnum</code>, <code>Symbol</code>, or similar
+&quot;primitive&quot; data type. Each instance can be configured with a few
+options that can help protect the program from potentially dangerous
+operations. Each of these options can be optionally set when the object
+instance is created:</p>
 
-<p>When multiple deref options are set the order of operations is strictly defined. The order of deref operations is:</p>
-<ul><li>
-<p><code>:copy_on_deref</code></p>
-</li><li>
-<p><code>:dup_on_deref</code></p>
-</li><li>
-<p><code>:freeze_on_deref</code></p>
-</li></ul>
+<ul>
+<li><code>:dup_on_deref</code> When true the object will call the <code>#dup</code> method on
+the <code>value</code> object every time the <code>#value</code> method is called
+(default: false)</li>
+<li><code>:freeze_on_deref</code> When true the object will call the <code>#freeze</code>
+method on the <code>value</code> object every time the <code>#value</code> method is called
+(default: false)</li>
+<li><code>:copy_on_deref</code> When given a <code>Proc</code> object the <code>Proc</code> will be run
+every time   the <code>#value</code> method is called. The <code>Proc</code> will be given
+the current <code>value</code> as its only argument and the result returned by
+the block will be the return   value of the <code>#value</code> call. When <code>nil</code>
+this option will be ignored (default: nil)</li>
+</ul>
 
-<p>Because of this ordering there is no need to <code>#freeze</code> an object created by a provided <code>:copy_on_deref</code> block. Simply set <code>:freeze_on_deref</code> to <code>true</code>. Setting both <code>:dup_on_deref</code> to <code>true</code> and <code>:freeze_on_deref</code> to <code>true</code> is as close to the behavior of a “pure” functional language (like Erlang, Clojure, or Haskell) as we are likely to get in Ruby.</p>
+<p>When multiple deref options are set the order of operations is strictly defined.
+The order of deref operations is:</p>
+
+<ul>
+<li><code>:copy_on_deref</code></li>
+<li><code>:dup_on_deref</code></li>
+<li><code>:freeze_on_deref</code></li>
+</ul>
+
+<p>Because of this ordering there is no need to <code>#freeze</code> an object created by a
+provided <code>:copy_on_deref</code> block. Simply set <code>:freeze_on_deref</code> to <code>true</code>.
+Setting both <code>:dup_on_deref</code> to <code>true</code> and <code>:freeze_on_deref</code> to <code>true</code> is
+as close to the behavior of a &quot;pure&quot; functional language (like Erlang, Clojure,
+or Haskell) as we are likely to get in Ruby.</p>
 
   </div>
 </div>

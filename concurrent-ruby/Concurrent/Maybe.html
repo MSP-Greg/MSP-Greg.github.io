@@ -4,8 +4,8 @@
 
 <meta charset='utf-8'>
 <meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
-<meta name='apple-touch-fullscreen'       content='yes'>
-<meta name='apple-mobile-web-app-capable' content='yes'>
+<meta name='apple-touch-fullscreen' content='yes'>
+<meta name='mobile-web-app-capable' content='yes'>
 <meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
 
 <title>Class: Concurrent::Maybe &mdash; Concurrent Ruby master</title>
@@ -115,39 +115,59 @@
 <div id='overview_ds'>
 <div class='docstring'>
   <div class='discussion'>
-    
-<p>A <code>Maybe</code> encapsulates an optional value. A <code>Maybe</code> either contains a value of (represented as <code>Just</code>), or it is empty (represented as <code>Nothing</code>). Using <code>Maybe</code> is a good way to deal with errors or exceptional cases without resorting to drastic measures such as exceptions.</p>
+    <p>A <code>Maybe</code> encapsulates an optional value. A <code>Maybe</code> either contains a value
+of (represented as <code>Just</code>), or it is empty (represented as <code>Nothing</code>). Using
+<code>Maybe</code> is a good way to deal with errors or exceptional cases without
+resorting to drastic measures such as exceptions.</p>
 
 <p><code>Maybe</code> is a replacement for the use of <code>nil</code> with better type checking.</p>
 
-<p>For compatibility with <a href="Concern/Obligation.html" title="Concurrent::Concern::Obligation (module)"><code>Concern::Obligation</code></a> the predicate and accessor methods are aliased as <a href="#fulfilled%3F-instance_method" title="Concurrent::Maybe#fulfilled? (method)">#fulfilled?</a>, <a href="#rejected%3F-instance_method" title="Concurrent::Maybe#rejected? (method)">#rejected?</a>, <a href="#value-instance_method" title="Concurrent::Maybe#value (method)">#value</a>, and <a href="#reason-instance_method" title="Concurrent::Maybe#reason (method)">#reason</a>.</p>
+<p>For compatibility with <a href="Concern/Obligation.html" title="Concurrent::Concern::Obligation (module)"><code>Concern::Obligation</code></a> the predicate and
+accessor methods are aliased as <a href="#fulfilled%3F-instance_method" title="Concurrent::Maybe#fulfilled? (method)">#fulfilled?</a>, <a href="#rejected%3F-instance_method" title="Concurrent::Maybe#rejected? (method)">#rejected?</a>, <a href="#value-instance_method" title="Concurrent::Maybe#value (method)">#value</a>, and
+<a href="#reason-instance_method" title="Concurrent::Maybe#reason (method)">#reason</a>.</p>
 
-<h3 id="label-Motivation">Motivation</h3>
+<h3>Motivation</h3>
 
-<p>A common pattern in languages with pattern matching, such as Erlang and Haskell, is to return <strong>either</strong> a value <strong>or</strong> an error from a function Consider this Erlang code:</p>
+<p>A common pattern in languages with pattern matching, such as Erlang and
+Haskell, is to return <em>either</em> a value <em>or</em> an error from a function
+Consider this Erlang code:</p>
 
-<p>“‘erlang case file:consult(“data.dat”) of</p>
+<pre class="code erlang"><code class="erlang">case file:consult(&quot;data.dat&quot;) of
+  {ok, Terms} -&gt; do_something_useful(Terms);
+  {error, Reason} -&gt; lager:error(Reason)
+end.
+</code></pre>
 
-<pre class="code ruby"><code class="ruby">{<span class='id identifier rubyid_ok'>ok</span><span class='comma'>,</span> <span class='const'>Terms</span>} <span class='tlambda'>-&gt;</span> <span class='id identifier rubyid_do_something_useful'>do_something_useful</span>(<span class='const'>Terms</span>)<span class='semicolon'>;</span>
-<span class='tlambeg'>{</span><span class='id identifier rubyid_error'>error</span><span class='comma'>,</span> <span class='const'>Reason</span>} <span class='tlambda'>-&gt;</span> <span class='label'>lager:</span><span class='id identifier rubyid_error'>error</span>(<span class='const'>Reason</span>)</code></pre>
+<p>In this example the standard library function <a href="../consult.html" title=""></a> returns a
+<a href="../<a.html" title="href=&quot;http://erlang.org/doc/reference_manual/data_types.html#id69044&quot;&gt;http://erlang.org/doc/reference_manual/data_types.html#id69044&lt;/a&gt; tuple">href="http://erlang.org/doc/reference_manual/data_types.html#id69044">http://erlang.org/doc/reference_manual/data_types.html#id69044</a> tuple</a>
+with two elements: an <a href="../<a.html" title="href=&quot;http://erlang.org/doc/reference_manual/data_types.html#id64134&quot;&gt;http://erlang.org/doc/reference_manual/data_types.html#id64134&lt;/a&gt; atom">href="http://erlang.org/doc/reference_manual/data_types.html#id64134">http://erlang.org/doc/reference_manual/data_types.html#id64134</a> atom</a>
+(similar to a ruby symbol) and a variable containing ancillary data. On
+success it returns the atom <code>ok</code> and the data from the file. On failure it
+returns <code>error</code> and a string with an explanation of the problem. With this
+pattern there is no ambiguity regarding success or failure. If the file is
+empty the return value cannot be misinterpreted as an error. And when an
+error occurs the return value provides useful information.</p>
 
-<p>end. “‘</p>
+<p>In Ruby we tend to return <code>nil</code> when an error occurs or else we raise an
+exception. Both of these idioms are problematic. Returning <code>nil</code> is
+ambiguous because <code>nil</code> may also be a valid value. It also lacks
+information pertaining to the nature of the error. Raising an exception
+is both expensive and usurps the normal flow of control. All of these
+problems can be solved with the use of a <code>Maybe</code>.</p>
 
-<p>In this example the standard library function <a href="../file.consult.html" title="consult">consult</a> returns a <a href="http://erlang.org/doc/reference_manual/data_types.html#id69044" target="_parent" title="tuple">tuple</a> with two elements: an <a href="http://erlang.org/doc/reference_manual/data_types.html#id64134" target="_parent" title="atom">atom</a> (similar to a ruby symbol) and a variable containing ancillary data. On success it returns the atom <code>ok</code> and the data from the file. On failure it returns <code>error</code> and a string with an explanation of the problem. With this pattern there is no ambiguity regarding success or failure. If the file is empty the return value cannot be misinterpreted as an error. And when an error occurs the return value provides useful information.</p>
+<p>A <code>Maybe</code> is unambiguous with regard to whether or not it contains a value.
+When <code>Just</code> it contains a value, when <code>Nothing</code> it does not. When <code>Just</code>
+the value it contains may be <code>nil</code>, which is perfectly valid. When
+<code>Nothing</code> the reason for the lack of a value is contained as well. The
+previous Erlang example can be duplicated in Ruby in a principled way by
+having functions return <code>Maybe</code> objects:</p>
 
-<p>In Ruby we tend to return <code>nil</code> when an error occurs or else we raise an exception. Both of these idioms are problematic. Returning <code>nil</code> is ambiguous because <code>nil</code> may also be a valid value. It also lacks information pertaining to the nature of the error. Raising an exception is both expensive and usurps the normal flow of control. All of these problems can be solved with the use of a <code>Maybe</code>.</p>
-
-<p>A <code>Maybe</code> is unambiguous with regard to whether or not it contains a value. When <code>Just</code> it contains a value, when <code>Nothing</code> it does not. When <code>Just</code> the value it contains may be <code>nil</code>, which is perfectly valid. When <code>Nothing</code> the reason for the lack of a value is contained as well. The previous Erlang example can be duplicated in Ruby in a principled way by having functions return <code>Maybe</code> objects:</p>
-
-<p>“‘ruby result = <code>MyFileUtils.consult</code>(“data.dat”) # returns a Maybe if result.just?</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_do_something_useful'>do_something_useful</span>(<span class='id identifier rubyid_result'>result</span>.<span class='id identifier rubyid_value'><a href="#value-instance_method" title="Concurrent::Maybe#value (method)">value</a></span>)      <span class='comment'># or result.just</span></code></pre>
-
-<p>else</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_logger'>logger</span>.<span class='id identifier rubyid_error'>error</span>(<span class='id identifier rubyid_result'>result</span>.<span class='id identifier rubyid_reason'><a href="#reason-instance_method" title="Concurrent::Maybe#reason (method)">reason</a></span>)            <span class='comment'># or result.nothing</span></code></pre>
-
-<p>end “‘</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_result'>result</span> <span class='op'>=</span> <span class='const'>MyFileUtils</span>.<span class='id identifier rubyid_consult'>consult</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>data.dat</span><span class='tstring_end'>&quot;</span></span>) <span class='comment'># returns a Maybe
+</span><span class='kw'>if</span> <span class='id identifier rubyid_result'>result</span>.<span class='id identifier rubyid_just?'><a href="#just%3F-instance_method" title="Concurrent::Maybe#just? (method)">just?</a></span>
+  <span class='id identifier rubyid_do_something_useful'>do_something_useful</span>(<span class='id identifier rubyid_result'>result</span>.<span class='id identifier rubyid_value'><a href="#value-instance_method" title="Concurrent::Maybe#value (method)">value</a></span>)      <span class='comment'># or result.just
+</span><span class='kw'>else</span>
+  <span class='id identifier rubyid_logger'>logger</span>.<span class='id identifier rubyid_error'>error</span>(<span class='id identifier rubyid_result'>result</span>.<span class='id identifier rubyid_reason'><a href="#reason-instance_method" title="Concurrent::Maybe#reason (method)">reason</a></span>)            <span class='comment'># or result.nothing
+</span><span class='kw'>end</span></code></pre>
 
   </div>
 </div>
