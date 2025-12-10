@@ -474,16 +474,28 @@ You can configure specific services per attachment using the <code>service</code
 <pre class="code xml"><code class="xml">&lt;%= image_tag user.video.preview(:thumb) %&gt;
 </code></pre>
 
-<p>If you know in advance that your variants will be accessed, you can specify that
-Rails should generate them ahead of time:</p>
+<h4>Variant Generation: Lazily, Later, Immediately</h4>
+
+<p>When you know in advance which variants you&#39;ll generate, use the <code>process</code> option to control when they&#39;re generated:</p>
+
+<ul>
+<li><code>:lazily</code> (default) - Variants are created on the fly when first requested</li>
+<li><code>:later</code> - Variants are created in a background job after the attachment is saved</li>
+<li><code>:immediately</code> - Variants are created synchronously when the attachment is created</li>
+</ul>
 
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>User</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
-  <span class='id identifier rubyid_has_one_attached'>has_one_attached</span> <span class='symbeg'>:</span><span class='id identifier rubyid_video'>video</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_attachable'>attachable</span><span class='op'>|</span>
-    <span class='id identifier rubyid_attachable'>attachable</span>.<span class='id identifier rubyid_variant'>variant</span> <span class='symbeg'>:</span><span class='id identifier rubyid_thumb'>thumb</span><span class='comma'>,</span> <span class='label'>resize_to_limit:</span> [<span class='int'>100</span><span class='comma'>,</span> <span class='int'>100</span>]<span class='comma'>,</span> <span class='label'>preprocessed:</span> <span class='kw'>true</span>
+  <span class='id identifier rubyid_has_one_attached'>has_one_attached</span> <span class='symbeg'>:</span><span class='id identifier rubyid_avatar'>avatar</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_attachable'>attachable</span><span class='op'>|</span>
+    <span class='comment'># Create immediately when the avatar is attached
+</span>    <span class='id identifier rubyid_attachable'>attachable</span>.<span class='id identifier rubyid_variant'>variant</span> <span class='symbeg'>:</span><span class='id identifier rubyid_thumb'>thumb</span><span class='comma'>,</span> <span class='label'>resize_to_limit:</span> [<span class='int'>100</span><span class='comma'>,</span> <span class='int'>100</span>]<span class='comma'>,</span> <span class='label'>process:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_immediately'>immediately</span>
+
+    <span class='comment'># Create in a background job after attachment
+</span>    <span class='id identifier rubyid_attachable'>attachable</span>.<span class='id identifier rubyid_variant'>variant</span> <span class='symbeg'>:</span><span class='id identifier rubyid_medium'>medium</span><span class='comma'>,</span> <span class='label'>resize_to_limit:</span> [<span class='int'>300</span><span class='comma'>,</span> <span class='int'>300</span>]<span class='comma'>,</span> <span class='label'>process:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_later'>later</span>
+
+    <span class='comment'># Create on demand when first requested (default)
+</span>    <span class='id identifier rubyid_attachable'>attachable</span>.<span class='id identifier rubyid_variant'>variant</span> <span class='symbeg'>:</span><span class='id identifier rubyid_large'>large</span><span class='comma'>,</span> <span class='label'>resize_to_limit:</span> [<span class='int'>800</span><span class='comma'>,</span> <span class='int'>800</span>]<span class='comma'>,</span> <span class='label'>process:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_lazily'>lazily</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
-<p>Rails will enqueue a job to generate the variant after the attachment is attached to the record.</p>
 
 <p>NOTE: Since Active Storage relies on polymorphic associations, and <a href="./association_basics.html#polymorphic-associations">polymorphic associations</a> rely on storing class names in the database, that data must remain synchronized with the class name used by the Ruby code. When renaming classes that use <code>has_one_attached</code>, make sure to also update the class names in the <code>active_storage_attachments.record_type</code> polymorphic type column of the corresponding rows.</p>
 
@@ -811,9 +823,50 @@ a virus scanner or media transcoder) can operate on it. Use the attachment&#39;s
 
 <h2>Analyzing Files</h2>
 
-<p>Active Storage analyzes files once they&#39;ve been uploaded by queuing a job in Active Job. Analyzed files will store additional information in the metadata hash, including <code>analyzed: true</code>. You can check whether a blob has been analyzed by calling <a href="https://api.rubyonrails.org/classes/ActiveStorage/Blob/Analyzable.html#method-i-analyzed-3F"><code>analyzed?</code></a> on it.</p>
+<p>Active Storage analyzes files to extract metadata like image dimensions, video duration, and audio bit rate. Analyzed files store this information in their metadata hash, including <code>analyzed: true</code>. You can check whether a blob has been analyzed by calling <a href="https://api.rubyonrails.org/classes/ActiveStorage/Blob/Analyzable.html#method-i-analyzed-3F"><code>analyzed?</code></a> on it.</p>
 
 <p>Image analysis provides <code>width</code> and <code>height</code> attributes. Video analysis provides these, as well as <code>duration</code>, <code>angle</code>, <code>display_aspect_ratio</code>, and <code>video</code> and <code>audio</code> booleans to indicate the presence of those channels. Audio analysis provides <code>duration</code> and <code>bit_rate</code> attributes.</p>
+
+<h3>Validating Attachment Metadata</h3>
+
+<p>As of Rails 8.2, attachments are analyzed before validation by default, making metadata available for model validations:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>User</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_has_one_attached'>has_one_attached</span> <span class='symbeg'>:</span><span class='id identifier rubyid_avatar'>avatar</span>
+
+  <span class='id identifier rubyid_validate'>validate</span> <span class='symbeg'>:</span><span class='id identifier rubyid_validate_avatar_dimensions'>validate_avatar_dimensions</span><span class='comma'>,</span> <span class='label'>if:</span> <span class='tlambda'>-&gt;</span> <span class='tlambeg'>{</span> <span class='id identifier rubyid_avatar'>avatar</span>.<span class='id identifier rubyid_attached?'>attached?</span> }
+
+  <span class='id identifier rubyid_private'>private</span>
+    <span class='kw'>def</span> <span class='id identifier rubyid_validate_avatar_dimensions'>validate_avatar_dimensions</span>
+      <span class='kw'>if</span> <span class='id identifier rubyid_avatar'>avatar</span>.<span class='id identifier rubyid_metadata'>metadata</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_width'>width</span>] <span class='op'>&lt;</span> <span class='int'>200</span> <span class='op'>||</span> <span class='id identifier rubyid_avatar'>avatar</span>.<span class='id identifier rubyid_metadata'>metadata</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_height'>height</span>] <span class='op'>&lt;</span> <span class='int'>200</span>
+        <span class='id identifier rubyid_errors'>errors</span>.<span class='id identifier rubyid_add'>add</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_avatar'>avatar</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>must be at least 200x200 pixels</span><span class='tstring_end'>&quot;</span></span>)
+      <span class='kw'>end</span>
+    <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>NOTE: <a href="#direct-uploads">Direct uploads</a> bypass the server so the file isn&#39;t locally available for analysis. In this case, <code>:immediately</code> falls back to <code>:later</code>, analyzing via background job after upload completes. Metadata isn&#39;t available for validation; validate on the client side using JavaScript instead.</p>
+
+<h3>Controlling When Analysis is Performed</h3>
+
+<p>Pass the <code>analyze:</code> option to control when analysis is performed:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>User</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='comment'># Analyze before validation (default in 8.2)
+</span>  <span class='id identifier rubyid_has_one_attached'>has_one_attached</span> <span class='symbeg'>:</span><span class='id identifier rubyid_avatar'>avatar</span><span class='comma'>,</span> <span class='label'>analyze:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_immediately'>immediately</span>
+
+  <span class='comment'># Analyze after upload from local IO or via background job for direct uploads
+</span>  <span class='id identifier rubyid_has_one_attached'>has_one_attached</span> <span class='symbeg'>:</span><span class='id identifier rubyid_document'>document</span><span class='comma'>,</span> <span class='label'>analyze:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_later'>later</span>
+
+  <span class='comment'># Skip automatic analysis - analyze on-demand when metadata is accessed
+</span>  <span class='id identifier rubyid_has_many_attached'>has_many_attached</span> <span class='symbeg'>:</span><span class='id identifier rubyid_files'>files</span><span class='comma'>,</span> <span class='label'>analyze:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_lazily'>lazily</span>
+<span class='kw'>end</span></code></pre>
+
+<p>NOTE: Attachments with <code>process: :immediately</code> variants automatically analyze immediately to ensure metadata is available before processing.</p>
+
+<p>You can set the global default in your application configuration:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/application.rb
+</span><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_active_storage'>active_storage</span>.<span class='id identifier rubyid_analyze'>analyze</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_later'>later</span>  <span class='comment'># restore pre-8.2 behavior</span></code></pre>
 
 <h2>Displaying Images, Videos, and PDFs</h2>
 

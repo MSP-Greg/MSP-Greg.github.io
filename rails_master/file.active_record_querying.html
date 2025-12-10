@@ -1697,6 +1697,47 @@ SELECT books.* FROM books WHERE (year_published &gt;= 1969) AND (price &gt; 50)
 <p>As you can see above the <code>default_scope</code> is being merged in both
 <code>scope</code> and <code>where</code> conditions.</p>
 
+<h3>Block-Level Scoping</h3>
+
+<p>The <a href="https://api.rubyonrails.org/classes/ActiveRecord/Relation.html#method-i-scoping"><code>scoping</code></a> method allows you to temporarily apply the current relation’s conditions within a block.
+Any query executed inside the block will use the scope of the relation.</p>
+
+<h4>Basic Usage</h4>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Order</span>.<span class='id identifier rubyid_where'>where</span>(<span class='label'>customer_id:</span> <span class='int'>1</span>).<span class='id identifier rubyid_scoping'>scoping</span> <span class='kw'>do</span>
+  <span class='const'>Order</span>.<span class='id identifier rubyid_first'>first</span>
+<span class='kw'>end</span>
+
+<span class='comment'># SELECT &quot;orders&quot;.* FROM &quot;orders&quot; WHERE &quot;orders&quot;.&quot;customer_id&quot; = ? ORDER BY &quot;orders&quot;.&quot;id&quot; ASC LIMIT ?  [[&quot;customer_id&quot;, 1], [&quot;LIMIT&quot;, 1]]</span></code></pre>
+
+<p>In this example, the <code>customer_id: 1</code> condition is applied automatically because the block is executed within the relation’s scope.</p>
+
+<h4>Applying Scope To All Queries In The Block</h4>
+
+<p>By default, scoping applies only to finder methods (such as <code>first</code>, <code>last</code>, <code>where</code>, etc.).
+If you want the scope to affect all queries—including <code>update</code> and <code>delete</code> on individual records, you can pass the option <code>all_queries: true</code>.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Order</span>.<span class='id identifier rubyid_where'>where</span>(<span class='label'>customer_id:</span> <span class='int'>1</span>).<span class='id identifier rubyid_scoping'>scoping</span>(<span class='label'>all_queries:</span> <span class='kw'>true</span>) <span class='kw'>do</span>
+  <span class='id identifier rubyid_order'>order</span> <span class='op'>=</span> <span class='const'>Order</span>.<span class='id identifier rubyid_first'>first</span>
+  <span class='id identifier rubyid_order'>order</span>.<span class='id identifier rubyid_update'>update</span>(<span class='label'>status:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_complete'>complete</span>)
+<span class='kw'>end</span>
+
+<span class='comment'># Order Load (0.1ms)    SELECT &quot;orders&quot;.* FROM &quot;orders&quot; WHERE &quot;orders&quot;.&quot;customer_id&quot; = ? ORDER BY &quot;orders&quot;.&quot;id&quot; ASC LIMIT ?  [[&quot;customer_id&quot;, 1], [&quot;LIMIT&quot;, 1]]
+</span><span class='comment'># TRANSACTION (0.0ms)   BEGIN immediate TRANSACTION
+</span><span class='comment'># Order Update (0.1ms)  UPDATE &quot;orders&quot; SET &quot;status&quot; = ?, &quot;updated_at&quot; = ? WHERE &quot;orders&quot;.&quot;id&quot; = ? AND &quot;orders&quot;.&quot;customer_id&quot; = ?  [[&quot;status&quot;, 2], [&quot;updated_at&quot;, &quot;2025-11-25 11:26:16.089553&quot;], [&quot;id&quot;, 1], [&quot;customer_id&quot;, 1]]
+</span><span class='comment'># TRANSACTION (0.0ms)   COMMIT TRANSACTION</span></code></pre>
+
+<p>This will ensure that the <code>customer_id: 1</code> condition is applied to all queries executed within the block.</p>
+
+<p>Once a block has been entered with <code>all_queries: true</code>, nested blocks cannot disable it:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Order</span>.<span class='id identifier rubyid_where'>where</span>(<span class='label'>customer_id:</span> <span class='int'>1</span>).<span class='id identifier rubyid_scoping'>scoping</span>(<span class='label'>all_queries:</span> <span class='kw'>true</span>) <span class='kw'>do</span>
+  <span class='comment'># This will raise an ArgumentError:
+</span>  <span class='const'>Order</span>.<span class='id identifier rubyid_scoping'>scoping</span>(<span class='label'>all_queries:</span> <span class='kw'>false</span>) <span class='kw'>do</span>
+    <span class='comment'># ...
+</span>  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
 <h3>Removing All Scoping</h3>
 
 <p>If we wish to remove scoping for any reason we can use the <a href="https://api.rubyonrails.org/classes/ActiveRecord/Scoping/Default/ClassMethods.html#method-i-unscoped"><code>unscoped</code></a> method. This is
