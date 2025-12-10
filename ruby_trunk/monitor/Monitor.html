@@ -77,7 +77,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2 o'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/monitor/lib/monitor.rb#L258'>ext/monitor/lib/monitor.rb</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/monitor/monitor.c#L240'>ext/monitor/monitor.c</a></span>
+      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/monitor/lib/monitor.rb#L258'>ext/monitor/lib/monitor.rb</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/monitor/monitor.c#L286'>ext/monitor/monitor.c</a></span>
       </td>
     </tr>
   </tbody>
@@ -229,11 +229,11 @@
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/monitor/monitor.c#L135-L140'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/monitor/monitor.c#L178-L183'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='135' data-end='140'></pre>
+  <pre class='lines_num' data-start='178' data-end='183'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/monitor/monitor.c', line 135</span></pre>
+<pre><span class='info file'># File 'ext/monitor/monitor.c', line 178</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -254,18 +254,18 @@ monitor_locked_p(VALUE monitor)
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/monitor/monitor.c#L143-L148'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/monitor/monitor.c#L186-L191'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='143' data-end='148'></pre>
+  <pre class='lines_num' data-start='186' data-end='191'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/monitor/monitor.c', line 143</span></pre>
+<pre><span class='info file'># File 'ext/monitor/monitor.c', line 186</span></pre>
 <pre class='code cpp'>
 
 static VALUE
 monitor_owned_p(VALUE monitor)
 {
     struct rb_monitor *mc = monitor_ptr(monitor);
-    return (rb_mutex_locked_p(mc-&gt;mutex) &amp;&amp; mc_owner_p(mc)) ? Qtrue : Qfalse;
+    return rb_mutex_locked_p(mc-&gt;mutex) &amp;&amp; mc_owner_p(mc, rb_fiber_current()) ? Qtrue : Qfalse;
 }
 </pre>
   </div>
@@ -284,23 +284,19 @@ monitor_owned_p(VALUE monitor)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/monitor/monitor.c#L87-L98'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/monitor/monitor.c#L121-L128'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='87' data-end='98'></pre>
+  <pre class='lines_num' data-start='121' data-end='128'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/monitor/monitor.c', line 87</span></pre>
+<pre><span class='info file'># File 'ext/monitor/monitor.c', line 121</span></pre>
 <pre class='code cpp'>
 
 static VALUE
 monitor_enter(VALUE monitor)
 {
-    struct rb_monitor *mc = monitor_ptr(monitor);
-    if (!mc_owner_p(mc)) {
-        rb_mutex_lock(mc-&gt;mutex);
-        RB_OBJ_WRITE(monitor, &amp;mc-&gt;owner, rb_fiber_current());
-        mc-&gt;count = 0;
-    }
-    mc-&gt;count++;
+    struct monitor_args args;
+    monitor_args_init(&amp;args, monitor);
+    monitor_enter0(&amp;args);
     return Qnil;
 }
 </pre>
@@ -319,27 +315,19 @@ monitor_enter(VALUE monitor)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/monitor/monitor.c#L117-L132'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/monitor/monitor.c#L168-L175'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='117' data-end='132'></pre>
+  <pre class='lines_num' data-start='168' data-end='175'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/monitor/monitor.c', line 117</span></pre>
+<pre><span class='info file'># File 'ext/monitor/monitor.c', line 168</span></pre>
 <pre class='code cpp'>
 
 static VALUE
 monitor_exit(VALUE monitor)
 {
-    monitor_check_owner(monitor);
-
-    struct rb_monitor *mc = monitor_ptr(monitor);
-
-    if (mc-&gt;count &lt;= 0) rb_bug(&quot;monitor_exit: count:%d&quot;, (int)mc-&gt;count);
-    mc-&gt;count--;
-
-    if (mc-&gt;count == 0) {
-        RB_OBJ_WRITE(monitor, &amp;mc-&gt;owner, Qnil);
-        rb_mutex_unlock(mc-&gt;mutex);
-    }
+    struct monitor_args args;
+    monitor_args_init(&amp;args, monitor);
+    monitor_exit0(&amp;args);
     return Qnil;
 }
 </pre>
@@ -354,20 +342,19 @@ monitor_exit(VALUE monitor)
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/monitor/monitor.c#L101-L109'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/monitor/monitor.c#L139-L146'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='101' data-end='109'></pre>
+  <pre class='lines_num' data-start='139' data-end='146'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/monitor/monitor.c', line 101</span></pre>
+<pre><span class='info file'># File 'ext/monitor/monitor.c', line 139</span></pre>
 <pre class='code cpp'>
 
 static VALUE
 monitor_check_owner(VALUE monitor)
 {
-    struct rb_monitor *mc = monitor_ptr(monitor);
-    if (!mc_owner_p(mc)) {
-        rb_raise(rb_eThreadError, &quot;current fiber not owner&quot;);
-    }
+    struct monitor_args args;
+    monitor_args_init(&amp;args, monitor);
+    monitor_check_owner0(&amp;args);
     return Qnil;
 }
 </pre>
@@ -508,18 +495,20 @@ monitor_check_owner(VALUE monitor)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/monitor/monitor.c#L226-L231'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/monitor/monitor.c#L270-L277'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='226' data-end='231'></pre>
+  <pre class='lines_num' data-start='270' data-end='277'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/monitor/monitor.c', line 226</span></pre>
+<pre><span class='info file'># File 'ext/monitor/monitor.c', line 270</span></pre>
 <pre class='code cpp'>
 
 static VALUE
 monitor_synchronize(VALUE monitor)
 {
-    monitor_enter(monitor);
-    return rb_ensure(monitor_sync_body, monitor, monitor_sync_ensure, monitor);
+    struct monitor_args args;
+    monitor_args_init(&amp;args, monitor);
+    monitor_enter0(&amp;args);
+    return rb_ensure(monitor_sync_body, (VALUE)&amp;args, monitor_sync_ensure, (VALUE)&amp;args);
 }
 </pre>
   </div>
@@ -537,11 +526,11 @@ monitor_synchronize(VALUE monitor)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/monitor/monitor.c#L65-L79'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/monitor/monitor.c#L72-L87'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='65' data-end='79'></pre>
+  <pre class='lines_num' data-start='72' data-end='87'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/monitor/monitor.c', line 65</span></pre>
+<pre><span class='info file'># File 'ext/monitor/monitor.c', line 72</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -549,11 +538,12 @@ monitor_try_enter(VALUE monitor)
 {
     struct rb_monitor *mc = monitor_ptr(monitor);
 
-    if (!mc_owner_p(mc)) {
+    VALUE current_fiber = rb_fiber_current();
+    if (!mc_owner_p(mc, current_fiber)) {
         if (!rb_mutex_trylock(mc-&gt;mutex)) {
             return Qfalse;
         }
-        RB_OBJ_WRITE(monitor, &amp;mc-&gt;owner, rb_fiber_current());
+        RB_OBJ_WRITE(monitor, &amp;mc-&gt;owner, current_fiber);
         mc-&gt;count = 0;
     }
     mc-&gt;count += 1;
@@ -595,11 +585,11 @@ monitor_try_enter(VALUE monitor)
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/monitor/monitor.c#L191-L204'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/monitor/monitor.c#L234-L247'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='191' data-end='204'></pre>
+  <pre class='lines_num' data-start='234' data-end='247'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/monitor/monitor.c', line 191</span></pre>
+<pre><span class='info file'># File 'ext/monitor/monitor.c', line 234</span></pre>
 <pre class='code cpp'>
 
 static VALUE
