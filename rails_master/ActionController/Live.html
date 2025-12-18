@@ -99,7 +99,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2 o'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/rails/rails/blob/main/actionpack/lib/action_controller/metal/live.rb#L56'>actionpack/lib/action_controller/metal/live.rb</a><span class='defines'>,<br /><a class='repo' href='https://github.com/rails/rails/blob/main/actionpack/lib/action_controller/test_case.rb#L20'>actionpack/lib/action_controller/test_case.rb</a></span>
+      <td class='box_rel'><a class='repo' href='https://github.com/rails/rails/blob/main/actionpack/lib/action_controller/metal/live.rb#L91'>actionpack/lib/action_controller/metal/live.rb</a><span class='defines'>,<br /><a class='repo' href='https://github.com/rails/rails/blob/main/actionpack/lib/action_controller/test_case.rb#L20'>actionpack/lib/action_controller/test_case.rb</a></span>
       </td>
     </tr>
   </tbody>
@@ -109,8 +109,8 @@
 <div id='overview_ds'>
 <div class='docstring'>
   <div class='discussion'>
-    
-<p>Mix this module into your controller, and all actions in that controller will be able to stream data to the client as it’s written.</p>
+    <p>Mix this module into your controller, and all actions in that controller will
+be able to stream data to the client as it&#39;s written.</p>
 
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>MyController</span> <span class='op'>&lt;</span> <span class='const'><a href="../ActionController.html" title="ActionController (module)">ActionController</a></span><span class='op'>::</span><span class='const'><a href="Base.html" title="ActionController::Base (class)">Base</a></span>
   <span class='id identifier rubyid_include'>include</span> <span class='const'><a href="../ActionController.html" title="ActionController (module)">ActionController</a></span><span class='op'>::</span><span class='const'>Live</span>
@@ -126,15 +126,27 @@
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
 
-<p>There are a few caveats with this module. You <strong>cannot</strong> write headers after the response has been committed (Response#committed? will return truthy). Calling <code>write</code> or <code>close</code> on the response stream will cause the response object to be committed. Make sure all headers are set before calling write or close on your stream.</p>
+<p>There are a few caveats with this module. You <strong>cannot</strong> write headers after
+the response has been committed (Response#committed? will return truthy).
+Calling <code>write</code> or <code>close</code> on the response stream will cause the response
+object to be committed. Make sure all headers are set before calling write or
+close on your stream.</p>
 
-<p>You <strong>must</strong> call close on your stream when you’re finished, otherwise the socket may be left open forever.</p>
+<p>You <strong>must</strong> call close on your stream when you&#39;re finished, otherwise the
+socket may be left open forever.</p>
 
-<p>The final caveat is that your actions are executed in a separate thread than the main thread. Make sure your actions are thread safe, and this shouldn’t be a problem (don’t share state across threads, etc).</p>
+<p>The final caveat is that your actions are executed in a separate thread than
+the main thread. Make sure your actions are thread safe, and this shouldn&#39;t be
+a problem (don&#39;t share state across threads, etc).</p>
 
-<p>Note that <a href="../Rails.html" title="Rails (module)"><code>::Rails</code></a> includes <code>Rack::ETag</code> by default, which will buffer your response. As a result, streaming responses may not work properly with <a href="../Rack.html" title="Rack (module)"><code>::Rack</code></a> 2.2.x, and you may need to implement workarounds in your application. You can either set the <code>ETag</code> or <code>Last-Modified</code> response headers or remove <code>Rack::ETag</code> from the middleware stack to address this issue.</p>
+<p>Note that <a href="../Rails.html" title="Rails (module)"><code>::Rails</code></a> includes <code>Rack::ETag</code> by default, which will buffer your
+response. As a result, streaming responses may not work properly with <a href="../Rack.html" title="Rack (module)"><code>::Rack</code></a>
+2.2.x, and you may need to implement workarounds in your application. You can
+either set the <code>ETag</code> or <code>Last-Modified</code> response headers or remove
+<code>Rack::ETag</code> from the middleware stack to address this issue.</p>
 
-<p>Here’s an example of how you can set the <code>Last-Modified</code> header if your <a href="../Rack.html" title="Rack (module)"><code>::Rack</code></a> version is 2.2.x:</p>
+<p>Here&#39;s an example of how you can set the <code>Last-Modified</code> header if your <a href="../Rack.html" title="Rack (module)"><code>::Rack</code></a>
+version is 2.2.x:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_stream'>stream</span>
   <span class='id identifier rubyid_response'>response</span>.<span class='id identifier rubyid_headers'>headers</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Content-Type</span><span class='tstring_end'>&quot;</span></span>] <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>text/event-stream</span><span class='tstring_end'>&quot;</span></span>
@@ -142,9 +154,60 @@
 </span>  <span class='comment'>#...
 </span><span class='kw'>end</span></code></pre>
 
+<h3>Streaming and Execution State</h3>
+
+<p>When streaming, the action is executed in a separate thread. By default, this thread
+shares execution state from the parent thread.</p>
+
+<p>You can configure which execution state keys should be excluded from being shared
+using the <code>config.action_controller.live.streaming_excluded_keys</code> configuration:</p>
+
+<p># config/application.rb
+  config.action_controller.live.streaming_excluded_keys = [:active_record_connected_to_stack]</p>
+
+<p>This is useful when using <code>Live</code> inside a <code>connected_to</code> block. For example,
+if the parent request is reading from a replica using <code>connected_to(role: <code>:reading</code>)</code>, you may
+want the streaming thread to use its own connection context instead of inheriting the read-only
+context:</p>
+
+<p># Without configuration, streaming thread inherits read-only connection
+  ActiveRecord::Base.connected_to(role: :reading) do
+    @posts = Post.all
+    render stream: true # Streaming thread cannot write to database
+  end</p>
+
+<p># With configuration, streaming thread gets fresh connection context
+  # config.action_controller.live.streaming_excluded_keys = [:active_record_connected_to_stack]
+  ActiveRecord::Base.connected_to(role: :reading) do
+    @posts = Post.all
+    render stream: true # Streaming thread can write to database if needed
+  end</p>
+
+<p>Common keys you might want to exclude:</p>
+
+<ul>
+<li><code>:active_record_connected_to_stack</code> - Database connection routing and roles</li>
+<li><code>:active_record_prohibit_shard_swapping</code> - Shard swapping restrictions</li>
+</ul>
+
+<p>By default, no keys are excluded to maintain backward compatibility.</p>
+
   </div>
 </div>
 </div>
+<h2 class='h2_sum' id='class_attribute_summary'>Class Attribute Summary</h2>
+<div class='div_sum'>
+<ul class='summary full'>
+  <li>
+    <span class='summary_signature rw'>
+      <a href="#live_streaming_excluded_keys-class_method" title=".live_streaming_excluded_keys (class method)">.<strong>live_streaming_excluded_keys</strong>  </a>
+      (also: #live_streaming_excluded_keys)
+    </span>
+    <span class='note title rw'>rw</span>
+  </li>
+</ul>
+</div>  <!-- class_attribute_summary -->
+
 <h2 class='h2_sum' id='class_method_summary'>Class Method Summary</h2>
 <div class='div_sum'>
 <ul class='summary full'>
@@ -184,6 +247,12 @@
 <h2 class='h2_sum' id='instance_attribute_summary'>Instance Attribute Summary</h2>
 <div class='div_sum'>
 <ul class='summary full'>
+  <li>
+    <span class='summary_signature rw'>
+      <a href="#live_streaming_excluded_keys-instance_method" title="#live_streaming_excluded_keys (instance method)">#<strong>live_streaming_excluded_keys</strong>  </a>
+    </span>
+    <span class='note title rw'>rw</span>
+  </li>
   <li>
     <span class='summary_signature wo'>
       <a href="#response_body=-instance_method" title="#response_body= (instance method)">#<strong>response_body=</strong>(body)  </a>
@@ -253,16 +322,58 @@
   </li>
 </ul>
 </div>  <!-- instance_method_summary -->
+<h2 class='y_details'>DSL Calls</h2>
+<section class='method_details first' id="included-dslcall">
+<h3 class='signature'><strong>included</strong></h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/actionpack/lib/action_controller/metal/live.rb#L96-L98'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num'>
+
+
+96
+97
+98</pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'actionpack/lib/action_controller/metal/live.rb', line 96</span></pre>
+<pre class='code ruby'>
+
+<span class='id identifier rubyid_included'>included</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_class_attribute'>class_attribute</span> <span class='symbeg'>:</span><span class='id identifier rubyid_live_streaming_excluded_keys'><a href="#live_streaming_excluded_keys-class_method" title="ActionController::Live.live_streaming_excluded_keys (method)">live_streaming_excluded_keys</a></span><span class='comma'>,</span> <span class='label'>instance_accessor:</span> <span class='kw'>false</span><span class='comma'>,</span> <span class='label'>default:</span> <span class='const'>Live</span>.<span class='id identifier rubyid_live_streaming_excluded_keys'><a href="#live_streaming_excluded_keys-class_method" title="ActionController::Live.live_streaming_excluded_keys (method)">live_streaming_excluded_keys</a></span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<h2 class='y_details'>Class Attribute Details</h2>
+<section class='method_details first' id="live_streaming_excluded_keys-class_method">
+  <h3 class='signature rw first'>
+    .<strong>live_streaming_excluded_keys</strong>   <span class="extras">(<span class='rw'>rw</span>)</span>
+    <span class='aliases'>Also known as: <span class='names'>#live_streaming_excluded_keys</span></span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/actionpack/lib/action_controller/metal/live.rb#L94-L94'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='94' data-end='94'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'actionpack/lib/action_controller/metal/live.rb', line 94</span></pre>
+<pre class='code ruby'>
+
+<span class='id identifier rubyid_mattr_accessor'>mattr_accessor</span> <span class='symbeg'>:</span><span class='id identifier rubyid_live_streaming_excluded_keys'>live_streaming_excluded_keys</span><span class='comma'>,</span> <span class='label'>default:</span> []
+</pre>
+  </div>
+</div>
+</section>
+
 <h2 class='y_details'>Class Method Details</h2>
 <section class='method_details first' id="live_thread_pool_executor-class_method">
   <h3 class='signature priv first'>
     .<strong>live_thread_pool_executor</strong>   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/actionpack/lib/action_controller/metal/live.rb#L375-L377'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/actionpack/lib/action_controller/metal/live.rb#L417-L419'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='375' data-end='377'></pre>
+  <pre class='lines_num' data-start='417' data-end='419'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'actionpack/lib/action_controller/metal/live.rb', line 375</span></pre>
+<pre><span class='info file'># File 'actionpack/lib/action_controller/metal/live.rb', line 417</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_live_thread_pool_executor'>live_thread_pool_executor</span>
@@ -274,15 +385,32 @@
 </section>
 
 <h2 class='y_details'>Instance Attribute Details</h2>
-<section class='method_details first' id="response_body=-instance_method">
-  <h3 class='signature wo first'>
+<section class='method_details first' id="live_streaming_excluded_keys-instance_method">
+  <h3 class='signature rw first'>
+    #<strong>live_streaming_excluded_keys</strong>   <span class="extras">(<span class='rw'>rw</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/actionpack/lib/action_controller/metal/live.rb#L94-L94'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='94' data-end='94'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'actionpack/lib/action_controller/metal/live.rb', line 94</span></pre>
+<pre class='code ruby'>
+
+<span class='id identifier rubyid_mattr_accessor'>mattr_accessor</span> <span class='symbeg'>:</span><span class='id identifier rubyid_live_streaming_excluded_keys'>live_streaming_excluded_keys</span><span class='comma'>,</span> <span class='label'>default:</span> []
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="response_body=-instance_method">
+  <h3 class='signature wo'>
     #<strong>response_body=</strong>(body)   <span class="extras">(<span class='writeonly'>writeonly</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/actionpack/lib/action_controller/metal/live.rb#L310-L313'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/actionpack/lib/action_controller/metal/live.rb#L352-L355'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='310' data-end='313'></pre>
+  <pre class='lines_num' data-start='352' data-end='355'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'actionpack/lib/action_controller/metal/live.rb', line 310</span></pre>
+<pre><span class='info file'># File 'actionpack/lib/action_controller/metal/live.rb', line 352</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_response_body='>response_body=</span>(<span class='id identifier rubyid_body'>body</span>)
@@ -311,11 +439,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/actionpack/lib/action_controller/metal/live.rb#L371-L372'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/actionpack/lib/action_controller/metal/live.rb#L413-L414'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='371' data-end='372'></pre>
+  <pre class='lines_num' data-start='413' data-end='414'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'actionpack/lib/action_controller/metal/live.rb', line 371</span></pre>
+<pre><span class='info file'># File 'actionpack/lib/action_controller/metal/live.rb', line 413</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_clean_up_thread_locals'>clean_up_thread_locals</span>(<span class='op'>*</span><span class='id identifier rubyid_args'>args</span>) <span class='comment'># :nodoc:
@@ -329,11 +457,11 @@
   <h3 class='signature priv'>
     #<strong>log_error</strong>(exception)   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/actionpack/lib/action_controller/metal/live.rb#L379-L389'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/actionpack/lib/action_controller/metal/live.rb#L421-L431'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='379' data-end='389'></pre>
+  <pre class='lines_num' data-start='421' data-end='431'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'actionpack/lib/action_controller/metal/live.rb', line 379</span></pre>
+<pre><span class='info file'># File 'actionpack/lib/action_controller/metal/live.rb', line 421</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_log_error'>log_error</span>(<span class='id identifier rubyid_exception'>exception</span>)
@@ -368,11 +496,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/actionpack/lib/action_controller/metal/live.rb#L362-L364'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/actionpack/lib/action_controller/metal/live.rb#L404-L406'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='362' data-end='364'></pre>
+  <pre class='lines_num' data-start='404' data-end='406'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'actionpack/lib/action_controller/metal/live.rb', line 362</span></pre>
+<pre><span class='info file'># File 'actionpack/lib/action_controller/metal/live.rb', line 404</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_new_controller_thread'>new_controller_thread</span> <span class='comment'># :nodoc:
@@ -435,11 +563,11 @@
   <h3 class='signature '>
     #<strong>process</strong>(name)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/actionpack/lib/action_controller/metal/live.rb#L266-L308'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/actionpack/lib/action_controller/metal/live.rb#L307-L350'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='266' data-end='308'></pre>
+  <pre class='lines_num' data-start='307' data-end='350'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'actionpack/lib/action_controller/metal/live.rb', line 266</span></pre>
+<pre><span class='info file'># File 'actionpack/lib/action_controller/metal/live.rb', line 307</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_process'>process</span>(<span class='id identifier rubyid_name'>name</span>)
@@ -457,7 +585,8 @@
       <span class='comment'># Since we&#39;re processing the view in a different thread, copy the thread locals
 </span>      <span class='comment'># from the main thread to the child thread. :&#39;(
 </span>      <span class='id identifier rubyid_locals'>locals</span>.<span class='id identifier rubyid_each'>each</span> { <span class='op'>|</span><span class='id identifier rubyid_k'>k</span><span class='comma'>,</span> <span class='id identifier rubyid_v'>v</span><span class='op'>|</span> <span class='id identifier rubyid_t2'>t2</span>[<span class='id identifier rubyid_k'>k</span>] <span class='op'>=</span> <span class='id identifier rubyid_v'>v</span> }
-      <span class='const'><a href="../ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="../ActiveSupport/IsolatedExecutionState.html" title="ActiveSupport::IsolatedExecutionState (module)">IsolatedExecutionState</a></span>.<span class='id identifier rubyid_share_with'><a href="../ActiveSupport/IsolatedExecutionState.html#share_with-class_method" title="ActiveSupport::IsolatedExecutionState.share_with (method)">share_with</a></span>(<span class='id identifier rubyid_t1'>t1</span>) <span class='kw'>do</span>
+
+      <span class='const'><a href="../ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="../ActiveSupport/IsolatedExecutionState.html" title="ActiveSupport::IsolatedExecutionState (module)">IsolatedExecutionState</a></span>.<span class='id identifier rubyid_share_with'><a href="../ActiveSupport/IsolatedExecutionState.html#share_with-class_method" title="ActiveSupport::IsolatedExecutionState.share_with (method)">share_with</a></span>(<span class='id identifier rubyid_t1'>t1</span><span class='comma'>,</span> <span class='label'>except:</span> <span class='kw'>self</span>.<span class='id identifier rubyid_class'>class</span>.<span class='id identifier rubyid_live_streaming_excluded_keys'><a href="#live_streaming_excluded_keys-class_method" title="ActionController::Live.live_streaming_excluded_keys (method)">live_streaming_excluded_keys</a></span>) <span class='kw'>do</span>
         <span class='kw'>super</span>(<span class='id identifier rubyid_name'>name</span>)
       <span class='kw'>rescue</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
         <span class='kw'>if</span> <span class='ivar'>@_response</span>.<span class='id identifier rubyid_committed?'>committed?</span>
@@ -525,11 +654,11 @@ downloaded. Valid values are &#39;inline&#39; and &#39;attachment&#39; (default)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/actionpack/lib/action_controller/metal/live.rb#L340-L355'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/actionpack/lib/action_controller/metal/live.rb#L382-L397'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='340' data-end='355'></pre>
+  <pre class='lines_num' data-start='382' data-end='397'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'actionpack/lib/action_controller/metal/live.rb', line 340</span></pre>
+<pre><span class='info file'># File 'actionpack/lib/action_controller/metal/live.rb', line 382</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_send_stream'>send_stream</span>(<span class='label'>filename:</span><span class='comma'>,</span> <span class='label'>disposition:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>attachment</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>type:</span> <span class='kw'>nil</span>)
