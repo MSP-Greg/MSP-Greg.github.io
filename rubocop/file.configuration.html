@@ -1269,6 +1269,112 @@ specific file to have ASCII-only comments to be compatible with some specific po
 </div>
 </div>
 <div class="sect1">
+<h2 id="_scoped_disabling_with_pushpop_directives">Scoped disabling with push/pop directives</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When you want to temporarily change cop settings for a specific section of code
+and then automatically restore the previous state, you can use <code>rubocop:push</code> and
+<code>rubocop:pop</code> directives. This is particularly useful when you need to disable
+cops for a block of code without affecting the rest of the file.</p>
+</div>
+<div class="sect2">
+<h3 id="_basic_pushpop_usage">Basic push/pop usage</h3>
+<div class="paragraph">
+<p>The <code>push</code> directive saves the current state of all cop settings, and <code>pop</code>
+restores them:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_process_data'>process_data</span>(<span class='id identifier rubyid_input'>input</span>)
+  <span class='id identifier rubyid_result'>result</span> <span class='op'>=</span> <span class='id identifier rubyid_input'>input</span>.<span class='id identifier rubyid_upcase'>upcase</span>
+  <span class='comment'># rubocop:push
+</span>  <span class='comment'># rubocop:disable Style/GuardClause
+</span>  <span class='kw'>if</span> <span class='id identifier rubyid_result'>result</span>.<span class='id identifier rubyid_present?'>present?</span>
+    <span class='kw'>return</span> <span class='id identifier rubyid_result'>result</span>.<span class='id identifier rubyid_strip'>strip</span>
+  <span class='kw'>end</span>
+  <span class='comment'># rubocop:pop
+</span>  <span class='kw'>nil</span>
+<span class='kw'>end</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>After <code>pop</code>, the <code>Style/GuardClause</code> cop is automatically re-enabled, returning
+to its state before <code>push</code>.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_inline_push_arguments">Inline push arguments</h3>
+<div class="paragraph">
+<p>For convenience, you can combine <code>push</code> with enable/disable operations using
+inline arguments. Use <code>-</code> to disable a cop and <code>+</code> to enable a cop:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_process_data'>process_data</span>(<span class='id identifier rubyid_input'>input</span>)
+  <span class='id identifier rubyid_result'>result</span> <span class='op'>=</span> <span class='id identifier rubyid_input'>input</span>.<span class='id identifier rubyid_upcase'>upcase</span>
+  <span class='comment'># rubocop:push -Style/GuardClause
+</span>  <span class='kw'>if</span> <span class='id identifier rubyid_result'>result</span>.<span class='id identifier rubyid_present?'>present?</span>
+    <span class='kw'>return</span> <span class='id identifier rubyid_result'>result</span>.<span class='id identifier rubyid_strip'>strip</span>
+  <span class='kw'>end</span>
+  <span class='comment'># rubocop:pop
+</span>  <span class='kw'>nil</span>
+<span class='kw'>end</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>You can specify multiple cops with different operations:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='comment'># rubocop:disable Style/For
+</span><span class='kw'>for</span> <span class='id identifier rubyid_x'>x</span> <span class='kw'>in</span> [<span class='int'>1</span><span class='comma'>,</span> <span class='int'>2</span><span class='comma'>,</span> <span class='int'>3</span>]
+  <span class='id identifier rubyid_puts'>puts</span> <span class='id identifier rubyid_x'>x</span>
+<span class='kw'>end</span>
+<span class='comment'># rubocop:push +Style/For -Style/GuardClause
+</span><span class='kw'>for</span> <span class='id identifier rubyid_y'>y</span> <span class='kw'>in</span> [<span class='int'>4</span><span class='comma'>,</span> <span class='int'>5</span><span class='comma'>,</span> <span class='int'>6</span>]  <span class='comment'># Style/For is re-enabled here
+</span>  <span class='kw'>if</span> <span class='id identifier rubyid_y'>y</span> <span class='op'>&gt;</span> <span class='int'>0</span>
+    <span class='kw'>return</span> <span class='id identifier rubyid_y'>y</span>        <span class='comment'># Style/GuardClause is disabled here
+</span>  <span class='kw'>end</span>
+<span class='kw'>end</span>
+<span class='comment'># rubocop:pop
+</span><span class='comment'># Back to original state: Style/For disabled, Style/GuardClause enabled</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_nested_pushpop">Nested push/pop</h3>
+<div class="paragraph">
+<p>Push/pop directives can be nested for complex scenarios:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='comment'># rubocop:disable Metrics/MethodLength
+</span><span class='kw'>def</span> <span class='id identifier rubyid_complex_method'>complex_method</span>
+  <span class='id identifier rubyid_step1'>step1</span>
+  <span class='comment'># rubocop:push
+</span>  <span class='comment'># rubocop:enable Metrics/MethodLength
+</span>  <span class='comment'># rubocop:disable Style/GuardClause
+</span>  <span class='kw'>def</span> <span class='id identifier rubyid_helper_method'>helper_method</span>
+    <span class='comment'># rubocop:push
+</span>    <span class='comment'># rubocop:enable Style/GuardClause
+</span>    <span class='kw'>if</span> <span class='id identifier rubyid_condition'>condition</span>
+      <span class='kw'>return</span> <span class='id identifier rubyid_value'>value</span>
+    <span class='kw'>end</span>
+    <span class='comment'># rubocop:pop
+</span>    <span class='id identifier rubyid_other_code'>other_code</span>
+  <span class='kw'>end</span>
+  <span class='comment'># rubocop:pop
+</span>  <span class='id identifier rubyid_step2'>step2</span>
+<span class='kw'>end</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Each <code>pop</code> restores the state to what it was at the corresponding <code>push</code>.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
 <h2 id="_setting_the_style_guide_url">Setting the style guide URL</h2>
 <div class="sectionbody">
 <div class="paragraph">
