@@ -8,7 +8,7 @@
 <meta name='mobile-web-app-capable' content='yes'>
 <meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
 
-<title>Class: TCPSocket &mdash; socket  Ruby-3.4.7 p58</title>
+<title>Class: TCPSocket &mdash; socket  Ruby-3.4.8 p72</title>
 
 <link rel='stylesheet'  type='text/css' href='../../css/y_fonts.css' />
 <link rel='stylesheet'  type='text/css' href='../../css/highlight.github.css' />
@@ -50,7 +50,7 @@
   <header id='y_header'>
     <div id='y_menu'>
       <a id='home_no_xhr' href='/'>Home</a> &raquo; 
-      <a href='../.'>Ruby-3.4.7</a> &raquo; 
+      <a href='../.'>Ruby-3.4.8</a> &raquo; 
       <a href='.'>socket</a> &raquo; 
       <a href='_index.html#alpha_T'>Index (T)</a> &raquo; 
       <span class='title'><a id='t2_doc_top' href='#'>TCPSocket&nbsp;&#x25B2;</a></span>
@@ -116,7 +116,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_7/ext/socket/tcpsocket.c#L137'>ext/socket/tcpsocket.c</a>      </td>
+      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_8/ext/socket/tcpsocket.c#L141'>ext/socket/tcpsocket.c</a>      </td>
     </tr>
   </tbody>
 </table>
@@ -174,7 +174,7 @@
   </li>
   <li>
     <span class='summary_signature '>
-      <a href="#new-class_method" title="new (class method)">.<strong>new</strong>(remote_host, remote_port, local_host = nil, local_port = nil, resolv_timeout: nil, connect_timeout: nil, fast_fallback: true)  </a>
+      <a href="#new-class_method" title="new (class method)">.<strong>new</strong>(remote_host, remote_port, local_host = nil, local_port = nil, resolv_timeout: nil, connect_timeout: nil, open_timeout: nil, fast_fallback: true)  </a>
     </span>
     <span class='note title constructor'>constructor</span>
     <div class='summary_desc'>
@@ -342,7 +342,7 @@
 
   <section class='method_details first' id="new-class_method">
   <h3 class='signature  first'>
-    .<strong>new</strong>(remote_host, remote_port, local_host = nil, local_port = nil, resolv_timeout: nil, connect_timeout: nil, fast_fallback: true)    </h3>
+    .<strong>new</strong>(remote_host, remote_port, local_host = nil, local_port = nil, resolv_timeout: nil, connect_timeout: nil, open_timeout: nil, fast_fallback: true)    </h3>
 <div class='docstring'>
   <div class='discussion'>
     
@@ -350,7 +350,7 @@
 
 <p>Starting from Ruby 3.4, this method operates according to the Happy Eyeballs Version 2 (<a href="https://datatracker.ietf.org/doc/html/rfc8305" target="_parent" title="RFC 8305">RFC 8305</a>) algorithm by default, except on Windows.</p>
 
-<p>For details on Happy Eyeballs Version 2, see <a href="Socket.html#tcp_fast_fallback=-class_method" title="Socket.tcp_fast_fallback= (method)">{Socket</a>.tcp_fast_fallback=}.</p>
+<p>For details on Happy Eyeballs Version 2, see <a href="rdoc-ref:Socket.tcp_fast_fallback=">Socket.tcp_fast_fallback=</a>.</p>
 
 <p>To make it behave the same as in Ruby 3.3 and earlier, explicitly specify the option fast_fallback:false. Or, setting <code>Socket.tcp_fast_fallback=false</code> will disable Happy Eyeballs Version 2 not only for this method but for all <a href="Socket.html" title="Socket (class)"><code>::Socket</code></a> globally.</p>
 
@@ -361,6 +361,9 @@
 </dd><dt>:connect_timeout</dt>
 <dd>
 <p>This method sequentially attempts connecting to all candidate destination addresses.<br>The <code>connect_timeout</code> specifies the timeout in seconds from the start of the connection attempt to the last candidate.<br>By default, all connection attempts continue until the timeout occurs.<br>When <code>fast_fallback:false</code> is explicitly specified,<br>a timeout is set for each connection attempt and any connection attempt that exceeds its timeout will be canceled.</p>
+</dd><dt>:open_timeout</dt>
+<dd>
+<p>Specifies the timeout in seconds from the start of the method execution.<br>If this timeout is reached while there are still addresses that have not yet been attempted for connection, no further attempts will be made.<br>If this option is specified together with other timeout options, an <code>ArgumentError</code> will be raised.</p>
 </dd><dt>:fast_fallback</dt>
 <dd>
 <p>Enables the Happy Eyeballs Version 2 algorithm (enabled by default).</p>
@@ -368,11 +371,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_7/ext/socket/tcpsocket.c#L40-L80'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_8/ext/socket/tcpsocket.c#L41-L84'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='40' data-end='80'></pre>
+  <pre class='lines_num' data-start='41' data-end='84'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/socket/tcpsocket.c', line 40</span></pre>
+<pre><span class='info file'># File 'ext/socket/tcpsocket.c', line 41</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -381,29 +384,32 @@ tcp_init(int argc, VALUE *argv, VALUE sock)
     VALUE remote_host, remote_serv;
     VALUE local_host, local_serv;
     VALUE opt;
-    static ID keyword_ids[4];
-    VALUE kwargs[4];
+    static ID keyword_ids[5];
+    VALUE kwargs[5];
     VALUE resolv_timeout = Qnil;
     VALUE connect_timeout = Qnil;
+    VALUE open_timeout = Qnil;
     VALUE fast_fallback = Qnil;
     VALUE test_mode_settings = Qnil;
 
     if (!keyword_ids[0]) {
         CONST_ID(keyword_ids[0], &quot;resolv_timeout&quot;);
         CONST_ID(keyword_ids[1], &quot;connect_timeout&quot;);
-        CONST_ID(keyword_ids[2], &quot;fast_fallback&quot;);
-        CONST_ID(keyword_ids[3], &quot;test_mode_settings&quot;);
+        CONST_ID(keyword_ids[2], &quot;open_timeout&quot;);
+        CONST_ID(keyword_ids[3], &quot;fast_fallback&quot;);
+        CONST_ID(keyword_ids[4], &quot;test_mode_settings&quot;);
     }
 
     rb_scan_args(argc, argv, &quot;22:&quot;, &amp;remote_host, &amp;remote_serv,
                         &amp;local_host, &amp;local_serv, &amp;opt);
 
     if (!NIL_P(opt)) {
-        rb_get_kwargs(opt, keyword_ids, 0, 4, kwargs);
+        rb_get_kwargs(opt, keyword_ids, 0, 5, kwargs);
         if (kwargs[0] != Qundef) { resolv_timeout = kwargs[0]; }
         if (kwargs[1] != Qundef) { connect_timeout = kwargs[1]; }
-        if (kwargs[2] != Qundef) { fast_fallback = kwargs[2]; }
-        if (kwargs[3] != Qundef) { test_mode_settings = kwargs[3]; }
+        if (kwargs[2] != Qundef) { open_timeout = kwargs[2]; }
+        if (kwargs[3] != Qundef) { fast_fallback = kwargs[3]; }
+        if (kwargs[4] != Qundef) { test_mode_settings = kwargs[4]; }
     }
 
     if (fast_fallback == Qnil) {
@@ -413,8 +419,8 @@ tcp_init(int argc, VALUE *argv, VALUE sock)
 
     return rsock_init_inetsock(sock, remote_host, remote_serv,
                                local_host, local_serv, INET_CLIENT,
-                               resolv_timeout, connect_timeout, fast_fallback,
-                               test_mode_settings);
+                               resolv_timeout, connect_timeout, open_timeout,
+                               fast_fallback, test_mode_settings);
 }
 </pre>
   </div>
@@ -444,11 +450,11 @@ tcp_init(int argc, VALUE *argv, VALUE sock)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_7/ext/socket/tcpsocket.c#L107-L114'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_8/ext/socket/tcpsocket.c#L111-L118'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='107' data-end='114'></pre>
+  <pre class='lines_num' data-start='111' data-end='118'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/socket/tcpsocket.c', line 107</span></pre>
+<pre><span class='info file'># File 'ext/socket/tcpsocket.c', line 111</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -456,7 +462,7 @@ tcp_s_gethostbyname(VALUE obj, VALUE host)
 {
     rb_warn(&quot;TCPSocket.gethostbyname is deprecated; use Addrinfo.getaddrinfo instead.&quot;);
     struct rb_addrinfo *res =
-        rsock_addrinfo(host, Qnil, AF_UNSPEC, SOCK_STREAM, AI_CANONNAME);
+        rsock_addrinfo(host, Qnil, AF_UNSPEC, SOCK_STREAM, AI_CANONNAME, Qnil);
     return rsock_make_hostent(host, res, tcp_sockaddr);
 }
 </pre>

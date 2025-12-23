@@ -8,7 +8,7 @@
 <meta name='mobile-web-app-capable' content='yes'>
 <meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
 
-<title>Module: ObjectSpace &mdash; Core  Ruby-3.4.7 p58</title>
+<title>Module: ObjectSpace &mdash; Core  Ruby-3.4.8 p72</title>
 
 <link rel='stylesheet'  type='text/css' href='../../css/y_fonts.css' />
 <link rel='stylesheet'  type='text/css' href='../../css/highlight.github.css' />
@@ -50,7 +50,7 @@
   <header id='y_header'>
     <div id='y_menu'>
       <a id='home_no_xhr' href='/'>Home</a> &raquo; 
-      <a href='../.'>Ruby-3.4.7</a> &raquo; 
+      <a href='../.'>Ruby-3.4.8</a> &raquo; 
       <a href='.'>Core</a> &raquo; 
       <a href='_index.html#alpha_O'>Index (O)</a> &raquo; 
       <span class='title'><a id='t2_doc_top' href='#'>ObjectSpace&nbsp;&#x25B2;</a></span>
@@ -78,7 +78,7 @@
     </td></tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2 o'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_7/gc.c#L4901'>gc.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_7/gc.rb#L393'>gc.rb</a>,<br/> <a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_7/weakmap.c#L1139'>weakmap.c</a></span>
+      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_8/gc.c#L5573'>gc.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_8/gc.rb#L592'>gc.rb</a>,<br/> <a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_8/weakmap.c#L1143'>weakmap.c</a></span>
       </td>
     </tr>
   </tbody>
@@ -137,7 +137,7 @@
     </span>
     <span class='mod_func note title'>mod_func</span>
     <div class='summary_desc'>
-      <div class='inline'><p>Calls the block once for each living, nonimmediate object in this Ruby process.</p></div>
+      <div class='inline'><p>Calls the block once for each living, nonimmediate object in this <a href="Ruby.html" title="Ruby (module)"><code>::Ruby</code></a> process.</p></div>
     </div>
   </li>
   <li>
@@ -175,16 +175,17 @@
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_7/gc.c#L1844-L1848'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_8/gc.c#L2155-L2160'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1844' data-end='1848'></pre>
+  <pre class='lines_num' data-start='2155' data-end='2160'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'gc.c', line 1844</span></pre>
+<pre><span class='info file'># File 'gc.c', line 2155</span></pre>
 <pre class='code cpp'>
 
 static VALUE
 os_id2ref(VALUE os, VALUE objid)
 {
+    rb_category_warn(RB_WARN_CATEGORY_DEPRECATED, &quot;ObjectSpace._id2ref is deprecated&quot;);
     return id2ref(objid);
 }
 </pre>
@@ -225,11 +226,11 @@ os_id2ref(VALUE os, VALUE objid)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_7/gc.c#L2127-L2157'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_8/gc.c#L2470-L2512'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2127' data-end='2157'></pre>
+  <pre class='lines_num' data-start='2470' data-end='2512'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'gc.c', line 2127</span></pre>
+<pre><span class='info file'># File 'gc.c', line 2470</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -237,12 +238,24 @@ count_objects(int argc, VALUE *argv, VALUE os)
 {
     struct count_objects_data data = { 0 };
     VALUE hash = Qnil;
+    VALUE types[T_MASK + 1];
 
     if (rb_check_arity(argc, 0, 1) == 1) {
         hash = argv[0];
         if (!RB_TYPE_P(hash, T_HASH))
             rb_raise(rb_eTypeError, &quot;non-hash given&quot;);
     }
+
+    for (size_t i = 0; i &lt;= T_MASK; i++) {
+        // type_sym can allocate an object,
+        // so we need to create all key symbols in advance
+        // not to disturb the result
+        types[i] = type_sym(i);
+    }
+
+    // Same as type_sym, we need to create all key symbols in advance
+    VALUE total = ID2SYM(rb_intern(&quot;TOTAL&quot;));
+    VALUE free = ID2SYM(rb_intern(&quot;FREE&quot;));
 
     rb_gc_impl_each_object(rb_gc_get_objspace(), count_objects_i, &amp;data);
 
@@ -252,13 +265,13 @@ count_objects(int argc, VALUE *argv, VALUE os)
     else if (!RHASH_EMPTY_P(hash)) {
         rb_hash_stlike_foreach(hash, set_zero, hash);
     }
-    rb_hash_aset(hash, ID2SYM(rb_intern(&quot;TOTAL&quot;)), SIZET2NUM(data.total));
-    rb_hash_aset(hash, ID2SYM(rb_intern(&quot;FREE&quot;)), SIZET2NUM(data.freed));
+    rb_hash_aset(hash, total, SIZET2NUM(data.total));
+    rb_hash_aset(hash, free, SIZET2NUM(data.freed));
 
     for (size_t i = 0; i &lt;= T_MASK; i++) {
-        VALUE type = type_sym(i);
-        if (data.counts[i])
-            rb_hash_aset(hash, type, SIZET2NUM(data.counts[i]));
+        if (data.counts[i]) {
+            rb_hash_aset(hash, types[i], SIZET2NUM(data.counts[i]));
+        }
     }
 
     return hash;
@@ -323,11 +336,11 @@ count_objects(int argc, VALUE *argv, VALUE os)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_7/gc.c#L1733-L1748'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_8/gc.c#L1695-L1710'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1733' data-end='1748'></pre>
+  <pre class='lines_num' data-start='1695' data-end='1710'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'gc.c', line 1733</span></pre>
+<pre><span class='info file'># File 'gc.c', line 1695</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -361,37 +374,40 @@ define_final(int argc, VALUE *argv, VALUE os)
 <div class='docstring'>
   <div class='discussion'>
     
-<p>Calls the block once for each living, nonimmediate object in this Ruby process. If <em>module</em> is specified, calls the block for only those classes or modules that match (or are a subclass of) <em>module</em>. Returns the number of objects found. Immediate objects (<code>Fixnum</code>s, <a href="Symbol.html" title="Symbol (class)"><code>::Symbol</code></a>s <code>true</code>, <code>false</code>, and <code>nil</code>) are never returned. In the example below, <a href="#each_object-instance_method" title="ObjectSpace#each_object (method)">#each_object</a> returns both the numbers we defined and several constants defined in the <a href="Math.html" title="Math (module)"><code>::Math</code></a> module.</p>
+<p>Calls the block once for each living, nonimmediate object in this <a href="Ruby.html" title="Ruby (module)"><code>::Ruby</code></a> process. If <em>module</em> is specified, calls the block for only those classes or modules that match (or are a subclass of) <em>module</em>. Returns the number of objects found. Immediate objects (such as <code>Fixnum</code>s, static <a href="Symbol.html" title="Symbol (class)"><code>::Symbol</code></a>s <code>true</code>, <code>false</code> and <code>nil</code>) are never returned.</p>
 
 <p>If no block is given, an enumerator is returned instead.</p>
 
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_a'>a</span> <span class='op'>=</span> <span class='float'>102.7</span>
-<span class='id identifier rubyid_b'>b</span> <span class='op'>=</span> <span class='int'>95</span>       <span class='comment'># Won&#39;t be returned
-</span><span class='id identifier rubyid_c'>c</span> <span class='op'>=</span> <span class='int'>12345678987654321</span>
-<span class='id identifier rubyid_count'>count</span> <span class='op'>=</span> <span class='const'>ObjectSpace</span>.<span class='id identifier rubyid_each_object'>each_object</span>(<span class='const'><a href="Numeric.html" title="Numeric (class)">Numeric</a></span>) {<span class='op'>|</span><span class='id identifier rubyid_x'>x</span><span class='op'>|</span> <span class='id identifier rubyid_p'>p</span> <span class='id identifier rubyid_x'>x</span> }
+<pre class="code ruby"><code class="ruby"><span class='const'>Job</span> <span class='op'>=</span> <span class='const'><a href="Class.html" title="Class (class)">Class</a></span>.<span class='id identifier rubyid_new'><a href="Class.html#new-class_method" title="Class.new (method)">new</a></span>
+<span class='id identifier rubyid_jobs'>jobs</span> <span class='op'>=</span> [<span class='const'>Job</span>.<span class='id identifier rubyid_new'>new</span><span class='comma'>,</span> <span class='const'>Job</span>.<span class='id identifier rubyid_new'>new</span>]
+<span class='id identifier rubyid_count'>count</span> <span class='op'>=</span> <span class='const'>ObjectSpace</span>.<span class='id identifier rubyid_each_object'>each_object</span>(<span class='const'>Job</span>) {<span class='op'>|</span><span class='id identifier rubyid_x'>x</span><span class='op'>|</span> <span class='id identifier rubyid_p'>p</span> <span class='id identifier rubyid_x'>x</span> }
 <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Total count: </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_count'>count</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span></code></pre>
 
 <p><em>produces:</em></p>
 
-<pre class="code ruby"><code class="ruby"><span class='int'>12345678987654321</span>
-<span class='float'>102.7</span>
-<span class='float'>2.71828182845905</span>
-<span class='float'>3.14159265358979</span>
-<span class='float'>2.22044604925031e-16</span>
-<span class='float'>1.7976931348623157e+308</span>
-<span class='float'>2.2250738585072e-308</span>
-<span class='const'>Total</span> <span class='label'>count:</span> <span class='int'>7</span></code></pre>
+<pre class="code ruby"><code class="ruby"><span class='comment'>#&lt;Job:0x000000011d6cbbf0&gt;
+</span><span class='comment'>#&lt;Job:0x000000011d6cbc68&gt;
+</span> <span class='const'>Total</span> <span class='label'>count:</span> <span class='int'>2</span></code></pre>
+
+<p>Due to a current <a href="Ractor.html" title="Ractor (class)"><code>::Ractor</code></a> implementation issue, this method does not yield Ractor-unshareable objects when the process is in multi-Ractor mode. Multi-ractor mode is enabled when <a href="Ractor.html#new-class_method" title="Ractor.new (method)">Ractor.new</a> has been called for the first time. See <a href="https://bugs.ruby-lang.org/issues/19387">bugs.ruby-lang.org/issues/19387</a> for more information.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_a'>a</span> <span class='op'>=</span> <span class='int'>12345678987654321</span> <span class='comment'># shareable
+</span><span class='id identifier rubyid_b'>b</span> <span class='op'>=</span> [].<span class='id identifier rubyid_freeze'>freeze</span> <span class='comment'># shareable
+</span><span class='id identifier rubyid_c'>c</span> <span class='op'>=</span> {} <span class='comment'># not shareable
+</span><span class='const'>ObjectSpace</span>.<span class='id identifier rubyid_each_object'>each_object</span> {<span class='op'>|</span><span class='id identifier rubyid_x'>x</span><span class='op'>|</span> <span class='id identifier rubyid_x'>x</span> } <span class='comment'># yields a, b, and c
+</span><span class='const'><a href="Ractor.html" title="Ractor (class)">Ractor</a></span>.<span class='id identifier rubyid_new'><a href="Ractor.html#new-class_method" title="Ractor.new (method)">new</a></span> {} <span class='comment'># enter multi-Ractor mode
+</span><span class='const'>ObjectSpace</span>.<span class='id identifier rubyid_each_object'>each_object</span> {<span class='op'>|</span><span class='id identifier rubyid_x'>x</span><span class='op'>|</span> <span class='id identifier rubyid_x'>x</span> } <span class='comment'># does not yield c</span></code></pre>
 
   </div>
 </div>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_7/gc.c#L1612-L1620'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_8/gc.c#L1574-L1582'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1612' data-end='1620'></pre>
+  <pre class='lines_num' data-start='1574' data-end='1582'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'gc.c', line 1612</span></pre>
+<pre><span class='info file'># File 'gc.c', line 1574</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -419,11 +435,11 @@ os_each_obj(int argc, VALUE *argv, VALUE os)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_7/gc.rb#L395-L397'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_8/gc.rb#L594-L596'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='395' data-end='397'></pre>
+  <pre class='lines_num' data-start='594' data-end='596'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'gc.rb', line 395</span></pre>
+<pre><span class='info file'># File 'gc.rb', line 594</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_garbage_collect'>garbage_collect</span> <span class='label'>full_mark:</span> <span class='kw'>true</span><span class='comma'>,</span> <span class='label'>immediate_mark:</span> <span class='kw'>true</span><span class='comma'>,</span> <span class='label'>immediate_sweep:</span> <span class='kw'>true</span>
@@ -444,11 +460,11 @@ os_each_obj(int argc, VALUE *argv, VALUE os)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_7/gc.c#L1630-L1634'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_8/gc.c#L1592-L1596'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1630' data-end='1634'></pre>
+  <pre class='lines_num' data-start='1592' data-end='1596'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'gc.c', line 1630</span></pre>
+<pre><span class='info file'># File 'gc.c', line 1592</span></pre>
 <pre class='code cpp'>
 
 static VALUE
