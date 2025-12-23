@@ -106,7 +106,7 @@
 <div class='docstring'>
   <div class='discussion'>
     
-<p><a href="#new-class_method" title="Ractor.new (method)">.new</a> makes a new Ractor, which can run in parallel.</p>
+<p><a href="#new-class_method" title="Ractor.new (method)">.new</a> creates a new Ractor, which can run in parallel with other ractors.</p>
 
 <pre class="code ruby"><code class="ruby"><span class='comment'># The simplest ractor
 </span><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span> {<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>I am in Ractor!</span><span class='tstring_end'>&quot;</span></span>}
@@ -115,7 +115,7 @@
 
 <p>Ractors do not share all objects with each other. There are two main benefits to this: across ractors, thread-safety concerns such as data-races and race-conditions are not possible. The other benefit is parallelism.</p>
 
-<p>To achieve this, object sharing is limited across ractors. For example, unlike in threads, ractors can’t access all the objects available in other ractors. Even objects normally available through variables in the outer scope are prohibited from being used across ractors.</p>
+<p>To achieve this, object sharing is limited across ractors. Unlike in threads, ractors can’t access all the objects available in other ractors. For example, objects normally available through variables in the outer scope are prohibited from being used across ractors.</p>
 
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_a'>a</span> <span class='op'>=</span> <span class='int'>1</span>
 <span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span> {<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>I am in Ractor! a=</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_a'>a</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>}
@@ -127,13 +127,13 @@
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_a'>a</span> <span class='op'>=</span> <span class='int'>1</span>
 <span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span>(<span class='id identifier rubyid_a'>a</span>) { <span class='op'>|</span><span class='id identifier rubyid_a1'>a1</span><span class='op'>|</span> <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>I am in Ractor! a=</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_a1'>a1</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>}</code></pre>
 
-<p>On CRuby (the default implementation), Global Virtual Machine Lock (GVL) is held per ractor, so ractors can perform in parallel without locking each other. This is unlike the situation with threads on CRuby.</p>
+<p>On CRuby (the default implementation), the Global Virtual Machine Lock (GVL) is held per ractor, so ractors can run in parallel. This is unlike the situation with threads on CRuby.</p>
 
 <p>Instead of accessing shared state, objects should be passed to and from ractors by sending and receiving them as messages.</p>
 
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_a'>a</span> <span class='op'>=</span> <span class='int'>1</span>
 <span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span> <span class='kw'>do</span>
-  <span class='id identifier rubyid_a_in_ractor'>a_in_ractor</span> <span class='op'>=</span> <span class='id identifier rubyid_receive'><a href="#receive-class_method" title="Ractor.receive (method)">receive</a></span> <span class='comment'># receive blocks until somebody passes a message
+  <span class='id identifier rubyid_a_in_ractor'>a_in_ractor</span> <span class='op'>=</span> <span class='id identifier rubyid_receive'><a href="#receive-class_method" title="Ractor.receive (method)">receive</a></span> <span class='comment'># receive blocks the Thread until our default port gets sent a message
 </span>  <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>I am in Ractor! a=</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_a_in_ractor'>a_in_ractor</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
 <span class='kw'>end</span>
 <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_send'><a href="#send-instance_method" title="Ractor#send (method)">send</a></span>(<span class='id identifier rubyid_a'>a</span>)  <span class='comment'># pass it
@@ -144,9 +144,9 @@
 
 <h3 id="label-Shareable+and+unshareable+objects">Shareable and unshareable objects</h3>
 
-<p>When an object is sent to and from a ractor, it’s important to understand whether the object is shareable or unshareable. Most Ruby objects are unshareable objects. Even frozen objects can be unshareable if they contain (through their instance variables) unfrozen objects.</p>
+<p>When an object is sent to a ractor, it’s important to understand whether the object is shareable or unshareable. Most Ruby objects are unshareable objects. Even frozen objects can be unshareable if they contain (through their instance variables) unfrozen objects.</p>
 
-<p>Shareable objects are those which can be used by several ractors at once without compromising thread-safety, for example numbers, <code>true</code> and <code>false</code>. <a href="#shareable%3F-class_method" title="Ractor.shareable? (method)">.shareable?</a> allows you to check this, and <a href="#make_shareable-class_method" title="Ractor.make_shareable (method)">.make_shareable</a> tries to make the object shareable if it’s not already, and gives an error if it can’t do it.</p>
+<p>Shareable objects are those which can be used by several ractors at once without compromising thread-safety, for example numbers, <code>true</code> and <code>false</code>. <a href="#shareable%3F-class_method" title="Ractor.shareable? (method)">.shareable?</a> allows you to check this, and <a href="#make_shareable-class_method" title="Ractor.make_shareable (method)">.make_shareable</a> tries to make the object shareable if it’s not already and gives an error if it can’t do it.</p>
 
 <pre class="code ruby"><code class="ruby"><span class='const'>Ractor</span>.<span class='id identifier rubyid_shareable?'><a href="#shareable%3F-class_method" title="Ractor.shareable? (method)">shareable?</a></span>(<span class='int'>1</span>)            <span class='comment'>#=&gt; true -- numbers and other immutable basic values are shareable
 </span><span class='const'>Ractor</span>.<span class='id identifier rubyid_shareable?'><a href="#shareable%3F-class_method" title="Ractor.shareable? (method)">shareable?</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&#39;</span></span>)        <span class='comment'>#=&gt; false, unless the string is frozen due to # frozen_string_literal: true
@@ -161,7 +161,7 @@
 </span><span class='id identifier rubyid_ary'>ary</span>[<span class='int'>0</span>].<span class='id identifier rubyid_frozen?'>frozen?</span>              <span class='comment'>#=&gt; true
 </span><span class='id identifier rubyid_ary'>ary</span>[<span class='int'>1</span>].<span class='id identifier rubyid_frozen?'>frozen?</span>              <span class='comment'>#=&gt; true</span></code></pre>
 
-<p>When a shareable object is sent via <a href="#send-instance_method" title="Ractor#send (method)">#send</a>, no additional processing occurs on it and it becomes usable by both ractors. When an unshareable object is sent, it can be either <em>copied</em> or <em>moved</em>. The first is the default, and it copies the object fully by deep cloning (Object#clone) the non-shareable parts of its structure.</p>
+<p>When a shareable object is sent via <a href="#send-instance_method" title="Ractor#send (method)">#send</a>, no additional processing occurs on it and it becomes usable by both ractors. When an unshareable object is sent, it can be either <em>copied</em> or <em>moved</em>. Copying is the default, and it copies the object fully by deep cloning (Object#clone) the non-shareable parts of its structure.</p>
 
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_data'>data</span> <span class='op'>=</span> [<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&#39;</span></span>.<span class='id identifier rubyid_dup'>dup</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>bar</span><span class='tstring_end'>&#39;</span></span>.<span class='id identifier rubyid_freeze'>freeze</span>]
 <span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span> <span class='kw'>do</span>
@@ -197,9 +197,9 @@
 <span class='const'>Outside</span><span class='op'>:</span> <span class='id identifier rubyid_moved?'>moved?</span> <span class='kw'>true</span>
 <span class='id identifier rubyid_test'>test</span>.<span class='id identifier rubyid_rb'>rb</span><span class='symbeg'>:</span><span class='int'>9</span><span class='symbeg'>:</span><span class='kw'>in</span> <span class='backtick'>`</span><span class='tstring_content'>method_missing&#39;: can not send any methods to a moved object (Ractor::MovedError)</span></code></pre>
 
-<p>Notice that even <a href="#inspect-instance_method" title="Ractor#inspect (method)">#inspect</a> (and more basic methods like <code>__id__</code>) is inaccessible on a moved object.</p>
+<p>Notice that even <a href="#inspect-instance_method" title="Ractor#inspect (method)">#inspect</a> and more basic methods like <code>__id__</code> are inaccessible on a moved object.</p>
 
-<p><a href="Class.html" title="Class (class)"><code>::Class</code></a> and <a href="Module.html" title="Module (class)"><code>::Module</code></a> objects are shareable so the class/module definitions are shared between ractors. Ractor objects are also shareable. All operations on shareable objects are thread-safe, so the thread-safety property will be kept. We can not define mutable shareable objects in <a href="Ruby.html" title="Ruby (module)"><code>::Ruby</code></a>, but C extensions can introduce them.</p>
+<p><a href="Class.html" title="Class (class)"><code>::Class</code></a> and <a href="Module.html" title="Module (class)"><code>::Module</code></a> objects are shareable and their class/module definitions are shared between ractors. Ractor objects are also shareable. All operations on shareable objects are thread-safe across ractors. Defining mutable, shareable objects in <a href="Ruby.html" title="Ruby (module)"><code>::Ruby</code></a> is not possible, but C extensions can introduce them.</p>
 
 <p>It is prohibited to access (get) instance variables of shareable objects in other ractors if the values of the variables aren’t shareable. This can occur because modules/classes are shareable, but they can have instance variables whose values are not. In non-main ractors, it’s also prohibited to set instance variables on classes/modules (even if the value is shareable).</p>
 
@@ -258,13 +258,13 @@
 
 <h3 id="label-Note+on+code+examples">Note on code examples</h3>
 
-<p>In the examples below, sometimes we use the following method to wait for ractors that are not currently blocked to finish (or to make progress).</p>
+<p>In the examples below, sometimes we use the following method to wait for ractors to make progress or finish.</p>
 
 <pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_wait'>wait</span>
   <span class='id identifier rubyid_sleep'>sleep</span>(<span class='float'>0.1</span>)
 <span class='kw'>end</span></code></pre>
 
-<p>It is **only for demonstration purposes** and shouldn’t be used in a real code. Most of the time, <a href="#join-instance_method" title="Ractor#join (method)">#join</a> is used to wait for ractors to finish.</p>
+<p>This is **only for demonstration purposes** and shouldn’t be used in a real code. Most of the time, <a href="#join-instance_method" title="Ractor#join (method)">#join</a> is used to wait for ractors to finish and <a href="#receive-class_method" title="Ractor.receive (method)">.receive</a> is used to wait for messages.</p>
 
 <h3 id="label-Reference">Reference</h3>
 
@@ -282,7 +282,7 @@
     </span>
     <span class='note title readonly'>readonly</span>
     <div class='summary_desc'>
-      <div class='inline'><p>returns main ractor.</p></div>
+      <div class='inline'><p>Returns the main ractor.</p></div>
     </div>
   </li>
   <li>
@@ -291,7 +291,7 @@
     </span>
     <span class='note title readonly'>readonly</span>
     <div class='summary_desc'>
-      <div class='inline'><p>return true if the current ractor is main ractor.</p></div>
+      <div class='inline'><p>Returns true if the current ractor is the main ractor.</p></div>
     </div>
   </li>
 </ul>
@@ -305,7 +305,7 @@
       <a href="#[]-class_method" title=".[] (class method)">.<strong>[]</strong>(sym)  </a>
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>get a value from ractor-local storage of current <code>Ractor</code>.</p></div>
+      <div class='inline'><p>Gets a value from ractor-local storage for the current <code>Ractor</code>.</p></div>
     </div>
   </li>
   <li>
@@ -313,7 +313,7 @@
       <a href="#[]=-class_method" title=".[]= (class method)">.<strong>[]=</strong>(sym, val)  </a>
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>set a value in ractor-local storage of current <code>Ractor</code>.</p></div>
+      <div class='inline'><p>Sets a value in ractor-local storage for the current <code>Ractor</code>.</p></div>
     </div>
   </li>
   <li>
@@ -321,7 +321,7 @@
       <a href="#count-class_method" title=".count (class method)">.<strong>count</strong>  </a>
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>Returns the number of Ractors currently running or blocking (waiting).</p></div>
+      <div class='inline'><p>Returns the number of ractors currently running or blocking (waiting).</p></div>
     </div>
   </li>
   <li>
@@ -337,7 +337,7 @@
       <a href="#make_shareable-class_method" title="make_shareable (class method)">.<strong>make_shareable</strong>(obj, copy: false)  &#x21d2; shareable_obj </a>
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>Make <code>obj</code> shareable between ractors.</p></div>
+      <div class='inline'><p>Makes <code>obj</code> shareable between ractors.</p></div>
     </div>
   </li>
   <li>
@@ -346,7 +346,7 @@
     </span>
     <span class='note title constructor'>constructor</span>
     <div class='summary_desc'>
-      <div class='inline'><p>Create a new Ractor with args and a block.</p></div>
+      <div class='inline'><p>Creates a new Ractor with args and a block.</p></div>
     </div>
   </li>
   <li>
@@ -355,7 +355,7 @@
       (also: .recv)
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>Receive a message from the default port.</p></div>
+      <div class='inline'><p>Receives a message from the current ractor’s default port.</p></div>
     </div>
   </li>
   <li>
@@ -368,10 +368,10 @@
   </li>
   <li>
     <span class='summary_signature '>
-      <a href="#select-class_method" title="select (class method)">.<strong>select</strong>(*ports)  &#x21d2; Array </a>
+      <a href="#select-class_method" title="select (class method)">.<strong>select</strong>(*ractors_or_ports)  &#x21d2; Ractor, ... </a>
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>TBD.</p></div>
+      <div class='inline'><p>Blocks the current <a href="Thread.html" title="Thread (class)"><code>::Thread</code></a> until one of the given ports has received a message.</p></div>
     </div>
   </li>
   <li>
@@ -384,10 +384,10 @@
   </li>
   <li>
     <span class='summary_signature '>
-      <a href="#shareable_lambda-class_method" title="shareable_lambda (class method)">.<strong>shareable_lambda</strong>  &#x21d2; shareable lambda </a>
+      <a href="#shareable_lambda-class_method" title="shareable_lambda (class method)">.<strong>shareable_lambda</strong>(self: nil)  &#x21d2; shareable lambda </a>
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>Same as <a href="#shareable_proc-class_method" title="Ractor.shareable_proc (method)">.shareable_proc</a>, but returns a lambda.</p></div>
+      <div class='inline'><p>Same as <a href="#shareable_proc-class_method" title="Ractor.shareable_proc (method)">.shareable_proc</a>, but returns a lambda <a href="Proc.html" title="Proc (class)"><code>::Proc</code></a>.</p></div>
     </div>
   </li>
   <li>
@@ -403,7 +403,7 @@
       <a href="#store_if_absent-class_method" title="store_if_absent (class method)">.<strong>store_if_absent</strong>(key)  </a>
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>If the corresponding ractor-local value is not set, yield a value with init_block and store the value in a thread-safe manner.</p></div>
+      <div class='inline'><p>If the corresponding ractor-local value is not set, yields a value with init_block and stores the value in a thread-safe manner.</p></div>
     </div>
   </li>
   <li>
@@ -444,7 +444,7 @@
       <a href="#[]-instance_method" title="#[] (instance method)">#<strong>[]</strong>(sym)  </a>
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>get a value from ractor-local storage for current <code>Ractor</code> Obsolete and use <a href="#[]-class_method" title="Ractor.[] (method)">.[]</a> instead.</p></div>
+      <div class='inline'><p>Gets a value from ractor-local storage for the current <code>Ractor</code>.</p></div>
     </div>
   </li>
   <li>
@@ -452,15 +452,15 @@
       <a href="#[]=-instance_method" title="#[]= (instance method)">#<strong>[]=</strong>(sym, val)  </a>
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>set a value in ractor-local storage for current <code>Ractor</code> Obsolete and use <a href="#[]=-class_method" title="Ractor.[]= (method)">.[]=</a> instead.</p></div>
+      <div class='inline'><p>Sets a value in ractor-local storage for the current <code>Ractor</code>.</p></div>
     </div>
   </li>
   <li>
     <span class='summary_signature '>
-      <a href="#close-instance_method" title="#close (instance method)">#<strong>close</strong>  </a>
+      <a href="#close-instance_method" title="#close (instance method)">#<strong>close</strong>  &#x21d2; Boolean </a>
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>Closes default_port.</p></div>
+      <div class='inline'><p>Closes the default port.</p></div>
     </div>
   </li>
   <li>
@@ -468,7 +468,7 @@
       <a href="#default_port-instance_method" title="#default_port (instance method)">#<strong>default_port</strong>  &#x21d2; port object </a>
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>return default port of the <code>Ractor</code>.</p></div>
+      <div class='inline'><p>Returns the default port of the <code>Ractor</code>.</p></div>
     </div>
   </li>
   <li>
@@ -482,7 +482,7 @@
       <a href="#join-instance_method" title="#join (instance method)">#<strong>join</strong>  &#x21d2; self </a>
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>Wait for the termination of the <code>Ractor</code>.</p></div>
+      <div class='inline'><p>Waits for the termination of the <code>Ractor</code>.</p></div>
     </div>
   </li>
   <li>
@@ -490,7 +490,7 @@
       <a href="#monitor-instance_method" title="#monitor (instance method)">#<strong>monitor</strong>(port)  &#x21d2; self </a>
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>Add another ractor’s port to the monitored list of the receiver.</p></div>
+      <div class='inline'><p>Registers the port as a monitoring port for this ractor.</p></div>
     </div>
   </li>
   <li>
@@ -498,7 +498,7 @@
       <a href="#name-instance_method" title="#name (instance method)">#<strong>name</strong>  </a>
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>The name set in <a href="#new-class_method" title="Ractor.new (method)">.new</a>, or <code>nil</code>.</p></div>
+      <div class='inline'><p>Returns the name set in <a href="#new-class_method" title="Ractor.new (method)">.new</a>, or <code>nil</code>.</p></div>
     </div>
   </li>
   <li>
@@ -511,11 +511,11 @@
   </li>
   <li>
     <span class='summary_signature '>
-      <a href="#send-instance_method" title="#send (instance method)">#<strong>send</strong>(msg)  &#x21d2; self </a>
+      <a href="#send-instance_method" title="#send (instance method)">#<strong>send</strong>(msg, move: false)  &#x21d2; self </a>
       (also: #&lt;&lt;)
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>It is equivalent to default_port.send(msg).</p></div>
+      <div class='inline'><p>This is equivalent to <a href="Ractor/Port.html#send-instance_method" title="Ractor::Port#send (method)">Port#send</a> to the ractor’s <a href="#default_port-instance_method" title="Ractor#default_port (method)">#default_port</a>.</p></div>
     </div>
   </li>
   <li>
@@ -531,7 +531,7 @@
       <a href="#unmonitor-instance_method" title="#unmonitor (instance method)">#<strong>unmonitor</strong>(port)  &#x21d2; self </a>
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>Remove the given port from the ractor’s monitored list.</p></div>
+      <div class='inline'><p>Unregisters the port from the monitoring ports for this ractor.</p></div>
     </div>
   </li>
   <li>
@@ -539,7 +539,7 @@
       <a href="#value-instance_method" title="#value (instance method)">#<strong>value</strong>  &#x21d2; Object </a>
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>Waits for <code>ractor</code> to complete, using <a href="#join-instance_method" title="Ractor#join (method)">#join</a>, and return its value or raise the exception which terminated the <code>Ractor</code>.</p></div>
+      <div class='inline'><p>Waits for <code>ractor</code> to complete and returns its value or raises the exception which terminated the <code>Ractor</code>.</p></div>
     </div>
   </li>
   <li>
@@ -562,9 +562,9 @@
 <div class='docstring'>
   <div class='discussion'>
     
-<p>Create a new Ractor with args and a block.</p>
+<p>Creates a new Ractor with args and a block.</p>
 
-<p>The given block (Proc) will be isolated (can’t access any outer variables). <code>self</code> inside the block will refer to the current Ractor.</p>
+<p>The given block (Proc) is isolated (can’t access any outer variables). <code>self</code> inside the block will refer to the current Ractor.</p>
 
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> { <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Hi, I am </span><span class='embexpr_beg'>#{</span><span class='kw'>self</span>.<span class='id identifier rubyid_inspect'><a href="#inspect-instance_method" title="Ractor#inspect (method)">inspect</a></span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span> }
 <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_join'><a href="#join-instance_method" title="Ractor#join (method)">join</a></span>
@@ -630,15 +630,15 @@
 <div class='docstring'>
   <div class='discussion'>
     
-<p>returns main ractor</p>
+<p>Returns the main ractor.</p>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L480-L484'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L519-L523'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='480' data-end='484'></pre>
+  <pre class='lines_num' data-start='519' data-end='523'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 480</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 519</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_main'>main</span>
@@ -658,18 +658,18 @@
 <div class='docstring'>
   <div class='discussion'>
     
-<p>return true if the current ractor is main ractor</p>
+<p>Returns true if the current ractor is the main ractor.</p>
 
   </div>
 </div>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L487-L491'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L526-L530'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='487' data-end='491'></pre>
+  <pre class='lines_num' data-start='526' data-end='530'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 487</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 526</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_main?'>main?</span>
@@ -690,15 +690,15 @@
 <div class='docstring'>
   <div class='discussion'>
     
-<p>get a value from ractor-local storage of current <code>Ractor</code></p>
+<p>Gets a value from ractor-local storage for the current <code>Ractor</code>.</p>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L451-L453'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L490-L492'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='451' data-end='453'></pre>
+  <pre class='lines_num' data-start='490' data-end='492'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 451</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 490</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='op'>[]</span>(<span class='id identifier rubyid_sym'>sym</span>)
@@ -716,15 +716,15 @@
 <div class='docstring'>
   <div class='discussion'>
     
-<p>set a value in ractor-local storage of current <code>Ractor</code></p>
+<p>Sets a value in ractor-local storage for the current <code>Ractor</code>.</p>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L456-L458'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L495-L497'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='456' data-end='458'></pre>
+  <pre class='lines_num' data-start='495' data-end='497'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 456</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 495</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='op'>[]=</span>(<span class='id identifier rubyid_sym'>sym</span><span class='comma'>,</span> <span class='id identifier rubyid_val'>val</span>)
@@ -749,11 +749,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L506-L518'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L545-L557'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='506' data-end='518'></pre>
+  <pre class='lines_num' data-start='545' data-end='557'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 506</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 545</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid__activated'>_activated</span> <span class='comment'># :nodoc:
@@ -788,11 +788,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L494-L500'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L533-L539'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='494' data-end='500'></pre>
+  <pre class='lines_num' data-start='533' data-end='539'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 494</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 533</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid__require'>_require</span> <span class='id identifier rubyid_feature'>feature</span> <span class='comment'># :nodoc:
@@ -814,7 +814,7 @@
 <div class='docstring'>
   <div class='discussion'>
     
-<p>Returns the number of Ractors currently running or blocking (waiting).</p>
+<p>Returns the number of ractors currently running or blocking (waiting).</p>
 
 <pre class="code ruby"><code class="ruby"><span class='const'>Ractor</span>.<span class='id identifier rubyid_count'>count</span>                   <span class='comment'>#=&gt; 1
 </span><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span>(<span class='label'>name:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>example</span><span class='tstring_end'>&#39;</span></span>) { <span class='const'>Ractor</span>.<span class='id identifier rubyid_receive'><a href="#receive-class_method" title="Ractor.receive (method)">receive</a></span> }
@@ -878,7 +878,7 @@
 <div class='docstring'>
   <div class='discussion'>
     
-<p>Make <code>obj</code> shareable between ractors.</p>
+<p>Makes <code>obj</code> shareable between ractors.</p>
 
 <p><code>obj</code> and all the objects it refers to will be frozen, unless they are already shareable.</p>
 
@@ -909,11 +909,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L420-L430'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L459-L469'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='420' data-end='430'></pre>
+  <pre class='lines_num' data-start='459' data-end='469'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 420</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 459</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_make_shareable'>make_shareable</span> <span class='id identifier rubyid_obj'>obj</span><span class='comma'>,</span> <span class='label'>copy:</span> <span class='kw'>false</span>
@@ -939,15 +939,15 @@
 <div class='docstring'>
   <div class='discussion'>
     
-<p>Receive a message from the default port.</p>
+<p>Receives a message from the current ractor’s default port.</p>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L310-L312'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L349-L351'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='310' data-end='312'></pre>
+  <pre class='lines_num' data-start='349' data-end='351'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 310</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 349</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_receive'>receive</span>
@@ -969,11 +969,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L315-L315'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L354-L354'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='315' data-end='315'></pre>
+  <pre class='lines_num' data-start='354' data-end='354'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 315</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 354</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>alias</span> <span class='id identifier rubyid_recv'>recv</span> <span class='id identifier rubyid_receive'><a href="#receive-class_method" title="Ractor.receive (method)">receive</a></span>
@@ -984,11 +984,43 @@
 
 <section class='method_details' id="select-class_method">
   <h3 class='signature '>
-    .<strong>select</strong>(*ports)  &#x21d2; <a href="Array.html" title="Array (class)">Array</a>   </h3>
+    .<strong>select</strong>(*ractors_or_ports)  &#x21d2; <code>Ractor</code>, ...   </h3>
 <div class='docstring'>
   <div class='discussion'>
     
-<p>TBD</p>
+<p>Blocks the current <a href="Thread.html" title="Thread (class)"><code>::Thread</code></a> until one of the given ports has received a message. Returns an array of two elements where the first element is the <a href="Ractor/Port.html" title="Ractor::Port (class)"><code>::Ractor::Port</code></a> and the second is the received object. This method can also accept <code>Ractor</code> objects themselves, and in that case will wait until one has terminated and return a two-element array where the first element is the ractor and the second is its termination value.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_p1'>p1</span><span class='comma'>,</span> <span class='id identifier rubyid_p2'>p2</span> <span class='op'>=</span> <span class='const'>Ractor</span><span class='op'>::</span><span class='const'><a href="Ractor/Port.html" title="Ractor::Port (class)">Port</a></span>.<span class='id identifier rubyid_new'><a href="Ractor/Port.html#new-class_method" title="Ractor::Port.new (method)">new</a></span><span class='comma'>,</span> <span class='const'>Ractor</span><span class='op'>::</span><span class='const'><a href="Ractor/Port.html" title="Ractor::Port (class)">Port</a></span>.<span class='id identifier rubyid_new'><a href="Ractor/Port.html#new-class_method" title="Ractor::Port.new (method)">new</a></span>
+<span class='id identifier rubyid_ps'>ps</span> <span class='op'>=</span> [<span class='id identifier rubyid_p1'>p1</span><span class='comma'>,</span> <span class='id identifier rubyid_p2'>p2</span>]
+<span class='id identifier rubyid_rs'>rs</span> <span class='op'>=</span> <span class='int'>2</span>.<span class='id identifier rubyid_times'>times</span>.<span class='id identifier rubyid_map'>map</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_i'>i</span><span class='op'>|</span>
+  <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span>(<span class='id identifier rubyid_ps'>ps</span>.<span class='id identifier rubyid_shift'>shift</span><span class='comma'>,</span> <span class='id identifier rubyid_i'>i</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_p'>p</span><span class='comma'>,</span> <span class='id identifier rubyid_i'>i</span><span class='op'>|</span>
+    <span class='id identifier rubyid_sleep'>sleep</span> <span class='id identifier rubyid_rand'>rand</span>(<span class='float'>0.99</span>)
+    <span class='id identifier rubyid_p'>p</span>.<span class='id identifier rubyid_send'><a href="#send-instance_method" title="Ractor#send (method)">send</a></span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>r</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_i'>i</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>)
+    <span class='id identifier rubyid_sleep'>sleep</span> <span class='id identifier rubyid_rand'>rand</span>(<span class='float'>0.99</span>)
+    <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>r</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_i'>i</span><span class='embexpr_end'>}</span><span class='tstring_content'> done</span><span class='tstring_end'>&quot;</span></span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+
+<span class='id identifier rubyid_waiting_on'>waiting_on</span> <span class='op'>=</span> [<span class='id identifier rubyid_p1'>p1</span><span class='comma'>,</span> <span class='id identifier rubyid_p2'>p2</span><span class='comma'>,</span> <span class='op'>*</span><span class='id identifier rubyid_rs'>rs</span>]
+<span class='kw'>until</span> <span class='id identifier rubyid_waiting_on'>waiting_on</span>.<span class='id identifier rubyid_empty?'>empty?</span>
+  <span class='id identifier rubyid_received_on'>received_on</span><span class='comma'>,</span> <span class='id identifier rubyid_obj'>obj</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_select'>select</span>(<span class='op'>*</span><span class='id identifier rubyid_waiting_on'>waiting_on</span>)
+  <span class='id identifier rubyid_waiting_on'>waiting_on</span>.<span class='id identifier rubyid_delete'>delete</span>(<span class='id identifier rubyid_received_on'>received_on</span>)
+  <span class='id identifier rubyid_puts'>puts</span> <span class='id identifier rubyid_obj'>obj</span>
+<span class='kw'>end</span>
+
+<span class='comment'># r0
+</span><span class='comment'># r1
+</span><span class='comment'># r1 done
+</span><span class='comment'># r0 done</span></code></pre>
+
+<p>The following example is almost equivalent to <code>ractors.map(&amp;:value)</code> except the thread is unblocked when any of the ractors has terminated as opposed to waiting for their termination in the array element order.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_values'>values</span> <span class='op'>=</span> []
+<span class='kw'>until</span> <span class='id identifier rubyid_ractors'>ractors</span>.<span class='id identifier rubyid_empty?'>empty?</span>
+  <span class='id identifier rubyid_r'>r</span><span class='comma'>,</span> <span class='id identifier rubyid_val'>val</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_select'>select</span>(<span class='op'>*</span><span class='id identifier rubyid_ractors'>ractors</span>)
+  <span class='id identifier rubyid_ractors'>ractors</span>.<span class='id identifier rubyid_delete'>delete</span>(<span class='id identifier rubyid_r'>r</span>)
+  <span class='id identifier rubyid_values'>values</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_val'>val</span>
+<span class='kw'>end</span></code></pre>
 
   </div>
 </div>
@@ -1001,11 +1033,11 @@
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L269-L303'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L308-L342'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='269' data-end='303'></pre>
+  <pre class='lines_num' data-start='308' data-end='342'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 269</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 308</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_select'>select</span>(<span class='op'>*</span><span class='id identifier rubyid_ports'>ports</span>)
@@ -1056,7 +1088,7 @@
     
 <p>Checks if the object is shareable by ractors.</p>
 
-<pre class="code ruby"><code class="ruby"><span class='const'>Ractor</span>.<span class='id identifier rubyid_shareable?'>shareable?</span>(<span class='int'>1</span>)            <span class='comment'>#=&gt; true -- numbers and other immutable basic values are shareable
+<pre class="code ruby"><code class="ruby"><span class='const'>Ractor</span>.<span class='id identifier rubyid_shareable?'>shareable?</span>(<span class='int'>1</span>)            <span class='comment'>#=&gt; true -- numbers are shareable
 </span><span class='const'>Ractor</span>.<span class='id identifier rubyid_shareable?'>shareable?</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&#39;</span></span>)        <span class='comment'>#=&gt; false, unless the string is frozen due to # frozen_string_literal: true
 </span><span class='const'>Ractor</span>.<span class='id identifier rubyid_shareable?'>shareable?</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&#39;</span></span>.<span class='id identifier rubyid_freeze'>freeze</span>) <span class='comment'>#=&gt; true</span></code></pre>
 
@@ -1064,11 +1096,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L379-L383'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L418-L422'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='379' data-end='383'></pre>
+  <pre class='lines_num' data-start='418' data-end='422'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 379</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 418</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_shareable?'>shareable?</span> <span class='id identifier rubyid_obj'>obj</span>
@@ -1083,19 +1115,19 @@
 
 <section class='method_details' id="shareable_lambda-class_method">
   <h3 class='signature '>
-    .<strong>shareable_lambda</strong>  &#x21d2; <code>shareable</code> <code>lambda</code>   </h3>
+    .<strong>shareable_lambda</strong>(self: nil)  &#x21d2; <code>shareable</code> <code>lambda</code>   </h3>
 <div class='docstring'>
   <div class='discussion'>
     
-<p>Same as <a href="#shareable_proc-class_method" title="Ractor.shareable_proc (method)">.shareable_proc</a>, but returns a lambda.</p>
+<p>Same as <a href="#shareable_proc-class_method" title="Ractor.shareable_proc (method)">.shareable_proc</a>, but returns a lambda <a href="Proc.html" title="Proc (class)"><code>::Proc</code></a>.</p>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L641-L647'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L681-L687'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='641' data-end='647'></pre>
+  <pre class='lines_num' data-start='681' data-end='687'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 641</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 681</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_shareable_lambda'>shareable_lambda</span> <span class='label'>self:</span> <span class='kw'>nil</span>
@@ -1118,24 +1150,24 @@
     
 <p>Returns a shareable copy of the given block’s <a href="Proc.html" title="Proc (class)"><code>::Proc</code></a>. The value of <code>self</code> in the <a href="Proc.html" title="Proc (class)"><code>::Proc</code></a> will be replaced with the value passed via the <code>self:</code> keyword, or <code>nil</code> if not given.</p>
 
-<p>In a shareable <a href="Proc.html" title="Proc (class)"><code>::Proc</code></a>, you can not access any outer variables.</p>
+<p>In a shareable <a href="Proc.html" title="Proc (class)"><code>::Proc</code></a>, access to any outer variables if prohibited.</p>
 
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_a'>a</span> <span class='op'>=</span> <span class='int'>42</span>
 <span class='const'>Ractor</span>.<span class='id identifier rubyid_shareable_proc'>shareable_proc</span>{ <span class='id identifier rubyid_p'>p</span> <span class='id identifier rubyid_a'>a</span> }
 <span class='comment'>#=&gt; can not isolate a Proc because it accesses outer variables (a). (ArgumentError)</span></code></pre>
 
-<p>The <code>self</code> should be a shareable object</p>
+<p>The value of <code>self</code> in the <a href="Proc.html" title="Proc (class)"><code>::Proc</code></a> must be a shareable object.</p>
 
 <pre class="code ruby"><code class="ruby"><span class='const'>Ractor</span>.<span class='id identifier rubyid_shareable_proc'>shareable_proc</span>(<span class='label'>self:</span> <span class='kw'>self</span>){}
 <span class='comment'>#=&gt; self should be shareable: main (Ractor::IsolationError)</span></code></pre>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L627-L633'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L667-L673'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='627' data-end='633'></pre>
+  <pre class='lines_num' data-start='667' data-end='673'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 627</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 667</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_shareable_proc'>shareable_proc</span> <span class='label'>self:</span> <span class='kw'>nil</span>
@@ -1156,7 +1188,7 @@
 <div class='docstring'>
   <div class='discussion'>
     
-<p>If the corresponding ractor-local value is not set, yield a value with init_block and store the value in a thread-safe manner. This method returns the stored value.</p>
+<p>If the corresponding ractor-local value is not set, yields a value with init_block and stores the value in a thread-safe manner. This method returns the stored value.</p>
 
 <pre class="code ruby"><code class="ruby">(<span class='int'>1</span><span class='op'>..</span><span class='int'>10</span>).<span class='id identifier rubyid_map'>map</span>{
   <span class='const'><a href="Thread.html" title="Thread (class)">Thread</a></span>.<span class='id identifier rubyid_new'><a href="Thread.html#new-class_method" title="Thread.new (method)">new</a></span>(<span class='id identifier rubyid_it'>it</span>){<span class='op'>|</span><span class='id identifier rubyid_i'>i</span><span class='op'>|</span>
@@ -1167,11 +1199,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L474-L477'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L513-L516'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='474' data-end='477'></pre>
+  <pre class='lines_num' data-start='513' data-end='516'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 474</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 513</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_store_if_absent'>store_if_absent</span>(<span class='id identifier rubyid_sym'>sym</span>)
@@ -1195,11 +1227,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L333-L333'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L372-L372'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='333' data-end='333'></pre>
+  <pre class='lines_num' data-start='372' data-end='372'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 333</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 372</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>alias</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_send'><a href="#send-instance_method" title="Ractor#send (method)">send</a></span>
@@ -1215,15 +1247,15 @@
 <div class='docstring'>
   <div class='discussion'>
     
-<p>get a value from ractor-local storage for current <code>Ractor</code> Obsolete and use <a href="#[]-class_method" title="Ractor.[] (method)">.[]</a> instead.</p>
+<p>Gets a value from ractor-local storage for the current <code>Ractor</code>. Obsolete, use <a href="#[]-class_method" title="Ractor.[] (method)">.[]</a> instead.</p>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L434-L439'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L473-L478'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='434' data-end='439'></pre>
+  <pre class='lines_num' data-start='473' data-end='478'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 434</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 473</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='op'>[]</span>(<span class='id identifier rubyid_sym'>sym</span>)
@@ -1244,15 +1276,15 @@
 <div class='docstring'>
   <div class='discussion'>
     
-<p>set a value in ractor-local storage for current <code>Ractor</code> Obsolete and use <a href="#[]=-class_method" title="Ractor.[]= (method)">.[]=</a> instead.</p>
+<p>Sets a value in ractor-local storage for the current <code>Ractor</code>. Obsolete, use <a href="#[]=-class_method" title="Ractor.[]= (method)">.[]=</a> instead.</p>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L443-L448'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L482-L487'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='443' data-end='448'></pre>
+  <pre class='lines_num' data-start='482' data-end='487'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 443</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 482</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='op'>[]=</span>(<span class='id identifier rubyid_sym'>sym</span><span class='comma'>,</span> <span class='id identifier rubyid_val'>val</span>)
@@ -1268,20 +1300,19 @@
 
 <section class='method_details' id="close-instance_method">
   <h3 class='signature '>
-    #<strong>close</strong>  
-  </h3>
+    #<strong>close</strong>  &#x21d2; <code>Boolean</code>   </h3>
 <div class='docstring'>
   <div class='discussion'>
     
-<p>Closes default_port. Closing port is allowed only by the ractor which creates this port. So this close method also allowed by the current <code>Ractor</code>.</p>
+<p>Closes the default port. Closing a port is allowed only by the ractor which created the port. Therefore, the receiver must be the current ractor.</p>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L364-L366'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L403-L405'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='364' data-end='366'></pre>
+  <pre class='lines_num' data-start='403' data-end='405'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 364</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 403</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_close'>close</span>
@@ -1298,15 +1329,15 @@
 <div class='docstring'>
   <div class='discussion'>
     
-<p>return default port of the <code>Ractor</code>.</p>
+<p>Returns the default port of the <code>Ractor</code>.</p>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L527-L531'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L566-L570'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='527' data-end='531'></pre>
+  <pre class='lines_num' data-start='566' data-end='570'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 527</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 566</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_default_port'>default_port</span>
@@ -1324,11 +1355,11 @@
     #<strong>inspect</strong>  
     <span class='aliases'>Also known as: <span class='names'>#to_s</span></span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L335-L343'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L374-L382'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='335' data-end='343'></pre>
+  <pre class='lines_num' data-start='374' data-end='382'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 335</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 374</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_inspect'>inspect</span>
@@ -1351,20 +1382,20 @@
 <div class='docstring'>
   <div class='discussion'>
     
-<p>Wait for the termination of the <code>Ractor</code>. If the <code>Ractor</code> was aborted (terminated with an exception), <a href="#value-instance_method" title="Ractor#value (method)">#value</a> is called to raise an exception.</p>
+<p>Waits for the termination of the <code>Ractor</code>. If the <code>Ractor</code> was aborted (terminated by an unhandled exception), the exception is raised in the current ractor.</p>
 
 <pre class="code ruby"><code class="ruby"><span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span>{}.<span class='id identifier rubyid_join'>join</span> <span class='comment'>#=&gt; ractor
 </span>
 <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span>{ <span class='id identifier rubyid_raise'>raise</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&quot;</span></span> }.<span class='id identifier rubyid_join'>join</span>
-<span class='comment'>#=&gt; raise an exception &quot;foo (RuntimeError)&quot;</span></code></pre>
+<span class='comment'>#=&gt; raises the exception &quot;foo (RuntimeError)&quot;</span></code></pre>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L546-L557'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L585-L596'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='546' data-end='557'></pre>
+  <pre class='lines_num' data-start='585' data-end='596'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 546</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 585</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_join'>join</span>
@@ -1390,7 +1421,11 @@
 <div class='docstring'>
   <div class='discussion'>
     
-<p>Add another ractor’s port to the monitored list of the receiver. If <code>self</code> terminates, the port is sent a <a href="Symbol.html" title="Symbol (class)"><code>::Symbol</code></a> object. <code>:exited</code> will be sent if the ractor terminated without an exception. <code>:aborted</code> will be sent if the ractor terminated with an exception.</p>
+<p>Registers the port as a monitoring port for this ractor. When the ractor terminates, the port receives a <a href="Symbol.html" title="Symbol (class)"><code>::Symbol</code></a> object.</p>
+<ul><li>
+<p><code>:exited</code> is sent if the ractor terminates without an unhandled exception.</p>
+</li><li>
+<p><code>:aborted</code> is sent if the ractor terminates by an unhandled exception.</p>
 
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span>{ <span class='id identifier rubyid_some_task'>some_task</span>() }
 <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_monitor'>monitor</span>(<span class='id identifier rubyid_port'>port</span> <span class='op'>=</span> <span class='const'>Ractor</span><span class='op'>::</span><span class='const'><a href="Ractor/Port.html" title="Ractor::Port (class)">Port</a></span>.<span class='id identifier rubyid_new'><a href="Ractor/Port.html#new-class_method" title="Ractor::Port.new (method)">new</a></span>)
@@ -1398,15 +1433,16 @@
 </span>
 <span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span>{ <span class='id identifier rubyid_raise'>raise</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&quot;</span></span> }
 <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_monitor'>monitor</span>(<span class='id identifier rubyid_port'>port</span> <span class='op'>=</span> <span class='const'>Ractor</span><span class='op'>::</span><span class='const'><a href="Ractor/Port.html" title="Ractor::Port (class)">Port</a></span>.<span class='id identifier rubyid_new'><a href="Ractor/Port.html#new-class_method" title="Ractor::Port.new (method)">new</a></span>)
-<span class='id identifier rubyid_port'>port</span>.<span class='id identifier rubyid_receive'><a href="#receive-class_method" title="Ractor.receive (method)">receive</a></span> <span class='comment'>#=&gt; :aborted and r is terminated with an exception &quot;foo&quot;</span></code></pre>
+<span class='id identifier rubyid_port'>port</span>.<span class='id identifier rubyid_receive'><a href="#receive-class_method" title="Ractor.receive (method)">receive</a></span> <span class='comment'>#=&gt; :aborted and r is terminated by the RuntimeError &quot;foo&quot;</span></code></pre>
+</li></ul>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L594-L596'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L634-L636'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='594' data-end='596'></pre>
+  <pre class='lines_num' data-start='634' data-end='636'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 594</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 634</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_monitor'>monitor</span> <span class='id identifier rubyid_port'>port</span>
@@ -1424,15 +1460,15 @@
 <div class='docstring'>
   <div class='discussion'>
     
-<p>The name set in <a href="#new-class_method" title="Ractor.new (method)">.new</a>, or <code>nil</code>.</p>
+<p>Returns the name set in <a href="#new-class_method" title="Ractor.new (method)">.new</a>, or <code>nil</code>.</p>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L348-L350'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L387-L389'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='348' data-end='350'></pre>
+  <pre class='lines_num' data-start='387' data-end='389'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 348</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 387</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_name'>name</span>
@@ -1455,11 +1491,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L319-L321'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L358-L360'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='319' data-end='321'></pre>
+  <pre class='lines_num' data-start='358' data-end='360'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 319</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 358</span></pre>
 <pre class='code ruby'>
 
 <span class='id identifier rubyid_private'>private</span> <span class='kw'>def</span> <span class='id identifier rubyid_receive'>receive</span>
@@ -1481,11 +1517,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L322-L322'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L361-L361'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='322' data-end='322'></pre>
+  <pre class='lines_num' data-start='361' data-end='361'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 322</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 361</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>alias</span> <span class='id identifier rubyid_recv'>recv</span> <span class='id identifier rubyid_receive'><a href="#receive-class_method" title="Ractor.receive (method)">receive</a></span>
@@ -1496,20 +1532,20 @@
 
 <section class='method_details' id="send-instance_method">
   <h3 class='signature '>
-    #<strong>send</strong>(msg)  &#x21d2; <code>self</code>     <span class='aliases'>Also known as: <span class='names'>#&lt;&lt;</span></span>
+    #<strong>send</strong>(msg, move: false)  &#x21d2; <code>self</code>     <span class='aliases'>Also known as: <span class='names'>#&lt;&lt;</span></span>
   </h3>
 <div class='docstring'>
   <div class='discussion'>
     
-<p>It is equivalent to default_port.send(msg)</p>
+<p>This is equivalent to <a href="Ractor/Port.html#send-instance_method" title="Ractor::Port#send (method)">Port#send</a> to the ractor’s <a href="#default_port-instance_method" title="Ractor#default_port (method)">#default_port</a>.</p>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L329-L332'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L368-L371'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='329' data-end='332'></pre>
+  <pre class='lines_num' data-start='368' data-end='371'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 329</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 368</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_send'>send</span>(<span class='op'>...</span>)
@@ -1532,11 +1568,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L345-L345'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L384-L384'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='345' data-end='345'></pre>
+  <pre class='lines_num' data-start='384' data-end='384'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 345</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 384</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>alias</span> <span class='id identifier rubyid_to_s'>to_s</span> <span class='id identifier rubyid_inspect'><a href="#inspect-instance_method" title="Ractor#inspect (method)">inspect</a></span>
@@ -1551,15 +1587,15 @@
 <div class='docstring'>
   <div class='discussion'>
     
-<p>Remove the given port from the ractor’s monitored list.</p>
+<p>Unregisters the port from the monitoring ports for this ractor.</p>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L604-L606'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L644-L646'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='604' data-end='606'></pre>
+  <pre class='lines_num' data-start='644' data-end='646'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 604</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 644</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_unmonitor'>unmonitor</span> <span class='id identifier rubyid_port'>port</span>
@@ -1576,7 +1612,7 @@
 <div class='docstring'>
   <div class='discussion'>
     
-<p>Waits for <code>ractor</code> to complete, using <a href="#join-instance_method" title="Ractor#join (method)">#join</a>, and return its value or raise the exception which terminated the <code>Ractor</code>. The value will not be copied even if it is unshareable object. Therefore at most 1 <code>Ractor</code> can get a value.</p>
+<p>Waits for <code>ractor</code> to complete and returns its value or raises the exception which terminated the <code>Ractor</code>. The termination value will be moved to the calling <code>Ractor</code>. Therefore, at most 1 <code>Ractor</code> can receive another ractor’s termination value.</p>
 
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Ractor.new (method)">new</a></span>{ [<span class='int'>1</span><span class='comma'>,</span> <span class='int'>2</span>] }
 <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_value'>value</span> <span class='comment'>#=&gt; [1, 2] (unshareable object)
@@ -1585,11 +1621,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L572-L575'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ractor.rb#L611-L614'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='572' data-end='575'></pre>
+  <pre class='lines_num' data-start='611' data-end='614'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ractor.rb', line 572</span></pre>
+<pre><span class='info file'># File 'ractor.rb', line 611</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_value'>value</span>
