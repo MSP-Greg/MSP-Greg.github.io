@@ -541,7 +541,7 @@
   <span class='kw'>if</span> <span class='id identifier rubyid_type'>type</span>.<span class='id identifier rubyid_is_a?'>is_a?</span>(<span class='const'>Class</span>) <span class='op'>&amp;&amp;</span> <span class='id identifier rubyid_type'>type</span> <span class='op'>&lt;</span> <span class='const'><a href="../FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="Struct.html" title="FFI::Struct (class)">Struct</a></span>
     <span class='comment'># If it is a global struct, just attach directly to the pointer
 </span>    <span class='id identifier rubyid_s'>s</span> <span class='op'>=</span> <span class='id identifier rubyid_s'>s</span> <span class='op'>=</span> <span class='id identifier rubyid_type'>type</span>.<span class='id identifier rubyid_new'>new</span>(<span class='id identifier rubyid_address'>address</span>) <span class='comment'># Assigning twice to suppress unused variable warning
-</span>    <span class='kw'>self</span>.<span class='id identifier rubyid_module_eval'>module_eval</span> <span class='heredoc_beg'>&lt;&lt;-code</span><span class='comma'>,</span> <span class='kw'>__FILE__</span><span class='comma'>,</span> <span class='kw'>__LINE__</span>
+</span>    <span class='kw'>self</span>.<span class='id identifier rubyid_module_eval'>module_eval</span>(<span class='heredoc_beg'>&lt;&lt;-code</span><span class='comma'>,</span> <span class='kw'>__FILE__</span><span class='comma'>,</span> <span class='kw'>__LINE__</span>)
 <span class='tstring_content'>      @ffi_gsvars = {} unless defined?(@ffi_gsvars)
       @ffi_gsvars[</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_mname'>mname</span>.<span class='id identifier rubyid_inspect'>inspect</span><span class='embexpr_end'>}</span><span class='tstring_content'>] = s
       def self.</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_mname'>mname</span><span class='embexpr_end'>}</span><span class='tstring_content'>
@@ -556,7 +556,7 @@
     <span class='comment'>#
 </span>    <span class='comment'># Attach to this module as mname/mname=
 </span>    <span class='comment'>#
-</span>    <span class='kw'>self</span>.<span class='id identifier rubyid_module_eval'>module_eval</span> <span class='heredoc_beg'>&lt;&lt;-code</span><span class='comma'>,</span> <span class='kw'>__FILE__</span><span class='comma'>,</span> <span class='kw'>__LINE__</span>
+</span>    <span class='kw'>self</span>.<span class='id identifier rubyid_module_eval'>module_eval</span>(<span class='heredoc_beg'>&lt;&lt;-code</span><span class='comma'>,</span> <span class='kw'>__FILE__</span><span class='comma'>,</span> <span class='kw'>__LINE__</span>)
 <span class='tstring_content'>      @ffi_gvars = {} unless defined?(@ffi_gvars)
       @ffi_gvars[</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_mname'>mname</span>.<span class='id identifier rubyid_inspect'>inspect</span><span class='embexpr_end'>}</span><span class='tstring_content'>] = s
       def self.</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_mname'>mname</span><span class='embexpr_end'>}</span><span class='tstring_content'>
@@ -1130,22 +1130,38 @@
     
 <p>Freeze all definitions of the module</p>
 
-<p>This freezes the module’s definitions, so that it can be used in a Ractor. No further methods or variables can be attached and no further enums or typedefs can be created in this module afterwards.</p>
+<p>This freezes the module’s definitions, so that it can be used in a Ractor. No further functions or variables can be attached and no further enums or typedefs can be created in this module afterwards.</p>
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ffi/ffi/blob/master/lib/ffi/library.rb#L568-L574'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ffi/ffi/blob/master/lib/ffi/library.rb#L568-L590'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='568' data-end='574'></pre>
+  <pre class='lines_num' data-start='568' data-end='590'></pre>
   <div class='lines_code'>
 <pre><span class='info file'># File 'lib/ffi/library.rb', line 568</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_freeze'>freeze</span>
+  <span class='comment'># @ffi_function_procs is only used on aarch64-mingw-ucrt
+</span>  <span class='id identifier rubyid_instance_variable_get'>instance_variable_get</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>@ffi_function_procs</span><span class='tstring_end'>&quot;</span></span>)<span class='op'>&amp;.</span><span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_name'>name</span><span class='comma'>,</span> <span class='id identifier rubyid_func'>func</span><span class='op'>|</span>
+    <span class='comment'># Redefine attached functions as Ractor-shareable.
+</span>    <span class='comment'># The function Proc can&#39;t be shareable from the beginning, since it references enums and typedefs.
+</span>    <span class='id identifier rubyid_this'>this</span> <span class='op'>=</span> <span class='const'><a href="../FFI.html" title="FFI (module)">FFI</a></span>.<span class='id identifier rubyid_make_shareable'><a href="../FFI.html#make_shareable-class_method" title="FFI.make_shareable (method)">make_shareable</a></span>(<span class='id identifier rubyid_func'>func</span>)
+    <span class='id identifier rubyid_body'>body</span> <span class='op'>=</span> <span class='const'><a href="../FFI.html" title="FFI (module)">FFI</a></span>.<span class='id identifier rubyid_shareable_proc'><a href="../FFI.html#shareable_proc-class_method" title="FFI.shareable_proc (method)">shareable_proc</a></span>(<span class='label'>self:</span> <span class='kw'>nil</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='op'>*</span><span class='id identifier rubyid_args'>args</span><span class='comma'>,</span> <span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span><span class='op'>|</span>
+      <span class='id identifier rubyid_this'>this</span>.<span class='id identifier rubyid_call'>call</span>(<span class='op'>*</span><span class='id identifier rubyid_args'>args</span><span class='comma'>,</span> <span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span>)
+    <span class='kw'>end</span>
+    <span class='id identifier rubyid_undef_method'>undef_method</span>(<span class='id identifier rubyid_name'>name</span>)
+    <span class='id identifier rubyid_singleton_class'>singleton_class</span>.<span class='id identifier rubyid_undef_method'>undef_method</span>(<span class='id identifier rubyid_name'>name</span>)
+
+    <span class='id identifier rubyid_define_method'>define_method</span>(<span class='id identifier rubyid_name'>name</span><span class='comma'>,</span> <span class='id identifier rubyid_body'>body</span>)
+    <span class='id identifier rubyid_define_singleton_method'>define_singleton_method</span>(<span class='id identifier rubyid_name'>name</span><span class='comma'>,</span> <span class='id identifier rubyid_body'>body</span>)
+  <span class='kw'>end</span>
+
   <span class='id identifier rubyid_instance_variables'>instance_variables</span>.<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_name'>name</span><span class='op'>|</span>
     <span class='id identifier rubyid_var'>var</span> <span class='op'>=</span> <span class='id identifier rubyid_instance_variable_get'>instance_variable_get</span>(<span class='id identifier rubyid_name'>name</span>)
     <span class='const'><a href="../FFI.html" title="FFI (module)">FFI</a></span>.<span class='id identifier rubyid_make_shareable'><a href="../FFI.html#make_shareable-class_method" title="FFI.make_shareable (method)">make_shareable</a></span>(<span class='id identifier rubyid_var'>var</span>)
   <span class='kw'>end</span>
+  <span class='kw'>super</span>
   <span class='kw'>nil</span>
 <span class='kw'>end</span>
 </pre>
