@@ -1,0 +1,1589 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen' content='yes'>
+<meta name='mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Active Storage Overview &mdash; Rails main</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "active_storage_overview",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>Rails main</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Active Storage Overview&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<p><strong>DO NOT READ THIS FILE ON GITHUB, GUIDES ARE PUBLISHED ON <a href="https://guides.rubyonrails.org">https://guides.rubyonrails.org</a>.</strong></p>
+
+<h1>Active Storage Overview</h1>
+
+<p>This guide covers how to attach files to your Active Record models.</p>
+
+<p>After reading this guide, you will know:</p>
+
+<ul>
+<li>How to attach one or many files to a record.</li>
+<li>How to delete an attached file.</li>
+<li>How to link to an attached file.</li>
+<li>How to use variants to transform images.</li>
+<li>How to generate an image representation of a non-image file, such as a PDF or a video.</li>
+<li>How to send file uploads directly from browsers to a storage service,
+bypassing your application servers.</li>
+<li>How to clean up files stored during testing.</li>
+<li>How to implement support for additional storage services.</li>
+</ul>
+
+<hr>
+
+<h2>What is Active Storage?</h2>
+
+<p>Active Storage facilitates uploading files to a cloud storage service like
+Amazon S3, or Google Cloud Storage and attaching those
+files to Active Record objects. It comes with a local disk-based service for
+development and testing and supports mirroring files to subordinate services for
+backups and migrations.</p>
+
+<p>Using Active Storage, an application can transform image uploads or generate image
+representations of non-image uploads like PDFs and videos, and extract metadata from
+arbitrary files.</p>
+
+<h3>Requirements</h3>
+
+<p>Various features of Active Storage depend on third-party software which <a href="Rails.html" title="Rails (module)"><code>Rails</code></a>
+will not install, and must be installed separately:</p>
+
+<ul>
+<li><a href="https://github.com/libvips/libvips">libvips</a> v8.6+ or <a href="https://imagemagick.org/index.php">ImageMagick</a> for image analysis and transformations</li>
+<li><a href="http://ffmpeg.org/">ffmpeg</a> v3.4+ for video previews and ffprobe for video/audio analysis</li>
+<li><a href="https://poppler.freedesktop.org/">poppler</a> or <a href="https://mupdf.com/">muPDF</a> for PDF previews</li>
+</ul>
+
+<p>TIP: Compared to libvips, ImageMagick is better known and more widely available. However, libvips can be <a href="https://github.com/libvips/libvips/wiki/Speed-and-memory-use">up to 10x faster and consume 1/10 the memory</a>. For JPEG files, this can be further improved by replacing <code>libjpeg-dev</code> with <code>libjpeg-turbo-dev</code>, which is <a href="https://libjpeg-turbo.org/About/Performance">2-7x faster</a>.</p>
+
+<p>WARNING: Before you install and use third-party software, make sure you understand the licensing implications of doing so. MuPDF, in particular, is licensed under AGPL and requires a commercial license for some use.</p>
+
+<h2>Setup</h2>
+
+<pre class="code bash"><code class="bash">$ bin/rails active_storage:install
+$ bin/rails db:migrate
+</code></pre>
+
+<p>This sets up configuration, and creates the three tables Active Storage uses:
+<code>active_storage_blobs</code>, <code>active_storage_attachments</code>, and <code>active_storage_variant_records</code>.</p>
+
+<table><thead>
+<tr>
+<th>Table</th>
+<th>Purpose</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>active_storage_blobs</code></td>
+<td>Stores data about uploaded files, such as filename and content type.</td>
+</tr>
+<tr>
+<td><code>active_storage_attachments</code></td>
+<td>A polymorphic join table that <a href="#attaching-files-to-records">connects your models to blobs</a>. If your model&#39;s class name changes, you will need to run a migration on this table to update the underlying <code>record_type</code> to your model&#39;s new class name.</td>
+</tr>
+<tr>
+<td><code>active_storage_variant_records</code></td>
+<td>If <a href="#attaching-files-to-records">variant tracking</a> is enabled, stores records for each variant that has been generated.</td>
+</tr>
+</tbody></table>
+
+<p>WARNING: If you are using UUIDs instead of integers as the primary key on your models, you should set <code>Rails.application.config.generators { |g| g.orm :active_record, primary_key_type: :uuid }</code> in a config file.</p>
+
+<p>Declare Active Storage services in <code>config/storage.yml</code>. For each service your
+application uses, provide a name and the requisite configuration. The example
+below declares three services named <code>local</code>, <code>test</code>, and <code>amazon</code>:</p>
+
+<pre class="code yaml"><code class="yaml">local:
+  service: Disk
+  root: &lt;%= Rails.root.join(&quot;storage&quot;) %&gt;
+
+test:
+  service: Disk
+  root: &lt;%= Rails.root.join(&quot;tmp/storage&quot;) %&gt;
+
+# Use bin/rails credentials:edit to set the AWS secrets (as aws:access_key_id|secret_access_key)
+amazon:
+  service: S3
+  access_key_id: &lt;%= Rails.app.credentials.dig(:aws, :access_key_id) %&gt;
+  secret_access_key: &lt;%= Rails.app.credentials.dig(:aws, :secret_access_key) %&gt;
+  bucket: your_own_bucket-&lt;%= Rails.env %&gt;
+  region: &quot;&quot; # e.g. &#39;us-east-1&#39;
+</code></pre>
+
+<p>Tell Active Storage which service to use by setting
+<code>Rails.application.config.active_storage.service</code>. Because each environment will
+likely use a different service, it is recommended to do this on a
+per-environment basis. To use the disk service from the previous example in the
+development environment, you would add the following to
+<code>config/environments/development.rb</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># Store files locally.
+</span><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_active_storage'>active_storage</span>.<span class='id identifier rubyid_service'>service</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_local'>local</span></code></pre>
+
+<p>To use the S3 service in production, you would add the following to
+<code>config/environments/production.rb</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># Store files on Amazon S3.
+</span><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_active_storage'>active_storage</span>.<span class='id identifier rubyid_service'>service</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_amazon'>amazon</span></code></pre>
+
+<p>To use the test service when testing, you would add the following to
+<code>config/environments/test.rb</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># Store uploaded files on the local file system in a temporary directory.
+</span><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_active_storage'>active_storage</span>.<span class='id identifier rubyid_service'>service</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_test'>test</span></code></pre>
+
+<p>NOTE: Configuration files that are environment-specific will take precedence:
+in production, for example, the <code>config/storage/production.yml</code> file (if existent)
+will take precedence over the <code>config/storage.yml</code> file.</p>
+
+<p>It is recommended to use <a href="Rails.html#env-class_method" title="Rails.env (method)">Rails.env</a> in the bucket names to further reduce the risk of accidentally destroying production data.</p>
+
+<pre class="code yaml"><code class="yaml">amazon:
+  service: S3
+  # ...
+  bucket: your_own_bucket-&lt;%= Rails.env %&gt;
+
+google:
+  service: GCS
+  # ...
+  bucket: your_own_bucket-&lt;%= Rails.env %&gt;
+</code></pre>
+
+<p>Continue reading for more information on the built-in service adapters (e.g.
+<code>Disk</code> and <code>S3</code>) and the configuration they require.</p>
+
+<h3>Disk Service</h3>
+
+<p>Declare a Disk service in <code>config/storage.yml</code>:</p>
+
+<pre class="code yaml"><code class="yaml">local:
+  service: Disk
+  root: &lt;%= Rails.root.join(&quot;storage&quot;) %&gt;
+</code></pre>
+
+<h3>S3 Service (Amazon S3 and S3-compatible APIs)</h3>
+
+<p>To connect to Amazon S3, declare an S3 service in <code>config/storage.yml</code>:</p>
+
+<pre class="code yaml"><code class="yaml"># Use bin/rails credentials:edit to set the AWS secrets (as aws:access_key_id|secret_access_key)
+amazon:
+  service: S3
+  access_key_id: &lt;%= Rails.app.credentials.dig(:aws, :access_key_id) %&gt;
+  secret_access_key: &lt;%= Rails.app.credentials.dig(:aws, :secret_access_key) %&gt;
+  region: &quot;&quot; # e.g. &#39;us-east-1&#39;
+  bucket: your_own_bucket-&lt;%= Rails.env %&gt;
+</code></pre>
+
+<p>Optionally provide client and upload options:</p>
+
+<pre class="code yaml"><code class="yaml"># Use bin/rails credentials:edit to set the AWS secrets (as aws:access_key_id|secret_access_key)
+amazon:
+  service: S3
+  access_key_id: &lt;%= Rails.app.credentials.dig(:aws, :access_key_id) %&gt;
+  secret_access_key: &lt;%= Rails.app.credentials.dig(:aws, :secret_access_key) %&gt;
+  region: &quot;&quot; # e.g. &#39;us-east-1&#39;
+  bucket: your_own_bucket-&lt;%= Rails.env %&gt;
+  default_digest_type: :md5 # or :sha256
+  http_open_timeout: 0
+  http_read_timeout: 0
+  retry_limit: 0
+  upload:
+    server_side_encryption: &quot;&quot; # &#39;aws:kms&#39; or &#39;AES256&#39;
+    cache_control: &quot;private, max-age=&lt;%= 1.day.to_i %&gt;&quot;
+</code></pre>
+
+<p>TIP: Set sensible client HTTP timeouts and retry limits for your application. In certain failure scenarios, the default AWS client configuration may cause connections to be held for up to several minutes and lead to request queuing.</p>
+
+<p>Add the <a href="https://github.com/aws/aws-sdk-ruby"><code>aws-sdk-s3</code></a> gem to your <code>Gemfile</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_gem'>gem</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>aws-sdk-s3</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>require:</span> <span class='kw'>false</span></code></pre>
+
+<p>NOTE: The core features of Active Storage require the following permissions: <code>s3:ListBucket</code>, <code>s3:PutObject</code>, <code>s3:GetObject</code>, and <code>s3:DeleteObject</code>. <a href="#public-access">Public access</a> additionally requires <code>s3:PutObjectAcl</code>. If you have additional upload options configured such as setting ACLs then additional permissions may be required.</p>
+
+<p>NOTE: If you want to use environment variables, standard SDK configuration files, profiles,
+IAM instance profiles or task roles, you can omit the <code>access_key_id</code>, <code>secret_access_key</code>,
+and <code>region</code> keys in the example above. The S3 Service supports all of the
+authentication options described in the <a href="https://docs.aws.amazon.com/sdk-for-ruby/v3/developer-guide/setup-config.html">AWS SDK documentation</a>.</p>
+
+<p>To connect to an S3-compatible object storage API such as DigitalOcean Spaces, provide the <code>endpoint</code>:</p>
+
+<pre class="code yaml"><code class="yaml">digitalocean:
+  service: S3
+  endpoint: https://nyc3.digitaloceanspaces.com
+  access_key_id: &lt;%= Rails.app.credentials.dig(:digitalocean, :access_key_id) %&gt;
+  secret_access_key: &lt;%= Rails.app.credentials.dig(:digitalocean, :secret_access_key) %&gt;
+  # ...and other options
+</code></pre>
+
+<p>There are many other options available. You can check them in <a href="https://docs.aws.amazon.com/sdk-for-ruby/v3/api/Aws/S3/Client.html#initialize-instance_method">AWS S3 Client</a> documentation.</p>
+
+<h3>Google Cloud Storage Service</h3>
+
+<p>Declare a Google Cloud Storage service in <code>config/storage.yml</code>:</p>
+
+<pre class="code yaml"><code class="yaml">google:
+  service: GCS
+  credentials: &lt;%= Rails.root.join(&quot;path/to/keyfile.json&quot;) %&gt;
+  project: &quot;&quot;
+  bucket: your_own_bucket-&lt;%= Rails.env %&gt;
+</code></pre>
+
+<p>Optionally provide a Hash of credentials instead of a keyfile path:</p>
+
+<pre class="code yaml"><code class="yaml"># Use bin/rails credentials:edit to set the GCS secrets (as gcs:private_key_id|private_key)
+google:
+  service: GCS
+  credentials:
+    type: &quot;service_account&quot;
+    project_id: &quot;&quot;
+    private_key_id: &lt;%= Rails.app.credentials.dig(:gcs, :private_key_id) %&gt;
+    private_key: &lt;%= Rails.app.credentials.dig(:gcs, :private_key).dump %&gt;
+    client_email: &quot;&quot;
+    client_id: &quot;&quot;
+    auth_uri: &quot;https://accounts.google.com/o/oauth2/auth&quot;
+    token_uri: &quot;https://accounts.google.com/o/oauth2/token&quot;
+    auth_provider_x509_cert_url: &quot;https://www.googleapis.com/oauth2/v1/certs&quot;
+    client_x509_cert_url: &quot;&quot;
+  project: &quot;&quot;
+  bucket: your_own_bucket-&lt;%= Rails.env %&gt;
+</code></pre>
+
+<p>Optionally provide a Cache-Control metadata to set on uploaded assets:</p>
+
+<pre class="code yaml"><code class="yaml">google:
+  service: GCS
+  ...
+  cache_control: &quot;public, max-age=3600&quot;
+</code></pre>
+
+<p>Optionally use <a href="https://cloud.google.com/storage/docs/access-control/signed-urls#signing-iam">IAM</a> instead of the <code>credentials</code> when signing URLs. This is useful if you are authenticating your GKE applications with Workload Identity, see <a href="https://cloud.google.com/blog/products/containers-kubernetes/introducing-workload-identity-better-authentication-for-your-gke-applications">this Google Cloud blog post</a> for more information.</p>
+
+<pre class="code yaml"><code class="yaml">google:
+  service: GCS
+  ...
+  iam: true
+</code></pre>
+
+<p>Optionally use a specific GSA when signing URLs. When using IAM, the <a href="https://cloud.google.com/compute/docs/storing-retrieving-metadata">metadata server</a> will be contacted to get the GSA email, but this metadata server is not always present (e.g. local tests) and you may wish to use a non-default GSA.</p>
+
+<pre class="code yaml"><code class="yaml">google:
+  service: GCS
+  ...
+  iam: true
+  gsa_email: &quot;foobar@baz.iam.gserviceaccount.com&quot;
+</code></pre>
+
+<p>Add the <a href="https://github.com/GoogleCloudPlatform/google-cloud-ruby/tree/main/google-cloud-storage"><code>google-cloud-storage</code></a> gem to your <code>Gemfile</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_gem'>gem</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>google-cloud-storage</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>~&gt; 1.11</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>require:</span> <span class='kw'>false</span></code></pre>
+
+<h3>Mirror Service</h3>
+
+<p>You can keep multiple services in sync by defining a mirror service. A mirror
+service replicates uploads and deletes across two or more subordinate services.</p>
+
+<p>A mirror service is intended to be used temporarily during a migration between
+services in production. You can start mirroring to a new service, copy
+pre-existing files from the old service to the new, then go all-in on the new
+service.</p>
+
+<p>NOTE: Mirroring is not atomic. It is possible for an upload to succeed on the
+primary service and fail on any of the subordinate services. Before going
+all-in on a new service, verify that all files have been copied.</p>
+
+<p>Define each of the services you&#39;d like to mirror as described above. Reference
+them by name when defining a mirror service:</p>
+
+<pre class="code yaml"><code class="yaml"># Use bin/rails credentials:edit to set the AWS secrets (as aws:access_key_id|secret_access_key)
+s3_west_coast:
+  service: S3
+  access_key_id: &lt;%= Rails.app.credentials.dig(:aws, :access_key_id) %&gt;
+  secret_access_key: &lt;%= Rails.app.credentials.dig(:aws, :secret_access_key) %&gt;
+  region: &quot;&quot; # e.g. &#39;us-west-1&#39;
+  bucket: your_own_bucket-&lt;%= Rails.env %&gt;
+
+s3_east_coast:
+  service: S3
+  access_key_id: &lt;%= Rails.app.credentials.dig(:aws, :access_key_id) %&gt;
+  secret_access_key: &lt;%= Rails.app.credentials.dig(:aws, :secret_access_key) %&gt;
+  region: &quot;&quot; # e.g. &#39;us-east-1&#39;
+  bucket: your_own_bucket-&lt;%= Rails.env %&gt;
+
+production:
+  service: Mirror
+  primary: s3_east_coast
+  mirrors:
+    - s3_west_coast
+</code></pre>
+
+<p>Although all secondary services receive uploads, downloads are always handled
+by the primary service.</p>
+
+<p>Mirror services are compatible with direct uploads. New files are directly
+uploaded to the primary service. When a directly-uploaded file is attached to a
+record, a background job is enqueued to copy it to the secondary services.</p>
+
+<h3>Public access</h3>
+
+<p>By default, Active Storage assumes private access to services. This means generating signed, single-use URLs for blobs. If you&#39;d rather make blobs publicly accessible, specify <code>public: true</code> in your app&#39;s <code>config/storage.yml</code>:</p>
+
+<pre class="code yaml"><code class="yaml">gcs: &amp;gcs
+  service: GCS
+  project: &quot;&quot;
+
+private_gcs:
+  &lt;&lt;: *gcs
+  credentials: &lt;%= Rails.root.join(&quot;path/to/private_key.json&quot;) %&gt;
+  bucket: your_own_bucket-&lt;%= Rails.env %&gt;
+
+public_gcs:
+  &lt;&lt;: *gcs
+  credentials: &lt;%= Rails.root.join(&quot;path/to/public_key.json&quot;) %&gt;
+  bucket: your_own_bucket-&lt;%= Rails.env %&gt;
+  public: true
+</code></pre>
+
+<p>Make sure your buckets are properly configured for public access. See docs on how to enable public read permissions for <a href="https://docs.aws.amazon.com/AmazonS3/latest/user-guide/block-public-access-bucket.html">Amazon S3</a> and <a href="https://cloud.google.com/storage/docs/access-control/making-data-public#buckets">Google Cloud Storage</a> storage services. Amazon S3 additionally requires that you have the <code>s3:PutObjectAcl</code> permission.</p>
+
+<p>When converting an existing application to use <code>public: true</code>, make sure to update every individual file in the bucket to be publicly-readable before switching over.</p>
+
+<h2>Attaching Files to Records</h2>
+
+<h3><code>has_one_attached</code></h3>
+
+<p>The <a href="https://api.rubyonrails.org/classes/ActiveStorage/Attached/Model.html#method-i-has_one_attached"><code>has_one_attached</code></a> macro sets up a one-to-one mapping between records and
+files. Each record can have one file attached to it.</p>
+
+<p>For example, suppose your application has a <code>User</code> model. If you want each user to
+have an avatar, define the <code>User</code> model as follows:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>User</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_has_one_attached'>has_one_attached</span> <span class='symbeg'>:</span><span class='id identifier rubyid_avatar'>avatar</span>
+<span class='kw'>end</span></code></pre>
+
+<p>or if you are using Rails 6.0+, you can run a model generator command like this:</p>
+
+<pre class="code bash"><code class="bash">$ bin/rails generate model User avatar:attachment
+</code></pre>
+
+<p>You can create a user with an avatar:</p>
+
+<pre class="code xml"><code class="xml">&lt;%= form.file_field :avatar %&gt;
+</code></pre>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>SignupController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_create'>create</span>
+    <span class='id identifier rubyid_user'>user</span> <span class='op'>=</span> <span class='const'>User</span>.<span class='id identifier rubyid_create!'>create!</span>(<span class='id identifier rubyid_user_params'>user_params</span>)
+    <span class='id identifier rubyid_session'>session</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_user_id'>user_id</span>] <span class='op'>=</span> <span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_id'>id</span>
+    <span class='id identifier rubyid_redirect_to'>redirect_to</span> <span class='id identifier rubyid_root_path'>root_path</span>
+  <span class='kw'>end</span>
+
+  <span class='id identifier rubyid_private'>private</span>
+    <span class='kw'>def</span> <span class='id identifier rubyid_user_params'>user_params</span>
+      <span class='id identifier rubyid_params'>params</span>.<span class='id identifier rubyid_expect'>expect</span>(<span class='label'>user:</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_email_address'>email_address</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_password'>password</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_avatar'>avatar</span>])
+    <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Call <a href="https://api.rubyonrails.org/classes/ActiveStorage/Attached/One.html#method-i-attach"><code>avatar.attach</code></a> to attach an avatar to an existing user:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_avatar'>avatar</span>.<span class='id identifier rubyid_attach'>attach</span>(<span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_avatar'>avatar</span>])</code></pre>
+
+<p>Call <a href="https://api.rubyonrails.org/classes/ActiveStorage/Attached/One.html#method-i-attached-3F"><code>avatar.attached?</code></a> to determine whether a particular user has an avatar:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_avatar'>avatar</span>.<span class='id identifier rubyid_attached?'>attached?</span></code></pre>
+
+<p>In some cases you might want to override a default service for a specific attachment.
+You can configure specific services per attachment using the <code>service</code> option with the name of your service:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>User</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_has_one_attached'>has_one_attached</span> <span class='symbeg'>:</span><span class='id identifier rubyid_avatar'>avatar</span><span class='comma'>,</span> <span class='label'>service:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_google'>google</span>
+<span class='kw'>end</span></code></pre>
+
+<p>You can configure specific variants per attachment by calling the <code>variant</code> method on yielded attachable object:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>User</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_has_one_attached'>has_one_attached</span> <span class='symbeg'>:</span><span class='id identifier rubyid_avatar'>avatar</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_attachable'>attachable</span><span class='op'>|</span>
+    <span class='id identifier rubyid_attachable'>attachable</span>.<span class='id identifier rubyid_variant'>variant</span> <span class='symbeg'>:</span><span class='id identifier rubyid_thumb'>thumb</span><span class='comma'>,</span> <span class='label'>resize_to_limit:</span> [<span class='int'>100</span><span class='comma'>,</span> <span class='int'>100</span>]
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Call <code>avatar.variant(:thumb)</code> to get a thumb variant of an avatar:</p>
+
+<pre class="code xml"><code class="xml">&lt;%= image_tag user.avatar.variant(:thumb) %&gt;
+</code></pre>
+
+<p>You can use specific variants for previews as well:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>User</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_has_one_attached'>has_one_attached</span> <span class='symbeg'>:</span><span class='id identifier rubyid_video'>video</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_attachable'>attachable</span><span class='op'>|</span>
+    <span class='id identifier rubyid_attachable'>attachable</span>.<span class='id identifier rubyid_variant'>variant</span> <span class='symbeg'>:</span><span class='id identifier rubyid_thumb'>thumb</span><span class='comma'>,</span> <span class='label'>resize_to_limit:</span> [<span class='int'>100</span><span class='comma'>,</span> <span class='int'>100</span>]
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<pre class="code xml"><code class="xml">&lt;%= image_tag user.video.preview(:thumb) %&gt;
+</code></pre>
+
+<h4>Variant Generation: Lazily, Later, Immediately</h4>
+
+<p>When you know in advance which variants you&#39;ll generate, use the <code>process</code> option to control when they&#39;re generated:</p>
+
+<ul>
+<li><code>:lazily</code> (default) - Variants are created on the fly when first requested</li>
+<li><code>:later</code> - Variants are created in a background job after the attachment is saved</li>
+<li><code>:immediately</code> - Variants are created synchronously when the attachment is created</li>
+</ul>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>User</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_has_one_attached'>has_one_attached</span> <span class='symbeg'>:</span><span class='id identifier rubyid_avatar'>avatar</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_attachable'>attachable</span><span class='op'>|</span>
+    <span class='comment'># Create immediately when the avatar is attached
+</span>    <span class='id identifier rubyid_attachable'>attachable</span>.<span class='id identifier rubyid_variant'>variant</span> <span class='symbeg'>:</span><span class='id identifier rubyid_thumb'>thumb</span><span class='comma'>,</span> <span class='label'>resize_to_limit:</span> [<span class='int'>100</span><span class='comma'>,</span> <span class='int'>100</span>]<span class='comma'>,</span> <span class='label'>process:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_immediately'>immediately</span>
+
+    <span class='comment'># Create in a background job after attachment
+</span>    <span class='id identifier rubyid_attachable'>attachable</span>.<span class='id identifier rubyid_variant'>variant</span> <span class='symbeg'>:</span><span class='id identifier rubyid_medium'>medium</span><span class='comma'>,</span> <span class='label'>resize_to_limit:</span> [<span class='int'>300</span><span class='comma'>,</span> <span class='int'>300</span>]<span class='comma'>,</span> <span class='label'>process:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_later'>later</span>
+
+    <span class='comment'># Create on demand when first requested (default)
+</span>    <span class='id identifier rubyid_attachable'>attachable</span>.<span class='id identifier rubyid_variant'>variant</span> <span class='symbeg'>:</span><span class='id identifier rubyid_large'>large</span><span class='comma'>,</span> <span class='label'>resize_to_limit:</span> [<span class='int'>800</span><span class='comma'>,</span> <span class='int'>800</span>]<span class='comma'>,</span> <span class='label'>process:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_lazily'>lazily</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>NOTE: Since Active Storage relies on polymorphic associations, and <a href="./association_basics.html#polymorphic-associations">polymorphic associations</a> rely on storing class names in the database, that data must remain synchronized with the class name used by the Ruby code. When renaming classes that use <code>has_one_attached</code>, make sure to also update the class names in the <code>active_storage_attachments.record_type</code> polymorphic type column of the corresponding rows.</p>
+
+<h3><code>has_many_attached</code></h3>
+
+<p>The <a href="https://api.rubyonrails.org/classes/ActiveStorage/Attached/Model.html#method-i-has_many_attached"><code>has_many_attached</code></a> macro sets up a one-to-many relationship between records
+and files. Each record can have many files attached to it.</p>
+
+<p>For example, suppose your application has a <code>Message</code> model. If you want each
+message to have many images, define the <code>Message</code> model as follows:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Message</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_has_many_attached'>has_many_attached</span> <span class='symbeg'>:</span><span class='id identifier rubyid_images'>images</span>
+<span class='kw'>end</span></code></pre>
+
+<p>or if you are using Rails 6.0+, you can run a model generator command like this:</p>
+
+<pre class="code bash"><code class="bash">$ bin/rails generate model Message images:attachments
+</code></pre>
+
+<p>You can create a message with images:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>MessagesController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_create'>create</span>
+    <span class='id identifier rubyid_message'>message</span> <span class='op'>=</span> <span class='const'>Message</span>.<span class='id identifier rubyid_create!'>create!</span>(<span class='id identifier rubyid_message_params'>message_params</span>)
+    <span class='id identifier rubyid_redirect_to'>redirect_to</span> <span class='id identifier rubyid_message'>message</span>
+  <span class='kw'>end</span>
+
+  <span class='id identifier rubyid_private'>private</span>
+    <span class='kw'>def</span> <span class='id identifier rubyid_message_params'>message_params</span>
+      <span class='id identifier rubyid_params'>params</span>.<span class='id identifier rubyid_expect'>expect</span>(<span class='label'>message:</span> [ <span class='symbeg'>:</span><span class='id identifier rubyid_title'>title</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_content'>content</span><span class='comma'>,</span> <span class='label'>images:</span> [] ])
+    <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Call <a href="https://api.rubyonrails.org/classes/ActiveStorage/Attached/Many.html#method-i-attach"><code>images.attach</code></a> to add new images to an existing message:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='ivar'>@message</span>.<span class='id identifier rubyid_images'>images</span>.<span class='id identifier rubyid_attach'>attach</span>(<span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_images'>images</span>])</code></pre>
+
+<p>Call <a href="https://api.rubyonrails.org/classes/ActiveStorage/Attached/Many.html#method-i-attached-3F"><code>images.attached?</code></a> to determine whether a particular message has any images:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='ivar'>@message</span>.<span class='id identifier rubyid_images'>images</span>.<span class='id identifier rubyid_attached?'>attached?</span></code></pre>
+
+<p>Overriding the default service is done the same way as <code>has_one_attached</code>, by using the <code>service</code> option:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Message</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_has_many_attached'>has_many_attached</span> <span class='symbeg'>:</span><span class='id identifier rubyid_images'>images</span><span class='comma'>,</span> <span class='label'>service:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_s3'>s3</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Configuring specific variants is done the same way as <code>has_one_attached</code>, by calling the <code>variant</code> method on the yielded attachable object:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Message</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_has_many_attached'>has_many_attached</span> <span class='symbeg'>:</span><span class='id identifier rubyid_images'>images</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_attachable'>attachable</span><span class='op'>|</span>
+    <span class='id identifier rubyid_attachable'>attachable</span>.<span class='id identifier rubyid_variant'>variant</span> <span class='symbeg'>:</span><span class='id identifier rubyid_thumb'>thumb</span><span class='comma'>,</span> <span class='label'>resize_to_limit:</span> [<span class='int'>100</span><span class='comma'>,</span> <span class='int'>100</span>]
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>NOTE: Since Active Storage relies on polymorphic associations, and <a href="./association_basics.html#polymorphic-associations">polymorphic associations</a> rely on storing class names in the database, that data must remain synchronized with the class name used by the Ruby code. When renaming classes that use <code>has_many_attached</code>, make sure to also update the class names in the <code>active_storage_attachments.record_type</code> polymorphic type column of the corresponding rows.</p>
+
+<h3>Attaching File/IO Objects</h3>
+
+<p>Sometimes you need to attach a file that doesn’t arrive via an HTTP request.
+For example, you may want to attach a file you generated on disk or downloaded
+from a user-submitted URL. You may also want to attach a fixture file in a
+model test. To do that, provide a Hash containing at least an open IO object
+and a filename:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='ivar'>@message</span>.<span class='id identifier rubyid_images'>images</span>.<span class='id identifier rubyid_attach'>attach</span>(<span class='label'>io:</span> <span class='const'><a href="File.html" title="File (class)">File</a></span>.<span class='id identifier rubyid_open'>open</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>/path/to/file</span><span class='tstring_end'>&quot;</span></span>)<span class='comma'>,</span> <span class='label'>filename:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>file.pdf</span><span class='tstring_end'>&quot;</span></span>)</code></pre>
+
+<p>When possible, provide a content type as well. Active Storage attempts to
+determine a file’s content type from its data. It falls back to the content
+type you provide if it can’t do that.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='ivar'>@message</span>.<span class='id identifier rubyid_images'>images</span>.<span class='id identifier rubyid_attach'>attach</span>(<span class='label'>io:</span> <span class='const'><a href="File.html" title="File (class)">File</a></span>.<span class='id identifier rubyid_open'>open</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>/path/to/file</span><span class='tstring_end'>&quot;</span></span>)<span class='comma'>,</span> <span class='label'>filename:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>file.pdf</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>content_type:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>application/pdf</span><span class='tstring_end'>&quot;</span></span>)</code></pre>
+
+<p>You can bypass the content type inference from the data by passing in
+<code>identify: false</code> along with the <code>content_type</code>.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='ivar'>@message</span>.<span class='id identifier rubyid_images'>images</span>.<span class='id identifier rubyid_attach'>attach</span>(
+  <span class='label'>io:</span> <span class='const'><a href="File.html" title="File (class)">File</a></span>.<span class='id identifier rubyid_open'>open</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>/path/to/file</span><span class='tstring_end'>&quot;</span></span>)<span class='comma'>,</span>
+  <span class='label'>filename:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>file.pdf</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>content_type:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>application/pdf</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>identify:</span> <span class='kw'>false</span>
+)</code></pre>
+
+<p>If you don’t provide a content type and Active Storage can’t determine the
+file’s content type automatically, it defaults to application/octet-stream.</p>
+
+<p>There is an additional parameter <code>key</code> that can be used to specify folders/sub-folders
+in your S3 Bucket. AWS S3 otherwise uses a random key to name your files. This
+approach is helpful if you want to organize your S3 Bucket files better.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='ivar'>@message</span>.<span class='id identifier rubyid_images'>images</span>.<span class='id identifier rubyid_attach'>attach</span>(
+  <span class='label'>io:</span> <span class='const'><a href="File.html" title="File (class)">File</a></span>.<span class='id identifier rubyid_open'>open</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>/path/to/file</span><span class='tstring_end'>&quot;</span></span>)<span class='comma'>,</span>
+  <span class='label'>filename:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>file.pdf</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>content_type:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>application/pdf</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>key:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_env'><a href="Rails.html#env-class_method" title="Rails.env (method)">env</a></span><span class='embexpr_end'>}</span><span class='tstring_content'>/blog_content/intuitive_filename.pdf</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>identify:</span> <span class='kw'>false</span>
+)</code></pre>
+
+<p>This way the file will get saved in the folder <code>[S3_BUCKET]/development/blog_content/</code>
+when you test this from your development environment. Note that if you use the key
+parameter, you have to ensure the key to be unique for the upload to go through. It is
+recommended to append the filename with a unique random key, something like:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_s3_file_key'>s3_file_key</span>
+  <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_env'><a href="Rails.html#env-class_method" title="Rails.env (method)">env</a></span><span class='embexpr_end'>}</span><span class='tstring_content'>/blog_content/intuitive_filename-</span><span class='embexpr_beg'>#{</span><span class='const'><a href="SecureRandom.html" title="SecureRandom (module)">SecureRandom</a></span>.<span class='id identifier rubyid_uuid'>uuid</span><span class='embexpr_end'>}</span><span class='tstring_content'>.pdf</span><span class='tstring_end'>&quot;</span></span>
+<span class='kw'>end</span></code></pre>
+
+<pre class="code ruby"><code class="ruby"><span class='ivar'>@message</span>.<span class='id identifier rubyid_images'>images</span>.<span class='id identifier rubyid_attach'>attach</span>(
+  <span class='label'>io:</span> <span class='const'><a href="File.html" title="File (class)">File</a></span>.<span class='id identifier rubyid_open'>open</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>/path/to/file</span><span class='tstring_end'>&quot;</span></span>)<span class='comma'>,</span>
+  <span class='label'>filename:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>file.pdf</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>content_type:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>application/pdf</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>key:</span> <span class='id identifier rubyid_s3_file_key'>s3_file_key</span><span class='comma'>,</span>
+  <span class='label'>identify:</span> <span class='kw'>false</span>
+)</code></pre>
+
+<h3>Replacing vs Adding Attachments</h3>
+
+<p>By default in Rails, attaching files to a <code>has_many_attached</code> association will replace
+any existing attachments.</p>
+
+<p>To keep existing attachments, you can use hidden form fields with the <a href="https://api.rubyonrails.org/classes/ActiveStorage/Blob.html#method-i-signed_id"><code>signed_id</code></a>
+of each attached file:</p>
+
+<pre class="code xml"><code class="xml">&lt;% @message.images.each do |image| %&gt;
+  &lt;%= form.hidden_field :images, multiple: true, value: image.signed_id %&gt;
+&lt;% end %&gt;
+
+&lt;%= form.file_field :images, multiple: true %&gt;
+</code></pre>
+
+<p>This has the advantage of making it possible to remove existing attachments
+selectively, e.g. by using JavaScript to remove individual hidden fields.</p>
+
+<h3>Form Validation</h3>
+
+<p>Attachments aren&#39;t sent to the storage service until a successful <code>save</code> on the
+associated record. This means that if a form submission fails validation, any new
+attachment(s) will be lost and must be uploaded again. Since <a href="#direct-uploads">direct uploads</a>
+are stored before the form is submitted, they can be used to retain uploads when validation fails:</p>
+
+<pre class="code xml"><code class="xml">&lt;%= form.hidden_field :avatar, value: @user.avatar.signed_id if @user.avatar.attached? %&gt;
+&lt;%= form.file_field :avatar, direct_upload: true %&gt;
+</code></pre>
+
+<h2>Querying</h2>
+
+<p>Active Storage attachments are Active Record associations behind the scenes, so you can use the usual <a href="active_record_querying.html">query methods</a> to look up records for attachments that meet specific criteria.</p>
+
+<h3><code>has_one_attached</code></h3>
+
+<p><a href="https://api.rubyonrails.org/classes/ActiveStorage/Attached/Model.html#method-i-has_one_attached"><code>has_one_attached</code></a> creates a <code>has_one</code> association named <code>&quot;&lt;name&gt;_attachment&quot;</code> and a <code>has_one :through</code> association named <code>&quot;&lt;name&gt;_blob&quot;</code>.
+To select every user where the avatar is a PNG, run the following:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>User</span>.<span class='id identifier rubyid_joins'>joins</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_avatar_blob'>avatar_blob</span>).<span class='id identifier rubyid_where'>where</span>(<span class='label'>active_storage_blobs:</span> { <span class='label'>content_type:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>image/png</span><span class='tstring_end'>&quot;</span></span> })</code></pre>
+
+<h3><code>has_many_attached</code></h3>
+
+<p><a href="https://api.rubyonrails.org/classes/ActiveStorage/Attached/Model.html#method-i-has_many_attached"><code>has_many_attached</code></a> creates a <code>has_many</code> association called <code>&quot;&lt;name&gt;_attachments&quot;</code> and a <code>has_many :through</code> association called <code>&quot;&lt;name&gt;_blobs&quot;</code> (note the plural).
+To select all messages where images are videos rather than photos you can do the following:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Message</span>.<span class='id identifier rubyid_joins'>joins</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_images_blobs'>images_blobs</span>).<span class='id identifier rubyid_where'>where</span>(<span class='label'>active_storage_blobs:</span> { <span class='label'>content_type:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>video/mp4</span><span class='tstring_end'>&quot;</span></span> })</code></pre>
+
+<p>The query will filter on the <a href="https://api.rubyonrails.org/classes/ActiveStorage/Blob.html"><strong><code>ActiveStorage::Blob</code></strong></a>, not the <a href="https://api.rubyonrails.org/classes/ActiveStorage/Attachment.html">attachment record</a> because these are plain SQL joins. You can combine the blob predicates above with any other scope conditions, just as you would with any other Active Record query.</p>
+
+<h2>Removing Files</h2>
+
+<p>To remove an attachment from a model, call <a href="https://api.rubyonrails.org/classes/ActiveStorage/Attached/One.html#method-i-purge"><code>purge</code></a> on the
+attachment. If your application is set up to use Active Job, removal can be done
+in the background instead by calling <a href="https://api.rubyonrails.org/classes/ActiveStorage/Attached/One.html#method-i-purge_later"><code>purge_later</code></a>.
+Purging deletes the blob and the file from the storage service.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># Synchronously destroy the avatar and actual resource files.
+</span><span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_avatar'>avatar</span>.<span class='id identifier rubyid_purge'>purge</span>
+
+<span class='comment'># Destroy the associated models and actual resource files async, via Active Job.
+</span><span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_avatar'>avatar</span>.<span class='id identifier rubyid_purge_later'>purge_later</span></code></pre>
+
+<h2>Serving Files</h2>
+
+<p>Active Storage supports two ways to serve files: redirecting and proxying.</p>
+
+<p>WARNING: All Active Storage controllers are publicly accessible by default. The
+generated URLs are hard to guess, but permanent by design. If your files
+require a higher level of protection consider implementing
+<a href="#authenticated-controllers">Authenticated Controllers</a>.</p>
+
+<h3>Redirect Mode</h3>
+
+<p>To generate a permanent URL for a blob, you can pass the attachment or the blob to
+the <a href="https://api.rubyonrails.org/classes/ActionView/RoutingUrlFor.html#method-i-url_for"><code>url_for</code></a> view helper. This generates a
+URL with the blob&#39;s <a href="https://api.rubyonrails.org/classes/ActiveStorage/Blob.html#method-i-signed_id"><code>signed_id</code></a>
+that is routed to the blob&#39;s <a href="https://api.rubyonrails.org/classes/ActiveStorage/Blobs/RedirectController.html"><code>RedirectController</code></a></p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_url_for'>url_for</span>(<span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_avatar'>avatar</span>)
+<span class='comment'># =&gt; https://www.example.com/rails/active_storage/blobs/redirect/:signed_id/my-avatar.png</span></code></pre>
+
+<p>The <code>RedirectController</code> redirects to the actual service endpoint. This
+indirection decouples the service URL from the actual one, and allows, for
+example, mirroring attachments in different services for high-availability. The
+redirection has an HTTP expiration of 5 minutes.</p>
+
+<p>To create a download link, use the <code>rails_blob_{path|url}</code> helper. Using this
+helper allows you to set the disposition.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_rails_blob_path'>rails_blob_path</span>(<span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_avatar'>avatar</span><span class='comma'>,</span> <span class='label'>disposition:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>attachment</span><span class='tstring_end'>&quot;</span></span>)</code></pre>
+
+<p>WARNING: To prevent XSS attacks, Active Storage forces the Content-Disposition header
+to &quot;attachment&quot; for some kind of files. To change this behavior see the
+available configuration options in <a href="configuring.html#configuring-active-storage">Configuring Rails Applications</a>.</p>
+
+<p>If you need to create a link from outside of controller/view context (Background
+jobs, Cronjobs, etc.), you can access the <code>rails_blob_path</code> like this:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_routes'>routes</span>.<span class='id identifier rubyid_url_helpers'>url_helpers</span>.<span class='id identifier rubyid_rails_blob_path'>rails_blob_path</span>(<span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_avatar'>avatar</span><span class='comma'>,</span> <span class='label'>only_path:</span> <span class='kw'>true</span>)</code></pre>
+
+<h3>Proxy Mode</h3>
+
+<p>Optionally, files can be proxied instead. This means that your application servers will download file data from the storage service in response to requests. This can be useful for serving files from a CDN.</p>
+
+<p>You can configure Active Storage to use proxying by default:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/initializers/active_storage.rb
+</span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_active_storage'>active_storage</span>.<span class='id identifier rubyid_resolve_model_to_route'>resolve_model_to_route</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_rails_storage_proxy'>rails_storage_proxy</span></code></pre>
+
+<p>Or if you want to explicitly proxy specific attachments there are URL helpers you can use in the form of <code>rails_storage_proxy_path</code> and <code>rails_storage_proxy_url</code>.</p>
+
+<pre class="code xml"><code class="xml">&lt;%= image_tag rails_storage_proxy_path(@user.avatar) %&gt;
+</code></pre>
+
+<h4>Putting a CDN in Front of Active Storage</h4>
+
+<p>Additionally, in order to use a CDN for Active Storage attachments, you will need to generate URLs with proxy mode so that they are served by your app and the CDN will cache the attachment without any extra configuration. This works out of the box because the default Active Storage proxy controller sets an HTTP header indicating to the CDN to cache the response.</p>
+
+<p>You should also make sure that the generated URLs use the CDN host instead of your app host. There are multiple ways to achieve this, but in general it involves tweaking your <code>config/routes.rb</code> file so that you can generate the proper URLs for the attachments and their variations. As an example, you could add this:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/routes.rb
+</span><span class='id identifier rubyid_direct'>direct</span> <span class='symbeg'>:</span><span class='id identifier rubyid_cdn_image'>cdn_image</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_model'>model</span><span class='comma'>,</span> <span class='id identifier rubyid_options'>options</span><span class='op'>|</span>
+  <span class='id identifier rubyid_expires_in'>expires_in</span> <span class='op'>=</span> <span class='id identifier rubyid_options'>options</span>.<span class='id identifier rubyid_delete'>delete</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_expires_in'>expires_in</span>) { <span class='const'><a href="ActiveStorage.html" title="ActiveStorage (module)">ActiveStorage</a></span>.<span class='id identifier rubyid_urls_expire_in'><a href="ActiveStorage.html#urls_expire_in-class_method" title="ActiveStorage.urls_expire_in (method)">urls_expire_in</a></span> }
+
+  <span class='kw'>if</span> <span class='id identifier rubyid_model'>model</span>.<span class='id identifier rubyid_respond_to?'>respond_to?</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_signed_id'>signed_id</span>)
+    <span class='id identifier rubyid_route_for'>route_for</span>(
+      <span class='symbeg'>:</span><span class='id identifier rubyid_rails_service_blob_proxy'>rails_service_blob_proxy</span><span class='comma'>,</span>
+      <span class='id identifier rubyid_model'>model</span>.<span class='id identifier rubyid_signed_id'>signed_id</span>(<span class='label'>expires_in:</span> <span class='id identifier rubyid_expires_in'>expires_in</span>)<span class='comma'>,</span>
+      <span class='id identifier rubyid_model'>model</span>.<span class='id identifier rubyid_filename'>filename</span><span class='comma'>,</span>
+      <span class='id identifier rubyid_options'>options</span>.<span class='id identifier rubyid_merge'>merge</span>(<span class='label'>host:</span> <span class='const'>ENV</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>CDN_HOST</span><span class='tstring_end'>&quot;</span></span>])
+    )
+  <span class='kw'>else</span>
+    <span class='id identifier rubyid_signed_blob_id'>signed_blob_id</span> <span class='op'>=</span> <span class='id identifier rubyid_model'>model</span>.<span class='id identifier rubyid_blob'>blob</span>.<span class='id identifier rubyid_signed_id'>signed_id</span>(<span class='label'>expires_in:</span> <span class='id identifier rubyid_expires_in'>expires_in</span>)
+    <span class='id identifier rubyid_variation_key'>variation_key</span>  <span class='op'>=</span> <span class='id identifier rubyid_model'>model</span>.<span class='id identifier rubyid_variation'>variation</span>.<span class='id identifier rubyid_key'>key</span>
+    <span class='id identifier rubyid_filename'>filename</span>       <span class='op'>=</span> <span class='id identifier rubyid_model'>model</span>.<span class='id identifier rubyid_blob'>blob</span>.<span class='id identifier rubyid_filename'>filename</span>
+
+    <span class='id identifier rubyid_route_for'>route_for</span>(
+      <span class='symbeg'>:</span><span class='id identifier rubyid_rails_blob_representation_proxy'>rails_blob_representation_proxy</span><span class='comma'>,</span>
+      <span class='id identifier rubyid_signed_blob_id'>signed_blob_id</span><span class='comma'>,</span>
+      <span class='id identifier rubyid_variation_key'>variation_key</span><span class='comma'>,</span>
+      <span class='id identifier rubyid_filename'>filename</span><span class='comma'>,</span>
+      <span class='id identifier rubyid_options'>options</span>.<span class='id identifier rubyid_merge'>merge</span>(<span class='label'>host:</span> <span class='const'>ENV</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>CDN_HOST</span><span class='tstring_end'>&quot;</span></span>])
+    )
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>and then generate routes like this:</p>
+
+<pre class="code xml"><code class="xml">&lt;%= cdn_image_url(user.avatar.variant(resize_to_limit: [128, 128])) %&gt;
+</code></pre>
+
+<h3>Authenticated Controllers</h3>
+
+<p>All Active Storage controllers are publicly accessible by default. The generated
+URLs use a plain <a href="https://api.rubyonrails.org/classes/ActiveStorage/Blob.html#method-i-signed_id"><code>signed_id</code></a>, making them hard to
+guess but permanent. Anyone that knows the blob URL will be able to access it,
+even if a <code>before_action</code> in your <code>ApplicationController</code> would otherwise
+require a login. If your files require a higher level of protection, you can
+implement your own authenticated controllers, based on the
+<a href="https://api.rubyonrails.org/classes/ActiveStorage/Blobs/RedirectController.html"><code>ActiveStorage::Blobs::RedirectController</code></a>,
+<a href="https://api.rubyonrails.org/classes/ActiveStorage/Blobs/ProxyController.html"><code>ActiveStorage::Blobs::ProxyController</code></a>,
+<a href="https://api.rubyonrails.org/classes/ActiveStorage/Representations/RedirectController.html"><code>ActiveStorage::Representations::RedirectController</code></a> and
+<a href="https://api.rubyonrails.org/classes/ActiveStorage/Representations/ProxyController.html"><code>ActiveStorage::Representations::ProxyController</code></a></p>
+
+<p>To only allow an account to access their own logo you could do the following:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/routes.rb
+</span><span class='id identifier rubyid_resource'>resource</span> <span class='symbeg'>:</span><span class='id identifier rubyid_account'>account</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_resource'>resource</span> <span class='symbeg'>:</span><span class='id identifier rubyid_logo'>logo</span>
+<span class='kw'>end</span></code></pre>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># app/controllers/logos_controller.rb
+</span><span class='kw'>class</span> <span class='const'>LogosController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
+  <span class='comment'># Through ApplicationController:
+</span>  <span class='comment'># include Authenticate, SetCurrentAccount
+</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_show'>show</span>
+    <span class='id identifier rubyid_redirect_to'>redirect_to</span> <span class='const'>Current</span>.<span class='id identifier rubyid_account'>account</span>.<span class='id identifier rubyid_logo'>logo</span>.<span class='id identifier rubyid_url'>url</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<pre class="code xml"><code class="xml">&lt;%= image_tag account_logo_path %&gt;
+</code></pre>
+
+<p>And then you should disable the Active Storage default routes with:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_active_storage'>active_storage</span>.<span class='id identifier rubyid_draw_routes'>draw_routes</span> <span class='op'>=</span> <span class='kw'>false</span></code></pre>
+
+<p>to prevent files being accessed with the publicly accessible URLs.</p>
+
+<h2>Downloading Files</h2>
+
+<p>Sometimes you need to process a blob after it’s uploaded—for example, to convert
+it to a different format. Use the attachment&#39;s <a href="https://api.rubyonrails.org/classes/ActiveStorage/Blob.html#method-i-download"><code>download</code></a> method to read a blob’s
+binary data into memory:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_binary'>binary</span> <span class='op'>=</span> <span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_avatar'>avatar</span>.<span class='id identifier rubyid_download'>download</span></code></pre>
+
+<p>You might want to download a blob to a file on disk so an external program (e.g.
+a virus scanner or media transcoder) can operate on it. Use the attachment&#39;s
+<a href="https://api.rubyonrails.org/classes/ActiveStorage/Blob.html#method-i-open"><code>open</code></a> method to download a blob to a tempfile on disk:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_message'>message</span>.<span class='id identifier rubyid_video'>video</span>.<span class='id identifier rubyid_open'>open</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_file'>file</span><span class='op'>|</span>
+  <span class='id identifier rubyid_system'>system</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>/path/to/virus/scanner</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_file'>file</span>.<span class='id identifier rubyid_path'>path</span>
+  <span class='comment'># ...
+</span><span class='kw'>end</span></code></pre>
+
+<p>It&#39;s important to know that the file is not yet available in the <code>after_create</code> callback but in the <code>after_create_commit</code> only.</p>
+
+<h2>Analyzing Files</h2>
+
+<p>Active Storage analyzes files to extract metadata like image dimensions, video duration, and audio bit rate. Analyzed files store this information in their metadata hash, including <code>analyzed: true</code>. You can check whether a blob has been analyzed by calling <a href="https://api.rubyonrails.org/classes/ActiveStorage/Blob/Analyzable.html#method-i-analyzed-3F"><code>analyzed?</code></a> on it.</p>
+
+<p>Image analysis provides <code>width</code> and <code>height</code> attributes. Video analysis provides these, as well as <code>duration</code>, <code>angle</code>, <code>display_aspect_ratio</code>, and <code>video</code> and <code>audio</code> booleans to indicate the presence of those channels. Audio analysis provides <code>duration</code> and <code>bit_rate</code> attributes.</p>
+
+<h3>Validating Attachment Metadata</h3>
+
+<p>As of Rails 8.2, attachments are analyzed before validation by default, making metadata available for model validations:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>User</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_has_one_attached'>has_one_attached</span> <span class='symbeg'>:</span><span class='id identifier rubyid_avatar'>avatar</span>
+
+  <span class='id identifier rubyid_validate'>validate</span> <span class='symbeg'>:</span><span class='id identifier rubyid_validate_avatar_dimensions'>validate_avatar_dimensions</span><span class='comma'>,</span> <span class='label'>if:</span> <span class='tlambda'>-&gt;</span> <span class='tlambeg'>{</span> <span class='id identifier rubyid_avatar'>avatar</span>.<span class='id identifier rubyid_attached?'>attached?</span> }
+
+  <span class='id identifier rubyid_private'>private</span>
+    <span class='kw'>def</span> <span class='id identifier rubyid_validate_avatar_dimensions'>validate_avatar_dimensions</span>
+      <span class='kw'>if</span> <span class='id identifier rubyid_avatar'>avatar</span>.<span class='id identifier rubyid_metadata'>metadata</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_width'>width</span>] <span class='op'>&lt;</span> <span class='int'>200</span> <span class='op'>||</span> <span class='id identifier rubyid_avatar'>avatar</span>.<span class='id identifier rubyid_metadata'>metadata</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_height'>height</span>] <span class='op'>&lt;</span> <span class='int'>200</span>
+        <span class='id identifier rubyid_errors'>errors</span>.<span class='id identifier rubyid_add'>add</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_avatar'>avatar</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>must be at least 200x200 pixels</span><span class='tstring_end'>&quot;</span></span>)
+      <span class='kw'>end</span>
+    <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>NOTE: <a href="#direct-uploads">Direct uploads</a> bypass the server so the file isn&#39;t locally available for analysis. In this case, <code>:immediately</code> falls back to <code>:later</code>, analyzing via background job after upload completes. Metadata isn&#39;t available for validation; validate on the client side using JavaScript instead.</p>
+
+<h3>Controlling When Analysis is Performed</h3>
+
+<p>Pass the <code>analyze:</code> option to control when analysis is performed:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>User</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='comment'># Analyze before validation (default in 8.2)
+</span>  <span class='id identifier rubyid_has_one_attached'>has_one_attached</span> <span class='symbeg'>:</span><span class='id identifier rubyid_avatar'>avatar</span><span class='comma'>,</span> <span class='label'>analyze:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_immediately'>immediately</span>
+
+  <span class='comment'># Analyze after upload from local IO or via background job for direct uploads
+</span>  <span class='id identifier rubyid_has_one_attached'>has_one_attached</span> <span class='symbeg'>:</span><span class='id identifier rubyid_document'>document</span><span class='comma'>,</span> <span class='label'>analyze:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_later'>later</span>
+
+  <span class='comment'># Skip automatic analysis - analyze on-demand when metadata is accessed
+</span>  <span class='id identifier rubyid_has_many_attached'>has_many_attached</span> <span class='symbeg'>:</span><span class='id identifier rubyid_files'>files</span><span class='comma'>,</span> <span class='label'>analyze:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_lazily'>lazily</span>
+<span class='kw'>end</span></code></pre>
+
+<p>NOTE: Attachments with <code>process: :immediately</code> variants automatically analyze immediately to ensure metadata is available before processing.</p>
+
+<p>You can set the global default in your application configuration:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/application.rb
+</span><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_active_storage'>active_storage</span>.<span class='id identifier rubyid_analyze'>analyze</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_later'>later</span>  <span class='comment'># restore pre-8.2 behavior</span></code></pre>
+
+<h2>Displaying Images, Videos, and PDFs</h2>
+
+<p>Active Storage supports representing a variety of files. You can call
+<a href="https://api.rubyonrails.org/classes/ActiveStorage/Blob/Representable.html#method-i-representation"><code>representation</code></a> on an attachment to display an image variant, or a
+preview of a video or PDF. Before calling <code>representation</code>, check if the
+attachment can be represented by calling <a href="https://api.rubyonrails.org/classes/ActiveStorage/Blob/Representable.html#method-i-representable-3F"><code>representable?</code></a>. Some file formats
+can&#39;t be previewed by Active Storage out of the box (e.g. Word documents); if
+<code>representable?</code> returns false you may want to <a href="#serving-files">link to</a>
+the file instead.</p>
+
+<pre class="code xml"><code class="xml">&lt;ul&gt;
+  &lt;% @message.files.each do |file| %&gt;
+    &lt;li&gt;
+      &lt;% if file.representable? %&gt;
+        &lt;%= image_tag file.representation(resize_to_limit: [100, 100]) %&gt;
+      &lt;% else %&gt;
+        &lt;%= link_to rails_blob_path(file, disposition: &quot;attachment&quot;) do %&gt;
+          &lt;%= image_tag &quot;placeholder.png&quot;, alt: &quot;Download file&quot; %&gt;
+        &lt;% end %&gt;
+      &lt;% end %&gt;
+    &lt;/li&gt;
+  &lt;% end %&gt;
+&lt;/ul&gt;
+</code></pre>
+
+<p>Internally, <code>representation</code> calls <code>variant</code> for images, and <code>preview</code> for
+previewable files. You can also call these methods directly.</p>
+
+<h3>Lazy vs Immediate Loading</h3>
+
+<p>By default, Active Storage will process representations lazily. This code:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_image_tag'>image_tag</span> <span class='id identifier rubyid_file'>file</span>.<span class='id identifier rubyid_representation'>representation</span>(<span class='label'>resize_to_limit:</span> [<span class='int'>100</span><span class='comma'>,</span> <span class='int'>100</span>])</code></pre>
+
+<p>Will generate an <code>&lt;img&gt;</code> tag with the <code>src</code> pointing to the
+<a href="https://api.rubyonrails.org/classes/ActiveStorage/Representations/RedirectController.html"><code>ActiveStorage::Representations::RedirectController</code></a>. The browser will
+make a request to that controller, which will perform the following:</p>
+
+<ol>
+<li>Process file and upload the processed file if necessary.</li>
+<li>Return a <code>302</code> redirect to the file either to
+
+<ul>
+<li>the remote service (e.g., S3).</li>
+<li>or <code>ActiveStorage::Blobs::ProxyController</code> which will return the file contents if <a href="#proxy-mode">proxy mode</a> is enabled.</li>
+</ul></li>
+</ol>
+
+<p>Loading the file lazily allows features like <a href="#public-access">single use URLs</a>
+to work without slowing down your initial page loads.</p>
+
+<p>This works fine for most cases.</p>
+
+<p>If you want to generate URLs for images immediately, you can call <code>.processed.url</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_image_tag'>image_tag</span> <span class='id identifier rubyid_file'>file</span>.<span class='id identifier rubyid_representation'>representation</span>(<span class='label'>resize_to_limit:</span> [<span class='int'>100</span><span class='comma'>,</span> <span class='int'>100</span>]).<span class='id identifier rubyid_processed'>processed</span>.<span class='id identifier rubyid_url'>url</span></code></pre>
+
+<p>The Active Storage variant tracker improves performance of this, by storing a
+record in the database if the requested representation has been processed before.
+Thus, the above code will only make an API call to the remote service (e.g. S3)
+once, and once a variant is stored, will use that. The variant tracker runs
+automatically, but can be disabled through <a href="configuring.html#config-active-storage-track-variants"><code>config.active_storage.track_variants</code></a>.</p>
+
+<p>If you&#39;re rendering lots of images on a page, the above example could result
+in N+1 queries loading all the variant records. To avoid these N+1 queries,
+use the named scopes on <a href="https://api.rubyonrails.org/classes/ActiveStorage/Attachment.html"><code>ActiveStorage::Attachment</code></a>.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_message'>message</span>.<span class='id identifier rubyid_images'>images</span>.<span class='id identifier rubyid_with_all_variant_records'>with_all_variant_records</span>.<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_file'>file</span><span class='op'>|</span>
+  <span class='id identifier rubyid_image_tag'>image_tag</span> <span class='id identifier rubyid_file'>file</span>.<span class='id identifier rubyid_representation'>representation</span>(<span class='label'>resize_to_limit:</span> [<span class='int'>100</span><span class='comma'>,</span> <span class='int'>100</span>]).<span class='id identifier rubyid_processed'>processed</span>.<span class='id identifier rubyid_url'>url</span>
+<span class='kw'>end</span></code></pre>
+
+<h3>Transforming Images</h3>
+
+<p>Transforming images allows you to display the image at your choice of dimensions.
+To create a variation of an image, call <a href="https://api.rubyonrails.org/classes/ActiveStorage/Blob/Representable.html#method-i-variant"><code>variant</code></a> on the attachment. You
+can pass any transformation supported by the variant processor to the method.
+When the browser hits the variant URL, Active Storage will lazily transform
+the original blob into the specified format and redirect to its new service
+location.</p>
+
+<pre class="code xml"><code class="xml">&lt;%= image_tag user.avatar.variant(resize_to_limit: [100, 100]) %&gt;
+</code></pre>
+
+<p>WARNING: It should be considered unsafe to provide arbitrary user supplied
+transformations or parameters to variant processors. This can potentially
+enable command injection vulnerabilities in your app. It is also recommended
+to implement a strict <a href="https://imagemagick.org/script/security-policy.php">ImageMagick security policy</a>
+when MiniMagick is the variant processor of choice.</p>
+
+<p>If a variant is requested, Active Storage will automatically apply
+transformations depending on the image&#39;s format:</p>
+
+<ol>
+<li><p>Content types that are variable (as dictated by <a href="configuring.html#config-active-storage-variable-content-types"><code>config.active_storage.variable_content_types</code></a>)
+and not considered web images (as dictated by <a href="configuring.html#config-active-storage-web-image-content-types"><code>config.active_storage.web_image_content_types</code></a>),
+will be converted to PNG.</p></li>
+<li><p>If <code>quality</code> is not specified, the variant processor&#39;s default quality for the format will be used.</p></li>
+</ol>
+
+<p>Active Storage can use either <a href="https://www.rubydoc.info/gems/ruby-vips/Vips/Image">Vips</a> or MiniMagick as the variant processor.
+The default depends on your <code>config.load_defaults</code> target version, and the
+processor can be changed by setting <a href="configuring.html#config-active-storage-variant-processor"><code>config.active_storage.variant_processor</code></a>.</p>
+
+<h3>Previewing Files</h3>
+
+<p>Some non-image files can be previewed: that is, they can be presented as images.
+For example, a video file can be previewed by extracting its first frame. Out of
+the box, Active Storage supports previewing videos and PDF documents. To create
+a link to a lazily-generated preview, use the attachment&#39;s <a href="https://api.rubyonrails.org/classes/ActiveStorage/Blob/Representable.html#method-i-preview"><code>preview</code></a> method:</p>
+
+<pre class="code xml"><code class="xml">&lt;%= image_tag message.video.preview(resize_to_limit: [100, 100]) %&gt;
+</code></pre>
+
+<p>To add support for another format, add your own previewer. See the
+<a href="https://api.rubyonrails.org/classes/ActiveStorage/Preview.html"><code>ActiveStorage::Preview</code></a> documentation for more information.</p>
+
+<h2>Direct Uploads</h2>
+
+<p>Active Storage, with its included JavaScript library, supports uploading
+directly from the client to the cloud.</p>
+
+<h3>Usage</h3>
+
+<ol>
+<li><p>Include the Active Storage JavaScript in your application&#39;s JavaScript
+bundle or reference it directly.</p>
+
+<p>Requiring it directly in the application HTML with autostart, instead of
+bundling it through the asset pipeline:</p>
+
+<pre class="code xml"><code class="xml">&lt;%= javascript_include_tag &quot;activestorage&quot; %&gt;
+</code></pre>
+
+<p>Requiring via importmap-rails as an ESM in the application HTML, instead of
+bundling it through the asset pipeline and using autostart:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/importmap.rb
+</span><span class='id identifier rubyid_pin'>pin</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>@rails/activestorage</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>to:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>activestorage.esm.js</span><span class='tstring_end'>&quot;</span></span></code></pre>
+
+<pre class="code xml"><code class="xml">&lt;script type=&quot;module-shim&quot;&gt;
+  import * as ActiveStorage from &quot;@rails/activestorage&quot;
+  ActiveStorage.start()
+&lt;/script&gt;
+</code></pre>
+
+<p>Using the asset pipeline:</p>
+
+<pre class="code js"><code class="js">//= require activestorage
+</code></pre>
+
+<p>Using the npm package:</p>
+
+<pre class="code js"><code class="js">import * as ActiveStorage from &quot;@rails/activestorage&quot;
+ActiveStorage.start()
+</code></pre></li>
+<li><p>Add <code>direct_upload: true</code> option to your <a href="form_helpers.html#uploading-files"><code>file_field</code>
+helper</a> to automatically annotate the
+input field with the direct upload URL via <code>data-direct-upload-url</code> attribute.</p>
+
+<pre class="code xml"><code class="xml">&lt;%= form.file_field :attachments, multiple: true, direct_upload: true %&gt;
+</code></pre>
+
+<p>Or, if you aren&#39;t using a <code>FormBuilder</code>, add the data attribute directly:</p>
+
+<pre class="code xml"><code class="xml">&lt;input type=&quot;file&quot; data-direct-upload-url=&quot;&lt;%= rails_direct_uploads_url %&gt;&quot; /&gt;
+</code></pre></li>
+<li><p>Configure CORS on third-party storage services to allow direct upload requests.</p></li>
+<li><p>That&#39;s it! Uploads begin upon form submission.</p></li>
+</ol>
+
+<h3>Cross-Origin Resource Sharing (CORS) Configuration</h3>
+
+<p>To make direct uploads to a third-party service work, you’ll need to configure the service to allow cross-origin requests from your app. Consult the CORS documentation for your service:</p>
+
+<ul>
+<li><a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/enabling-cors-examples.html">S3</a></li>
+<li><a href="https://cloud.google.com/storage/docs/configuring-cors">Google Cloud Storage</a></li>
+</ul>
+
+<p>Take care to allow:</p>
+
+<ul>
+<li>All origins from which your app is accessed</li>
+<li>The <code>PUT</code> request method</li>
+<li>The following headers:
+
+<ul>
+<li><code>Content-Type</code></li>
+<li><code>Content-MD5</code></li>
+<li><code>Content-Disposition</code></li>
+<li><code>Cache-Control</code> (for GCS, only if <code>cache_control</code> is set)</li>
+</ul></li>
+</ul>
+
+<p>No CORS configuration is required for the Disk service since it shares your app’s origin.</p>
+
+<h4>Example: S3 CORS Configuration</h4>
+
+<pre class="code json"><code class="json">[
+  {
+    &quot;AllowedHeaders&quot;: [
+      &quot;Content-Type&quot;,
+      &quot;Content-MD5&quot;,
+      &quot;Content-Disposition&quot;
+    ],
+    &quot;AllowedMethods&quot;: [
+      &quot;PUT&quot;
+    ],
+    &quot;AllowedOrigins&quot;: [
+      &quot;https://www.example.com&quot;
+    ],
+    &quot;MaxAgeSeconds&quot;: 3600
+  }
+]
+</code></pre>
+
+<h4>Example: Google Cloud Storage CORS Configuration</h4>
+
+<pre class="code json"><code class="json">[
+  {
+    &quot;origin&quot;: [&quot;https://www.example.com&quot;],
+    &quot;method&quot;: [&quot;PUT&quot;],
+    &quot;responseHeader&quot;: [&quot;Content-Type&quot;, &quot;Content-MD5&quot;, &quot;Content-Disposition&quot;],
+    &quot;maxAgeSeconds&quot;: 3600
+  }
+]
+</code></pre>
+
+<h3>Direct Upload JavaScript Events</h3>
+
+<table><thead>
+<tr>
+<th>Event name</th>
+<th>Event target</th>
+<th>Event data (<code>event.detail</code>)</th>
+<th>Description</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>direct-uploads:start</code></td>
+<td><code>&lt;form&gt;</code></td>
+<td>None</td>
+<td>A form containing files for direct upload fields was submitted.</td>
+</tr>
+<tr>
+<td><code>direct-upload:initialize</code></td>
+<td><code>&lt;input&gt;</code></td>
+<td><code>{id, file}</code></td>
+<td>Dispatched for every file after form submission.</td>
+</tr>
+<tr>
+<td><code>direct-upload:start</code></td>
+<td><code>&lt;input&gt;</code></td>
+<td><code>{id, file}</code></td>
+<td>A direct upload is starting.</td>
+</tr>
+<tr>
+<td><code>direct-upload:before-blob-request</code></td>
+<td><code>&lt;input&gt;</code></td>
+<td><code>{id, file, xhr}</code></td>
+<td>Before making a request to your application for direct upload metadata.</td>
+</tr>
+<tr>
+<td><code>direct-upload:before-storage-request</code></td>
+<td><code>&lt;input&gt;</code></td>
+<td><code>{id, file, xhr}</code></td>
+<td>Before making a request to store a file.</td>
+</tr>
+<tr>
+<td><code>direct-upload:progress</code></td>
+<td><code>&lt;input&gt;</code></td>
+<td><code>{id, file, progress}</code></td>
+<td>As requests to store files progress.</td>
+</tr>
+<tr>
+<td><code>direct-upload:error</code></td>
+<td><code>&lt;input&gt;</code></td>
+<td><code>{id, file, error}</code></td>
+<td>An error occurred. An <code>alert</code> will display unless this event is canceled.</td>
+</tr>
+<tr>
+<td><code>direct-upload:end</code></td>
+<td><code>&lt;input&gt;</code></td>
+<td><code>{id, file}</code></td>
+<td>A direct upload has ended.</td>
+</tr>
+<tr>
+<td><code>direct-uploads:end</code></td>
+<td><code>&lt;form&gt;</code></td>
+<td>None</td>
+<td>All direct uploads have ended.</td>
+</tr>
+</tbody></table>
+
+<h3>Example</h3>
+
+<p>You can use these events to show the progress of an upload.</p>
+
+<p><img src="https://user-images.githubusercontent.com/5355/28694528-16e69d0c-72f8-11e7-91a7-c0b8cfc90391.gif" alt="direct-uploads"></p>
+
+<p>To show the uploaded files in a form:</p>
+
+<pre class="code js"><code class="js">// direct_uploads.js
+
+addEventListener(&quot;direct-upload:initialize&quot;, event =&gt; {
+  const { target, detail } = event
+  const { id, file } = detail
+  target.insertAdjacentHTML(&quot;beforebegin&quot;, `
+    &lt;div id=&quot;direct-upload-${id}&quot; class=&quot;direct-upload direct-upload--pending&quot;&gt;
+      &lt;div id=&quot;direct-upload-progress-${id}&quot; class=&quot;direct-upload__progress&quot; style=&quot;width: 0%&quot;&gt;&lt;/div&gt;
+      &lt;span class=&quot;direct-upload__filename&quot;&gt;&lt;/span&gt;
+    &lt;/div&gt;
+  `)
+  target.previousElementSibling.querySelector(`.direct-upload__filename`).textContent = file.name
+})
+
+addEventListener(&quot;direct-upload:start&quot;, event =&gt; {
+  const { id } = event.detail
+  const element = document.getElementById(`direct-upload-${id}`)
+  element.classList.remove(&quot;direct-upload--pending&quot;)
+})
+
+addEventListener(&quot;direct-upload:progress&quot;, event =&gt; {
+  const { id, progress } = event.detail
+  const progressElement = document.getElementById(`direct-upload-progress-${id}`)
+  progressElement.style.width = `${progress}%`
+})
+
+addEventListener(&quot;direct-upload:error&quot;, event =&gt; {
+  event.preventDefault()
+  const { id, error } = event.detail
+  const element = document.getElementById(`direct-upload-${id}`)
+  element.classList.add(&quot;direct-upload--error&quot;)
+  element.setAttribute(&quot;title&quot;, error)
+})
+
+addEventListener(&quot;direct-upload:end&quot;, event =&gt; {
+  const { id } = event.detail
+  const element = document.getElementById(`direct-upload-${id}`)
+  element.classList.add(&quot;direct-upload--complete&quot;)
+})
+</code></pre>
+
+<p>Add styles:</p>
+
+<pre class="code css"><code class="css">/* direct_uploads.css */
+
+.direct-upload {
+  display: inline-block;
+  position: relative;
+  padding: 2px 4px;
+  margin: 0 3px 3px 0;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+  border-radius: 3px;
+  font-size: 11px;
+  line-height: 13px;
+}
+
+.direct-upload--pending {
+  opacity: 0.6;
+}
+
+.direct-upload__progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  opacity: 0.2;
+  background: #0076ff;
+  transition: width 120ms ease-out, opacity 60ms 60ms ease-in;
+  transform: translate3d(0, 0, 0);
+}
+
+.direct-upload--complete .direct-upload__progress {
+  opacity: 0.4;
+}
+
+.direct-upload--error {
+  border-color: red;
+}
+
+input[type=file][data-direct-upload-url][disabled] {
+  display: none;
+}
+</code></pre>
+
+<h3>Custom drag and drop solutions</h3>
+
+<p>You can use the <code>DirectUpload</code> class for this purpose. Upon receiving a file from your library
+of choice, instantiate a DirectUpload and call its create method. Create takes
+a callback to invoke when the upload completes.</p>
+
+<pre class="code js"><code class="js">import { DirectUpload } from &quot;@rails/activestorage&quot;
+
+const input = document.querySelector(&#39;input[type=file]&#39;)
+
+// Bind to file drop - use the ondrop on a parent element or use a
+//  library like Dropzone
+const onDrop = (event) =&gt; {
+  event.preventDefault()
+  const files = event.dataTransfer.files;
+  Array.from(files).forEach(file =&gt; uploadFile(file))
+}
+
+// Bind to normal file selection
+input.addEventListener(&#39;change&#39;, (event) =&gt; {
+  Array.from(input.files).forEach(file =&gt; uploadFile(file))
+  // you might clear the selected files from the input
+  input.value = null
+})
+
+const uploadFile = (file) =&gt; {
+  // your form needs the file_field direct_upload: true, which
+  //  provides data-direct-upload-url
+  const url = input.dataset.directUploadUrl
+  const upload = new DirectUpload(file, url)
+
+  upload.create((error, blob) =&gt; {
+    if (error) {
+      // Handle the error
+    } else {
+      // Add an appropriately-named hidden input to the form with a
+      //  value of blob.signed_id so that the blob ids will be
+      //  transmitted in the normal upload flow
+      const hiddenField = document.createElement(&#39;input&#39;)
+      hiddenField.setAttribute(&quot;type&quot;, &quot;hidden&quot;);
+      hiddenField.setAttribute(&quot;value&quot;, blob.signed_id);
+      hiddenField.name = input.name
+      document.querySelector(&#39;form&#39;).appendChild(hiddenField)
+    }
+  })
+}
+</code></pre>
+
+<h3>Track the progress of the file upload</h3>
+
+<p>When using the <code>DirectUpload</code> constructor, it is possible to include a third parameter.
+This will allow the <code>DirectUpload</code> object to invoke the <code>directUploadWillStoreFileWithXHR</code>
+method during the upload process.
+You can then attach your own progress handler to the XHR to suit your needs.</p>
+
+<pre class="code js"><code class="js">import { DirectUpload } from &quot;@rails/activestorage&quot;
+
+class Uploader {
+  constructor(file, url) {
+    this.upload = new DirectUpload(file, url, this)
+  }
+
+  uploadFile(file) {
+    this.upload.create((error, blob) =&gt; {
+      if (error) {
+        // Handle the error
+      } else {
+        // Add an appropriately-named hidden input to the form
+        // with a value of blob.signed_id
+      }
+    })
+  }
+
+  directUploadWillStoreFileWithXHR(request) {
+    request.upload.addEventListener(&quot;progress&quot;,
+      event =&gt; this.directUploadDidProgress(event))
+  }
+
+  directUploadDidProgress(event) {
+    // Use event.loaded and event.total to update the progress bar
+  }
+}
+</code></pre>
+
+<h3>Integrating with Libraries or Frameworks</h3>
+
+<p>Once you receive a file from the library you have selected, you need to create
+a <code>DirectUpload</code> instance and use its &quot;create&quot; method to initiate the upload process,
+adding any required additional headers as necessary. The &quot;create&quot; method also requires
+a callback function to be provided that will be triggered once the upload has finished.</p>
+
+<pre class="code js"><code class="js">import { DirectUpload } from &quot;@rails/activestorage&quot;
+
+class Uploader {
+  constructor(file, url, token) {
+    const headers = { &#39;Authentication&#39;: `Bearer ${token}` }
+    // INFO: Sending headers is an optional parameter. If you choose not to send headers,
+    //       authentication will be performed using cookies or session data.
+    this.upload = new DirectUpload(file, url, this, headers)
+  }
+
+  uploadFile(file) {
+    this.upload.create((error, blob) =&gt; {
+      if (error) {
+        // Handle the error
+      } else {
+        // Use the with blob.signed_id as a file reference in next request
+      }
+    })
+  }
+
+  directUploadWillStoreFileWithXHR(request) {
+    request.upload.addEventListener(&quot;progress&quot;,
+      event =&gt; this.directUploadDidProgress(event))
+  }
+
+  directUploadDidProgress(event) {
+    // Use event.loaded and event.total to update the progress bar
+  }
+}
+</code></pre>
+
+<p>To implement customized authentication, a new controller must be created on
+the Rails application, similar to the following:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>DirectUploadsController</span> <span class='op'>&lt;</span> <span class='const'><a href="ActiveStorage.html" title="ActiveStorage (module)">ActiveStorage</a></span><span class='op'>::</span><span class='const'>DirectUploadsController</span>
+  <span class='id identifier rubyid_skip_forgery_protection'>skip_forgery_protection</span>
+  <span class='id identifier rubyid_before_action'>before_action</span> <span class='symbeg'>:</span><span class='id identifier rubyid_authenticate!'>authenticate!</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_authenticate!'>authenticate!</span>
+    <span class='ivar'>@token</span> <span class='op'>=</span> <span class='id identifier rubyid_request'>request</span>.<span class='id identifier rubyid_headers'>headers</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Authorization</span><span class='tstring_end'>&quot;</span></span>]<span class='op'>&amp;.</span><span class='id identifier rubyid_split'>split</span><span class='op'>&amp;.</span><span class='id identifier rubyid_last'>last</span>
+
+    <span class='id identifier rubyid_head'>head</span> <span class='symbeg'>:</span><span class='id identifier rubyid_unauthorized'>unauthorized</span> <span class='kw'>unless</span> <span class='id identifier rubyid_valid_token?'>valid_token?</span>(<span class='ivar'>@token</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>NOTE: Using <a href="#direct-uploads">Direct Uploads</a> can sometimes result in a file that uploads, but never attaches to a record. Consider <a href="#purging-unattached-uploads">purging unattached uploads</a>.</p>
+
+<h2>Testing</h2>
+
+<p>Use <a href="https://api.rubyonrails.org/classes/ActionDispatch/TestProcess/FixtureFile.html#method-i-file_fixture_upload"><code>file_fixture_upload</code></a> to test uploading a file in an integration or controller test.
+Rails handles files like any other parameter.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>SignupController</span> <span class='op'>&lt;</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/IntegrationTest.html" title="ActionDispatch::IntegrationTest (class)">IntegrationTest</a></span>
+  <span class='id identifier rubyid_test'>test</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>can sign up</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_post'>post</span> <span class='id identifier rubyid_signup_path'>signup_path</span><span class='comma'>,</span> <span class='label'>params:</span> {
+      <span class='label'>name:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>David</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+      <span class='label'>avatar:</span> <span class='id identifier rubyid_file_fixture_upload'>file_fixture_upload</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>david.png</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>image/png</span><span class='tstring_end'>&quot;</span></span>)
+    }
+
+    <span class='id identifier rubyid_user'>user</span> <span class='op'>=</span> <span class='const'>User</span>.<span class='id identifier rubyid_order'>order</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_created_at'>created_at</span>).<span class='id identifier rubyid_last'>last</span>
+    <span class='id identifier rubyid_assert'>assert</span> <span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_avatar'>avatar</span>.<span class='id identifier rubyid_attached?'>attached?</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<h3>Discarding Files Created During Tests</h3>
+
+<h4>System Tests</h4>
+
+<p>System tests clean up test data by rolling back a transaction. Because <code>destroy</code>
+is never called on an object, the attached files are never cleaned up. If you
+want to clear the files, you can do it in an <code>after_teardown</code> callback. Doing it
+here ensures that all connections created during the test are complete and
+you won&#39;t receive an error from Active Storage saying it can&#39;t find a file.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ApplicationSystemTestCase</span> <span class='op'>&lt;</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/SystemTestCase.html" title="ActionDispatch::SystemTestCase (class)">SystemTestCase</a></span>
+  <span class='comment'># ...
+</span>  <span class='kw'>def</span> <span class='id identifier rubyid_after_teardown'>after_teardown</span>
+    <span class='kw'>super</span>
+    <span class='const'>FileUtils</span>.<span class='id identifier rubyid_rm_rf'>rm_rf</span>(<span class='const'><a href="ActiveStorage.html" title="ActiveStorage (module)">ActiveStorage</a></span><span class='op'>::</span><span class='const'>Blob</span>.<span class='id identifier rubyid_service'>service</span>.<span class='id identifier rubyid_root'>root</span>)
+  <span class='kw'>end</span>
+  <span class='comment'># ...
+</span><span class='kw'>end</span></code></pre>
+
+<p>If you&#39;re using <a href="testing.html#parallel-testing">parallel tests</a> and the <code>DiskService</code>, you should configure each process to use its own
+folder for Active Storage. This way, the <code>teardown</code> callback will only delete files from the relevant process&#39;
+tests.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ApplicationSystemTestCase</span> <span class='op'>&lt;</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/SystemTestCase.html" title="ActionDispatch::SystemTestCase (class)">SystemTestCase</a></span>
+  <span class='comment'># ...
+</span>  <span class='id identifier rubyid_parallelize_setup'>parallelize_setup</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_i'>i</span><span class='op'>|</span>
+    <span class='const'><a href="ActiveStorage.html" title="ActiveStorage (module)">ActiveStorage</a></span><span class='op'>::</span><span class='const'>Blob</span>.<span class='id identifier rubyid_service'>service</span>.<span class='id identifier rubyid_root'>root</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='const'><a href="ActiveStorage.html" title="ActiveStorage (module)">ActiveStorage</a></span><span class='op'>::</span><span class='const'>Blob</span>.<span class='id identifier rubyid_service'>service</span>.<span class='id identifier rubyid_root'>root</span><span class='embexpr_end'>}</span><span class='tstring_content'>-</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_i'>i</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
+  <span class='kw'>end</span>
+  <span class='comment'># ...
+</span><span class='kw'>end</span></code></pre>
+
+<p>If your system tests verify the deletion of a model with attachments and you&#39;re
+using Active Job, set your test environment to use the inline queue adapter so
+the purge job is executed immediately rather at an unknown time in the future.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># Use inline job processing to make things happen immediately
+</span><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_active_job'>active_job</span>.<span class='id identifier rubyid_queue_adapter'>queue_adapter</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_inline'>inline</span></code></pre>
+
+<h4>Integration Tests</h4>
+
+<p>Similarly to System Tests, files uploaded during Integration Tests will not be
+automatically cleaned up. If you want to clear the files, you can do it in an
+<code>teardown</code> callback.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/IntegrationTest.html" title="ActionDispatch::IntegrationTest (class)">IntegrationTest</a></span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_after_teardown'>after_teardown</span>
+    <span class='kw'>super</span>
+    <span class='const'>FileUtils</span>.<span class='id identifier rubyid_rm_rf'>rm_rf</span>(<span class='const'><a href="ActiveStorage.html" title="ActiveStorage (module)">ActiveStorage</a></span><span class='op'>::</span><span class='const'>Blob</span>.<span class='id identifier rubyid_service'>service</span>.<span class='id identifier rubyid_root'>root</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>If you&#39;re using <a href="testing.html#parallel-testing">parallel tests</a> and the Disk service, you should configure each process to use its own
+folder for Active Storage. This way, the <code>teardown</code> callback will only delete files from the relevant process&#39;
+tests.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/IntegrationTest.html" title="ActionDispatch::IntegrationTest (class)">IntegrationTest</a></span>
+  <span class='id identifier rubyid_parallelize_setup'>parallelize_setup</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_i'>i</span><span class='op'>|</span>
+    <span class='const'><a href="ActiveStorage.html" title="ActiveStorage (module)">ActiveStorage</a></span><span class='op'>::</span><span class='const'>Blob</span>.<span class='id identifier rubyid_service'>service</span>.<span class='id identifier rubyid_root'>root</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='const'><a href="ActiveStorage.html" title="ActiveStorage (module)">ActiveStorage</a></span><span class='op'>::</span><span class='const'>Blob</span>.<span class='id identifier rubyid_service'>service</span>.<span class='id identifier rubyid_root'>root</span><span class='embexpr_end'>}</span><span class='tstring_content'>-</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_i'>i</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<h3>Adding Attachments to Fixtures</h3>
+
+<p>You can add attachments to your existing <a href="testing.html#fixtures">fixtures</a>. First, you&#39;ll want to create a separate storage service:</p>
+
+<pre class="code yml"><code class="yml"># config/storage.yml
+
+test_fixtures:
+  service: Disk
+  root: &lt;%= Rails.root.join(&quot;tmp/storage_fixtures&quot;) %&gt;
+</code></pre>
+
+<p>This tells Active Storage where to &quot;upload&quot; fixture files to, so it should be a temporary directory. By making it
+a different directory to your regular <code>test</code> service, you can separate fixture files from files uploaded during a
+test.</p>
+
+<p>Next, create fixture files for the Active Storage classes:</p>
+
+<pre class="code yml"><code class="yml"># test/fixtures/active_storage/attachments.yml
+david_avatar:
+  name: avatar
+  record: david (User)
+  blob: david_avatar_blob
+</code></pre>
+
+<pre class="code yml"><code class="yml"># test/fixtures/active_storage/blobs.yml
+david_avatar_blob: &lt;%= ActiveStorage::FixtureSet.blob filename: &quot;david.png&quot;, service_name: &quot;test_fixtures&quot; %&gt;
+</code></pre>
+
+<p>Then put a file in your fixtures directory (the default path is <code>test/fixtures/files</code>) with the corresponding filename.
+See the <a href="https://api.rubyonrails.org/classes/ActiveStorage/FixtureSet.html"><a href="ActiveStorage/FixtureSet.html" title="ActiveStorage::FixtureSet (class)"><code>::ActiveStorage::FixtureSet</code></a></a> docs for more information.</p>
+
+<p>Once everything is set up, you&#39;ll be able to access attachments in your tests:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>UserTest</span> <span class='op'>&lt;</span> <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/TestCase.html" title="ActiveSupport::TestCase (class)">TestCase</a></span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_test_avatar'>test_avatar</span>
+    <span class='id identifier rubyid_avatar'>avatar</span> <span class='op'>=</span> <span class='id identifier rubyid_users'>users</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_david'>david</span>).<span class='id identifier rubyid_avatar'>avatar</span>
+
+    <span class='id identifier rubyid_assert'>assert</span> <span class='id identifier rubyid_avatar'>avatar</span>.<span class='id identifier rubyid_attached?'>attached?</span>
+    <span class='id identifier rubyid_assert_not_nil'>assert_not_nil</span> <span class='id identifier rubyid_avatar'>avatar</span>.<span class='id identifier rubyid_download'>download</span>
+    <span class='id identifier rubyid_assert_equal'>assert_equal</span> <span class='int'>1000</span><span class='comma'>,</span> <span class='id identifier rubyid_avatar'>avatar</span>.<span class='id identifier rubyid_byte_size'>byte_size</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<h4>Cleaning up Fixtures</h4>
+
+<p>While files uploaded in tests are cleaned up <a href="#discarding-files-created-during-tests">at the end of each test</a>,
+you only need to clean up fixture files once: when all your tests complete.</p>
+
+<p>If you&#39;re using parallel tests, call <code>parallelize_teardown</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/TestCase.html" title="ActiveSupport::TestCase (class)">TestCase</a></span>
+  <span class='comment'># ...
+</span>  <span class='id identifier rubyid_parallelize_teardown'>parallelize_teardown</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_i'>i</span><span class='op'>|</span>
+    <span class='const'>FileUtils</span>.<span class='id identifier rubyid_rm_rf'>rm_rf</span>(<span class='const'><a href="ActiveStorage.html" title="ActiveStorage (module)">ActiveStorage</a></span><span class='op'>::</span><span class='const'>Blob</span>.<span class='id identifier rubyid_services'>services</span>.<span class='id identifier rubyid_fetch'>fetch</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_test_fixtures'>test_fixtures</span>).<span class='id identifier rubyid_root'>root</span>)
+  <span class='kw'>end</span>
+  <span class='comment'># ...
+</span><span class='kw'>end</span></code></pre>
+
+<p>If you&#39;re not running parallel tests, use <code>Minitest.after_run</code> or the equivalent for your test
+framework (e.g. <code>after(:suite)</code> for RSpec):</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># test_helper.rb
+</span>
+<span class='const'><a href="Minitest.html" title="Minitest (module)">Minitest</a></span>.<span class='id identifier rubyid_after_run'>after_run</span> <span class='kw'>do</span>
+  <span class='const'>FileUtils</span>.<span class='id identifier rubyid_rm_rf'>rm_rf</span>(<span class='const'><a href="ActiveStorage.html" title="ActiveStorage (module)">ActiveStorage</a></span><span class='op'>::</span><span class='const'>Blob</span>.<span class='id identifier rubyid_services'>services</span>.<span class='id identifier rubyid_fetch'>fetch</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_test_fixtures'>test_fixtures</span>).<span class='id identifier rubyid_root'>root</span>)
+<span class='kw'>end</span></code></pre>
+
+<h3>Configuring services</h3>
+
+<p>You can add <code>config/storage/test.yml</code> to configure services to be used in test environment.
+This is useful when the <code>service</code> option is used.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>User</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_has_one_attached'>has_one_attached</span> <span class='symbeg'>:</span><span class='id identifier rubyid_avatar'>avatar</span><span class='comma'>,</span> <span class='label'>service:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_s3'>s3</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Without <code>config/storage/test.yml</code>, the <code>s3</code> service configured in <code>config/storage.yml</code> is used - even when running tests.</p>
+
+<p>The default configuration would be used and files would be uploaded to the service provider configured in <code>config/storage.yml</code>.</p>
+
+<p>In this case, you can add <code>config/storage/test.yml</code> and use Disk service for <code>s3</code> service to prevent sending requests.</p>
+
+<pre class="code yaml"><code class="yaml">test:
+  service: Disk
+  root: &lt;%= Rails.root.join(&quot;tmp/storage&quot;) %&gt;
+
+s3:
+  service: Disk
+  root: &lt;%= Rails.root.join(&quot;tmp/storage&quot;) %&gt;
+</code></pre>
+
+<h2>Implementing Support for Other Cloud Services</h2>
+
+<p>If you need to support a cloud service other than these, you will need to
+implement the Service. Each service extends
+<a href="https://api.rubyonrails.org/classes/ActiveStorage/Service.html"><a href="ActiveStorage/Service.html" title="ActiveStorage::Service (class)"><code>::ActiveStorage::Service</code></a></a>
+by implementing the methods necessary to upload and download files to the cloud.</p>
+
+<h2>Purging Unattached Uploads</h2>
+
+<p>There are cases where a file is uploaded but never attached to a record. This can happen when using <a href="#direct-uploads">Direct Uploads</a>. You can query for unattached records using the <a href="https://github.com/rails/rails/blob/8ef5bd9ced351162b673904a0b77c7034ca2bc20/activestorage/app/models/active_storage/blob.rb#L49">unattached scope</a>. Below is an example using a <a href="command_line.html#custom-rake-tasks">custom rake task</a>.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_namespace'>namespace</span> <span class='symbeg'>:</span><span class='id identifier rubyid_active_storage'>active_storage</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_desc'>desc</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Purges unattached Active Storage blobs. Run regularly.</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_task'>task</span> <span class='label'>purge_unattached:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_environment'>environment</span> <span class='kw'>do</span>
+    <span class='const'><a href="ActiveStorage.html" title="ActiveStorage (module)">ActiveStorage</a></span><span class='op'>::</span><span class='const'>Blob</span>.<span class='id identifier rubyid_unattached'>unattached</span>.<span class='id identifier rubyid_where'>where</span>(<span class='label'>created_at:</span> <span class='op'>..</span><span class='int'>2</span>.<span class='id identifier rubyid_days'>days</span>.<span class='id identifier rubyid_ago'>ago</span>).<span class='id identifier rubyid_find_each'>find_each</span>(<span class='op'>&amp;</span><span class='symbeg'>:</span><span class='id identifier rubyid_purge_later'>purge_later</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>WARNING: The query generated by <code>ActiveStorage::Blob.unattached</code> can be slow and potentially disruptive on applications with larger databases.</p>
+
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>

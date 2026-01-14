@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen' content='yes'>
+<meta name='mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Development &mdash; RuboCop master</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "development",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>RuboCop master</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Development&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<div id="preamble">
+<div class="sectionbody">
+<div class="paragraph">
+<p>This section of the documentation will teach you how to develop new cops.  We&#8217;ll
+start with generating a cop template and then we&#8217;ll address the various aspects
+of its implementation (interacting with the AST, autocorrect, configuration)
+and testing.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_create_a_new_cop">Create a new cop</h2>
+<div class="sectionbody">
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">
+Clone the repository and run <code>bundle install</code> if not done yet.
+The following rake task can only be run inside the rubocop project directory itself.
+</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>Use the bundled rake task <code>new_cop</code> to generate a cop template:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sh" data-lang="sh">$ bundle exec rake 'new_cop[Department/Name]'
+[create] lib/rubocop/cop/department/name.rb
+[create] spec/rubocop/cop/department/name_spec.rb
+[modify] lib/rubocop.rb - `require_relative 'rubocop/cop/department/name'` was injected.
+[modify] A configuration for the cop is added into config/default.yml.
+Do 4 steps:
+  1. Modify the description of Department/Name in config/default.yml
+  2. Implement your new cop in the generated file!
+  3. Commit your new cop with a message such as
+     e.g. "Add new {Department/Name} cop"
+  4. Run `bundle exec rake changelog:new` to generate a changelog entry
+     for your new cop.</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_basics">Basics</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>RuboCop uses the <a href="https://github.com/whitequark/parser">parser</a> library to create the
+Abstract Syntax Tree (AST) representation of the code.</p>
+</div>
+<div class="paragraph">
+<p>You can install <code>parser</code> gem and use <code>ruby-parse</code> command line utility to check
+what the AST looks like in the output.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sh" data-lang="sh">$ gem install parser</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>And then try to parse a simple integer representation with <code>ruby-parse</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sh" data-lang="sh">$ ruby-parse -e '1'
+(int 1)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Each expression surrounded by parentheses represents a node in the AST. The first
+element is the node type and the tail contains the children with all
+information needed to represent the code.</p>
+</div>
+<div class="paragraph">
+<p>Here&#8217;s another example - a local variable <code>name</code> being assigned the
+string value "John":</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sh" data-lang="sh">$ ruby-parse -e 'name = "John"'
+(lvasgn :name
+  (str "John"))</code></pre>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_inspecting_the_ast_representation">Inspecting the AST representation</h3>
+<div class="paragraph">
+<p>Let&#8217;s imagine we want to simplify statements from <code>!array.empty?</code> to
+<code>array.any?</code>:</p>
+</div>
+<div class="paragraph">
+<p>First, check what the bad code returns in the Abstract Syntax Tree
+representation.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sh" data-lang="sh">$ ruby-parse -e '!array.empty?'
+(send
+  (send
+    (send nil :array) :empty?) :!)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Now, it&#8217;s time to debug our expression using the REPL from RuboCop:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sh" data-lang="sh">$ bin/console</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>First we need to declare the code that we want to match, and use the
+<a href="https://www.rubydoc.info/gems/rubocop-ast/RuboCop/AST/ProcessedSource">ProcessedSource</a>
+that is a simple wrap to make the parser interpret the code and build the AST:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_code'>code</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>!something.empty?</span><span class='tstring_end'>&#39;</span></span>
+<span class='id identifier rubyid_source'><a href="RuboCop/Ext/Comment.html#source-instance_method" title="RuboCop::Ext::Comment#source (method)">source</a></span> <span class='op'>=</span> <span class='const'><a href="RuboCop.html" title="RuboCop (module)">RuboCop</a></span><span class='op'>::</span><span class='const'><a href="RuboCop.html#ProcessedSource-constant" title="RuboCop::ProcessedSource (constant)">ProcessedSource</a></span>.<span class='id identifier rubyid_new'>new</span>(<span class='id identifier rubyid_code'>code</span><span class='comma'>,</span> <span class='const'>RUBY_VERSION</span>.<span class='id identifier rubyid_to_f'>to_f</span>)
+<span class='id identifier rubyid_node'>node</span> <span class='op'>=</span> <span class='id identifier rubyid_source'><a href="RuboCop/Ext/Comment.html#source-instance_method" title="RuboCop::Ext::Comment#source (method)">source</a></span>.<span class='id identifier rubyid_ast'>ast</span>
+<span class='comment'># =&gt; s(:send, s(:send, s(:send, nil, :something), :empty?), :!)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The node has a few attributes that can be useful in the journey:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_node'>node</span>.<span class='id identifier rubyid_type'>type</span> <span class='comment'># =&gt; :send
+</span><span class='id identifier rubyid_node'>node</span>.<span class='id identifier rubyid_children'>children</span> <span class='comment'># =&gt; [s(:send, s(:send, nil, :something), :empty?), :!]
+</span><span class='id identifier rubyid_node'>node</span>.<span class='id identifier rubyid_source'>source</span> <span class='comment'># =&gt; &quot;!something.empty?&quot;</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation">Implementation</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_writing_node_pattern_rules">Writing Node Pattern Rules</h3>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">
+You can write cops without using <code>NodePattern</code> (and many older cops don&#8217;t use it), but it
+generally simplifies a lot the code, as manual node matching and destructuring can be
+quite verbose.
+</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>Now that you&#8217;re familiar with AST, you can learn a bit about the
+<a href="https://www.rubydoc.info/gems/rubocop-ast/RuboCop/AST/NodePattern">node pattern</a>
+and use patterns to match with specific nodes that you want to match.</p>
+</div>
+<div class="paragraph">
+<p>You can learn more about Node Pattern <a href="https://github.com/rubocop/rubocop-ast/blob/master/docs/modules/ROOT/pages/node_pattern.adoc">here</a>.</p>
+</div>
+<div class="paragraph">
+<p>Alias <code>NodePattern</code> to <code>RuboCop::AST::NodePattern</code> to make it easier to use:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='const'>NodePattern</span> <span class='op'>=</span> <span class='const'><a href="RuboCop.html" title="RuboCop (module)">RuboCop</a></span><span class='op'>::</span><span class='const'>AST</span><span class='op'>::</span><span class='const'>NodePattern</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Node pattern matches something very similar to the current output from AST
+representation, then let&#8217;s start with something very generic:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='const'>NodePattern</span>.<span class='id identifier rubyid_new'>new</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>send</span><span class='tstring_end'>&#39;</span></span>).<span class='id identifier rubyid_match'>match</span>(<span class='id identifier rubyid_node'>node</span>) <span class='comment'># =&gt; true</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>It matches because the root is a <code>send</code> type. Now lets match it deeply using
+parentheses to define details for sub-nodes. If you don&#8217;t care about what an internal
+node is, you can use <code>...</code> to skip it and just consider " a node".</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='const'>NodePattern</span>.<span class='id identifier rubyid_new'>new</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>(send ...)</span><span class='tstring_end'>&#39;</span></span>).<span class='id identifier rubyid_match'>match</span>(<span class='id identifier rubyid_node'>node</span>) <span class='comment'># =&gt; true
+</span><span class='const'>NodePattern</span>.<span class='id identifier rubyid_new'>new</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>(send (send ...) :!)</span><span class='tstring_end'>&#39;</span></span>).<span class='id identifier rubyid_match'>match</span>(<span class='id identifier rubyid_node'>node</span>) <span class='comment'># =&gt; true
+</span><span class='const'>NodePattern</span>.<span class='id identifier rubyid_new'>new</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>(send (send (send ...) :empty?) :!)</span><span class='tstring_end'>&#39;</span></span>).<span class='id identifier rubyid_match'>match</span>(<span class='id identifier rubyid_node'>node</span>) <span class='comment'># =&gt; true</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Sometimes it&#8217;s hard to comprehend complex expressions you&#8217;re building with the
+pattern, then, if you got lost with the node pattern parens surrounding deeply,
+try to use the <code>$</code> to capture the internal expression and check exactly each
+piece of the expression:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='const'>NodePattern</span>.<span class='id identifier rubyid_new'>new</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>(send (send (send $...) :empty?) :!)</span><span class='tstring_end'>&#39;</span></span>).<span class='id identifier rubyid_match'>match</span>(<span class='id identifier rubyid_node'>node</span>) <span class='comment'># =&gt; [nil, :something]</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>It&#8217;s not needed to strictly receive a send in the internal node because maybe
+it can also be a literal array like:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='op'>!</span>[].<span class='id identifier rubyid_empty?'>empty?</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The code above has the following representation:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='op'>=&gt;</span> <span class='id identifier rubyid_s'>s</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_send'>send</span><span class='comma'>,</span> <span class='id identifier rubyid_s'>s</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_send'>send</span><span class='comma'>,</span> <span class='id identifier rubyid_s'>s</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_array'>array</span>)<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_empty?'>empty?</span>)<span class='comma'>,</span> <span class='symbeg'>:</span><span class='op'>!</span>)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>It&#8217;s possible to skip the internal node with <code>...</code> to make sure that it&#8217;s just
+another internal node:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='const'>NodePattern</span>.<span class='id identifier rubyid_new'>new</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>(send (send (...) :empty?) :!)</span><span class='tstring_end'>&#39;</span></span>).<span class='id identifier rubyid_match'>match</span>(<span class='id identifier rubyid_node'>node</span>) <span class='comment'># =&gt; true</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In other words, it says: "Match code calling <code>!&lt;expression&gt;.empty?</code>".</p>
+</div>
+<div class="paragraph">
+<p>Great! Now, lets implement our cop to simplify such statements:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sh" data-lang="sh">$ rake 'new_cop[Style/SimplifyNotEmptyWithAny]'</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>After the cop scaffold is generated, change the node matcher to match with
+the expression achieved previously:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_def_node_matcher'>def_node_matcher</span> <span class='symbeg'>:</span><span class='id identifier rubyid_not_empty_call?'>not_empty_call?</span><span class='comma'>,</span> <span class='heredoc_beg'>&lt;&lt;~PATTERN</span>
+<span class='ignored_sp'>  </span><span class='tstring_content'>(send (send $(...) :empty?) :!)
+</span><span class='heredoc_end'>PATTERN</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Note that we added a <code>$</code> sign to capture the "expression" in <code>!&lt;expression&gt;.empty?</code>,
+it will become useful later.</p>
+</div>
+<div class="paragraph">
+<p>Get yourself familiar with the AST node hooks that
+<a href="https://www.rubydoc.info/gems/parser/Parser/AST/Processor"><code>parser</code></a>
+and <a href="https://www.rubydoc.info/gems/rubocop-ast/RuboCop/AST/Traversal"><code>rubocop-ast</code></a>
+provide.</p>
+</div>
+<div class="paragraph">
+<p>As it starts with a <code>send</code> type, it&#8217;s needed to implement the <code>on_send</code> method, as the
+cop scaffold already suggested:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_on_send'>on_send</span>(<span class='id identifier rubyid_node'>node</span>)
+  <span class='kw'>return</span> <span class='kw'>unless</span> <span class='id identifier rubyid_not_empty_call?'>not_empty_call?</span>(<span class='id identifier rubyid_node'>node</span>)
+
+  <span class='id identifier rubyid_add_offense'>add_offense</span>(<span class='id identifier rubyid_node'>node</span>)
+<span class='kw'>end</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The <code>on_send</code> callback is the most used and can be optimized by restricting the acceptable
+method names with a constant <code>RESTRICT_ON_SEND</code>.</p>
+</div>
+<div class="paragraph">
+<p>And the final cop code will look like something like this:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'><a href="RuboCop.html" title="RuboCop (module)">RuboCop</a></span>
+  <span class='kw'>module</span> <span class='const'>Cop</span>
+    <span class='kw'>module</span> <span class='const'>Style</span>
+      <span class='comment'># `array.any?` is a simplified way to say `!array.empty?`
+</span>      <span class='comment'>#
+</span>      <span class='comment'># @example
+</span>      <span class='comment'>#   # bad
+</span>      <span class='comment'>#   !array.empty?
+</span>      <span class='comment'>#
+</span>      <span class='comment'>#   # good
+</span>      <span class='comment'>#   array.any?
+</span>      <span class='comment'>#
+</span>      <span class='kw'>class</span> <span class='const'>SimplifyNotEmptyWithAny</span> <span class='op'>&lt;</span> <span class='const'>Base</span>
+        <span class='const'>MSG</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Use `.any?` and remove the negation part.</span><span class='tstring_end'>&#39;</span></span>.<span class='id identifier rubyid_freeze'>freeze</span>
+        <span class='const'>RESTRICT_ON_SEND</span> <span class='op'>=</span> [<span class='symbeg'>:</span><span class='op'>!</span>].<span class='id identifier rubyid_freeze'>freeze</span> <span class='comment'># optimization: don&#39;t call `on_send` unless
+</span>                                       <span class='comment'># the method name is in this list
+</span>
+        <span class='id identifier rubyid_def_node_matcher'>def_node_matcher</span> <span class='symbeg'>:</span><span class='id identifier rubyid_not_empty_call?'>not_empty_call?</span><span class='comma'>,</span> <span class='heredoc_beg'>&lt;&lt;~PATTERN</span>
+<span class='ignored_sp'>          </span><span class='tstring_content'>(send (send $(...) :empty?) :!)
+</span><span class='heredoc_end'>        PATTERN
+</span>
+        <span class='kw'>def</span> <span class='id identifier rubyid_on_send'>on_send</span>(<span class='id identifier rubyid_node'>node</span>)
+          <span class='kw'>return</span> <span class='kw'>unless</span> <span class='id identifier rubyid_not_empty_call?'>not_empty_call?</span>(<span class='id identifier rubyid_node'>node</span>)
+
+          <span class='id identifier rubyid_add_offense'>add_offense</span>(<span class='id identifier rubyid_node'>node</span>)
+        <span class='kw'>end</span>
+      <span class='kw'>end</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Note that <code>on_send</code> will be called on a given <code>node</code> before the callbacks <code>on_&lt;some type&gt;</code> for its children are called. There&#8217;s also a callback <code>after_send</code> that is called after the children are processed. There&#8217;s a similar <code>after_&lt;some type&gt;</code> callback for all types, except those that never have children.</p>
+</div>
+<div class="paragraph">
+<p>Update the spec to cover the expected syntax:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_describe'>describe</span> <span class='const'><a href="RuboCop.html" title="RuboCop (module)">RuboCop</a></span><span class='op'>::</span><span class='const'><a href="RuboCop/Cop.html" title="RuboCop::Cop (module)">Cop</a></span><span class='op'>::</span><span class='const'><a href="RuboCop/Cop/Style.html" title="RuboCop::Cop::Style (module)">Style</a></span><span class='op'>::</span><span class='const'>SimplifyNotEmptyWithAny</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_config'><a href="RuboCop/Ext/ProcessedSource.html#config-instance_method" title="RuboCop::Ext::ProcessedSource#config (method)">config</a></span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_it'>it</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>registers an offense when using `!a.empty?`</span><span class='tstring_end'>&#39;</span></span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_expect_offense'>expect_offense</span>(<span class='heredoc_beg'>&lt;&lt;~RUBY</span>)
+<span class='ignored_sp'>      </span><span class='tstring_content'>!array.empty?
+</span><span class='ignored_sp'>      </span><span class='tstring_content'>^^^^^^^^^^^^^ Use `.any?` and remove the negation part.
+</span><span class='heredoc_end'>    RUBY
+</span>  <span class='kw'>end</span>
+
+  <span class='id identifier rubyid_it'>it</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>does not register an offense when using `.any?` or `.empty?`</span><span class='tstring_end'>&#39;</span></span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_expect_no_offenses'>expect_no_offenses</span>(<span class='heredoc_beg'>&lt;&lt;~RUBY</span>)
+<span class='ignored_sp'>      </span><span class='tstring_content'>array.any?
+</span><span class='ignored_sp'>      </span><span class='tstring_content'>array.empty?
+</span><span class='heredoc_end'>    RUBY
+</span>  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>If your code has variables of different lengths, you can use the following
+markers to format your template by passing the variables as a keyword
+arguments:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>%{foo}</code>: Interpolates <code>foo</code></p>
+</li>
+<li>
+<p><code>^{foo}</code>: Inserts <code>'^' * foo.size</code> for dynamic offense range length</p>
+</li>
+<li>
+<p><code>_{foo}</code>: Inserts <code>' ' * foo.size</code> for dynamic offense range indentation</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>You can also abbreviate offense messages with <code>[&#8230;&#8203;]</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='qwords'><span class='qwords_beg'>%w[</span><span class='tstring_content'>raise</span><span class='words_sep'> </span><span class='tstring_content'>fail</span><span class='tstring_end'>]</span></span>.<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_keyword'>keyword</span><span class='op'>|</span>
+  <span class='id identifier rubyid_expect_offense'>expect_offense</span>(<span class='heredoc_beg'>&lt;&lt;~RUBY</span><span class='comma'>,</span> <span class='label'>keyword:</span> <span class='id identifier rubyid_keyword'>keyword</span>)
+<span class='ignored_sp'>    </span><span class='tstring_content'>%{keyword}(RuntimeError, msg)
+</span><span class='ignored_sp'>    </span><span class='tstring_content'>^{keyword}^^^^^^^^^^^^^^^^^^^ Redundant {RuntimeError} argument [...]
+</span><span class='heredoc_end'>  RUBY
+</span>
+<span class='qwords'><span class='qwords_beg'>%w[</span><span class='tstring_content'>has_one</span><span class='words_sep'> </span><span class='tstring_content'>has_many</span><span class='tstring_end'>]</span></span>.<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_type'>type</span><span class='op'>|</span>
+  <span class='id identifier rubyid_expect_offense'>expect_offense</span>(<span class='heredoc_beg'>&lt;&lt;~RUBY</span><span class='comma'>,</span> <span class='label'>type:</span> <span class='id identifier rubyid_type'>type</span>)
+<span class='ignored_sp'>    </span><span class='tstring_content'>class Book
+</span><span class='ignored_sp'>    </span><span class='tstring_content'>  %{type} :chapter, foreign_key: &#39;book_id&#39;
+</span><span class='ignored_sp'>    </span><span class='tstring_content'>  _{type}           ^^^^^^^^^^^^^^^^^^^^^^ Specifying the default [...]
+</span><span class='ignored_sp'>    </span><span class='tstring_content'>end
+</span><span class='heredoc_end'>  RUBY
+</span><span class='kw'>end</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_autocorrect">Autocorrect</h3>
+<div class="paragraph">
+<p>The autocorrect can help humans automatically fix offenses that have been detected.
+It&#8217;s necessary to <code>extend AutoCorrector</code>.
+The method <code>add_offense</code> yields a corrector object that is a thin wrapper on
+<a href="https://www.rubydoc.info/gems/parser/Parser/Source/TreeRewriter">parser&#8217;s TreeRewriter</a>
+to which you can give instructions about what to do with the
+offensive node.</p>
+</div>
+<div class="paragraph">
+<p>Let&#8217;s start with a simple spec to cover it:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_it'>it</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>corrects `!a.empty?`</span><span class='tstring_end'>&#39;</span></span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_expect_offense'>expect_offense</span>(<span class='heredoc_beg'>&lt;&lt;~RUBY</span>)
+<span class='ignored_sp'>    </span><span class='tstring_content'>!array.empty?
+</span><span class='ignored_sp'>    </span><span class='tstring_content'>^^^^^^^^^^^^^ Use `.any?` and remove the negation part.
+</span><span class='heredoc_end'>  RUBY
+</span>
+  <span class='id identifier rubyid_expect_correction'>expect_correction</span>(<span class='heredoc_beg'>&lt;&lt;~RUBY</span>)
+<span class='ignored_sp'>    </span><span class='tstring_content'>array.any?
+</span><span class='heredoc_end'>  RUBY
+</span><span class='kw'>end</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>And then add the autocorrecting block on the cop side:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_extend'>extend</span> <span class='const'>AutoCorrector</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_on_send'>on_send</span>(<span class='id identifier rubyid_node'>node</span>)
+  <span class='id identifier rubyid_expression'>expression</span> <span class='op'>=</span> <span class='id identifier rubyid_not_empty_call?'>not_empty_call?</span>(<span class='id identifier rubyid_node'>node</span>)
+  <span class='kw'>return</span> <span class='kw'>unless</span> <span class='id identifier rubyid_expression'>expression</span>
+
+  <span class='id identifier rubyid_add_offense'>add_offense</span>(<span class='id identifier rubyid_node'>node</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_corrector'>corrector</span><span class='op'>|</span>
+    <span class='id identifier rubyid_corrector'>corrector</span>.<span class='id identifier rubyid_replace'>replace</span>(<span class='id identifier rubyid_node'>node</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_expression'>expression</span>.<span class='id identifier rubyid_source'>source</span><span class='embexpr_end'>}</span><span class='tstring_content'>.any?</span><span class='tstring_end'>&quot;</span></span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The corrector allows you to <code>insert_after</code>, <code>insert_before</code>, <code>wrap</code> or
+<code>replace</code> a specific node or in any specific range of the code.</p>
+</div>
+<div class="paragraph">
+<p>Range can be determined on <code>node.location</code> where it brings specific
+ranges for expression or other internal information that the node holds.</p>
+</div>
+<div class="sect3">
+<h4 id="_preventing_clobbering">Preventing Clobbering</h4>
+<div class="paragraph">
+<p>The corrector detects and prevents correcting overlapping nodes, to prevent one correction from clobbering another.
+Supporting nested corrections is done by taking multiple passes, and skipping corrections for nested nodes.
+This can be implemented using the <code>IgnoredNode</code> module:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-diff" data-lang="diff"> extend AutoCorrector
++include IgnoredNode
+
+ def on_send(node)
+   return unless some_condition?(node)
+
+   add_offense(node) do |corrector|
++    next if part_of_ignored_node?(node)
++
+     corrector.replace(node, "...")
+   end
++
++  ignore_node(node)
+ end</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This works because file correction is implemented by repeating investigation and correction until the file no longer requires correction, meaning all nested nodes will eventually be processed.</p>
+</div>
+<div class="paragraph">
+<p>Note that <code>expect_correction</code> in <code>Cop</code> specs asserts the result after all passes.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_limit_by_ruby_or_gem_versions">Limit by Ruby or Gem versions</h3>
+<div class="paragraph">
+<p>Some cops apply changes that only apply in particular contexts, such as if the user has a minimum Ruby version. There are helpers that let you constrain your cops automatically, to only run where applicable.</p>
+</div>
+<div class="sect3">
+<h4 id="_requiring_a_minimum_ruby_version">Requiring a minimum Ruby version</h4>
+<div class="paragraph">
+<p>If your cop uses new Ruby syntax or standard library APIs, it should only register offenses if the user has the proper target Ruby version, which you can require with <a href="https://www.rubydoc.info/gems/rubocop/RuboCop/Cop/TargetRubyVersion#minimum_target_ruby_version-instance_method"><code>TargetRubyVersion#minimum_target_ruby_version</code></a>.</p>
+</div>
+<div class="paragraph">
+<p>For example, the <code>Performance/SelectMap</code> cop requires Ruby 2.7, which introduced <code>Enumerable#filter_map</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'><a href="RuboCop.html" title="RuboCop (module)">RuboCop</a></span><span class='op'>::</span><span class='const'><a href="RuboCop/Cop.html" title="RuboCop::Cop (module)">Cop</a></span><span class='op'>::</span><span class='const'>Performance</span><span class='op'>::</span><span class='const'>SelectMap</span> <span class='op'>&lt;</span> <span class='const'>Base</span>
+  <span class='id identifier rubyid_extend'>extend</span> <span class='const'>TargetRubyVersion</span>
+
+  <span class='id identifier rubyid_minimum_target_ruby_version'>minimum_target_ruby_version</span> <span class='float'>2.7</span>
+
+  <span class='comment'># ...
+</span><span class='kw'>end</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This cop won&#8217;t register offenses on Ruby 2.6 or older.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_requiring_a_maximum_ruby_version">Requiring a maximum Ruby version</h4>
+<div class="paragraph">
+<p>Mirroring <code>minimum_target_ruby_version</code>, you can also specify a maximum Ruby version your cop should analyze.</p>
+</div>
+<div class="paragraph">
+<p>For example, the <code>Lint/CircularArgumentReference</code> cop only runs when analyzing code for Ruby before 2.7. The code it is looking for can never be written in more recent Rubies, it would be a syntax error:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'><a href="RuboCop.html" title="RuboCop (module)">RuboCop</a></span><span class='op'>::</span><span class='const'><a href="RuboCop/Cop.html" title="RuboCop::Cop (module)">Cop</a></span><span class='op'>::</span><span class='const'><a href="RuboCop/Cop/Lint.html" title="RuboCop::Cop::Lint (module)">Lint</a></span><span class='op'>::</span><span class='const'><a href="RuboCop/Cop/Lint/CircularArgumentReference.html" title="RuboCop::Cop::Lint::CircularArgumentReference (class)">CircularArgumentReference</a></span> <span class='op'>&lt;</span> <span class='const'>Base</span>
+  <span class='id identifier rubyid_extend'>extend</span> <span class='const'>TargetRubyVersion</span>
+
+  <span class='id identifier rubyid_maximum_target_ruby_version'>maximum_target_ruby_version</span> <span class='float'>2.6</span>
+
+  <span class='comment'># ...
+</span><span class='kw'>end</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_requiring_a_gem">Requiring a gem</h4>
+<div class="paragraph">
+<p>If your cop depends on the presence of a gem, you can declare that with <a href="https://www.rubydoc.info/gems/rubocop/RuboCop/Cop/Base#requires_gem-class_method"><a href="RuboCop/Cop/Base.html#requires_gem-class_method" title="RuboCop::Cop::Base.requires_gem (method)">RuboCop::Cop::Base.requires_gem</a></a>.</p>
+</div>
+<div class="paragraph">
+<p>For example, to declare that <code>MyCop</code> should only apply if the bundle is using <code>my-gem</code> with a version between <code>1.2.3</code> and <code>4.5.6</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-Ruby" data-lang="Ruby">class MyCop &lt; Base
+  requires_gem "my-gem", "&gt;= 1.2.3", "&lt; 4.5.6"
+
+  # ...
+end</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>You can specify any gem requirement using <a href="https://guides.rubygems.org/patterns/#declaring-dependencies">the same syntax as your <code>Gemfile</code></a>.</p>
+</div>
+<div class="paragraph">
+<p>You can also handle multiple versions of a gem with <code>target_gem_version</code>. It behaves similar to <code>target_ruby_version</code>, allowing you to inspect a gem version at runtime:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-Ruby" data-lang="Ruby">class MyCop &lt; Base
+  requires_gem "my-gem"
+
+  def on_send(node)
+    if target_gem_version("my-gem") &lt; "2.0"
+      # ...
+    else
+      # ...
+    end
+  end
+end</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>When writing tests, you can specify the gem version to run your example against through the <code>gem_versions</code> RSpec helper:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-Ruby" data-lang="Ruby">describe RuboCop::Cop::Style::MyCop, :config do
+  context 'when `my-gem` is at version `1.X`' do
+    let(:gem_versions) { { 'my-gem' =&gt; '1.0.0' } }
+
+    it 'registers no offense' do
+      expect_no_offenses(&lt;&lt;~RUBY)
+        MyGem.foo
+      RUBY
+    end
+  end
+
+  context 'when `my-gem` is at version `2.X`' do
+    let(:gem_versions) { { 'my-gem' =&gt; '2.0.0' } }
+
+    it 'registers an offense' do
+      expect_offense(&lt;&lt;~RUBY)
+        MyGem.foo
+        ^^^^^^^^^ Instead of `foo`, use the newer `bar` method.
+      RUBY
+    end
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_special_case_rails">Special case: Rails</h4>
+<div class="paragraph">
+<p>Historically, many cops in <code>rubocop-rails</code> aren&#8217;t actually specific to Rails itself, but some of its components (e.g., Active Support). These dependencies are declared with <a href="https://www.rubydoc.info/gems/rubocop-rails/RuboCop/Cop/TargetRailsVersion#minimum_target_rails_version-instance_method"><code>TargetRailsVersion.minimum_target_rails_version</code></a>.</p>
+</div>
+<div class="paragraph">
+<p>For example, the <code>Rails/Pluck</code> cop requires Active Support 6.0, which introduces <code>Enumerable#pluck</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'><a href="RuboCop.html" title="RuboCop (module)">RuboCop</a></span><span class='op'>::</span><span class='const'><a href="RuboCop/Cop.html" title="RuboCop::Cop (module)">Cop</a></span><span class='op'>::</span><span class='const'>Rails</span><span class='op'>::</span><span class='const'>Pluck</span> <span class='op'>&lt;</span> <span class='const'>Base</span>
+  <span class='id identifier rubyid_extend'>extend</span> <span class='const'>TargetRailsVersion</span>
+
+  <span class='id identifier rubyid_minimum_target_rails_version'>minimum_target_rails_version</span> <span class='float'>6.0</span>
+
+  <span class='comment'>#...
+</span><span class='kw'>end</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_run_tests">Run tests</h3>
+<div class="paragraph">
+<p>RuboCop supports two parser engines: the Parser gem and Prism. By default, tests are executed with the Parser:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-console" data-lang="console">$ bundle exec rake spec</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>To run all tests with the experimental support for Prism, use <code>bundle exec prism_spec</code>, and to execute tests for individual files,
+specify the environment variable <code>PARSER_ENGINE=parser_prism</code>.</p>
+</div>
+<div class="paragraph">
+<p>e.g., <code>PARSER_ENGINE=parser_prism spec/rubocop/cop/style/hash_syntax_spec.rb</code></p>
+</div>
+<div class="paragraph">
+<p><code>bundle exec rake</code> runs tests for both Parser gem and Prism parsers.</p>
+</div>
+<div class="paragraph">
+<p>But <code>ascii_spec</code> rake task does not run by default. Because <code>ascii_spec</code> task has not been failing for a while.
+However, <code>ascii_spec</code> task will continue to be checked in CI.</p>
+</div>
+<div class="paragraph">
+<p>In CI, all tests required for merging are executed. Please investigate if anything fails.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_configuration">Configuration</h3>
+<div class="paragraph">
+<p>Each cop can hold a configuration and you can refer to <code>cop_config</code> in the
+instance and it will bring a hash with options declared in the <code>.rubocop.yml</code>
+file.</p>
+</div>
+<div class="paragraph">
+<p>For example, lets imagine we want to make configurable to make the replacement
+works with other method than <code>.any?</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-yml" data-lang="yml">Style/SimplifyNotEmptyWithAny:
+  Enabled: true
+  ReplaceAnyWith: "size &gt; 0"</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>And then on the autocorrect method, you just need to use the <code>cop_config</code> it:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_on_send'>on_send</span>(<span class='id identifier rubyid_node'>node</span>)
+  <span class='id identifier rubyid_expression'>expression</span> <span class='op'>=</span> <span class='id identifier rubyid_not_empty_call?'>not_empty_call?</span>(<span class='id identifier rubyid_node'>node</span>)
+  <span class='kw'>return</span> <span class='kw'>unless</span> <span class='id identifier rubyid_expression'>expression</span>
+
+  <span class='id identifier rubyid_add_offense'>add_offense</span>(<span class='id identifier rubyid_node'>node</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_corrector'>corrector</span><span class='op'>|</span>
+    <span class='id identifier rubyid_replacement'>replacement</span> <span class='op'>=</span> <span class='id identifier rubyid_cop_config'>cop_config</span>[<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>ReplaceAnyWith</span><span class='tstring_end'>&#39;</span></span>] <span class='op'>||</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>any?</span><span class='tstring_end'>&#39;</span></span>
+    <span class='id identifier rubyid_corrector'>corrector</span>.<span class='id identifier rubyid_replace'>replace</span>(<span class='id identifier rubyid_node'>node</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_expression'>expression</span>.<span class='id identifier rubyid_source'>source</span><span class='embexpr_end'>}</span><span class='tstring_content'>.</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_replacement'>replacement</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_documentation">Documentation</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Every new cop requires explanation and examples to make it easy for the community
+to understand its purpose. This documentation is generated by <code>yard</code> and is added
+directly into the <code>cop.rb</code> file. For every <code>SupportedStyle</code> and unique
+configuration you have included in the cop, there needs to be examples. Examples must
+have valid Ruby syntax. Do not use upticks.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'>Department</span>
+  <span class='comment'># Description of your cop. Include description of ALL config options. Particularly
+</span>  <span class='comment'># ones that take booleans and arrays, because we generally do not show examples for
+</span>  <span class='comment'># configs with these value types.
+</span>  <span class='comment'>#
+</span>  <span class='comment'># @example EnforcedStyle: bar
+</span>  <span class='comment'>#   # Description about this particular option
+</span>  <span class='comment'>#
+</span>  <span class='comment'>#   # bad
+</span>  <span class='comment'>#   bad_example1
+</span>  <span class='comment'>#   bad_example2
+</span>  <span class='comment'>#
+</span>  <span class='comment'>#   # good
+</span>  <span class='comment'>#   good_example1
+</span>  <span class='comment'>#   good_example2
+</span>  <span class='comment'>#
+</span>  <span class='comment'># @example EnforcedStyle: foo (default)
+</span>  <span class='comment'>#   # Description about this particular option
+</span>  <span class='comment'>#
+</span>  <span class='comment'>#   # bad
+</span>  <span class='comment'>#   bad_example1
+</span>  <span class='comment'>#   bad_example2
+</span>  <span class='comment'>#
+</span>  <span class='comment'>#   # good
+</span>  <span class='comment'>#   good_example1
+</span>  <span class='comment'>#   good_example2
+</span>  <span class='comment'>#
+</span>  <span class='comment'># @example AnyUniqueConfigKeyThatIsAString: qux (default)
+</span>  <span class='comment'>#   # Description about this particular option
+</span>  <span class='comment'>#
+</span>  <span class='comment'>#   # bad
+</span>  <span class='comment'>#   bad_example1
+</span>  <span class='comment'>#   bad_example2
+</span>  <span class='comment'>#
+</span>  <span class='comment'>#   # good
+</span>  <span class='comment'>#   good_example1
+</span>  <span class='comment'>#   good_example2
+</span>  <span class='comment'>#
+</span>  <span class='comment'># @example AnyUniqueConfigKeyThatIsAString: thud
+</span>  <span class='comment'>#   # Description about this particular option
+</span>  <span class='comment'>#
+</span>  <span class='comment'>#   # bad
+</span>  <span class='comment'>#   bad_example1
+</span>  <span class='comment'>#   bad_example2
+</span>  <span class='comment'>#
+</span>  <span class='comment'>#   # good
+</span>  <span class='comment'>#   good_example1
+</span>  <span class='comment'>#   good_example2
+</span>  <span class='comment'>#
+</span>  <span class='kw'>class</span> <span class='const'>YourCop</span>
+    <span class='comment'># ...</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Take note of the placement and spacing of all the documentation pieces. Such as config
+keys being in alphabetical order, the <code>(default)</code> being specified, and one empty line
+before <code>class YourCop</code>. While not all examples in the codebase follow this exact format,
+we strive to make this consistent. PRs improving RuboCop documentation are very welcome.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_testing_your_cop_in_a_real_codebase">Testing your cop in a real codebase</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>It&#8217;s generally good practice to check if your cop is working properly over a
+significant codebase (e.g. Rails or some big project you&#8217;re working on) to
+guarantee it&#8217;s working in a range of different syntaxes.</p>
+</div>
+<div class="paragraph">
+<p>There are several ways to do this. Two common approaches:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>From within your local <code>rubocop</code> repo, run <code>exe/rubocop ~/your/other/codebase</code>.</p>
+</li>
+<li>
+<p>From within the other codebase&#8217;s <code>Gemfile</code>, set a path to your local repo like this: <code>gem 'rubocop', path: '/full/path/to/rubocop'</code>. Then run <code>rubocop</code> within your codebase.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>With approach #2, you can use local versions of RuboCop extension repos such as <code>rubocop-rspec</code> as well.</p>
+</div>
+<div class="paragraph">
+<p>To make it fast and do not get confused with other cops in action,  you can use
+<code>--only</code> parameter in the command line to filter by your cop name:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sh" data-lang="sh">$ rubocop --only Style/SimplifyNotEmptyWithAny</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>

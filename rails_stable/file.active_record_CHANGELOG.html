@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen' content='yes'>
+<meta name='mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Active Record CHANGELOG &mdash; Rails 8-0-stable</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "active_record_CHANGELOG",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>Rails 8-0-stable</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Active Record CHANGELOG&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<ul>
+<li><p>Fix merging relations with arel equality predicates with null relations.</p>
+
+<p><em>fatkodima</em></p></li>
+<li><p>Fix SQLite3 schema dump for non-autoincrement integer primary keys.</p>
+
+<p>Previously, <code>schema.rb</code> should incorrectly restore that table with an auto incrementing
+primary key.</p>
+
+<p><em>Chris Hasiński</em></p></li>
+<li><p>Fix PostgreSQL <code>schema_search_path</code> not being reapplied after <code>reset!</code> or <code>reconnect!</code>.</p>
+
+<p>The <code>schema_search_path</code> configured in <code>database.yml</code> is now correctly
+reapplied instead of falling back to PostgreSQL defaults.</p>
+
+<p><em>Tobias Egli</em></p></li>
+<li><p>Ensure batched preloaded associations accounts for klass when grouping to avoid issues with STI.</p>
+
+<p><em>zzak</em>, <em>Stjepan Hadjic</em></p></li>
+<li><p>Fix <a href="ActiveRecord/SoleRecordExceeded.html#record-instance_method" title="ActiveRecord::SoleRecordExceeded#record (method)">ActiveRecord::SoleRecordExceeded#record</a> to return the relation.</p>
+
+<p>This was the case until Rails 7.2, but starting from 8.0 it
+started mistakenly returning the model class.</p>
+
+<p><em>Jean Boussier</em></p></li>
+<li><p>Improve PostgreSQLAdapter resilience to Timeout.timeout.</p>
+
+<p>Better handle asynchronous exceptions being thrown inside
+the <code>reconnect!</code> method.</p>
+
+<p>This may fixes some deep errors such as:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_undefined'>undefined</span> <span class='id identifier rubyid_method'>method</span> <span class='backtick'>`</span><span class='tstring_content'>key?&#39; for nil:NilClass (NoMethodError)
+          if !type_map.key?(oid)</span></code></pre>
+
+<p><em>Jean Boussier</em></p></li>
+<li><p>Fix <code>eager_load</code> when loading <code>has_many</code> assocations with composite primary keys.</p>
+
+<p>This would result in some records being loaded multiple times.</p>
+
+<p><em>Martin-Alexander</em></p></li>
+</ul>
+
+<h2>Rails 8.0.4 (October 28, 2025)</h2>
+
+<ul>
+<li><p>Fix SQLite3 data loss during table alterations with CASCADE foreign keys.</p>
+
+<p>When altering a table in SQLite3 that is referenced by child tables with
+<code>ON DELETE CASCADE</code> foreign keys, ActiveRecord would silently delete all
+data from the child tables. This occurred because SQLite requires table
+recreation for schema changes, and during this process the original table
+is temporarily dropped, triggering CASCADE deletes on child tables.</p>
+
+<p>The root cause was incorrect ordering of operations. The original code
+wrapped <code>disable_referential_integrity</code> inside a transaction, but
+<code>PRAGMA foreign_keys</code> cannot be modified inside a transaction in SQLite -
+attempting to do so simply has no effect. This meant foreign keys remained
+enabled during table recreation, causing CASCADE deletes to fire.</p>
+
+<p>The fix reverses the order to follow the official SQLite 12-step ALTER TABLE
+procedure: <code>disable_referential_integrity</code> now wraps the transaction instead
+of being wrapped by it. This ensures foreign keys are properly disabled
+before the transaction starts and re-enabled after it commits, preventing
+CASCADE deletes while maintaining data integrity through atomic transactions.</p>
+
+<p><em>Ruy Rocha</em></p></li>
+<li><p>Add support for bound SQL literals in CTEs.</p>
+
+<p><em>Nicolas Bachschmidt</em></p></li>
+<li><p>Fix <code>belongs_to</code> associations not to clear the entire composite primary key.</p>
+
+<p>When clearing a <code>belongs_to</code> association that references a model with composite primary key,
+only the optional part of the key should be cleared.</p>
+
+<p><em>zzak</em></p></li>
+<li><p>Fix invalid records being autosaved when distantly associated records are marked for deletion.</p>
+
+<p><em>Ian Terrell</em>, <em>axlekb AB</em></p></li>
+</ul>
+
+<h2>Rails 8.0.3 (September 22, 2025)</h2>
+
+<ul>
+<li><p>Fix query cache for pinned connections in multi threaded transactional tests</p>
+
+<p>When a pinned connection is used across separate threads, they now use a separate cache store
+for each thread.</p>
+
+<p>This improve accuracy of system tests, and any test using multiple threads.</p>
+
+<p><em>Heinrich Lee Yu</em>, <em>Jean Boussier</em></p></li>
+<li><p>Don&#39;t add <code>id_value</code> attribute alias when attribute/column with that name already exists.</p>
+
+<p><em>Rob Lewis</em></p></li>
+<li><p>Fix false positive change detection involving STI and polymorphic has one relationships.</p>
+
+<p>Polymorphic <code>has_one</code> relationships would always be considered changed when defined in a STI child
+class, causing nedless extra autosaves.</p>
+
+<p><em>David Fritsch</em></p></li>
+<li><p>Skip calling <code>PG::Connection#cancel</code> in <code>cancel_any_running_query</code>
+when using libpq &gt;= 18 with pg &lt; 1.6.0, due to incompatibility.
+Rollback still runs, but may take longer.</p>
+
+<p><em>Yasuo Honda</em>, <em>Lars Kanis</em></p></li>
+<li><p>Fix stale association detection for polymorphic <code>belongs_to</code>.</p>
+
+<p><em>Florent Beaurain</em>, <em>Thomas Crambert</em></p></li>
+<li><p>Fix removal of PostgreSQL version comments in <code>structure.sql</code> for latest PostgreSQL versions which include <code>\restrict</code></p>
+
+<p><em>Brendan Weibrecht</em></p></li>
+<li><p>Allow setting <code>schema_format</code> in database configuration.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_primary'>primary</span><span class='op'>:</span>
+  <span class='id identifier rubyid_schema_format'>schema_format</span><span class='op'>:</span> <span class='id identifier rubyid_ruby'>ruby</span></code></pre>
+
+<p>Useful in multi-database setups to have different formats per-database.</p>
+
+<p><em>T S Vallender</em></p></li>
+<li><p>Use ntuples to populate row_count instead of count for Postgres</p>
+
+<p><em>Jonathan Calvert</em></p></li>
+<li><p>Fix <code>#merge</code> with <code>#or</code> or <code>#and</code> and a mixture of attributes and SQL strings resulting in an incorrect query.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_base'>base</span> <span class='op'>=</span> <span class='const'>Comment</span>.<span class='id identifier rubyid_joins'>joins</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_post'>post</span>).<span class='id identifier rubyid_where'>where</span>(<span class='label'>user_id:</span> <span class='int'>1</span>).<span class='id identifier rubyid_where'>where</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>recent = 1</span><span class='tstring_end'>&quot;</span></span>)
+<span class='id identifier rubyid_puts'>puts</span> <span class='id identifier rubyid_base'>base</span>.<span class='id identifier rubyid_merge'>merge</span>(<span class='id identifier rubyid_base'>base</span>.<span class='id identifier rubyid_where'>where</span>(<span class='label'>draft:</span> <span class='kw'>true</span>).<span class='id identifier rubyid_or'>or</span>(<span class='const'>Post</span>.<span class='id identifier rubyid_where'>where</span>(<span class='label'>archived:</span> <span class='kw'>true</span>))).<span class='id identifier rubyid_to_sql'>to_sql</span></code></pre>
+
+<p>Before:</p>
+
+<pre class="code SQL"><code class="SQL">SELECT &quot;comments&quot;.* FROM &quot;comments&quot;
+INNER JOIN &quot;posts&quot; ON &quot;posts&quot;.&quot;id&quot; = &quot;comments&quot;.&quot;post_id&quot;
+WHERE (recent = 1)
+AND (
+  &quot;comments&quot;.&quot;user_id&quot; = 1
+  AND (recent = 1)
+  AND &quot;comments&quot;.&quot;draft&quot; = 1
+  OR &quot;posts&quot;.&quot;archived&quot; = 1
+)
+</code></pre>
+
+<p>After:</p>
+
+<pre class="code SQL"><code class="SQL">SELECT &quot;comments&quot;.* FROM &quot;comments&quot;
+INNER JOIN &quot;posts&quot; ON &quot;posts&quot;.&quot;id&quot; = &quot;comments&quot;.&quot;post_id&quot;
+WHERE &quot;comments&quot;.&quot;user_id&quot; = 1
+AND (recent = 1)
+AND (
+  &quot;comments&quot;.&quot;user_id&quot; = 1
+  AND (recent = 1)
+  AND &quot;comments&quot;.&quot;draft&quot; = 1
+  OR &quot;posts&quot;.&quot;archived&quot; = 1
+)
+</code></pre>
+
+<p><em>Joshua Young</em></p></li>
+<li><p>Fix inline <code>has_and_belongs_to_many</code> fixtures for tables with composite primary keys.</p>
+
+<p><em>fatkodima</em></p></li>
+<li><p>Fix migration log message for down operations.</p>
+
+<p><em>Bernardo Barreto</em></p></li>
+<li><p>Prepend <code>extra_flags</code> in postgres&#39; <code>structure_load</code></p>
+
+<p>When specifying <code>structure_load_flags</code> with a postgres adapter, the flags
+were appended to the default flags, instead of prepended.
+This caused issues with flags not being taken into account by postgres.</p>
+
+<p><em>Alice Loeser</em></p></li>
+<li><p>Fix <code>annotate</code> comments to propagate to <code>update_all</code>/<code>delete_all</code>.</p>
+
+<p><em>fatkodima</em></p></li>
+<li><p>Fix checking whether an unpersisted record is <code>include?</code>d in a strictly
+loaded <code>has_and_belongs_to_many</code> association.</p>
+
+<p><em>Hartley McGuire</em></p></li>
+<li><p><code>create_or_find_by</code> will now correctly rollback a transaction.</p>
+
+<p>When using <code>create_or_find_by</code>, raising a ActiveRecord::Rollback error
+in a <code>after_save</code> callback had no effect, the transaction was committed
+and a record created.</p>
+
+<p><em>Edouard Chin</em></p></li>
+<li><p>Gracefully handle <code>Timeout.timeout</code> firing during connection configuration.</p>
+
+<p>Use of <code>Timeout.timeout</code> could result in improperly initialized database connection.</p>
+
+<p>This could lead to a partially configured connection being used, resulting in various exceptions,
+the most common being with the PostgreSQLAdapter raising <code>undefined method &#39;key?&#39; for nil</code>
+or <code>TypeError: wrong argument type nil (expected PG::TypeMap)</code>.</p>
+
+<p><em>Jean Boussier</em></p></li>
+<li><p>Fix stale state for composite foreign keys in belongs_to associations.</p>
+
+<p><em>Varun Sharma</em></p></li>
+</ul>
+
+<h2>Rails 8.0.2.1 (August 13, 2025)</h2>
+
+<ul>
+<li><p>Call inspect on ids in RecordNotFound error</p>
+
+<p>[CVE-2025-55193]</p>
+
+<p><em>Gannon McGibbon</em>, <em>John Hawthorn</em></p></li>
+</ul>
+
+<h2>Rails 8.0.2 (March 12, 2025)</h2>
+
+<ul>
+<li><p>Fix inverting <code>rename_enum_value</code> when <code>:from</code>/<code>:to</code> are provided.</p>
+
+<p><em>fatkodima</em></p></li>
+<li><p>Prevent persisting invalid record.</p>
+
+<p><em>Edouard Chin</em></p></li>
+<li><p>Fix inverting <code>drop_table</code> without options.</p>
+
+<p><em>fatkodima</em></p></li>
+<li><p>Fix count with group by qualified name on loaded relation.</p>
+
+<p><em>Ryuta Kamizono</em></p></li>
+<li><p>Fix <code>sum</code> with qualified name on loaded relation.</p>
+
+<p><em>Chris Gunther</em></p></li>
+<li><p>The SQLite3 adapter quotes non-finite <a href="Numeric.html" title="Numeric (class)"><code>Numeric</code></a> values like &quot;Infinity&quot; and &quot;NaN&quot;.</p>
+
+<p><em>Mike Dalessio</em></p></li>
+<li><p>Handle libpq returning a database version of 0 on no/bad connection in <code>PostgreSQLAdapter</code>.</p>
+
+<p>Before, this version would be cached and an error would be raised during connection configuration when
+comparing it with the minimum required version for the adapter. This meant that the connection could
+never be successfully configured on subsequent reconnection attempts.</p>
+
+<p>Now, this is treated as a connection failure consistent with libpq, raising a <a href="ActiveRecord/ConnectionFailed.html" title="ActiveRecord::ConnectionFailed (class)"><code>::ActiveRecord::ConnectionFailed</code></a>
+and ensuring the version isn&#39;t cached, which allows the version to be retrieved on the next connection attempt.</p>
+
+<p><em>Joshua Young</em>, <em>Rian McGuire</em></p></li>
+<li><p>Fix error handling during connection configuration.</p>
+
+<p>Active Record wasn&#39;t properly handling errors during the connection configuration phase.
+This could lead to a partially configured connection being used, resulting in various exceptions,
+the most common being with the PostgreSQLAdapter raising <code>undefined method</code>key?&#39; for nil<code>
+or</code>TypeError: wrong argument type nil (expected PG::TypeMap)`.</p>
+
+<p><em>Jean Boussier</em></p></li>
+<li><p>Fix a case where a non-retryable query could be marked retryable.</p>
+
+<p><em>Hartley McGuire</em></p></li>
+<li><p>Handle circular references when autosaving associations.</p>
+
+<p><em>zzak</em></p></li>
+<li><p>PoolConfig no longer keeps a reference to the connection class.</p>
+
+<p>Keeping a reference to the class caused subtle issues when combined with reloading in
+development. Fixes #54343.</p>
+
+<p><em>Mike Dalessio</em></p></li>
+<li><p>Fix SQL notifications sometimes not sent when using async queries.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Post</span>.<span class='id identifier rubyid_async_count'>async_count</span>
+<span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/Notifications.html" title="ActiveSupport::Notifications (module)">Notifications</a></span>.<span class='id identifier rubyid_subscribed'><a href="ActiveSupport/Notifications.html#subscribed-class_method" title="ActiveSupport::Notifications.subscribed (method)">subscribed</a></span>(<span class='tlambda'>-&gt;</span>(<span class='op'>*</span>) <span class='tlambeg'>{</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Will never reach here</span><span class='tstring_end'>&quot;</span></span> }) <span class='kw'>do</span>
+  <span class='const'>Post</span>.<span class='id identifier rubyid_count'>count</span>
+<span class='kw'>end</span></code></pre>
+
+<p>In rare circumstances and under the right race condition, Active Support notifications
+would no longer be dispatched after using an asynchronous query.
+This is now fixed.</p>
+
+<p><em>Edouard Chin</em></p></li>
+<li><p>Fix support for PostgreSQL enum types with commas in their name.</p>
+
+<p><em>Arthur Hess</em></p></li>
+<li><p>Fix inserts on MySQL with no RETURNING support for a table with multiple auto populated columns.</p>
+
+<p><em>Nikita Vasilevsky</em></p></li>
+<li><p>Fix joining on a scoped association with string joins and bind parameters.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Instructor</span> <span class='op'>&lt;</span> <span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)">Base</a></span>
+  <span class='id identifier rubyid_has_many'>has_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_instructor_roles'>instructor_roles</span><span class='comma'>,</span> <span class='tlambda'>-&gt;</span> <span class='tlambeg'>{</span> <span class='id identifier rubyid_active'>active</span> }
+<span class='kw'>end</span>
+
+<span class='kw'>class</span> <span class='const'>InstructorRole</span> <span class='op'>&lt;</span> <span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)">Base</a></span>
+  <span class='id identifier rubyid_scope'>scope</span> <span class='symbeg'>:</span><span class='id identifier rubyid_active'>active</span><span class='comma'>,</span> <span class='tlambda'>-&gt;</span> <span class='tlambeg'>{</span>
+    <span class='id identifier rubyid_joins'>joins</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>JOIN students ON instructor_roles.student_id = students.id</span><span class='tstring_end'>&quot;</span></span>)
+    .<span class='id identifier rubyid_where'>where</span>(<span class='id identifier rubyid_students'>students</span> { <span class='id identifier rubyid_status'>status</span><span class='op'>:</span> <span class='int'>1</span> })
+  }
+<span class='kw'>end</span>
+
+<span class='const'>Instructor</span>.<span class='id identifier rubyid_joins'>joins</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_instructor_roles'>instructor_roles</span>).<span class='id identifier rubyid_first'>first</span></code></pre>
+
+<p>The above example would result in <a href="ActiveRecord/StatementInvalid.html" title="ActiveRecord::StatementInvalid (class)"><code>::ActiveRecord::StatementInvalid</code></a> because the
+<code>active</code> scope bind parameters would be lost.</p>
+
+<p><em>Jean Boussier</em></p></li>
+<li><p>Fix a potential race condition with system tests and transactional fixtures.</p>
+
+<p><em>Sjoerd Lagarde</em></p></li>
+<li><p>Fix autosave associations to no longer validated unmodified associated records.</p>
+
+<p>Active Record was incorrectly performing validation on associated record that
+weren&#39;t created nor modified as part of the transaction:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Post</span>.<span class='id identifier rubyid_create!'>create!</span>(<span class='label'>author:</span> <span class='const'>User</span>.<span class='id identifier rubyid_find'>find</span>(<span class='int'>1</span>)) <span class='comment'># Fail if user is invalid</span></code></pre>
+
+<p><em>Jean Boussier</em></p></li>
+<li><p>Remember when a database connection has recently been verified (for
+two seconds, by default), to avoid repeated reverifications during a
+single request.</p>
+
+<p>This should recreate a similar rate of verification as in Rails 7.1,
+where connections are leased for the duration of a request, and thus
+only verified once.</p>
+
+<p><em>Matthew Draper</em></p></li>
+</ul>
+
+<h2>Rails 8.0.1 (December 13, 2024)</h2>
+
+<ul>
+<li><p>Fix removing foreign keys with <code>:restrict</code> action for MySQL.</p>
+
+<p><em>fatkodima</em></p></li>
+<li><p>Fix a race condition in <code>ActiveRecord::Base#method_missing</code> when lazily defining attributes.</p>
+
+<p>If multiple thread were concurrently triggering attribute definition on the same model,
+it could result in a <code>NoMethodError</code> being raised.</p>
+
+<p><em>Jean Boussier</em></p></li>
+<li><p>Fix MySQL default functions getting dropped when changing a column&#39;s nullability.</p>
+
+<p><em>Bastian Bartmann</em></p></li>
+<li><p>Fix <code>add_unique_constraint</code>/<code>add_check_constraint</code>/<code>add_foreign_key</code> to be revertible when given invalid options.</p>
+
+<p><em>fatkodima</em></p></li>
+<li><p>Fix asynchronous destroying of polymorphic <code>belongs_to</code> associations.</p>
+
+<p><em>fatkodima</em></p></li>
+<li><p>Fix <code>insert_all</code> to not update existing records.</p>
+
+<p><em>fatkodima</em></p></li>
+<li><p><code>NOT VALID</code> constraints should not dump in <code>create_table</code>.</p>
+
+<p><em>Ryuta Kamizono</em></p></li>
+<li><p>Fix finding by nil composite primary key association.</p>
+
+<p><em>fatkodima</em></p></li>
+<li><p>Properly reset composite primary key configuration when setting a primary key.</p>
+
+<p><em>fatkodima</em></p></li>
+<li><p>Fix Mysql2Adapter support for prepared statements</p>
+
+<p>Using prepared statements with MySQL could result in a <code>NoMethodError</code> exception.</p>
+
+<p><em>Jean Boussier</em>, <em>Leo Arnold</em>, <em>zzak</em></p></li>
+<li><p>Fix parsing of SQLite foreign key names when they contain non-ASCII characters</p>
+
+<p><em>Zacharias Knudsen</em></p></li>
+<li><p>Fix parsing of MySQL 8.0.16+ CHECK constraints when they contain new lines.</p>
+
+<p><em>Steve Hill</em></p></li>
+<li><p>Ensure normalized attribute queries use <code>IS NULL</code> consistently for <code>nil</code> and normalized <code>nil</code> values.</p>
+
+<p><em>Joshua Young</em></p></li>
+<li><p>Fix <code>sum</code> when performing a grouped calculation.</p>
+
+<p><code>User.group(:friendly).sum</code> no longer worked. This is fixed.</p>
+
+<p><em>Edouard Chin</em></p></li>
+<li><p>Restore back the ability to pass only database name to <code>DATABASE_URL</code>.</p>
+
+<p><em>fatkodima</em></p></li>
+</ul>
+
+<h2>Rails 8.0.0.1 (December 10, 2024)</h2>
+
+<ul>
+<li>  No changes.</li>
+</ul>
+
+<h2>Rails 8.0.0 (November 07, 2024)</h2>
+
+<ul>
+<li><p>Fix support for <code>query_cache: false</code> in <code>database.yml</code>.</p>
+
+<p><code>query_cache: false</code> would no longer entirely disable the Active Record query cache.</p>
+
+<p><em>zzak</em></p></li>
+</ul>
+
+<h2>Rails 8.0.0.rc2 (October 30, 2024)</h2>
+
+<ul>
+<li><p>NULLS NOT DISTINCT works with UNIQUE CONSTRAINT as well as UNIQUE INDEX.</p>
+
+<p><em>Ryuta Kamizono</em></p></li>
+<li><p>The <code>db:prepare</code> task no longer loads seeds when a non-primary database is created.</p>
+
+<p>Previously, the <code>db:prepare</code> task would load seeds whenever a new database
+is created, leading to potential loss of data if a database is added to an
+existing environment.</p>
+
+<p>Introduces a new database config property <code>seeds</code> to control whether seeds
+are loaded during <code>db:prepare</code> which defaults to <code>true</code> for primary database
+configs and <code>false</code> otherwise.</p>
+
+<p>Fixes #53348.</p>
+
+<p><em>Mike Dalessio</em></p></li>
+<li><p><code>PG::UnableToSend: no connection to the server</code> is now retryable as a connection-related exception</p>
+
+<p><em>Kazuma Watanabe</em></p></li>
+<li><p>Fix strict loading propagation even if statement cache is not used.</p>
+
+<p><em>Ryuta Kamizono</em></p></li>
+<li><p>Allow <code>rename_enum</code> accepts two from/to name arguments as <code>rename_table</code> does so.</p>
+
+<p><em>Ryuta Kamizono</em></p></li>
+</ul>
+
+<h2>Rails 8.0.0.rc1 (October 19, 2024)</h2>
+
+<ul>
+<li><p>Remove deprecated support to setting <code>ENV["SCHEMA_CACHE"]</code>.</p>
+
+<p><em>Rafael Mendonça França</em></p></li>
+<li><p>Remove deprecated support to passing a database name to <code>cache_dump_filename</code>.</p>
+
+<p><em>Rafael Mendonça França</em></p></li>
+<li><p>Remove deprecated <code>ActiveRecord::ConnectionAdapters::ConnectionPool#connection</code>.</p>
+
+<p><em>Rafael Mendonça França</em></p></li>
+<li><p>Remove deprecated <code>config.active_record.sqlite3_deprecated_warning</code>.</p>
+
+<p><em>Rafael Mendonça França</em></p></li>
+<li><p>Remove deprecated <code>config.active_record.warn_on_records_fetched_greater_than</code>.</p>
+
+<p><em>Rafael Mendonça França</em></p></li>
+<li><p>Remove deprecated support for defining <code>enum</code> with keyword arguments.</p>
+
+<p><em>Rafael Mendonça França</em></p></li>
+<li><p>Remove deprecated support to finding database adapters that aren&#39;t registered to Active Record.</p>
+
+<p><em>Rafael Mendonça França</em></p></li>
+<li><p>Remove deprecated <code>config.active_record.allow_deprecated_singular_associations_name</code>.</p>
+
+<p><em>Rafael Mendonça França</em></p></li>
+<li><p>Remove deprecated <code>config.active_record.commit_transaction_on_non_local_return</code>.</p>
+
+<p><em>Rafael Mendonça França</em></p></li>
+<li><p>Fix incorrect SQL query when passing an empty hash to <code>ActiveRecord::Base.insert</code>.</p>
+
+<p><em>David Stosik</em></p></li>
+<li><p>Allow to save records with polymorphic join tables that have <code>inverse_of</code>
+specified.</p>
+
+<p><em>Markus Doits</em></p></li>
+<li><p>Fix association scopes applying on the incorrect join when using a polymorphic <code>has_many through:</code>.</p>
+
+<p><em>Joshua Young</em></p></li>
+<li><p>Allow <code>ActiveRecord::Base#pluck</code> to accept hash arguments with symbol and string values.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Post</span>.<span class='id identifier rubyid_joins'>joins</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_comments'>comments</span>).<span class='id identifier rubyid_pluck'>pluck</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span><span class='comma'>,</span> <span class='label'>comments:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span>)
+<span class='const'>Post</span>.<span class='id identifier rubyid_joins'>joins</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_comments'>comments</span>).<span class='id identifier rubyid_pluck'>pluck</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>id</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>comments</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>id</span><span class='tstring_end'>&quot;</span></span>)</code></pre>
+
+<p><em>Joshua Young</em></p></li>
+<li><p>Make Float distinguish between <code>float4</code> and <code>float8</code> in PostgreSQL.</p>
+
+<p>Fixes #52742</p>
+
+<p><em>Ryota Kitazawa</em>, <em>Takayuki Nagatomi</em></p></li>
+</ul>
+
+<h2>Rails 8.0.0.beta1 (September 26, 2024)</h2>
+
+<ul>
+<li><p>Allow <code>drop_table</code> to accept an array of table names.</p>
+
+<p>This will let you to drop multiple tables in a single call.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)">Base</a></span>.<span class='id identifier rubyid_lease_connection'><a href="ActiveRecord/ConnectionHandling.html#lease_connection-instance_method" title="ActiveRecord::ConnectionHandling#lease_connection (method)">lease_connection</a></span>.<span class='id identifier rubyid_drop_table'>drop_table</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_users'>users</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_posts'>posts</span>)</code></pre>
+
+<p><em>Gabriel Sobrinho</em></p></li>
+<li><p>Add support for PostgreSQL <code>IF NOT EXISTS</code> via the <code>:if_not_exists</code> option
+on the <code>add_enum_value</code> method.</p>
+
+<p><em>Ariel Rzezak</em></p></li>
+<li><p>When running <code>db:migrate</code> on a fresh database, load the databases schemas before running migrations.</p>
+
+<p><em>Andrew Novoselac</em>, <em>Marek Kasztelnik</em></p></li>
+<li><p>Fix an issue where <code>.left_outer_joins</code> used with multiple associations that have
+the same child association but different parents does not join all parents.</p>
+
+<p>Previously, using <code>.left_outer_joins</code> with the same child association would only join one of the parents.</p>
+
+<p>Now it will correctly join both parents.</p>
+
+<p>Fixes #41498.</p>
+
+<p><em>Garrett Blehm</em></p></li>
+<li><p>Deprecate <code>unsigned_float</code> and <code>unsigned_decimal</code> short-hand column methods.</p>
+
+<p>As of MySQL 8.0.17, the UNSIGNED attribute is deprecated for columns of type FLOAT, DOUBLE,
+and DECIMAL. Consider using a simple CHECK constraint instead for such columns.</p>
+
+<p><a href="https://dev.mysql.com/doc/refman/8.0/en/numeric-type-syntax.html">https://dev.mysql.com/doc/refman/8.0/en/numeric-type-syntax.html</a></p>
+
+<p><em>Ryuta Kamizono</em></p></li>
+<li><p>Drop MySQL 5.5 support.</p>
+
+<p>MySQL 5.5 is the only version that does not support datetime with precision,
+which we have supported in the core. Now we support MySQL 5.6.4 or later, which
+is the first version to support datetime with precision.</p>
+
+<p><em>Ryuta Kamizono</em></p></li>
+<li><p>Make Active Record asynchronous queries compatible with transactional fixtures.</p>
+
+<p>Previously transactional fixtures would disable asynchronous queries, because transactional
+fixtures impose all queries use the same connection.</p>
+
+<p>Now asynchronous queries will use the connection pinned by transactional fixtures, and behave
+much closer to production.</p>
+
+<p><em>Jean Boussier</em></p></li>
+<li><p>Deserialize binary data before decrypting</p>
+
+<p>This ensures that we call <code>PG::Connection.unescape_bytea</code> on PostgreSQL before decryption.</p>
+
+<p><em>Donal McBreen</em></p></li>
+<li><p>Ensure <a href="ActiveRecord/Encryption.html#config-class_method" title="ActiveRecord::Encryption.config (method)">ActiveRecord::Encryption.config</a> is always ready before access.</p>
+
+<p>Previously, <a href="ActiveRecord/Encryption.html" title="ActiveRecord::Encryption (module)"><code>::ActiveRecord::Encryption</code></a> configuration was deferred until <a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)"><code>::ActiveRecord::Base</code></a>
+was loaded. Therefore, accessing <a href="ActiveRecord/Encryption.html#config-class_method" title="ActiveRecord::Encryption.config (method)">ActiveRecord::Encryption.config</a> properties before
+<a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)"><code>::ActiveRecord::Base</code></a> was loaded would give incorrect results.</p>
+
+<p><a href="ActiveRecord/Encryption.html" title="ActiveRecord::Encryption (module)"><code>::ActiveRecord::Encryption</code></a> now has its own loading hook so that its configuration is set as
+soon as needed.</p>
+
+<p>When <a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)"><code>::ActiveRecord::Base</code></a> is loaded, even lazily, it in turn triggers the loading of
+<a href="ActiveRecord/Encryption.html" title="ActiveRecord::Encryption (module)"><code>::ActiveRecord::Encryption</code></a>, thus preserving the original behavior of having its config ready
+before any use of <a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)"><code>::ActiveRecord::Base</code></a>.</p>
+
+<p><em>Maxime Réty</em></p></li>
+<li><p>Add <code>TimeZoneConverter#==</code> method, so objects will be properly compared by
+their type, scale, limit &amp; precision.</p>
+
+<p>Address #52699.</p>
+
+<p><em>Ruy Rocha</em></p></li>
+<li><p>Add support for SQLite3 full-text-search and other virtual tables.</p>
+
+<p>Previously, adding sqlite3 virtual tables messed up <code>schema.rb</code>.</p>
+
+<p>Now, virtual tables can safely be added using <code>create_virtual_table</code>.</p>
+
+<p><em>Zacharias Knudsen</em></p></li>
+<li><p>Support use of alternative database interfaces via the <code>database_cli</code> <a href="ActiveRecord.html" title="ActiveRecord (module)"><code>ActiveRecord</code></a> configuration option.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_configure'>configure</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_active_record'>active_record</span>.<span class='id identifier rubyid_database_cli'>database_cli</span> <span class='op'>=</span> { <span class='label'>postgresql:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>pgcli</span><span class='tstring_end'>&quot;</span></span> }
+<span class='kw'>end</span></code></pre>
+
+<p><em>T S Vallender</em></p></li>
+<li><p>Add support for dumping table inheritance and native partitioning table definitions for PostgeSQL adapter</p>
+
+<p><em>Justin Talbott</em></p></li>
+<li><p>Add support for <a href="ActiveRecord/Point.html" title="ActiveRecord::Point (class)"><code>::ActiveRecord::Point</code></a> type casts using <a href="Hash.html" title="Hash (class)"><code>Hash</code></a> values</p>
+
+<p>This allows <a href="ActiveRecord/Point.html" title="ActiveRecord::Point (class)"><code>::ActiveRecord::Point</code></a> to be cast or serialized from a hash
+with <code>:x</code> and <code>:y</code> keys of numeric values, mirroring the functionality of
+existing casts for string and array values. Both string and symbol keys are
+supported.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>PostgresqlPoint</span> <span class='op'>&lt;</span> <span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)">Base</a></span>
+  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbeg'>:</span><span class='id identifier rubyid_x'>x</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_point'>point</span>
+  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbeg'>:</span><span class='id identifier rubyid_y'>y</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_point'>point</span>
+  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbeg'>:</span><span class='id identifier rubyid_z'>z</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_point'>point</span>
+<span class='kw'>end</span>
+
+<span class='id identifier rubyid_val'>val</span> <span class='op'>=</span> <span class='const'>PostgresqlPoint</span>.<span class='id identifier rubyid_new'>new</span>({
+  <span class='label'>x:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>(12.34, -43.21)</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span>
+  <span class='label'>y:</span> [<span class='float'>12.34</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>-43.21</span><span class='tstring_end'>&#39;</span></span>]<span class='comma'>,</span>
+  <span class='label'>z:</span> {<span class='label'>x:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>12.34</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='label'>y:</span> <span class='op'>-</span><span class='float'>43.21</span>}
+})
+<span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/Point.html" title="ActiveRecord::Point (class)">Point</a></span>.<span class='id identifier rubyid_new'>new</span>(<span class='float'>12.32</span><span class='comma'>,</span> <span class='op'>-</span><span class='float'>43.21</span>) <span class='op'>==</span> <span class='id identifier rubyid_val'>val</span>.<span class='id identifier rubyid_x'>x</span> <span class='op'>==</span> <span class='id identifier rubyid_val'>val</span>.<span class='id identifier rubyid_y'>y</span> <span class='op'>==</span> <span class='id identifier rubyid_val'>val</span>.<span class='id identifier rubyid_z'>z</span></code></pre>
+
+<p><em>Stephen Drew</em></p></li>
+<li><p>Replace <code>SQLite3::Database#busy_timeout</code> with <code>#busy_handler_timeout=</code>.</p>
+
+<p>Provides a non-GVL-blocking, fair retry interval busy handler implementation.</p>
+
+<p><em>Stephen Margheim</em></p></li>
+<li><p>SQLite3Adapter: Translate <code>SQLite3::BusyException</code> into <a href="ActiveRecord/StatementTimeout.html" title="ActiveRecord::StatementTimeout (class)"><code>::ActiveRecord::StatementTimeout</code></a>.</p>
+
+<p><em>Matthew Nguyen</em></p></li>
+<li><p>Include schema name in <code>enable_extension</code> statements in <code>db/schema.rb</code>.</p>
+
+<p>The schema dumper will now include the schema name in generated
+<code>enable_extension</code> statements if they differ from the current schema.</p>
+
+<p>For example, if you have a migration:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_enable_extension'>enable_extension</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>heroku_ext.pgcrypto</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_enable_extension'>enable_extension</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>pg_stat_statements</span><span class='tstring_end'>&quot;</span></span></code></pre>
+
+<p>then the generated schema dump will also contain:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_enable_extension'>enable_extension</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>heroku_ext.pgcrypto</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_enable_extension'>enable_extension</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>pg_stat_statements</span><span class='tstring_end'>&quot;</span></span></code></pre>
+
+<p><em>Tony Novak</em></p></li>
+<li><p>Fix <a href="ActiveRecord/Encryption/EncryptedAttributeType.html#type-instance_method" title="ActiveRecord::Encryption::EncryptedAttributeType#type (method)">ActiveRecord::Encryption::EncryptedAttributeType#type</a> to return
+actual cast type.</p>
+
+<p><em>Vasiliy Ermolovich</em></p></li>
+<li><p>SQLite3Adapter: Bulk insert fixtures.</p>
+
+<p>Previously one insert command was executed for each fixture, now they are
+aggregated in a single bulk insert command.</p>
+
+<p><em>Lázaro Nixon</em></p></li>
+<li><p>PostgreSQLAdapter: Allow <code>disable_extension</code> to be called with schema-qualified name.</p>
+
+<p>For parity with <code>enable_extension</code>, the <code>disable_extension</code> method can be called with a schema-qualified
+name (e.g. <code>disable_extension &quot;myschema.pgcrypto&quot;</code>). Note that PostgreSQL&#39;s <code>DROP EXTENSION</code> does not
+actually take a schema name (unlike <code>CREATE EXTENSION</code>), so the resulting SQL statement will only name
+the extension, e.g. <code>DROP EXTENSION IF EXISTS &quot;pgcrypto&quot;</code>.</p>
+
+<p><em>Tony Novak</em></p></li>
+<li><p>Make <code>create_schema</code> / <code>drop_schema</code> reversible in migrations.</p>
+
+<p>Previously, <code>create_schema</code> and <code>drop_schema</code> were irreversible migration operations.</p>
+
+<p><em>Tony Novak</em></p></li>
+<li><p>Support batching using custom columns.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Product</span>.<span class='id identifier rubyid_in_batches'>in_batches</span>(<span class='label'>cursor:</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_shop_id'>shop_id</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span>]) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_relation'>relation</span><span class='op'>|</span>
+  <span class='comment'># do something with relation
+</span><span class='kw'>end</span></code></pre>
+
+<p><em>fatkodima</em></p></li>
+<li><p>Use SQLite <code>IMMEDIATE</code> transactions when possible.</p>
+
+<p>Transactions run against the SQLite3 adapter default to IMMEDIATE mode to improve concurrency support and avoid busy exceptions.</p>
+
+<p><em>Stephen Margheim</em></p></li>
+<li><p>Raise specific exception when a connection is not defined.</p>
+
+<p>The new <code>ConnectionNotDefined</code> exception provides connection name, shard and role accessors indicating the details of the connection that was requested.</p>
+
+<p><em>Hana Harencarova</em>, <em>Matthew Draper</em></p></li>
+<li><p>Delete the deprecated constant <code>ActiveRecord::ImmutableRelation</code>.</p>
+
+<p><em>Xavier Noria</em></p></li>
+<li><p>Fix duplicate callback execution when child autosaves parent with <code>has_one</code> and <code>belongs_to</code>.</p>
+
+<p>Before, persisting a new child record with a new associated parent record would run <code>before_validation</code>,
+<code>after_validation</code>, <code>before_save</code> and <code>after_save</code> callbacks twice.</p>
+
+<p>Now, these callbacks are only executed once as expected.</p>
+
+<p><em>Joshua Young</em></p></li>
+<li><p><a href="ActiveRecord/Encryption/Encryptor.html" title="ActiveRecord::Encryption::Encryptor (class)"><code>::ActiveRecord::Encryption::Encryptor</code></a> now supports a <code>:compressor</code> option to customize the compression algorithm used.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'>ZstdCompressor</span>
+  <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_deflate'>deflate</span>(<span class='id identifier rubyid_data'>data</span>)
+    <span class='const'>Zstd</span>.<span class='id identifier rubyid_compress'>compress</span>(<span class='id identifier rubyid_data'>data</span>)
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_inflate'>inflate</span>(<span class='id identifier rubyid_data'>data</span>)
+    <span class='const'>Zstd</span>.<span class='id identifier rubyid_decompress'>decompress</span>(<span class='id identifier rubyid_data'>data</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+
+<span class='kw'>class</span> <span class='const'>User</span>
+  <span class='id identifier rubyid_encrypts'>encrypts</span> <span class='symbeg'>:</span><span class='id identifier rubyid_name'>name</span><span class='comma'>,</span> <span class='label'>compressor:</span> <span class='const'>ZstdCompressor</span>
+<span class='kw'>end</span></code></pre>
+
+<p>You disable compression by passing <code>compress: false</code>.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>User</span>
+  <span class='id identifier rubyid_encrypts'>encrypts</span> <span class='symbeg'>:</span><span class='id identifier rubyid_name'>name</span><span class='comma'>,</span> <span class='label'>compress:</span> <span class='kw'>false</span>
+<span class='kw'>end</span></code></pre>
+
+<p><em>heka1024</em></p></li>
+<li><p>Add condensed <code>#inspect</code> for <code>ConnectionPool</code>, <code>AbstractAdapter</code>, and
+<code>DatabaseConfig</code>.</p>
+
+<p><em>Hartley McGuire</em></p></li>
+<li><p>Add <code>.shard_keys</code>, <code>.sharded?</code>, &amp; <code>.connected_to_all_shards</code> methods.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ShardedBase</span> <span class='op'>&lt;</span> <span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)">Base</a></span>
+    <span class='kw'>self</span>.<span class='id identifier rubyid_abstract_class'>abstract_class</span> <span class='op'>=</span> <span class='kw'>true</span>
+
+    <span class='id identifier rubyid_connects_to'>connects_to</span> <span class='label'>shards:</span> {
+      <span class='label'>shard_one:</span> { <span class='label'>writing:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_shard_one'>shard_one</span> }<span class='comma'>,</span>
+      <span class='label'>shard_two:</span> { <span class='label'>writing:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_shard_two'>shard_two</span> }
+    }
+<span class='kw'>end</span>
+
+<span class='kw'>class</span> <span class='const'>ShardedModel</span> <span class='op'>&lt;</span> <span class='const'>ShardedBase</span>
+<span class='kw'>end</span>
+
+<span class='const'>ShardedModel</span>.<span class='id identifier rubyid_shard_keys'>shard_keys</span> <span class='op'>=&gt;</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_shard_one'>shard_one</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_shard_two'>shard_two</span>]
+<span class='const'>ShardedModel</span>.<span class='id identifier rubyid_sharded?'>sharded?</span> <span class='op'>=&gt;</span> <span class='kw'>true</span>
+<span class='const'>ShardedBase</span>.<span class='id identifier rubyid_connected_to_all_shards'>connected_to_all_shards</span> { <span class='const'>ShardedModel</span>.<span class='id identifier rubyid_current_shard'>current_shard</span> } <span class='op'>=&gt;</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_shard_one'>shard_one</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_shard_two'>shard_two</span>]</code></pre>
+
+<p><em>Nony Dutton</em></p></li>
+<li><p>Add a <code>filter</code> option to <code>in_order_of</code> to prioritize certain values in the sorting without filtering the results
+by these values.</p>
+
+<p><em>Igor Depolli</em></p></li>
+<li><p>Fix an issue where the IDs reader method did not return expected results
+for preloaded associations in models using composite primary keys.</p>
+
+<p><em>Jay Ang</em></p></li>
+<li><p>Allow to configure <code>strict_loading_mode</code> globally or within a model.</p>
+
+<p>Defaults to <code>:all</code>, can be changed to <code>:n_plus_one_only</code>.</p>
+
+<p><em>Garen Torikian</em></p></li>
+<li><p>Add <a href="ActiveRecord/Relation.html#readonly%3F-instance_method" title="ActiveRecord::Relation#readonly? (method)">ActiveRecord::Relation#readonly?</a>.</p>
+
+<p>Reflects if the relation has been marked as readonly.</p>
+
+<p><em>Theodor Tonum</em></p></li>
+<li><p>Improve <a href="ActiveRecord/Store.html" title="ActiveRecord::Store (module)"><code>::ActiveRecord::Store</code></a> to raise a descriptive exception if the column is not either
+structured (e.g., PostgreSQL <code>hstore+/+json</code>, or MySQL <code>json</code>) or declared serializable via
+<code>ActiveRecord.store</code>.</p>
+
+<p>Previously, a <code>NoMethodError</code> would be raised when the accessor was read or written:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>NoMethodError</span><span class='op'>:</span> <span class='id identifier rubyid_undefined'>undefined</span> <span class='id identifier rubyid_method'>method</span> <span class='backtick'>`</span><span class='tstring_content'>accessor&#39; for an instance of ActiveRecord::Type::Text</span></code></pre>
+
+<p>Now, a descriptive <code>ConfigurationError</code> is raised:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/ConfigurationError.html" title="ActiveRecord::ConfigurationError (class)">ConfigurationError</a></span><span class='op'>:</span> <span class='id identifier rubyid_the'>the</span> <span class='id identifier rubyid_column'>column</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>metadata</span><span class='tstring_end'>&#39;</span></span> <span class='id identifier rubyid_has'>has</span> <span class='kw'>not</span> <span class='id identifier rubyid_been'>been</span> <span class='id identifier rubyid_configured'>configured</span> <span class='id identifier rubyid_as'>as</span> <span class='id identifier rubyid_a'>a</span> <span class='id identifier rubyid_store'>store</span>.
+  <span class='const'>Please</span> <span class='id identifier rubyid_make'>make</span> <span class='id identifier rubyid_sure'>sure</span> <span class='id identifier rubyid_the'>the</span> <span class='id identifier rubyid_column'>column</span> <span class='id identifier rubyid_is'>is</span> <span class='id identifier rubyid_declared'>declared</span> <span class='id identifier rubyid_serializable'>serializable</span> <span class='id identifier rubyid_via'>via</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>ActiveRecord.store</span><span class='tstring_end'>&#39;</span></span> <span class='kw'>or</span><span class='comma'>,</span> <span class='kw'>if</span> <span class='id identifier rubyid_your'>your</span>
+  <span class='id identifier rubyid_database'>database</span> <span class='id identifier rubyid_supports'>supports</span> <span class='id identifier rubyid_it'>it</span><span class='comma'>,</span> <span class='id identifier rubyid_use'>use</span> <span class='id identifier rubyid_a'>a</span> <span class='id identifier rubyid_structured'>structured</span> <span class='id identifier rubyid_column'>column</span> <span class='id identifier rubyid_type'>type</span> <span class='id identifier rubyid_like'>like</span> <span class='id identifier rubyid_hstore'>hstore</span> <span class='kw'>or</span> <span class='id identifier rubyid_json'>json</span>.</code></pre>
+
+<p><em>Mike Dalessio</em></p></li>
+<li><p>Fix inference of association model on nested models with the same demodularized name.</p>
+
+<p>E.g. with the following setup:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Nested</span><span class='op'>::</span><span class='const'>Post</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_has_one'>has_one</span> <span class='symbeg'>:</span><span class='id identifier rubyid_post'>post</span><span class='comma'>,</span> <span class='label'>through:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_other'>other</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Before, <code>#post</code> would infer the model as <code>Nested::Post</code>, but now it correctly infers <code>Post</code>.</p>
+
+<p><em>Joshua Young</em></p></li>
+<li><p>Add public method for checking if a table is ignored by the schema cache.</p>
+
+<p>Previously, an application would need to reimplement <code>ignored_table?</code> from the schema cache class to check if a table was set to be ignored. This adds a public method to support this and updates the schema cache to use that directly.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span>.<span class='id identifier rubyid_schema_cache_ignored_tables'><a href="ActiveRecord.html#schema_cache_ignored_tables-class_method" title="ActiveRecord.schema_cache_ignored_tables (method)">schema_cache_ignored_tables</a></span> <span class='op'>=</span> [<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>developers</span><span class='tstring_end'>&quot;</span></span>]
+<span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span>.<span class='id identifier rubyid_schema_cache_ignored_table?'><a href="ActiveRecord.html#schema_cache_ignored_table%3F-class_method" title="ActiveRecord.schema_cache_ignored_table? (method)">schema_cache_ignored_table?</a></span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>developers</span><span class='tstring_end'>&quot;</span></span>)
+<span class='comment'>#=&gt; true</span></code></pre>
+
+<p><em>Eileen M. Uchitelle</em></p></li>
+</ul>
+
+<p>Please check [7-2-stable]) for previous changes.</p>
+
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>

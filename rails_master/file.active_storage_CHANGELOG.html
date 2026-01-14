@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen' content='yes'>
+<meta name='mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Active Storage CHANGELOG &mdash; Rails main</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "active_storage_CHANGELOG",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>Rails main</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Active Storage CHANGELOG&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<ul>
+<li><p>Restore ADC when signing URLs with IAM for GCS</p>
+
+<p>ADC was previously used for automatic authorization when signing URLs with IAM.
+Now it is again, but the auth client is memoized so that new credentials are only
+requested when the current ones expire. Other auth methods can now be used
+instead by setting the authorization on <a href="ActiveStorage/Service/GCSService.html#iam_client-instance_method" title="ActiveStorage::Service::GCSService#iam_client (method)">ActiveStorage::Service::GCSService#iam_client</a>.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="ActiveStorage.html" title="ActiveStorage (module)">ActiveStorage</a></span><span class='op'>::</span><span class='const'>Blob</span>.<span class='id identifier rubyid_service'>service</span>.<span class='id identifier rubyid_iam_client'>iam_client</span>.<span class='id identifier rubyid_authorization'>authorization</span> <span class='op'>=</span> <span class='const'>Google</span><span class='op'>::</span><span class='const'>Auth</span><span class='op'>::</span><span class='const'>ImpersonatedServiceAccountCredentials</span>.<span class='id identifier rubyid_new'>new</span>(<span class='id identifier rubyid_options'>options</span>)</code></pre>
+
+<p>This is safer than setting <code>Google::Apis::RequestOptions.default.authorization</code>
+because it only applies to Active Storage and does not affect other Google API
+clients.</p>
+
+<p><em>Justin Malčić</em></p></li>
+<li><p>Move responsibility for checksums storage service</p>
+
+<p>The storage service should implement calculating and
+validating checksums.</p>
+
+<p><em>Matt Pasquini</em></p></li>
+<li><p>Analyze attachments before validation</p>
+
+<p>Attachment metadata (width, height, duration, etc.) is now available for
+model validations:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>User</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_has_one_attached'>has_one_attached</span> <span class='symbeg'>:</span><span class='id identifier rubyid_avatar'>avatar</span>
+
+  <span class='id identifier rubyid_validate'>validate</span> <span class='symbeg'>:</span><span class='id identifier rubyid_validate_avatar_dimensions'>validate_avatar_dimensions</span><span class='comma'>,</span> <span class='label'>if:</span> <span class='tlambda'>-&gt;</span> <span class='tlambeg'>{</span> <span class='id identifier rubyid_avatar'>avatar</span>.<span class='id identifier rubyid_attached?'>attached?</span> }
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_validate_avatar_dimensions'>validate_avatar_dimensions</span>
+    <span class='kw'>if</span> <span class='id identifier rubyid_avatar'>avatar</span>.<span class='id identifier rubyid_metadata'>metadata</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_width'>width</span>] <span class='op'>&lt;</span> <span class='int'>200</span> <span class='op'>||</span> <span class='id identifier rubyid_avatar'>avatar</span>.<span class='id identifier rubyid_metadata'>metadata</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_height'>height</span>] <span class='op'>&lt;</span> <span class='int'>200</span>
+      <span class='id identifier rubyid_errors'>errors</span>.<span class='id identifier rubyid_add'>add</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_avatar'>avatar</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>must be at least 200x200</span><span class='tstring_end'>&quot;</span></span>)
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Configure when analysis is performed:</p>
+
+<ul>
+<li><code>analyze: :immediately</code> (default in 8.2) - Analyze before validation</li>
+<li><code>analyze: :later</code> - Analyze after upload from local IO or via background job</li>
+<li><code>analyze: :lazily</code> - Skip automatic analysis; analyze on-demand</li>
+</ul>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_has_one_attached'>has_one_attached</span> <span class='symbeg'>:</span><span class='id identifier rubyid_document'>document</span><span class='comma'>,</span> <span class='label'>analyze:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_later'>later</span>
+<span class='id identifier rubyid_has_many_attached'>has_many_attached</span> <span class='symbeg'>:</span><span class='id identifier rubyid_files'>files</span><span class='comma'>,</span> <span class='label'>analyze:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_lazily'>lazily</span>
+
+<span class='comment'># Or set the global default:
+</span><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_active_storage'>active_storage</span>.<span class='id identifier rubyid_analyze'>analyze</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_later'>later</span></code></pre>
+
+<p>Direct uploads bypass the server so the file isn&#39;t locally available
+for analysis. In this case, <code>:immediately</code> falls back to <code>:later</code>,
+analyzing via background job after upload completes. Metadata isn&#39;t
+available for validation; validate on the client side instead.</p>
+
+<p><em>Jeremy Daer</em></p></li>
+<li><p>Use local files for immediate variant processing and analysis</p>
+
+<p><code>process: :immediately</code> variants and blob analysis use local files
+directly instead of re-downloading after upload.</p>
+
+<p>Applies when attaching uploadable io, not when attaching an existing Blob.</p>
+
+<p><em>Jeremy Daer</em></p></li>
+<li><p>Introduce <code>ActiveStorage::Attachment</code> upload callbacks</p>
+
+<p><code>after_upload</code> fires after an attachment&#39;s blob is uploaded, enabling
+analysis and processing to run deterministically rather than assuming
+after-commit callback execution ordering.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="ActiveStorage.html" title="ActiveStorage (module)">ActiveStorage</a></span><span class='op'>::</span><span class='const'>Attachment</span>.<span class='id identifier rubyid_after_upload'>after_upload</span> <span class='kw'>do</span>
+  <span class='comment'># Your custom logic here
+</span><span class='kw'>end</span></code></pre>
+
+<p><em>Jeremy Daer</em></p></li>
+<li><p>Introduce immediate variants that are generated immediately on attachment</p>
+
+<p>The new <code>process</code> option determines when variants are created:</p>
+
+<ul>
+<li><code>:lazily</code> (default) - Variants are created dynamically when requested</li>
+<li><code>:later</code> (replaces <code>preprocessed: true</code>) - Variants are created after attachment, in a background job</li>
+<li><code>:immediately</code> (new) - Variants are created along with the attachment</li>
+</ul>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_has_one_attached'>has_one_attached</span> <span class='symbeg'>:</span><span class='id identifier rubyid_avatar'>avatar</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_attachable'>attachable</span><span class='op'>|</span>
+  <span class='id identifier rubyid_attachable'>attachable</span>.<span class='id identifier rubyid_variant'>variant</span> <span class='symbeg'>:</span><span class='id identifier rubyid_thumb'>thumb</span><span class='comma'>,</span> <span class='label'>resize_to_limit:</span> [<span class='int'>100</span><span class='comma'>,</span> <span class='int'>100</span>]<span class='comma'>,</span> <span class='label'>process:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_immediately'>immediately</span>
+<span class='kw'>end</span></code></pre>
+
+<p>The <code>preprocessed: true</code> option is deprecated in favor of <code>process: :later</code>.</p>
+
+<p><em>Tom Rossi</em></p></li>
+<li><p>Make <code>Variant#processed?</code> and <code>VariantWithRecord#processed?</code> public so apps can check variant generation status.</p>
+
+<p><em>Tom Rossi</em></p></li>
+<li><p><code>ActiveStorage::Blob#open</code> can now be used without passing a block, like <code>Tempfile.open</code>. When using this form the
+returned temporary file must be unlinked manually.</p>
+
+<p><em>Bart de Water</em></p></li>
+</ul>
+
+<p>Please check [8-1-stable]) for previous changes.</p>
+
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>

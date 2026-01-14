@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen' content='yes'>
+<meta name='mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Asset Pipeline &mdash; Rails 7.2.3</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "asset_pipeline",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>Rails 7.2.3</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Asset Pipeline&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<p><strong>DO NOT READ THIS FILE ON GITHUB, GUIDES ARE PUBLISHED ON <a href="https://guides.rubyonrails.org">https://guides.rubyonrails.org</a>.</strong></p>
+
+<h1>The Asset Pipeline</h1>
+
+<p>This guide covers the asset pipeline.</p>
+
+<p>After reading this guide, you will know:</p>
+
+<ul>
+<li>What the asset pipeline is and what it does.</li>
+<li>How to properly organize your application assets.</li>
+<li>The benefits of the asset pipeline.</li>
+<li>How to add a pre-processor to the pipeline.</li>
+<li>How to package assets with a gem.</li>
+</ul>
+
+<hr>
+
+<h2>What is the Asset Pipeline?</h2>
+
+<p>The asset pipeline provides a framework to handle the delivery of JavaScript and
+CSS assets. This is done by leveraging technologies like HTTP/2 and techniques like
+concatenation and minification. Finally, it allows your
+application to be automatically combined with assets from other gems.</p>
+
+<p>The asset pipeline is implemented by the <a href="https://github.com/rails/importmap-rails">importmap-rails</a>, <a href="https://github.com/rails/sprockets">sprockets</a> and <a href="https://github.com/rails/sprockets-rails">sprockets-rails</a> gems, and is enabled by default. You can disable it while creating a new application by
+passing the <code>--skip-asset-pipeline</code> option.</p>
+
+<pre class="code bash"><code class="bash">$ rails new appname --skip-asset-pipeline
+</code></pre>
+
+<p>NOTE: This guide focuses on the default asset pipeline using only <code>sprockets</code> for CSS and <code>importmap-rails</code> for JavaScript processing. The main limitation of those two is that there is no support for transpiling so you can&#39;t use things like Babel, TypeScript, Sass, React JSX format, or Tailwind CSS. We encourage you to read the <a href="#alternative-libraries">Alternative Libraries section</a> if you need transpiling for your JavaScript/CSS.</p>
+
+<h2>Main Features</h2>
+
+<p>The asset pipeline&#39;s first feature is inserting a SHA256 fingerprinting
+into each filename so that the file is cached by the web browser and CDN. This
+fingerprint is automatically updated when you change the file contents, which
+invalidates the cache.</p>
+
+<p>The second feature of the asset pipeline is to use <a href="https://github.com/WICG/import-maps">import maps</a>
+when serving JavaScript files. This lets you build modern applications using
+JavaScript libraries made for ES modules (ESM) without the need for transpiling
+and bundling. In turn, <strong>this eliminates the need for Webpack, yarn, node or any
+other part of the JavaScript toolchain</strong>.</p>
+
+<p>The third feature of the asset pipeline is to concatenate all CSS files into
+one main <code>.css</code> file, which is then minified or compressed.
+As you&#39;ll learn later in this guide, you can customize this strategy to group
+files any way you like. In production, Rails inserts a SHA256 fingerprint into
+each filename so that the file is cached by the web browser. You can invalidate
+the cache by altering this fingerprint, which happens automatically whenever you
+change the file contents.</p>
+
+<p>The fourth feature of the asset pipeline is it allows coding assets via a
+higher-level language for CSS.</p>
+
+<h3>What is Fingerprinting and Why Should I Care?</h3>
+
+<p>Fingerprinting is a technique that makes the name of a file dependent on the
+contents of the file. When the file contents change, the filename is also
+changed. For static or infrequently changed content, this provides an
+easy way to tell whether two versions of a file are identical, even across
+different servers or deployment dates.</p>
+
+<p>When a filename is unique and based on its content, HTTP headers can be set to
+encourage caches everywhere (whether at CDNs, at ISPs, in networking equipment,
+or in web browsers) to keep their own copy of the content. When the content is
+updated, the fingerprint will change. This will cause the remote clients to
+request a new copy of the content. This is generally known as <em>cache busting</em>.</p>
+
+<p>The technique Sprockets uses for fingerprinting is to insert a hash of the
+content into the name, usually at the end. For example a CSS file <code>global.css</code></p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_global'>global</span><span class='op'>-</span><span class='float'>908e25</span><span class='id identifier rubyid_f4bf641868d8683022a5b62f54'>f4bf641868d8683022a5b62f54</span>.<span class='id identifier rubyid_css'>css</span></code></pre>
+
+<p>This is the strategy adopted by the Rails asset pipeline.</p>
+
+<p>Fingerprinting is enabled by default for both the development and production
+environments. You can enable or disable it in your configuration through the
+<a href="configuring.html#config-assets-digest"><code>config.assets.digest</code></a> option.</p>
+
+<h3>What are Import Maps and Why Should I Care?</h3>
+
+<p>Import maps let you import JavaScript modules using logical names that map to versioned/digested files – directly from the browser. So you can build modern JavaScript applications using JavaScript libraries made for ES modules (ESM) without the need for transpiling or bundling.</p>
+
+<p>With this approach, you&#39;ll ship many small JavaScript files instead of one big JavaScript file. Thanks to HTTP/2 that no longer carries a material performance penalty during the initial transport, and in fact offers substantial benefits over the long run due to better caching dynamics.</p>
+
+<h2>How to use Import Maps as JavaScript Asset Pipeline</h2>
+
+<p>Import Maps are the default JavaScript processor, the logic of generating import maps is handled by the <a href="https://github.com/rails/importmap-rails"><code>importmap-rails</code></a> gem.</p>
+
+<p>WARNING: Import maps are used only for JavaScript files and can not be used for CSS delivery. Check the <a href="#how-to-use-sprockets">Sprockets section</a> to learn about CSS.</p>
+
+<p>You can find detailed usage instructions on the Gem homepage, but it&#39;s important to understand the basics of <code>importmap-rails</code>.</p>
+
+<h3>How it works</h3>
+
+<p>Import maps are essentially a string substitution for what is referred to as &quot;bare module specifiers&quot;. They allow you to standardize the names of JavaScript module imports.</p>
+
+<p>Take for example such an import definition, it won&#39;t work without an import map:</p>
+
+<pre class="code javascript"><code class="javascript">import React from &quot;react&quot;
+</code></pre>
+
+<p>You would have to define it like this to make it work:</p>
+
+<pre class="code javascript"><code class="javascript">import React from &quot;https://ga.jspm.io/npm:react@17.0.2/index.js&quot;
+</code></pre>
+
+<p>Here comes the import map, we define the <code>react</code> name to be pinned to the <code>https://ga.jspm.io/npm:react@17.0.2/index.js</code> address. With such information our browser accepts the simplified <code>import React from &quot;react&quot;</code> definition. Think of import map as about an alias for the library source address.</p>
+
+<h3>Usage</h3>
+
+<p>With <code>importmap-rails</code> you create the importmap configuration file pinning the library path to a name:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/importmap.rb
+</span><span class='id identifier rubyid_pin'>pin</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>application</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_pin'>pin</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>react</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>to:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>https://ga.jspm.io/npm:react@17.0.2/index.js</span><span class='tstring_end'>&quot;</span></span></code></pre>
+
+<p>All of the configured import maps should be attached in <code>&lt;head&gt;</code> element of your application by adding  <code>&lt;%= javascript_importmap_tags %&gt;</code> . The <code>javascript_importmap_tags</code> renders a bunch of scripts in the <code>head</code> element:</p>
+
+<ul>
+<li>JSON with all configured import maps:</li>
+</ul>
+
+<pre class="code xml"><code class="xml">&lt;script type=&quot;importmap&quot;&gt;
+{
+  &quot;imports&quot;: {
+    &quot;application&quot;: &quot;/assets/application-39f16dc3f3....js&quot;
+    &quot;react&quot;: &quot;https://ga.jspm.io/npm:react@17.0.2/index.js&quot;
+  }
+}
+&lt;/script&gt;
+</code></pre>
+
+<ul>
+<li>Entrypoint for loading JavaScript from <code>app/javascript/application.js</code>:</li>
+</ul>
+
+<pre class="code xml"><code class="xml">&lt;script type=&quot;module&quot;&gt;import &quot;application&quot;&lt;/script&gt;
+</code></pre>
+
+<p>NOTE: Before v2.0.0, <code>importmap-rails</code> put <a href="https://github.com/guybedford/es-module-shims"><code>Es-module-shims</code></a> in the output of <code>javascript_importmap_tags</code> as a polyfill to ensure support for import maps on older browsers. However, with the native support for import maps in all major browsers, v2.0.0 has dropped the bundled shim. If you want to support legacy browsers that lack support for import maps, manually insert <code>Es-module-shims</code> before <code>javascript_importmap_tags</code>. For more information, refer to <a href="https://github.com/rails/importmap-rails?tab=readme-ov-file#supporting-legacy-browsers-such-as-safari-on-ios-15">README for importmap-rails</a>.</p>
+
+<h3>Using npm packages via JavaScript CDNs</h3>
+
+<p>You can use the <code>bin/importmap</code> command that&#39;s added as part of the <code>importmap-rails</code> install to pin, unpin, or update npm packages in your import map. The binstub uses <a href="https://jspm.org/"><code>JSPM.org</code></a>.</p>
+
+<p>It works like so:</p>
+
+<pre class="code bash"><code class="bash">$ bin/importmap pin react react-dom
+Pinning &quot;react&quot; to https://ga.jspm.io/npm:react@17.0.2/index.js
+Pinning &quot;react-dom&quot; to https://ga.jspm.io/npm:react-dom@17.0.2/index.js
+Pinning &quot;object-assign&quot; to https://ga.jspm.io/npm:object-assign@4.1.1/index.js
+Pinning &quot;scheduler&quot; to https://ga.jspm.io/npm:scheduler@0.20.2/index.js
+
+bin/importmap json
+
+{
+  &quot;imports&quot;: {
+    &quot;application&quot;: &quot;/assets/application-37f365cbecf1fa2810a8303f4b6571676fa1f9c56c248528bc14ddb857531b95.js&quot;,
+    &quot;react&quot;: &quot;https://ga.jspm.io/npm:react@17.0.2/index.js&quot;,
+    &quot;react-dom&quot;: &quot;https://ga.jspm.io/npm:react-dom@17.0.2/index.js&quot;,
+    &quot;object-assign&quot;: &quot;https://ga.jspm.io/npm:object-assign@4.1.1/index.js&quot;,
+    &quot;scheduler&quot;: &quot;https://ga.jspm.io/npm:scheduler@0.20.2/index.js&quot;
+  }
+}
+</code></pre>
+
+<p>As you can see, the two packages react and react-dom resolve to a total of four dependencies, when resolved via the jspm default.</p>
+
+<p>Now you can use these in your <code>application.js</code> entrypoint like you would any other module:</p>
+
+<pre class="code javascript"><code class="javascript">import React from &quot;react&quot;
+import ReactDOM from &quot;react-dom&quot;
+</code></pre>
+
+<p>You can also designate a specific version to pin:</p>
+
+<pre class="code bash"><code class="bash">$ bin/importmap pin react@17.0.1
+Pinning &quot;react&quot; to https://ga.jspm.io/npm:react@17.0.1/index.js
+Pinning &quot;object-assign&quot; to https://ga.jspm.io/npm:object-assign@4.1.1/index.js
+</code></pre>
+
+<p>Or even remove pins:</p>
+
+<pre class="code bash"><code class="bash">$ bin/importmap unpin react
+Unpinning &quot;react&quot;
+Unpinning &quot;object-assign&quot;
+</code></pre>
+
+<p>You can control the environment of the package for packages with separate &quot;production&quot; (the default) and &quot;development&quot; builds:</p>
+
+<pre class="code bash"><code class="bash">$ bin/importmap pin react --env development
+Pinning &quot;react&quot; to https://ga.jspm.io/npm:react@17.0.2/dev.index.js
+Pinning &quot;object-assign&quot; to https://ga.jspm.io/npm:object-assign@4.1.1/index.js
+</code></pre>
+
+<p>You can also pick an alternative, supported CDN provider when pinning, like <a href="https://unpkg.com/"><code>unpkg</code></a> or <a href="https://www.jsdelivr.com/"><code>jsdelivr</code></a> (<a href="https://jspm.org/"><code>jspm</code></a> is the default):</p>
+
+<pre class="code bash"><code class="bash">$ bin/importmap pin react --from jsdelivr
+Pinning &quot;react&quot; to https://cdn.jsdelivr.net/npm/react@17.0.2/index.js
+</code></pre>
+
+<p>Remember, though, that if you switch a pin from one provider to another, you may have to clean up dependencies added by the first provider that isn&#39;t used by the second provider.</p>
+
+<p>Run <code>bin/importmap</code> to see all options.</p>
+
+<p>Note that this command is merely a convenience wrapper to resolving logical package names to CDN URLs. You can also just lookup the CDN URLs yourself, and then pin those. For example, if you wanted to use Skypack for React, you could just add the following to <code>config/importmap.rb</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_pin'>pin</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>react</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>to:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>https://cdn.skypack.dev/react</span><span class='tstring_end'>&quot;</span></span></code></pre>
+
+<h3>Preloading pinned modules</h3>
+
+<p>To avoid the waterfall effect where the browser has to load one file after another before it can get to the deepest nested import, importmap-rails supports <a href="https://developers.google.com/web/updates/2017/12/modulepreload">modulepreload links</a>. Pinned modules can be preloaded by appending <code>preload: true</code> to the pin.</p>
+
+<p>It&#39;s a good idea to preload libraries or frameworks that are used throughout your app, as this will tell the browser to download them sooner.</p>
+
+<p>Example:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/importmap.rb
+</span><span class='id identifier rubyid_pin'>pin</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>@github/hotkey</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>to:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>https://ga.jspm.io/npm:@github/hotkey@1.4.4/dist/index.js</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>preload:</span> <span class='kw'>true</span>
+<span class='id identifier rubyid_pin'>pin</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>md5</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>to:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>https://cdn.jsdelivr.net/npm/md5@2.3.0/md5.js</span><span class='tstring_end'>&quot;</span></span></code></pre>
+
+<pre class="code erb"><code class="erb">&lt;%# app/views/layouts/application.html.erb %&gt;
+&lt;%= javascript_importmap_tags %&gt;
+
+&lt;%# will include the following link before the importmap is setup: %&gt;
+&lt;link rel=&quot;modulepreload&quot; href=&quot;https://ga.jspm.io/npm:@github/hotkey@1.4.4/dist/index.js&quot;&gt;
+...
+</code></pre>
+
+<p>NOTE: Refer to <a href="https://github.com/rails/importmap-rails"><code>importmap-rails</code></a> repository for the most up-to-date documentation.</p>
+
+<h2>How to Use Sprockets</h2>
+
+<p>The naive approach to expose your application assets to the web would be to store them in
+subdirectories of <code>public</code> folder such as <code>images</code> and <code>stylesheets</code>. Doing so manually would be difficult as most of the modern web applications require the assets to be processed in specific way for eg. compressing and adding fingerprints to the assets.</p>
+
+<p>Sprockets is designed to automatically preprocess your assets stored in the configured directories and after processing expose them in the <code>public/assets</code> folder with fingerprinting, compression, source maps generation and other configurable features.</p>
+
+<p>Assets can still be placed in the <code>public</code> hierarchy. Any assets under <code>public</code>
+will be served as static files by the application or web server when
+<a href="configuring.html#config-public-file-server-enabled"><code>config.public_file_server.enabled</code></a> is set to true. You must define <code>manifest.js</code> directives
+for files that must undergo some pre-processing before they are served.</p>
+
+<p>In production, Rails precompiles these files to <code>public/assets</code> by default. The
+precompiled copies are then served as static assets by the web server. The files
+in the <code>app/assets</code> are never served directly in production.</p>
+
+<h3>Manifest Files and Directives</h3>
+
+<p>When compiling assets with Sprockets, Sprockets needs to decide which top-level targets to compile, usually <code>application.css</code> and images. The top-level targets are defined in the Sprockets <code>manifest.js</code> file, by default it looks like this:</p>
+
+<pre class="code js"><code class="js">//= link_tree ../images
+//= link_directory ../stylesheets .css
+//= link_tree ../../javascript .js
+//= link_tree ../../../vendor/javascript .js
+</code></pre>
+
+<p>It contains <em>directives</em> - instructions that tell Sprockets
+which files to require in order to build a single CSS or JavaScript file.</p>
+
+<p>This is meant to include the contents of all files found in the <code>./app/assets/images</code> directory or any subdirectories as well as any file recognized as JS directly at <code>./app/javascript</code> or <code>./vendor/javascript</code>.</p>
+
+<p>It will load any CSS from the <code>./app/assets/stylesheets</code> directory (not including subdirectories). Assuming that you have <code>application.css</code> and <code>marketing.css</code> files in the <code>./app/assets/stylesheets</code> folder it will allow you to load those stylesheets with <code>&lt;%= stylesheet_link_tag &quot;application&quot; %&gt;</code> or <code>&lt;%= stylesheet_link_tag &quot;marketing&quot; %&gt;</code> from your views.</p>
+
+<p>You might notice that our JavaScript files aren&#39;t loaded from the <code>assets</code> directory by default, it&#39;s because <code>./app/javascript</code> is the default entry point for <code>importmap-rails</code> gem and the <code>vendor</code> folder is the place where downloaded JS packages would be stored.</p>
+
+<p>In the <code>manifest.js</code> you could also specify the <code>link</code> directive to load a specific file instead of the whole directory. <code>link</code> directive requires providing explicit file extension.</p>
+
+<p>Sprockets loads the files specified, processes them if
+necessary, concatenates them into one single file, and then compresses them
+(based on the value of <code>config.assets.css_compressor</code> or <code>config.assets.js_compressor</code>).
+Compression reduces file size, enabling the browser to download the files faster.</p>
+
+<h3>Controller Specific Assets</h3>
+
+<p>When you generate a scaffold or a controller, Rails also generates a
+Cascading Style Sheet file for that controller. Additionally, when generating a scaffold, Rails generates the file <code>scaffolds.css</code>.</p>
+
+<p>For example, if you generate a <code>ProjectsController</code>, Rails will also add a new
+file at <code>app/assets/stylesheets/projects.css</code>. By default, these files will be
+ready to use by your application immediately using the <code>link_directory</code> directive in the <code>manifest.js</code> file.</p>
+
+<p>You can also opt to include controller-specific stylesheets files
+only in their respective controllers using the following:</p>
+
+<pre class="code xml"><code class="xml">&lt;%= stylesheet_link_tag params[:controller] %&gt;
+</code></pre>
+
+<p>When doing this, ensure you are not using the <code>require_tree</code> directive in your <code>application.css</code>, as that could result in your controller-specific assets being included more than once.</p>
+
+<h3>Asset Organization</h3>
+
+<p>Pipeline assets can be placed inside an application in one of three locations:
+<code>app/assets</code>, <code>lib/assets</code> or <code>vendor/assets</code>.</p>
+
+<ul>
+<li><p><code>app/assets</code> is for assets that are owned by the application, such as custom images or stylesheets.</p></li>
+<li><p><code>app/javascript</code> is for your JavaScript code</p></li>
+<li><p><code>vendor/[assets|javascript]</code> is for assets that are owned by outside entities, such as CSS frameworks or JavaScript libraries. Keep in mind that third-party code with references to other files also processed by the asset Pipeline (images, stylesheets, etc.), will need to be rewritten to use helpers like <code>asset_path</code>.</p></li>
+</ul>
+
+<p>Other locations could be configured in the <code>manifest.js</code> file, refer to the <a href="#manifest-files-and-directives">Manifest Files and Directives</a>.</p>
+
+<h4>Search Paths</h4>
+
+<p>When a file is referenced from a manifest or a helper, Sprockets searches all of the locations specified in <code>manifest.js</code> for it. You can view the search path by inspecting
+<a href="configuring.html#config-assets-paths"><code>Rails.application.config.assets.paths</code></a> in the Rails console.</p>
+
+<h4>Using Index Files as proxies for folders</h4>
+
+<p>Sprockets uses files named <code>index</code> (with the relevant extensions) for a special
+purpose.</p>
+
+<p>For example, if you have a CSS library with many modules, which is stored in
+<code>lib/assets/stylesheets/library_name</code>, the file <code>lib/assets/stylesheets/library_name/index.css</code> serves as
+the manifest for all files in this library. This file could include a list of
+all the required files in order, or a simple <code>require_tree</code> directive.</p>
+
+<p>It is also somewhat similar to the way that a file in <code>public/library_name/index.html</code> can be reached by a request to <code>/library_name</code>. This means that you cannot directly use an index file.</p>
+
+<p>The library as a whole can be accessed in the <code>.css</code> files like so:</p>
+
+<pre class="code css"><code class="css">/* ...
+*= require library_name
+*/
+</code></pre>
+
+<p>This simplifies maintenance and keeps things clean by allowing related code to
+be grouped before inclusion elsewhere.</p>
+
+<h3>Coding Links to Assets</h3>
+
+<p>Sprockets does not add any new methods to access your assets - you still use the
+familiar <code>stylesheet_link_tag</code>:</p>
+
+<pre class="code xml"><code class="xml">&lt;%= stylesheet_link_tag &quot;application&quot;, media: &quot;all&quot; %&gt;
+</code></pre>
+
+<p>If using the <a href="https://github.com/hotwired/turbo-rails"><code>turbo-rails</code></a> gem, which is included by default in Rails, then
+include the <code>data-turbo-track</code> option which causes Turbo to check if
+an asset has been updated and if so loads it into the page:</p>
+
+<pre class="code xml"><code class="xml">&lt;%= stylesheet_link_tag &quot;application&quot;, &quot;data-turbo-track&quot;: &quot;reload&quot; %&gt;
+</code></pre>
+
+<p>In regular views you can access images in the <code>app/assets/images</code> directory
+like this:</p>
+
+<pre class="code xml"><code class="xml">&lt;%= image_tag &quot;rails.png&quot; %&gt;
+</code></pre>
+
+<p>Provided that the pipeline is enabled within your application (and not disabled
+in the current environment context), this file is served by Sprockets. If a file
+exists at <code>public/assets/rails.png</code> it is served by the web server.</p>
+
+<p>Alternatively, a request for a file with an SHA256 hash such as
+<code>public/assets/rails-f90d8a84c707a8dc923fca1ca1895ae8ed0a09237f6992015fef1e11be77c023.png</code>
+is treated the same way. How these hashes are generated is covered in the <a href="#in-production">In
+Production</a> section later on in this guide.</p>
+
+<p>Images can also be organized into subdirectories if required, and then can be
+accessed by specifying the directory&#39;s name in the tag:</p>
+
+<pre class="code xml"><code class="xml">&lt;%= image_tag &quot;icons/rails.png&quot; %&gt;
+</code></pre>
+
+<p>WARNING: If you&#39;re precompiling your assets (see <a href="#in-production">In Production</a>
+below), linking to an asset that does not exist will raise an exception in the
+calling page. This includes linking to a blank string. As such, be careful using
+<code>image_tag</code> and the other helpers with user-supplied data.</p>
+
+<h4>CSS and ERB</h4>
+
+<p>The asset pipeline automatically evaluates ERB. This means if you add an
+<code>erb</code> extension to a CSS asset (for example, <code>application.css.erb</code>), then
+helpers like <code>asset_path</code> are available in your CSS rules:</p>
+
+<pre class="code css"><code class="css">.class { background-image: url(&lt;%= asset_path &#39;image.png&#39; %&gt;) }
+</code></pre>
+
+<p>This writes the path to the particular asset being referenced. In this example,
+it would make sense to have an image in one of the asset load paths, such as
+<code>app/assets/images/image.png</code>, which would be referenced here. If this image is
+already available in <code>public/assets</code> as a fingerprinted file, then that path is
+referenced.</p>
+
+<p>If you want to use a <a href="https://en.wikipedia.org/wiki/Data_URI_scheme">data URI</a> -
+a method of embedding the image data directly into the CSS file - you can use
+the <code>asset_data_uri</code> helper.</p>
+
+<pre class="code css"><code class="css">#logo { background: url(&lt;%= asset_data_uri &#39;logo.png&#39; %&gt;) }
+</code></pre>
+
+<p>This inserts a correctly-formatted data URI into the CSS source.</p>
+
+<p>Note that the closing tag cannot be of the style <code>-%&gt;</code>.</p>
+
+<h3>Raise an Error When an Asset is Not Found</h3>
+
+<p>If you are using sprockets-rails &gt;= 3.2.0 you can configure what happens
+when an asset lookup is performed and nothing is found. If you turn off &quot;asset fallback&quot;
+then an error will be raised when an asset cannot be found.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_assets'>assets</span>.<span class='id identifier rubyid_unknown_asset_fallback'>unknown_asset_fallback</span> <span class='op'>=</span> <span class='kw'>false</span></code></pre>
+
+<p>If &quot;asset fallback&quot; is enabled then when an asset cannot be found the path will be
+output instead and no error raised. The asset fallback behavior is disabled by default.</p>
+
+<h3>Turning Digests Off</h3>
+
+<p>You can turn off digests by updating <code>config/environments/development.rb</code> to
+include:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_assets'>assets</span>.<span class='id identifier rubyid_digest'>digest</span> <span class='op'>=</span> <span class='kw'>false</span></code></pre>
+
+<p>When this option is true, digests will be generated for asset URLs.</p>
+
+<h3>Turning Source Maps On</h3>
+
+<p>You can turn on source maps by updating <code>config/environments/development.rb</code> to
+include:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_assets'>assets</span>.<span class='id identifier rubyid_debug'>debug</span> <span class='op'>=</span> <span class='kw'>true</span></code></pre>
+
+<p>When debug mode is on, Sprockets will generate a Source Map for each asset. This
+allows you to debug each file individually in your browser&#39;s developer tools.</p>
+
+<p>Assets are compiled and cached on the first request after the server is started.
+Sprockets sets a <code>must-revalidate</code> Cache-Control HTTP header to reduce request
+overhead on subsequent requests - on these the browser gets a 304 (Not Modified)
+response.</p>
+
+<p>If any of the files in the manifest change between requests, the server
+responds with a new compiled file.</p>
+
+<h2>In Production</h2>
+
+<p>In the production environment Sprockets uses the fingerprinting scheme outlined
+above. By default Rails assumes assets have been precompiled and will be
+served as static assets by your web server.</p>
+
+<p>During the precompilation phase a SHA256 is generated from the contents of the
+compiled files, and inserted into the filenames as they are written to disk.
+These fingerprinted names are used by the Rails helpers in place of the manifest
+name.</p>
+
+<p>For example this:</p>
+
+<pre class="code xml"><code class="xml">&lt;%= stylesheet_link_tag &quot;application&quot; %&gt;
+</code></pre>
+
+<p>generates something like this:</p>
+
+<pre class="code xml"><code class="xml">&lt;link href=&quot;/assets/application-4dd5b109ee3439da54f5bdfd78a80473.css&quot; rel=&quot;stylesheet&quot; /&gt;
+</code></pre>
+
+<p>The fingerprinting behavior is controlled by the <a href="configuring.html#config-assets-digest"><code>config.assets.digest</code></a>
+initialization option (which defaults to <code>true</code>).</p>
+
+<p>NOTE: Under normal circumstances the default <code>config.assets.digest</code> option
+should not be changed. If there are no digests in the filenames, and far-future
+headers are set, remote clients will never know to refetch the files when their
+content changes.</p>
+
+<h3>Precompiling Assets</h3>
+
+<p>Rails comes bundled with a command to compile the asset manifests and other
+files in the pipeline.</p>
+
+<p>Compiled assets are written to the location specified in <a href="configuring.html#config-assets-prefix"><code>config.assets.prefix</code></a>.
+By default, this is the <code>/assets</code> directory.</p>
+
+<p>You can call this command on the server during deployment to create compiled
+versions of your assets directly on the server. See the next section for
+information on compiling locally.</p>
+
+<p>The command is:</p>
+
+<pre class="code bash"><code class="bash">$ RAILS_ENV=production rails assets:precompile
+</code></pre>
+
+<p>This links the folder specified in <code>config.assets.prefix</code> to <code>shared/assets</code>.
+If you already use this shared folder you&#39;ll need to write your own deployment
+command.</p>
+
+<p>It is important that this folder is shared between deployments so that remotely
+cached pages referencing the old compiled assets still work for the life of
+the cached page.</p>
+
+<p>NOTE. Always specify an expected compiled filename that ends with <code>.js</code> or <code>.css</code>.</p>
+
+<p>The command also generates a <code>.sprockets-manifest-randomhex.json</code> (where <code>randomhex</code> is
+a 16-byte random hex string) that contains a list with all your assets and their respective
+fingerprints. This is used by the Rails helper methods to avoid handing the
+mapping requests back to Sprockets. A typical manifest file looks like this:</p>
+
+<pre class="code json"><code class="json">{&quot;files&quot;:{&quot;application-&lt;fingerprint&gt;.js&quot;:{&quot;logical_path&quot;:&quot;application.js&quot;,&quot;mtime&quot;:&quot;2016-12-23T20:12:03-05:00&quot;,&quot;size&quot;:412383,
+&quot;digest&quot;:&quot;&lt;fingerprint&gt;&quot;,&quot;integrity&quot;:&quot;sha256-&lt;random-string&gt;&quot;}},
+&quot;assets&quot;:{&quot;application.js&quot;:&quot;application-&lt;fingerprint&gt;.js&quot;}}
+</code></pre>
+
+<p>In your application, there will be more files and assets listed in the manifest,
+<code>&lt;fingerprint&gt;</code> and <code>&lt;random-string&gt;</code> will also be generated.</p>
+
+<p>The default location for the manifest is the root of the location specified in
+<code>config.assets.prefix</code> (&#39;/assets&#39; by default).</p>
+
+<p>NOTE: If there are missing precompiled files in production you will get a
+<code>Sprockets::Helpers::RailsHelper::AssetPaths::AssetNotPrecompiledError</code>
+exception indicating the name of the missing file(s).</p>
+
+<h4>Far-future Expires Header</h4>
+
+<p>Precompiled assets exist on the file system and are served directly by your web
+server. They do not have far-future headers by default, so to get the benefit of
+fingerprinting you&#39;ll have to update your server configuration to add those
+headers.</p>
+
+<p>For Apache:</p>
+
+<pre class="code apache"><code class="apache"># The Expires* directives requires the Apache module
+# `mod_expires` to be enabled.
+&lt;Location /assets/&gt;
+  # Use of ETag is discouraged when Last-Modified is present
+  Header unset ETag
+  FileETag None
+  # RFC says only cache for 1 year
+  ExpiresActive On
+  ExpiresDefault &quot;access plus 1 year&quot;
+&lt;/Location&gt;
+</code></pre>
+
+<p>For NGINX:</p>
+
+<pre class="code nginx"><code class="nginx">location ~ ^/assets/ {
+  expires 1y;
+  add_header Cache-Control public;
+
+  add_header ETag &quot;&quot;;
+}
+</code></pre>
+
+<h3>Local Precompilation</h3>
+
+<p>Sometimes, you may not want or be able to compile assets on the production
+server. For instance, you may have limited write access to your production
+filesystem, or you may plan to deploy frequently without making any changes to
+your assets.</p>
+
+<p>In such cases, you can precompile assets <em>locally</em> — that is, add a finalized
+set of compiled, production-ready assets to your source code repository before
+pushing to production. This way, they do not need to be precompiled separately
+on the production server upon each deployment.</p>
+
+<p>As above, you can perform this step using</p>
+
+<pre class="code bash"><code class="bash">$ RAILS_ENV=production rails assets:precompile
+</code></pre>
+
+<p>Note the following caveats:</p>
+
+<ul>
+<li><p>If precompiled assets are available, they will be served — even if they no
+longer match the original (uncompiled) assets, <em>even on the development
+server.</em></p>
+
+<p>To ensure that the development server always compiles assets on-the-fly (and
+thus always reflects the most recent state of the code), the development
+environment <em>must be configured to keep precompiled assets in a different
+location than production does.</em> Otherwise, any assets precompiled for use in
+production will clobber requests for them in development (<em>i.e.,</em> subsequent
+changes you make to assets will not be reflected in the browser).</p>
+
+<p>You can do this by adding the following line to
+<code>config/environments/development.rb</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_assets'>assets</span>.<span class='id identifier rubyid_prefix'>prefix</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>/dev-assets</span><span class='tstring_end'>&quot;</span></span></code></pre></li>
+<li><p>The asset precompile task in your deployment tool (<em>e.g.,</em> Capistrano) should
+be disabled.</p></li>
+<li><p>Any necessary compressors or minifiers must be available on your development
+system.</p></li>
+</ul>
+
+<p>You can also set <code>ENV["SECRET_KEY_BASE_DUMMY"]</code> to trigger the use of a randomly
+generated <code>secret_key_base</code> that&#39;s stored in a temporary file. This is useful
+when precompiling assets for production as part of a build step that otherwise
+does not need access to the production secrets.</p>
+
+<pre class="code bash"><code class="bash">$ SECRET_KEY_BASE_DUMMY=1 bundle exec rails assets:precompile
+</code></pre>
+
+<h3>Live Compilation</h3>
+
+<p>In some circumstances you may wish to use live compilation. In this mode all
+requests for assets in the pipeline are handled by Sprockets directly.</p>
+
+<p>To enable this option set:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_assets'>assets</span>.<span class='id identifier rubyid_compile'>compile</span> <span class='op'>=</span> <span class='kw'>true</span></code></pre>
+
+<p>On the first request the assets are compiled and cached as outlined in <a href="#assets-cache-store">Assets
+Cache Store</a>, and the manifest names used in the helpers
+are altered to include the SHA256 hash.</p>
+
+<p>Sprockets also sets the <code>Cache-Control</code> HTTP header to <code>max-age=31536000</code>. This
+signals all caches between your server and the client browser that this content
+(the file served) can be cached for 1 year. The effect of this is to reduce the
+number of requests for this asset from your server; the asset has a good chance
+of being in the local browser cache or some intermediate cache.</p>
+
+<p>This mode uses more memory, performs more poorly than the default, and is not
+recommended.</p>
+
+<h3>CDNs</h3>
+
+<p>CDN stands for <a href="https://en.wikipedia.org/wiki/Content_delivery_network">Content Delivery
+Network</a>, they are
+primarily designed to cache assets all over the world so that when a browser
+requests the asset, a cached copy will be geographically close to that browser.
+If you are serving assets directly from your Rails server in production, the
+best practice is to use a CDN in front of your application.</p>
+
+<p>A common pattern for using a CDN is to set your production application as the
+&quot;origin&quot; server. This means when a browser requests an asset from the CDN and
+there is a cache miss, it will grab the file from your server on the fly and
+then cache it. For example if you are running a Rails application on
+<code>example.com</code> and have a CDN configured at <code>mycdnsubdomain.fictional-cdn.com</code>,
+then when a request is made to <code>mycdnsubdomain.fictional-cdn.com/assets/smile.png</code>,
+the CDN will query your server once at
+<code>example.com/assets/smile.png</code> and cache the request. The next request to the
+CDN that comes in to the same URL will hit the cached copy. When the CDN can
+serve an asset directly the request never touches your Rails server. Since the
+assets from a CDN are geographically closer to the browser, the request is
+faster, and since your server doesn&#39;t need to spend time serving assets, it can
+focus on serving application code as fast as possible.</p>
+
+<h4>Set up a CDN to Serve Static Assets</h4>
+
+<p>To set up your CDN you have to have your application running in production on
+the internet at a publicly available URL, for example <code>example.com</code>. Next
+you&#39;ll need to sign up for a CDN service from a cloud hosting provider. When you
+do this you need to configure the &quot;origin&quot; of the CDN to point back at your
+website <code>example.com</code>. Check your provider for documentation on configuring the
+origin server.</p>
+
+<p>The CDN you provisioned should give you a custom subdomain for your application
+such as <code>mycdnsubdomain.fictional-cdn.com</code> (note fictional-cdn.com is not a
+valid CDN provider at the time of this writing). Now that you have configured
+your CDN server, you need to tell browsers to use your CDN to grab assets
+instead of your Rails server directly. You can do this by configuring Rails to
+set your CDN as the asset host instead of using a relative path. To set your
+asset host in Rails, you need to set <a href="configuring.html#config-asset-host"><code>config.asset_host</code></a> in
+<code>config/environments/production.rb</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_asset_host'>asset_host</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>mycdnsubdomain.fictional-cdn.com</span><span class='tstring_end'>&#39;</span></span></code></pre>
+
+<p>NOTE: You only need to provide the &quot;host&quot;, this is the subdomain and root
+domain, you do not need to specify a protocol or &quot;scheme&quot; such as <code>http://</code> or
+<code>https://</code>. When a web page is requested, the protocol in the link to your asset
+that is generated will match how the webpage is accessed by default.</p>
+
+<p>You can also set this value through an <a href="https://en.wikipedia.org/wiki/Environment_variable">environment
+variable</a> to make running a
+staging copy of your site easier:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_asset_host'>asset_host</span> <span class='op'>=</span> <span class='const'>ENV</span>[<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>CDN_HOST</span><span class='tstring_end'>&#39;</span></span>]</code></pre>
+
+<p>NOTE: You would need to set <code>CDN_HOST</code> on your server to <code>mycdnsubdomain
+.fictional-cdn.com</code> for this to work.</p>
+
+<p>Once you have configured your server and your CDN, asset paths from helpers such
+as:</p>
+
+<pre class="code xml"><code class="xml">&lt;%= asset_path(&#39;smile.png&#39;) %&gt;
+</code></pre>
+
+<p>Will be rendered as full CDN URLs like <code>http://mycdnsubdomain.fictional-cdn.com/assets/smile.png</code>
+(digest omitted for readability).</p>
+
+<p>If the CDN has a copy of <code>smile.png</code>, it will serve it to the browser, and your
+server doesn&#39;t even know it was requested. If the CDN does not have a copy, it
+will try to find it at the &quot;origin&quot; <code>example.com/assets/smile.png</code>, and then store
+it for future use.</p>
+
+<p>If you want to serve only some assets from your CDN, you can use custom <code>:host</code>
+option your asset helper, which overwrites value set in
+<a href="configuring.html#config-action-controller-asset-host"><code>config.action_controller.asset_host</code></a>.</p>
+
+<pre class="code xml"><code class="xml">&lt;%= asset_path &#39;image.png&#39;, host: &#39;mycdnsubdomain.fictional-cdn.com&#39; %&gt;
+</code></pre>
+
+<h4>Customize CDN Caching Behavior</h4>
+
+<p>A CDN works by caching content. If the CDN has stale or bad content, then it is
+hurting rather than helping your application. The purpose of this section is to
+describe general caching behavior of most CDNs. Your specific provider may
+behave slightly differently.</p>
+
+<h5>CDN Request Caching</h5>
+
+<p>While a CDN is described as being good for caching assets, it actually caches the
+entire request. This includes the body of the asset as well as any headers. The
+most important one being <code>Cache-Control</code>, which tells the CDN (and web browsers)
+how to cache contents. This means that if someone requests an asset that does
+not exist, such as <code>/assets/i-dont-exist.png</code>, and your Rails application returns a 404,
+then your CDN will likely cache the 404 page if a valid <code>Cache-Control</code> header
+is present.</p>
+
+<h5>CDN Header Debugging</h5>
+
+<p>One way to check the headers are cached properly in your CDN is by using <a href="https://explainshell.com/explain?cmd=curl+-I+http%3A%2F%2Fwww.example.com">curl</a>. You
+can request the headers from both your server and your CDN to verify they are
+the same:</p>
+
+<pre class="code bash"><code class="bash">$ curl -I http://www.example/assets/application-
+d0e099e021c95eb0de3615fd1d8c4d83.css
+HTTP/1.1 200 OK
+Server: Cowboy
+Date: Sun, 24 Aug 2014 20:27:50 GMT
+Connection: keep-alive
+Last-Modified: Thu, 08 May 2014 01:24:14 GMT
+Content-Type: text/css
+Cache-Control: public, max-age=2592000
+Content-Length: 126560
+Via: 1.1 vegur
+</code></pre>
+
+<p>Versus the CDN copy:</p>
+
+<pre class="code bash"><code class="bash">$ curl -I http://mycdnsubdomain.fictional-cdn.com/application-
+d0e099e021c95eb0de3615fd1d8c4d83.css
+HTTP/1.1 200 OK Server: Cowboy Last-
+Modified: Thu, 08 May 2014 01:24:14 GMT Content-Type: text/css
+Cache-Control:
+public, max-age=2592000
+Via: 1.1 vegur
+Content-Length: 126560
+Accept-Ranges:
+bytes
+Date: Sun, 24 Aug 2014 20:28:45 GMT
+Via: 1.1 varnish
+Age: 885814
+Connection: keep-alive
+X-Served-By: cache-dfw1828-DFW
+X-Cache: HIT
+X-Cache-Hits:
+68
+X-Timer: S1408912125.211638212,VS0,VE0
+</code></pre>
+
+<p>Check your CDN documentation for any additional information they may provide
+such as <code>X-Cache</code> or for any additional headers they may add.</p>
+
+<h5>CDNs and the Cache-Control Header</h5>
+
+<p>The <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control"><code>Cache-Control</code></a> header describes how a request can be cached. When no CDN is used, a
+browser will use this information to cache contents. This is very helpful for
+assets that are not modified so that a browser does not need to re-download a
+website&#39;s CSS or JavaScript on every request. Generally we want our Rails server
+to tell our CDN (and browser) that the asset is &quot;public&quot;. That means any cache
+can store the request. Also we commonly want to set <code>max-age</code> which is how long
+the cache will store the object before invalidating the cache. The <code>max-age</code>
+value is set to seconds with a maximum possible value of <code>31536000</code>, which is one
+year. You can do this in your Rails application by setting</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_public_file_server'>public_file_server</span>.<span class='id identifier rubyid_headers'>headers</span> <span class='op'>=</span> {
+  <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Cache-Control</span><span class='tstring_end'>&#39;</span></span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>public, max-age=31536000</span><span class='tstring_end'>&#39;</span></span>
+}</code></pre>
+
+<p>Now when your application serves an asset in production, the CDN will store the
+asset for up to a year. Since most CDNs also cache headers of the request, this
+<code>Cache-Control</code> will be passed along to all future browsers seeking this asset.
+The browser then knows that it can store this asset for a very long time before
+needing to re-request it.</p>
+
+<h5>CDNs and URL-based Cache Invalidation</h5>
+
+<p>Most CDNs will cache contents of an asset based on the complete URL. This means
+that a request to</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_http'>http</span><span class='symbeg'>:</span><span class='op'>/</span><span class='op'>/</span><span class='id identifier rubyid_mycdnsubdomain'>mycdnsubdomain</span>.<span class='id identifier rubyid_fictional'>fictional</span><span class='op'>-</span><span class='id identifier rubyid_cdn'>cdn</span>.<span class='id identifier rubyid_com'>com</span><span class='op'>/</span><span class='id identifier rubyid_assets'>assets</span><span class='op'>/</span><span class='id identifier rubyid_smile'>smile</span><span class='op'>-</span><span class='int'>123</span>.<span class='id identifier rubyid_png'>png</span></code></pre>
+
+<p>Will be a completely different cache from</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_http'>http</span><span class='symbeg'>:</span><span class='op'>/</span><span class='op'>/</span><span class='id identifier rubyid_mycdnsubdomain'>mycdnsubdomain</span>.<span class='id identifier rubyid_fictional'>fictional</span><span class='op'>-</span><span class='id identifier rubyid_cdn'>cdn</span>.<span class='id identifier rubyid_com'>com</span><span class='op'>/</span><span class='id identifier rubyid_assets'>assets</span><span class='op'>/</span><span class='id identifier rubyid_smile'>smile</span>.<span class='id identifier rubyid_png'>png</span></code></pre>
+
+<p>If you want to set far future <code>max-age</code> in your <code>Cache-Control</code> (and you do),
+then make sure when you change your assets that your cache is invalidated. For
+example when changing the smiley face in an image from yellow to blue, you want
+all visitors of your site to get the new blue face. When using a CDN with the
+Rails asset pipeline <code>config.assets.digest</code> is set to true by default so that
+each asset will have a different file name when it is changed. This way you
+don&#39;t have to ever manually invalidate any items in your cache. By using a
+different unique asset name instead, your users get the latest asset.</p>
+
+<h2>Customizing the Pipeline</h2>
+
+<h3>CSS Compression</h3>
+
+<p>One of the options for compressing CSS is YUI. The <a href="https://yui.github.io/yuicompressor/css.html">YUI CSS
+compressor</a> provides
+minification.</p>
+
+<p>The following line enables YUI compression, and requires the <code>yui-compressor</code>
+gem.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_assets'>assets</span>.<span class='id identifier rubyid_css_compressor'>css_compressor</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_yui'>yui</span></code></pre>
+
+<h3>JavaScript Compression</h3>
+
+<p>Possible options for JavaScript compression are <code>:terser</code>, <code>:closure</code> and
+<code>:yui</code>. These require the use of the <code>terser</code>, <code>closure-compiler</code> or
+<code>yui-compressor</code> gems, respectively.</p>
+
+<p>Take the <code>terser</code> gem, for example.
+This gem wraps <a href="https://github.com/terser/terser">Terser</a> (written for
+Node.js) in Ruby. It compresses your code by removing white space and comments,
+shortening local variable names, and performing other micro-optimizations such
+as changing <code>if</code> and <code>else</code> statements to ternary operators where possible.</p>
+
+<p>The following line invokes <code>terser</code> for JavaScript compression.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_assets'>assets</span>.<span class='id identifier rubyid_js_compressor'>js_compressor</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_terser'>terser</span></code></pre>
+
+<p>NOTE: You will need an <a href="https://github.com/rails/execjs#readme">ExecJS</a>
+supported runtime in order to use <code>terser</code>. If you are using macOS or
+Windows you have a JavaScript runtime installed in your operating system.</p>
+
+<p>NOTE: The JavaScript compression will also work for your JavaScript files when you are loading your assets through <code>importmap-rails</code> or <code>jsbundling-rails</code> gems.</p>
+
+<h3>GZipping your assets</h3>
+
+<p>By default, gzipped version of compiled assets will be generated, along with
+the non-gzipped version of assets. Gzipped assets help reduce the transmission
+of data over the wire. You can configure this by setting the <code>gzip</code> flag.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_assets'>assets</span>.<span class='id identifier rubyid_gzip'>gzip</span> <span class='op'>=</span> <span class='kw'>false</span> <span class='comment'># disable gzipped assets generation</span></code></pre>
+
+<p>Refer to your web server&#39;s documentation for instructions on how to serve gzipped assets.</p>
+
+<h3>Using Your Own Compressor</h3>
+
+<p>The compressor config settings for CSS and JavaScript also take any object.
+This object must have a <code>compress</code> method that takes a string as the sole
+argument and it must return a string.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Transformer</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_compress'>compress</span>(<span class='id identifier rubyid_string'>string</span>)
+    <span class='id identifier rubyid_do_something_returning_a_string'>do_something_returning_a_string</span>(<span class='id identifier rubyid_string'>string</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>To enable this, pass a new object to the config option in <code>application.rb</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_assets'>assets</span>.<span class='id identifier rubyid_css_compressor'>css_compressor</span> <span class='op'>=</span> <span class='const'>Transformer</span>.<span class='id identifier rubyid_new'>new</span></code></pre>
+
+<h3>Changing the <em>assets</em> Path</h3>
+
+<p>The public path that Sprockets uses by default is <code>/assets</code>.</p>
+
+<p>This can be changed to something else:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_assets'>assets</span>.<span class='id identifier rubyid_prefix'>prefix</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>/some_other_path</span><span class='tstring_end'>&quot;</span></span></code></pre>
+
+<p>This is a handy option if you are updating an older project that didn&#39;t use the
+asset pipeline and already uses this path or you wish to use this path for
+a new resource.</p>
+
+<h3>X-Sendfile Headers</h3>
+
+<p>The X-Sendfile header is a directive to the web server to ignore the response
+from the application, and instead serve a specified file from disk. This option
+is off by default, but can be enabled if your server supports it. When enabled,
+this passes responsibility for serving the file to the web server, which is
+faster. Have a look at <a href="https://api.rubyonrails.org/classes/ActionController/DataStreaming.html#method-i-send_file">send_file</a>
+on how to use this feature.</p>
+
+<p>Apache and NGINX support this option, which can be enabled in
+<code>config/environments/production.rb</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config.action_dispatch.x_sendfile_header = &quot;X-Sendfile&quot; # for Apache
+</span><span class='comment'># config.action_dispatch.x_sendfile_header = &#39;X-Accel-Redirect&#39; # for NGINX</span></code></pre>
+
+<p>WARNING: If you are upgrading an existing application and intend to use this
+option, take care to paste this configuration option only into <code>production.rb</code>
+and any other environments you define with production behavior (not
+<code>application.rb</code>).</p>
+
+<p>TIP: For further details have a look at the docs of your production web server:</p>
+
+<ul>
+<li><a href="https://tn123.org/mod_xsendfile/">Apache</a></li>
+<li><a href="https://www.nginx.com/resources/wiki/start/topics/examples/xsendfile/">NGINX</a></li>
+</ul>
+
+<h2>Assets Cache Store</h2>
+
+<p>By default, Sprockets caches assets in <code>tmp/cache/assets</code> in development
+and production environments. This can be changed as follows:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_assets'>assets</span>.<span class='id identifier rubyid_configure'>configure</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_env'>env</span><span class='op'>|</span>
+  <span class='id identifier rubyid_env'>env</span>.<span class='id identifier rubyid_cache'>cache</span> <span class='op'>=</span> <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/Cache.html" title="ActiveSupport::Cache (module)">Cache</a></span>.<span class='id identifier rubyid_lookup_store'><a href="ActiveSupport/Cache.html#lookup_store-class_method" title="ActiveSupport::Cache.lookup_store (method)">lookup_store</a></span>(<span class='symbeg'>:</span><span class='id identifier rubyid_memory_store'>memory_store</span><span class='comma'>,</span>
+                                                { <span class='label'>size:</span> <span class='int'>32</span>.<span class='id identifier rubyid_megabytes'>megabytes</span> })
+<span class='kw'>end</span></code></pre>
+
+<p>To disable the assets cache store:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_assets'>assets</span>.<span class='id identifier rubyid_configure'>configure</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_env'>env</span><span class='op'>|</span>
+  <span class='id identifier rubyid_env'>env</span>.<span class='id identifier rubyid_cache'>cache</span> <span class='op'>=</span> <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/Cache.html" title="ActiveSupport::Cache (module)">Cache</a></span>.<span class='id identifier rubyid_lookup_store'><a href="ActiveSupport/Cache.html#lookup_store-class_method" title="ActiveSupport::Cache.lookup_store (method)">lookup_store</a></span>(<span class='symbeg'>:</span><span class='id identifier rubyid_null_store'>null_store</span>)
+<span class='kw'>end</span></code></pre>
+
+<h2>Adding Assets to Your Gems</h2>
+
+<p>Assets can also come from external sources in the form of gems.</p>
+
+<p>A good example of this is the <code>jquery-rails</code> gem.
+This gem contains an engine class which inherits from <a href="Rails/Engine.html" title="Rails::Engine (class)"><code>::Rails::Engine</code></a>.
+By doing this, Rails is informed that the directory for this
+gem may contain assets and the <code>app/assets</code>, <code>lib/assets</code> and
+<code>vendor/assets</code> directories of this engine are added to the search path of
+Sprockets.</p>
+
+<h2>Making Your Library or Gem a Pre-Processor</h2>
+
+<p>Sprockets uses Processors, Transformers, Compressors, and Exporters to extend
+Sprockets functionality. Have a look at
+[Extending Sprockets])
+to learn more. Here we registered a preprocessor to add a comment to the end
+of text/css (<code>.css</code>) files.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'>AddComment</span>
+  <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_call'>call</span>(<span class='id identifier rubyid_input'>input</span>)
+    { <span class='label'>data:</span> <span class='id identifier rubyid_input'>input</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_data'>data</span>] <span class='op'>+</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>/* Hello From my sprockets extension */</span><span class='tstring_end'>&quot;</span></span> }
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Now that you have a module that modifies the input data, it&#39;s time to register
+it as a preprocessor for your MIME type.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Sprockets</span>.<span class='id identifier rubyid_register_preprocessor'>register_preprocessor</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>text/css</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='const'>AddComment</span></code></pre>
+
+<h2>Alternative Libraries</h2>
+
+<p>Over the years there have been multiple default approaches for handling the assets. The web evolved and we started to see more and more JavaScript-heavy applications. In The Rails Doctrine we believe that <a href="https://rubyonrails.org/doctrine#omakase">The Menu Is Omakase</a> so we focused on the default setup: <strong>Sprockets with Import Maps</strong>.</p>
+
+<p>We are aware that there are no one-size-fits-it-all solutions for the various JavaScript and CSS frameworks/extensions available. There are other bundling libraries in the Rails ecosystem that should empower you in the cases where the default setup isn&#39;t enough.</p>
+
+<h3>jsbundling-rails</h3>
+
+<p><a href="https://github.com/rails/jsbundling-rails"><code>jsbundling-rails</code></a> is a JavaScript run-time dependent alternative to the <code>importmap-rails</code> way of bundling JS with <a href="https://bun.sh">Bun</a>, <a href="https://esbuild.github.io/">esbuild</a>, <a href="https://rollupjs.org/">rollup.js</a>, or <a href="https://webpack.js.org/">Webpack</a>.</p>
+
+<p>The gem provides a build task in <code>package.json</code> to watch for changes and automatically generate output in development. For production, it automatically hooks <code>javascript:build</code> task into <code>assets:precompile</code> task to ensure that all your package dependencies have been installed and JavaScript has been built for all entry points.</p>
+
+<p><strong>When to use instead of <code>importmap-rails</code>?</strong> If your JavaScript code depends on transpiling so if you are using <a href="https://babeljs.io/">Babel</a>, <a href="https://www.typescriptlang.org/">TypeScript</a> or React JSX format then <code>jsbundling-rails</code> is the correct way to go.</p>
+
+<h3>Webpacker/Shakapacker</h3>
+
+<p><a href="https://github.com/rails/webpacker"><code>Webpacker</code></a> was the default JavaScript pre-processor and bundler for Rails 5 and 6. It has now been retired. A successor called <a href="https://github.com/shakacode/shakapacker"><code>shakapacker</code></a> exists, but is not maintained by the Rails team or project.</p>
+
+<p>Unlike other libraries in this list <code>webpacker</code>/<code>shakapacker</code> is completely independent of Sprockets and could process both JavaScript and CSS files.</p>
+
+<p>NOTE: Read the [Comparison with Webpacker]) document to understand the differences between <code>jsbundling-rails</code> and <code>webpacker</code>/<code>shakapacker</code>.</p>
+
+<h3>cssbundling-rails</h3>
+
+<p><a href="https://github.com/rails/cssbundling-rails"><code>cssbundling-rails</code></a> allows bundling and processing of your CSS using <a href="https://tailwindcss.com/">Tailwind CSS</a>, <a href="https://getbootstrap.com/">Bootstrap</a>, <a href="https://bulma.io/">Bulma</a>, <a href="https://postcss.org/">PostCSS</a>, or <a href="https://sass-lang.com/">Dart Sass</a>, then delivers the CSS via the asset pipeline.</p>
+
+<p>It works in a similar way to <code>jsbundling-rails</code> so adds the Node.js dependency to your application with <code>yarn build:css --watch</code> process to regenerate your stylesheets in development and hooks into <code>assets:precompile</code> task in production.</p>
+
+<p><strong>What&#39;s the difference between Sprockets?</strong> Sprockets on its own is not able to transpile the Sass into CSS, Node.js is required to generate the <code>.css</code> files from your <code>.sass</code>  files. Once the <code>.css</code> files are generated then Sprockets is able to deliver them to your clients.</p>
+
+<p>NOTE: <code>cssbundling-rails</code> relies on Node to process the CSS. The <code>dartsass-rails</code> and <code>tailwindcss-rails</code> gems use standalone versions of Tailwind CSS and Dart Sass, meaning no Node dependency. If you are using <code>importmap-rails</code> to handle your JavaScripts and <code>dartsass-rails</code> or <code>tailwindcss-rails</code> for CSS you could completely avoid the Node dependency resulting in a less complex solution.</p>
+
+<h3>dartsass-rails</h3>
+
+<p>If you want to use <a href="https://sass-lang.com/">Sass</a> in your application, <a href="https://github.com/rails/dartsass-rails"><code>dartsass-rails</code></a> comes as a replacement for the legacy <code>sassc-rails</code> gem. <code>dartsass-rails</code> uses the Dart Sass implementation in favour of deprecated in 2020 <a href="https://sass-lang.com/blog/libsass-is-deprecated">LibSass</a> used by <code>sassc-rails</code>.</p>
+
+<p>Unlike <code>sassc-rails</code> the new gem is not directly integrated with Sprockets. Please refer to the <a href="https://github.com/rails/dartsass-rails">gem homepage</a> for installation/migration instructions.</p>
+
+<p>WARNING: The popular <code>sassc-rails</code> gem is unmaintained since 2019.</p>
+
+<h3>tailwindcss-rails</h3>
+
+<p><a href="https://github.com/rails/tailwindcss-rails"><code>tailwindcss-rails</code></a> is a wrapper gem for <a href="https://tailwindcss.com/blog/standalone-cli">the standalone executable version</a> of Tailwind CSS v3 framework. Used for new applications when <code>--css tailwind</code> is provided to the <code>rails new</code> command. Provides a <code>watch</code> process to automatically generate Tailwind output in development. For production it hooks into <code>assets:precompile</code> task.</p>
+
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>

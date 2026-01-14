@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen' content='yes'>
+<meta name='mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Overview-of-racc &mdash; racc  Ruby-3.3.10 p183</title>
+
+<link rel='stylesheet'  type='text/css' href='../../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "Overview-of-racc",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='../.'>Ruby-3.3.10</a> &raquo; 
+      <a href='.'>racc</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Overview-of-racc&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<p>This post follows from <a href="https://github.com/tenderlove/rexical/wiki/Overview-of-rexical-part-2">Overview of rexical part 2</a>. Taken from Jeff Nyman&#39;s <a href="http://webcache.googleusercontent.com/search?q=cache:http://testerstories.com/2012/06/a-tester-learns-rex-and-racc-part-3/&num=1&strip=1&vwsrc=0">blog post</a>.</p>
+
+<h1>Combining rexical and racc</h1>
+
+<p>Assuming you’ve been following along, you’ve broken your input into a stream of tokens. Now you need some way to recognize higher-level patterns. This is where <a href="Racc.html" title="Racc (module)"><code>Racc</code></a> comes in: <a href="Racc.html" title="Racc (module)"><code>Racc</code></a> lets you describe what you want to do with those tokens. That’s what I’ll be covering here: how the parser works with the lexer.</p>
+
+<p>You already know that you define a lexer specification with a rex file. This generates a lexer class. In a very similar fashion, you define a grammar with a racc file. This generates a parser class. If you want your own parser, you have to write grammar file. In the last post we started creating a new simple language to handle calculations of numbers. The language will consist of <code>ADD (+)</code>, <code>SUBTRACT (-)</code>, <code>MULTIPLY (*)</code>, and <code>DIVISION (/)</code>. Those operators are given as the symbol identifier as well as the actual symbol that maps to that identifier. The language also supports the notion of <code>DIGIT</code>. A <code>DIGIT</code> token must come before and after an operator. So there’s our language. Now we want to try to evaluate the code of this new language.</p>
+
+<p>You have to create a grammar file. The first part of this file, as with the Rex specification file, is a class block. In your project directory, create a file called <code>test_language.y</code>. This will be our grammar file. As with the start of our Rex file, we’ll use our class:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>TestLanguage</span>
+
+<span class='kw'>end</span></code></pre>
+
+<p>Then you will have a grammar block. In Rex, the grammar block is a way to specify the patterns for specific symbols. In Racc, the grammar block describes grammar that can be understood by the parser. As with Rex specification files, we’ll eventually add a rule clause to signify our grammar block. In fact, this clause will mark the start of what are called the “production rules.” To fill in these rules, you have to understand the Racc grammar. So let’s just look at the basics before we try to fill in our nascent grammar file.</p>
+
+<p>A grammar rule has the form:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_some'>some</span>  <span class='op'>:</span>  <span class='const'>THING</span>  <span class='semicolon'>;</span></code></pre>
+
+<p>The symbols produced by a lexer are called terminals or tokens. The things assembled from them are called non-terminals. So in this schematic, ‘some’ represents a non-terminal while ‘THING’ is a terminal. So ‘THING’ must have been produced by the lexer and ‘some’ can only be created by assembling it from terminals. Here’s an example:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_value'>value</span> <span class='op'>:</span> <span class='const'>DIGIT</span> <span class='semicolon'>;</span></code></pre>
+
+<p>This means a construct called a value (a non-terminal) can be built up from a DIGIT (a terminal). Here’s another example:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_expression'>expression</span> <span class='op'>:</span> <span class='id identifier rubyid_value'>value</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>+</span><span class='tstring_end'>&#39;</span></span> <span class='id identifier rubyid_value'>value</span> <span class='semicolon'>;</span></code></pre>
+
+<p>Here an expression can be built up from two values (which we know are DIGITS) and a plus sign. You can specify alternatives as well:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_expression'>expression</span> <span class='op'>:</span> <span class='id identifier rubyid_value'>value</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>+</span><span class='tstring_end'>&#39;</span></span> <span class='id identifier rubyid_value'>value</span> <span class='op'>|</span> <span class='id identifier rubyid_value'>value</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>-</span><span class='tstring_end'>&#39;</span></span> <span class='id identifier rubyid_value'>value</span> <span class='semicolon'>;</span></code></pre>
+
+<p>Some people like to space all this out for better readability:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_expression'>expression</span>
+  <span class='op'>:</span>
+    <span class='id identifier rubyid_value'>value</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>+</span><span class='tstring_end'>&#39;</span></span> <span class='id identifier rubyid_value'>value</span>
+  <span class='op'>|</span> <span class='id identifier rubyid_value'>value</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>-</span><span class='tstring_end'>&#39;</span></span> <span class='id identifier rubyid_value'>value</span>
+<span class='semicolon'>;</span></code></pre>
+
+<p>There’s a lot of terminology coming your way here so, for now, just understand that terminals are all the basic symbols or tokens of which a given language is composed. Non-terminals are the syntactic variables in the grammar which represent a set of strings that the grammar is composed of. The general style used is to have all terminals in uppercase and all non-terminals in lowercase.</p>
+
+<p>As with Rex grammar, you can write actions inside curly braces. These actions are, once again, Ruby code. Since Racc needs tokens upon which to operate, Racc expects to call a method that yields tokens, where each token is a two element array with the first element being the type of token (matching the token declaration) and the second element the actual value of the token, which will usually be the actual text. This is a lot easier to show than talk about, although in reality it’s not so different from what you’ve seen with Rex files. So here’s an example:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_expression'>expression</span> <span class='op'>:</span> <span class='id identifier rubyid_value'>value</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>+</span><span class='tstring_end'>&#39;</span></span> <span class='id identifier rubyid_value'>value</span> { <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Performing addition.</span><span class='tstring_end'>&quot;</span></span> }</code></pre>
+
+<p>But I could also do this:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_expression'>expression</span> <span class='op'>:</span> <span class='id identifier rubyid_value'>value</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>+</span><span class='tstring_end'>&#39;</span></span> <span class='id identifier rubyid_value'>value</span> { <span class='id identifier rubyid_result'>result</span> <span class='op'>=</span> <span class='id identifier rubyid_val'>val</span>[<span class='int'>0</span>] <span class='op'>+</span> <span class='id identifier rubyid_val'>val</span>[<span class='int'>2</span>] }</code></pre>
+
+<p>If you ever read documentation on yacc, you’ll see mention of variables like <code>$$</code> and <code>$1</code> and so on. The equivalent of the above in yacc would be:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_expression'>expression</span> <span class='op'>:</span> <span class='id identifier rubyid_value'>value</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>+</span><span class='tstring_end'>&#39;</span></span> <span class='id identifier rubyid_value'>value</span> { <span class='gvar'>$$</span> <span class='op'>=</span> <span class='backref'>$1</span> <span class='op'>+</span> <span class='backref'>$3</span><span class='semicolon'>;</span> }</code></pre>
+
+<p>Here yacc’s <code>$$</code> is racc’s <code>result</code>, while yacc’s <code>$0</code>, <code>$1</code> would be the array <code>val</code>. Since Ruby is zero based, that’s why <code>$1</code> is <code>val[0]</code>. Okay, so let’s put this stuff to use. Change your grammar file so it looks like this:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>TestLanguage</span>
+  <span class='id identifier rubyid_rule'>rule</span>
+    <span class='id identifier rubyid_expression'>expression</span> <span class='op'>:</span> <span class='const'>DIGIT</span>
+    <span class='op'>|</span> <span class='const'>DIGIT</span> <span class='const'>ADD</span> <span class='const'>DIGIT</span>    { <span class='kw'>return</span> <span class='id identifier rubyid_val'>val</span>[<span class='int'>0</span>] <span class='op'>+</span> <span class='id identifier rubyid_val'>val</span>[<span class='int'>2</span>] }
+<span class='kw'>end</span></code></pre>
+
+<p>What I’m basically saying here is that something I want to call an “expression” can be recognized if it’s a <code>DIGIT</code> or a <code>DIGIT ADD DIGIT</code>. From the lexer file, we know that <code>DIGIT</code> is going to correspond to an array like this: <code>[:DIGIT, text.to_i]</code>. We know that <code>ADD</code> is going to correspond to an array like this <code>[:ADD, text]</code>. Further, we know that <code>DIGIT</code> means <code>\d+</code> (i.e., any group of numbers) and <code>ADD</code> means <code>\+</code> (i.e., the literal plus sign). I’m also saying that when <code>DIGIT</code> is encountered nothing should happen. There is no action provided for that. But if <code>DIGIT ADD DIGIT</code> is encountered, then I want a return value provided, which is the addition of the first <code>DIGIT</code> with the second <code>DIGIT</code>.</p>
+
+<p>In order to compile this file, you can use the following command:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_racc'>racc</span> <span class='id identifier rubyid_test_language'>test_language</span>.<span class='id identifier rubyid_y'>y</span> <span class='op'>-</span><span class='id identifier rubyid_o'>o</span> <span class='id identifier rubyid_parser'>parser</span>.<span class='id identifier rubyid_rb'>rb</span></code></pre>
+
+<p>To make that process more streamlined, let’s add a task to our Rakefile:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_desc'>desc</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Generate Parser</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_task'>task</span> <span class='symbeg'>:</span><span class='id identifier rubyid_parser'>parser</span> <span class='kw'>do</span>
+  <span class='backtick'>`</span><span class='tstring_content'>racc test_language.y -o parser.rb</span><span class='tstring_end'>`</span></span>
+<span class='kw'>end</span></code></pre>
+
+<p>Now you can just type <code>rake parser</code> to generate the parser just as you can type <code>rake lexer</code> to generate the lexer. In fact, you might always want to force both things to happen, in which case you can add this task:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_desc'>desc</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Generate Lexer and Parser</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_task'>task</span> <span class='symbeg'>:</span><span class='id identifier rubyid_generate'>generate</span> <span class='op'>=&gt;</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_lexer'>lexer</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_parser'>parser</span>]</code></pre>
+
+<p>So how do we test this? Let’s create a file in our spec directory called <code>language_parser_spec.rb</code> and add the following to it:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>./parser.rb</span><span class='tstring_end'>&#39;</span></span>
+
+<span class='kw'>class</span> <span class='const'>TestLanguageParser</span>
+  <span class='id identifier rubyid_describe'>describe</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Testing the Parser</span><span class='tstring_end'>&#39;</span></span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_before'>before</span> <span class='kw'>do</span>
+      <span class='ivar'>@evaluator</span> <span class='op'>=</span> <span class='const'>TestLanguage</span>.<span class='id identifier rubyid_new'>new</span>
+    <span class='kw'>end</span>
+
+    <span class='id identifier rubyid_it'>it</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>tests for a digit</span><span class='tstring_end'>&#39;</span></span> <span class='kw'>do</span>
+      <span class='ivar'>@result</span> <span class='op'>=</span> <span class='ivar'>@evaluator</span>.<span class='id identifier rubyid_parse'>parse</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>2</span><span class='tstring_end'>&quot;</span></span>)
+      <span class='ivar'>@result</span>.<span class='id identifier rubyid_should'>should</span> <span class='op'>==</span> <span class='int'>2</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Structurally you can see that this is similar to the test format we established in our <code>language_lexer_spec.rb</code> file. Running this test will tell you that there is no parse method. That’s true. Just as we added a tokenize method to our rex specification, we have to add a parse method to our grammar file. Here’s how you can do that:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>TestLanguage</span>
+<span class='id identifier rubyid_rule'>rule</span>
+  <span class='id identifier rubyid_expression'>expression</span> <span class='op'>:</span> <span class='const'>DIGIT</span>
+  <span class='op'>|</span> <span class='const'>DIGIT</span> <span class='const'>ADD</span> <span class='const'>DIGIT</span>   { <span class='kw'>return</span> <span class='id identifier rubyid_val'>val</span>[<span class='int'>0</span>] <span class='op'>+</span> <span class='id identifier rubyid_val'>val</span>[<span class='int'>2</span>] }
+<span class='kw'>end</span>
+
+<span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span> <span class='id identifier rubyid_inner'>inner</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_parse'>parse</span>(<span class='id identifier rubyid_input'>input</span>)
+    <span class='id identifier rubyid_scan_str'>scan_str</span>(<span class='id identifier rubyid_input'>input</span>)
+  <span class='kw'>end</span></code></pre>
+
+<p>Once again, we use an inner section just as we did with our rex specification. Notice a few major differences here, though. First, you must preface the section with four hyphens (-). Also, notice that the inner section is <strong>OUTSIDE</strong> of the class block. This is different from the rex specification where the inner section was inside the class block. Make sure to regenerate your files and then run the test again. Now you will be told that the <code>scan_str</code> method is undefined. This method is defined in the lexer and so you have to add another section to your grammar file:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>TestLanguage</span>
+<span class='id identifier rubyid_rule'>rule</span>
+  <span class='id identifier rubyid_expression'>expression</span> <span class='op'>:</span> <span class='const'>DIGIT</span>
+  <span class='op'>|</span> <span class='const'>DIGIT</span> <span class='const'>ADD</span> <span class='const'>DIGIT</span>   { <span class='kw'>return</span> <span class='id identifier rubyid_val'>val</span>[<span class='int'>0</span>] <span class='op'>+</span> <span class='id identifier rubyid_val'>val</span>[<span class='int'>2</span>] }
+<span class='kw'>end</span>
+
+<span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span> <span class='id identifier rubyid_header'>header</span>
+  <span class='id identifier rubyid_require_relative'>require_relative</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>lexer</span><span class='tstring_end'>&#39;</span></span>
+
+<span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span> <span class='id identifier rubyid_inner'>inner</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_parse'>parse</span>(<span class='id identifier rubyid_input'>input</span>)
+    <span class='id identifier rubyid_scan_str'>scan_str</span>(<span class='id identifier rubyid_input'>input</span>)
+  <span class='kw'>end</span></code></pre>
+
+<p>If you regenerate and run your test, the parser test should pass. However, we have not made it do a calculation yet. So add the following test:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'>#...
+</span>    <span class='id identifier rubyid_it'>it</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>tests for addition</span><span class='tstring_end'>&#39;</span></span> <span class='kw'>do</span>
+      <span class='ivar'>@result</span> <span class='op'>=</span> <span class='ivar'>@evaluator</span>.<span class='id identifier rubyid_parse'>parse</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>2+2</span><span class='tstring_end'>&quot;</span></span>)
+      <span class='ivar'>@result</span>.<span class='id identifier rubyid_should'>should</span> <span class='op'>==</span> <span class='int'>4</span>
+    <span class='kw'>end</span>
+<span class='comment'>#...</span></code></pre>
+
+<p>If that’s working for you, congratulations! You now have the start of a working language. Granted, it’s just a calculator example but let’s not leave it just doing addition. You can fill out the rest of the grammar file as such:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>TestLanguage</span>
+<span class='id identifier rubyid_rule'>rule</span>
+  <span class='id identifier rubyid_expression'>expression</span> <span class='op'>:</span> <span class='const'>DIGIT</span>
+  <span class='op'>|</span> <span class='const'>DIGIT</span> <span class='const'>ADD</span> <span class='const'>DIGIT</span>       { <span class='kw'>return</span> <span class='id identifier rubyid_val'>val</span>[<span class='int'>0</span>] <span class='op'>+</span> <span class='id identifier rubyid_val'>val</span>[<span class='int'>2</span>] }
+  <span class='op'>|</span> <span class='const'>DIGIT</span> <span class='const'>SUBTRACT</span> <span class='const'>DIGIT</span>  { <span class='kw'>return</span> <span class='id identifier rubyid_val'>val</span>[<span class='int'>0</span>] <span class='op'>-</span> <span class='id identifier rubyid_val'>val</span>[<span class='int'>2</span>] }
+  <span class='op'>|</span> <span class='const'>DIGIT</span> <span class='const'>MULTIPLY</span> <span class='const'>DIGIT</span>  { <span class='kw'>return</span> <span class='id identifier rubyid_val'>val</span>[<span class='int'>0</span>] <span class='op'>*</span> <span class='id identifier rubyid_val'>val</span>[<span class='int'>2</span>] }
+  <span class='op'>|</span> <span class='const'>DIGIT</span> <span class='const'>DIVIDE</span> <span class='const'>DIGIT</span>    { <span class='kw'>return</span> <span class='id identifier rubyid_val'>val</span>[<span class='int'>0</span>] <span class='op'>/</span> <span class='id identifier rubyid_val'>val</span>[<span class='int'>2</span>] }
+<span class='kw'>end</span>
+
+<span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span> <span class='id identifier rubyid_header'>header</span>
+  <span class='id identifier rubyid_require_relative'>require_relative</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>lexer</span><span class='tstring_end'>&#39;</span></span>
+
+<span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span> <span class='id identifier rubyid_inner'>inner</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_parse'>parse</span>(<span class='id identifier rubyid_input'>input</span>)
+    <span class='id identifier rubyid_scan_str'>scan_str</span>(<span class='id identifier rubyid_input'>input</span>)
+  <span class='kw'>end</span></code></pre>
+
+<p>I’ll leave it as an exercise to fill in the existing tests to prove that the grammar for all calculation types is being read and processed correctly.</p>
+
+<p>This simple example still leaves a lot open. For example, while <code>2+2</code> will work <code>2 + 2</code> (with spaces) will not. This is because your lexer did not specify any white space and thus the parser does not know how to recognize it. Also, what about more complicated expressions? Can I do <code>2+2+2</code>? Try it and you’ll find that it does not. And even if I could support that, how would I handle operator precedence? For example would <code>2+3*2</code> give me <code>8</code>, as it should, or would it instead give me <code>10</code>?</p>
+
+<p>Keep in mind that in order to solve problems like this, you have to account for how your grammar can be constructed. For example, to allow for spaces, you just have to indicate that (1) blank spaces are allowed and (2) that no action occurs when a blank space is matched. In fact, you’ve already seen this in prior examples here. Just add the following to your rex specification file (<code>test_language.rex</code>):</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>TestLanguage</span>
+<span class='id identifier rubyid_macro'>macro</span>
+  <span class='const'>BLANK</span>     [\ <span class='CHAR'>\</span><span class='id identifier rubyid_t'>t</span>]<span class='op'>+</span>
+  <span class='const'>DIGIT</span>     <span class='CHAR'>\</span><span class='id identifier rubyid_d'>d</span><span class='op'>+</span>
+  <span class='const'>ADD</span>       <span class='CHAR'>\</span><span class='op'>+</span>
+  <span class='const'>SUBTRACT</span>  <span class='CHAR'>\</span><span class='op'>-</span>
+  <span class='const'>MULTIPLY</span>  <span class='CHAR'>\</span><span class='op'>*</span>
+  <span class='const'>DIVIDE</span>    <span class='CHAR'>\</span><span class='op'>/</span>
+
+<span class='id identifier rubyid_rule'>rule</span>
+  {<span class='const'>BLANK</span>}      <span class='comment'># no action
+</span>  {<span class='const'>DIGIT</span>}      { [<span class='symbeg'>:</span><span class='const'>DIGIT</span><span class='comma'>,</span> <span class='id identifier rubyid_text'>text</span>.<span class='id identifier rubyid_to_i'>to_i</span>] }
+  {<span class='const'>ADD</span>}        { [<span class='symbeg'>:</span><span class='const'>ADD</span><span class='comma'>,</span> <span class='id identifier rubyid_text'>text</span>] }
+  {<span class='const'>SUBTRACT</span>}   { [<span class='symbeg'>:</span><span class='const'>SUBTRACT</span><span class='comma'>,</span> <span class='id identifier rubyid_text'>text</span>] }
+  {<span class='const'>MULTIPLY</span>}   { [<span class='symbeg'>:</span><span class='const'>MULTIPLY</span><span class='comma'>,</span> <span class='id identifier rubyid_text'>text</span>] }
+  {<span class='const'>DIVIDE</span>}     { [<span class='symbeg'>:</span><span class='const'>DIVIDE</span><span class='comma'>,</span> <span class='id identifier rubyid_text'>text</span>] }
+
+<span class='id identifier rubyid_inner'>inner</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_tokenize'>tokenize</span>(<span class='id identifier rubyid_code'>code</span>)
+    <span class='id identifier rubyid_scan_setup'>scan_setup</span>(<span class='id identifier rubyid_code'>code</span>)
+    <span class='id identifier rubyid_tokens'>tokens</span> <span class='op'>=</span> []
+    <span class='kw'>while</span> <span class='id identifier rubyid_token'>token</span> <span class='op'>=</span> <span class='id identifier rubyid_next_token'>next_token</span>
+      <span class='id identifier rubyid_tokens'>tokens</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_token'>token</span>
+    <span class='kw'>end</span>
+    <span class='id identifier rubyid_tokens'>tokens</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>That simple bit of extra information allows your parser to handle <code>2 + 2</code> as well as it does <code>2+2</code>. The other problems are a little more involved. And with that, perhaps you can see now that even with a simple calculator, it takes some work to get it to do what you want in terms of a language. And yet all programming languages that you work with are ultimately constructed of grammar specified just in the way we have been doing it here.</p>
+
+<p>I’ve learned a lot by trying to figure out how these tools work. One of my goals is to see if I can build an alternative to Gherkin, the language that is used by Cucumber to create what are called feature files. I think this will be a challenging exercise. Beyond that, I can see some good exercises here for constructing test grammars for test description languages. Playing around with concepts like these could, perhaps, lead to some interesting notions about how we communicate about tests.</p>
+
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>

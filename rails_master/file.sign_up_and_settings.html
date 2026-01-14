@@ -1,0 +1,1951 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen' content='yes'>
+<meta name='mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Sign Up and Settings &mdash; Rails main</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "sign_up_and_settings",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>Rails main</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Sign Up and Settings&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<p><strong>DO NOT READ THIS FILE ON GITHUB, GUIDES ARE PUBLISHED ON <a href="https://guides.rubyonrails.org">https://guides.rubyonrails.org</a>.</strong></p>
+
+<h1>Sign Up and Settings</h1>
+
+<p>This guide covers adding Sign Up and Settings to the store e-commerce
+application in the <a href="getting_started.html">Getting Started Guide</a>. We will use
+the final code from that guide as a starting place.</p>
+
+<p>After reading this guide, you will know how to:</p>
+
+<ul>
+<li>Add user Sign Up</li>
+<li>Rate limit controller actions</li>
+<li>Create a nested layout</li>
+<li>Separate controllers by role (users and admins)</li>
+<li>Write tests for users with different roles</li>
+</ul>
+
+<hr>
+
+<h2>Introduction</h2>
+
+<p>One of the most common features to add to any application is a sign up process
+for registering new users. The e-commerce application we&#39;ve built so far only
+has authentication and users must be created in the <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> console or a script.</p>
+
+<p>This feature is required before we can add other features. For example, to let
+users create wishlists, they will need to be able to sign up first before they
+can create a wishlist associated with their account.</p>
+
+<p>Let&#39;s get started!</p>
+
+<h2>Adding Sign Up</h2>
+
+<p>We&#39;ve already used the
+<a href="/getting_started.html#adding-authentication">Rails authentication generator in the Getting Started guide</a>
+to allow users to login to their accounts. The generator created a <code>User</code> model
+with <code>email_address:string</code> and <code>password_digest:string</code> columns in the
+database. It also added <code>has_secure_password</code> to the <code>User</code> model which handles
+passwords and confirmations. This takes care of most of what we need to add sign
+up to our application.</p>
+
+<h3>Adding Names To Users</h3>
+
+<p>It&#39;s also a good idea to collect the user&#39;s name at sign up. This allows us to
+personalize their experience and address them directly in the application. Let&#39;s
+start by adding <code>first_name</code> and <code>last_name</code> columns to the database.</p>
+
+<p>In the terminal, create a migration with these columns:</p>
+
+<pre class="code bash"><code class="bash">$ bin/rails g migration AddNamesToUsers first_name:string last_name:string
+</code></pre>
+
+<p>Then migrate the database:</p>
+
+<pre class="code bash"><code class="bash">$ bin/rails db:migrate
+</code></pre>
+
+<p>Let&#39;s also add a method to combine <code>first_name</code> and <code>last_name</code>, so that we can
+display the user&#39;s full name.</p>
+
+<p>Open <code>app/models/user.rb</code> and add the following:</p>
+
+<pre class="code ruby#7-11"><code class="ruby#7-11">class User &lt; ApplicationRecord
+  has_secure_password
+  has_many :sessions, dependent: :destroy
+
+  normalizes :email_address, with: -&gt;(e) { e.strip.downcase }
+
+  validates :first_name, :last_name, presence: true
+
+  def full_name
+    &quot;#{first_name} #{last_name}&quot;
+  end
+end
+</code></pre>
+
+<p>TIP: <code>has_secure_password</code> only validates the presence of the password. Consider
+adding more validations for password minimum length or complexity to improve
+security.</p>
+
+<p>Next, let&#39;s add sign up so we can register new users.</p>
+
+<h3>Sign Up Routes &amp; Controller</h3>
+
+<p>Now that our database has all the necessary columns to register new users, the
+next step is to create a route for sign up and its matching controller.</p>
+
+<p>In <code>config/routes.rb</code>, let&#39;s add a resource for sign up:</p>
+
+<pre class="code ruby#3"><code class="ruby#3">resource :session
+resources :passwords, param: :token
+resource :sign_up
+</code></pre>
+
+<p>We&#39;re using a singular resource here because we want a singular route for
+<code>/sign_up</code>.</p>
+
+<p>This route directs requests to <code>app/controllers/sign_ups_controller.rb</code> so let&#39;s
+create that controller file now.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>SignUpsController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_show'>show</span>
+    <span class='ivar'>@user</span> <span class='op'>=</span> <span class='const'>User</span>.<span class='id identifier rubyid_new'>new</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>We&#39;re using the <code>show</code> action to create a new <code>User</code> instance, which will be
+used to display the sign up form.</p>
+
+<p>Let&#39;s create the form next. Create <code>app/views/sign_ups/show.html.erb</code> with the
+following code:</p>
+
+<pre class="code xml"><code class="xml">&lt;h1&gt;Sign Up&lt;/h1&gt;
+
+&lt;%= form_with model: @user, url: sign_up_path do |form| %&gt;
+  &lt;% if form.object.errors.any? %&gt;
+    &lt;div&gt;Error: &lt;%= form.object.errors.full_messages.first %&gt;&lt;/div&gt;
+  &lt;% end %&gt;
+
+  &lt;div&gt;
+    &lt;%= form.label :first_name %&gt;
+    &lt;%= form.text_field :first_name, required: true, autofocus: true, autocomplete: &quot;given-name&quot; %&gt;
+  &lt;/div&gt;
+
+  &lt;div&gt;
+    &lt;%= form.label :last_name %&gt;
+    &lt;%= form.text_field :last_name, required: true, autocomplete: &quot;family-name&quot; %&gt;
+  &lt;/div&gt;
+
+  &lt;div&gt;
+    &lt;%= form.label :email_address %&gt;
+    &lt;%= form.email_field :email_address, required: true, autocomplete: &quot;email&quot; %&gt;
+  &lt;/div&gt;
+
+  &lt;div&gt;
+    &lt;%= form.label :password %&gt;
+    &lt;%= form.password_field :password, required: true, autocomplete: &quot;new-password&quot; %&gt;
+  &lt;/div&gt;
+
+  &lt;div&gt;
+    &lt;%= form.label :password_confirmation %&gt;
+    &lt;%= form.password_field :password_confirmation, required: true, autocomplete: &quot;new-password&quot; %&gt;
+  &lt;/div&gt;
+
+  &lt;div&gt;
+    &lt;%= form.submit &quot;Sign up&quot; %&gt;
+  &lt;/div&gt;
+&lt;% end %&gt;
+</code></pre>
+
+<p>This form collects the user&#39;s name, email, and password. We&#39;re using the
+<code>autocomplete</code> attribute to help the browser suggest the values for these fields
+based on the user&#39;s saved information.</p>
+
+<p>You&#39;ll also notice we set <code>url: sign_up_path</code> in the form alongside
+<code>model: @user</code>. Without this <code>url:</code> argument, <code>form_with</code> would see we have a
+<code>User</code> and send the form to <code>/users</code> by default. Since we want the form to
+submit to <code>/sign_up</code>, we set the <code>url:</code> to override the default route.</p>
+
+<p>Back in <code>app/controllers/sign_ups_controller.rb</code> we can handle the form
+submission by adding the <code>create</code> action.</p>
+
+<pre class="code ruby#6-19"><code class="ruby#6-19">class SignUpsController &lt; ApplicationController
+  def show
+    @user = User.new
+  end
+
+  def create
+    @user = User.new(sign_up_params)
+    if @user.save
+      start_new_session_for(@user)
+      redirect_to root_path
+    else
+      render :show, status: :unprocessable_entity
+    end
+  end
+
+  private
+    def sign_up_params
+      params.expect(user: [ :first_name, :last_name, :email_address, :password, :password_confirmation ])
+    end
+end
+</code></pre>
+
+<p>The <code>create</code> action assigns parameters and attempts to save the user to the
+database. If successful, it logs the user in and redirects to <code>root_path</code>,
+otherwise it re-renders the form with errors.</p>
+
+<p>Visit <a href="http://localhost:3000/sign_up">http://localhost:3000/sign_up</a> to try it out.</p>
+
+<h3>Requiring Unauthenticated Access</h3>
+
+<p>Authenticated users can still access <code>SignUpsController</code> and create another
+account while they&#39;re logged in which is confusing.</p>
+
+<p>Let&#39;s fix this by adding a helper to the <code>Authentication</code> module in
+<code>app/controllers/concerns/authentication.rb</code>.</p>
+
+<pre class="code ruby#14-17"><code class="ruby#14-17">module Authentication
+  extend ActiveSupport::Concern
+
+  included do
+    before_action :require_authentication
+    helper_method :authenticated?
+  end
+
+  class_methods do
+    def allow_unauthenticated_access(**options)
+      skip_before_action :require_authentication, **options
+    end
+
+    def unauthenticated_access_only(**options)
+      allow_unauthenticated_access **options
+      before_action -&gt; { redirect_to root_path if authenticated? }, **options
+    end
+
+    # ...
+</code></pre>
+
+<p>The <code>unauthenticated_access_only</code> class method can be used in any controller
+where we want to restrict actions to unauthenticated users only.</p>
+
+<p>We can then use this method at the top of <code>SignUpsController</code>.</p>
+
+<pre class="code ruby#2"><code class="ruby#2">class SignUpsController &lt; ApplicationController
+  unauthenticated_access_only
+
+  # ...
+end
+</code></pre>
+
+<h3>Rate Limiting Sign Up</h3>
+
+<p>Our application will be accessible on the internet so we&#39;re bound to have
+malicious bots and users trying to spam our application. We can add rate
+limiting to sign up to slow down anyone submitting too many requests.</p>
+
+<p>Rails makes this easy with the
+<a href="https://api.rubyonrails.org/classes/ActionController/RateLimiting/ClassMethods.html"><code>rate_limit</code></a>
+method in controllers.</p>
+
+<pre class="code ruby#3"><code class="ruby#3">class SignUpsController &lt; ApplicationController
+  unauthenticated_access_only
+  rate_limit to: 10, within: 3.minutes, only: :create, with: -&gt; { redirect_to sign_up_path, alert: &quot;Try again later.&quot; }
+
+  # ...
+end
+</code></pre>
+
+<p>This will block any form submissions that happen more than 10 times within 3
+minutes.</p>
+
+<h2>Editing Passwords</h2>
+
+<p>Now that users can login, let&#39;s create all the usual places that users would
+expect to update their profile, password, email address, and other settings.</p>
+
+<h3>Using Namespaces</h3>
+
+<p>The Rails authentication generator already created a controller at
+<code>app/controllers/passwords_controller.rb</code> for password resets. This means we
+need to use a different controller for editing passwords of authenticated users.</p>
+
+<p>To prevent conflicts, we can use a feature called <strong>namespaces</strong>. A namespace
+organizes routes, controllers, and views into folders and helps prevent
+conflicts like our two passwords controllers.</p>
+
+<p>We&#39;ll create a namespace called &quot;Settings&quot; to separate out the user and store
+settings from the rest of our application.</p>
+
+<p>In <code>config/routes.rb</code> we can add the Settings namespace along with a resource
+for editing passwords:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_namespace'>namespace</span> <span class='symbeg'>:</span><span class='id identifier rubyid_settings'>settings</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_resource'>resource</span> <span class='symbeg'>:</span><span class='id identifier rubyid_password'>password</span><span class='comma'>,</span> <span class='label'>only:</span> [ <span class='symbeg'>:</span><span class='id identifier rubyid_show'>show</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_update'>update</span> ]
+<span class='kw'>end</span></code></pre>
+
+<p>This will generate a route for <code>/settings/password</code> for editing the current
+user&#39;s password which is separate from the password resets routes at
+<code>/password</code>.</p>
+
+<h3>Adding the Namespaced Passwords Controller &amp; View</h3>
+
+<p>Namespaces also move controllers into a matching module in Ruby. This controller
+will be in a <code>settings</code> folder to match the namespace.</p>
+
+<p>Let&#39;s create the folder and controller at
+<code>app/controllers/settings/passwords_controller.rb</code> and start with the <code>show</code>
+action.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Settings</span><span class='op'>::</span><span class='const'>PasswordsController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_show'>show</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Views also move to a <code>settings</code> folder so let&#39;s create the folder and view at
+<code>app/views/settings/passwords/show.html.erb</code> for this action.</p>
+
+<pre class="code xml"><code class="xml">&lt;h1&gt;Password&lt;/h1&gt;
+
+&lt;%= form_with model: Current.user, url: settings_password_path do |form| %&gt;
+  &lt;% if form.object.errors.any? %&gt;
+    &lt;div&gt;&lt;%= form.object.errors.full_messages.first %&gt;&lt;/div&gt;
+  &lt;% end %&gt;
+
+  &lt;div&gt;
+    &lt;%= form.label :password_challenge %&gt;
+    &lt;%= form.password_field :password_challenge, required: true, autocomplete: &quot;current-password&quot; %&gt;
+  &lt;/div&gt;
+
+  &lt;div&gt;
+    &lt;%= form.label :password %&gt;
+    &lt;%= form.password_field :password, required: true, autocomplete: &quot;new-password&quot; %&gt;
+  &lt;/div&gt;
+
+  &lt;div&gt;
+    &lt;%= form.label :password_confirmation %&gt;
+    &lt;%= form.password_field :password_confirmation, required: true, autocomplete: &quot;new-password&quot; %&gt;
+  &lt;/div&gt;
+
+  &lt;div&gt;
+    &lt;%= form.submit &quot;Update password&quot; %&gt;
+  &lt;/div&gt;
+&lt;% end %&gt;
+</code></pre>
+
+<p>We&#39;ve set the <code>url:</code> argument to ensure the form submits to our namespaced route
+and is processed by the <code>Settings::PasswordsController</code>.</p>
+
+<p>Passing <code>model: Current.user</code> also tells <code>form_with</code> to submit a <code>PATCH</code> request
+to process the form with the <code>update</code> action.</p>
+
+<p>TIP: <code>Current.user</code> comes from
+<a href="https://api.rubyonrails.org/classes/ActiveSupport/CurrentAttributes.html">CurrentAttributes</a>
+which is a per-request attribute which resets automatically before and after
+each request. The Rails authentication generator uses this to keep track of the
+logged in User.</p>
+
+<h3>Safely Updating Passwords</h3>
+
+<p>Let&#39;s add that <code>update</code> action to the controller now.</p>
+
+<pre class="code ruby#5-16"><code class="ruby#5-16">class Settings::PasswordsController &lt; ApplicationController
+  def show
+  end
+
+  def update
+    if Current.user.update(password_params)
+      redirect_to settings_profile_path, status: :see_other, notice: &quot;Your password has been updated.&quot;
+    else
+      render :show, status: :unprocessable_entity
+    end
+  end
+
+  private
+    def password_params
+      params.expect(user: [ :password, :password_confirmation, :password_challenge ]).with_defaults(password_challenge: &quot;&quot;)
+    end
+end
+</code></pre>
+
+<p>For security, we need to ensure that the user is the only one who can update
+their password. The <code>has_secure_password</code> method in our <code>User</code> model provides
+this attribute. If <code>password_challenge</code> is present, it will validate the
+password challenge against the user&#39;s current password in the database to
+confirm it matches.</p>
+
+<p>A malicious user could try deleting the <code>password_challenge</code> field in the
+browser to bypass this validation. To prevent this and ensure the validation
+always runs, we use <code>.with_defaults(password_challenge: &quot;&quot;)</code> to set a default
+value even if the <code>password_challenge</code> parameter is missing.</p>
+
+<p>You can now visit <a href="http://localhost:3000/settings/password">http://localhost:3000/settings/password</a> to update your
+password.</p>
+
+<h3>Renaming The Password Challenge Attribute</h3>
+
+<p>While <code>password_challenge</code> is a good name for our code, users are used to seeing
+&quot;Current password&quot; for this form field. We can rename this with locales in Rails
+to change how this attribute is displayed on the frontend.</p>
+
+<p>Add the following to <code>config/locales/en.yml</code>:</p>
+
+<pre class="code yaml#7-10"><code class="yaml#7-10">en:
+  hello: &quot;Hello world&quot;
+  products:
+    index:
+      title: &quot;Products&quot;
+
+  activerecord:
+    attributes:
+      user:
+        password_challenge: &quot;Current password&quot;
+</code></pre>
+
+<p>To learn more, check out the
+<a href="https://guides.rubyonrails.org/i18n.html#translations-for-active-record-models">I18n Guide</a></p>
+
+<h2>Editing User Profiles</h2>
+
+<p>Next, let&#39;s add a page so users can edit their profile, like updating their
+first and last name.</p>
+
+<h3>Profile Routes &amp; Controller</h3>
+
+<p>In <code>config/routes.rb</code>, add a profile resource under the settings namespace. We
+can also add a root to the namespace to handle any visits to <code>/settings</code> and
+redirect them to profile settings.</p>
+
+<pre class="code ruby#3,5"><code class="ruby#3,5">namespace :settings do
+  resource :password, only: [ :show, :update ]
+  resource :profile, only: [ :show, :update ]
+
+  root to: redirect(&quot;/settings/profile&quot;)
+end
+</code></pre>
+
+<p>Let&#39;s create our controller for editing profiles at
+<code>app/controllers/settings/profiles_controller.rb</code>.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Settings</span><span class='op'>::</span><span class='const'>ProfilesController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_show'>show</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_update'>update</span>
+    <span class='kw'>if</span> <span class='const'>Current</span>.<span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_update'>update</span>(<span class='id identifier rubyid_profile_params'>profile_params</span>)
+      <span class='id identifier rubyid_redirect_to'>redirect_to</span> <span class='id identifier rubyid_settings_profile_path'>settings_profile_path</span><span class='comma'>,</span> <span class='label'>status:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_see_other'>see_other</span><span class='comma'>,</span> <span class='label'>notice:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Your profile was updated successfully.</span><span class='tstring_end'>&quot;</span></span>
+    <span class='kw'>else</span>
+      <span class='id identifier rubyid_render'>render</span> <span class='symbeg'>:</span><span class='id identifier rubyid_show'>show</span><span class='comma'>,</span> <span class='label'>status:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_unprocessable_entity'>unprocessable_entity</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+
+  <span class='id identifier rubyid_private'>private</span>
+    <span class='kw'>def</span> <span class='id identifier rubyid_profile_params'>profile_params</span>
+      <span class='id identifier rubyid_params'>params</span>.<span class='id identifier rubyid_expect'>expect</span>(<span class='label'>user:</span> [ <span class='symbeg'>:</span><span class='id identifier rubyid_first_name'>first_name</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_last_name'>last_name</span> ])
+    <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>This is very similar to the passwords controller but only allows updating the
+user&#39;s profile details like first and last name.</p>
+
+<p>Then create <code>app/views/settings/profiles/show.html.erb</code> to show the edit profile
+form.</p>
+
+<pre class="code xml"><code class="xml">&lt;h1&gt;Profile&lt;/h1&gt;
+
+&lt;%= form_with model: Current.user, url: settings_profile_path do |form| %&gt;
+  &lt;% if form.object.errors.any? %&gt;
+    &lt;div&gt;Error: &lt;%= form.object.errors.full_messages.first %&gt;&lt;/div&gt;
+  &lt;% end %&gt;
+
+  &lt;div&gt;
+    &lt;%= form.label :first_name %&gt;
+    &lt;%= form.text_field :first_name, required: true, autocomplete: &quot;given-name&quot; %&gt;
+  &lt;/div&gt;
+
+  &lt;div&gt;
+    &lt;%= form.label :last_name %&gt;
+    &lt;%= form.text_field :last_name, required: true, autocomplete: &quot;family-name&quot; %&gt;
+  &lt;/div&gt;
+
+  &lt;div&gt;
+    &lt;%= form.submit &quot;Update profile&quot; %&gt;
+  &lt;/div&gt;
+&lt;% end %&gt;
+</code></pre>
+
+<p>You can now visit <a href="http://localhost:3000/settings/profile">http://localhost:3000/settings/profile</a> to update your name.</p>
+
+<h3>Updating Navigation</h3>
+
+<p>Let&#39;s update the navigation to include a link to Settings next to the Log out
+button.</p>
+
+<p>Open <code>app/views/layouts/application.html.erb</code> and update the navbar.</p>
+
+<pre class="code xml"><code class="xml">&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+  &lt;head&gt;
+    &lt;%# ... %&gt;
+  &lt;/head&gt;
+
+  &lt;body&gt;
+    &lt;div class=&quot;notice&quot;&gt;&lt;%= flash[:notice] %&gt;&lt;/div&gt;
+    &lt;div class=&quot;alert&quot;&gt;&lt;%= flash[:alert] %&gt;&lt;/div&gt;
+
+    &lt;nav class=&quot;navbar&quot;&gt;
+      &lt;%= link_to &quot;Home&quot;, root_path %&gt;
+      &lt;% if authenticated? %&gt;
+        &lt;%= link_to &quot;Settings&quot;, settings_root_path %&gt;
+        &lt;%= button_to &quot;Log out&quot;, session_path, method: :delete %&gt;
+      &lt;% else %&gt;
+        &lt;%= link_to &quot;Sign Up&quot;, sign_up_path %&gt;
+        &lt;%= link_to &quot;Login&quot;, new_session_path %&gt;
+      &lt;% end %&gt;
+    &lt;/nav&gt;
+</code></pre>
+
+<p>You&#39;ll now see a Settings link in the navbar when authenticated.</p>
+
+<h3>Settings Layout</h3>
+
+<p>While we&#39;re here, let&#39;s add a new layout for Settings so we can organize them in
+a sidebar. To do this, we&#39;re going to use a
+<a href="layouts_and_rendering.html#using-nested-layouts">Nested Layout</a>.</p>
+
+<p>A nested layout allows you add HTML (like a sidebar) while still rendering the
+application layout. This means we don&#39;t have to duplicate our head tags or
+navigation in our Settings layout.</p>
+
+<p>Let&#39;s create <code>app/views/layouts/settings.html.erb</code> and add the following:</p>
+
+<pre class="code xml"><code class="xml">&lt;%= content_for :content do %&gt;
+  &lt;section class=&quot;settings&quot;&gt;
+    &lt;nav&gt;
+      &lt;h4&gt;Account Settings&lt;/h4&gt;
+      &lt;%= link_to &quot;Profile&quot;, settings_profile_path %&gt;
+      &lt;%= link_to &quot;Password&quot;, settings_password_path %&gt;
+    &lt;/nav&gt;
+
+    &lt;div&gt;
+      &lt;%= yield %&gt;
+    &lt;/div&gt;
+  &lt;/section&gt;
+&lt;% end %&gt;
+
+&lt;%= render template: &quot;layouts/application&quot; %&gt;
+</code></pre>
+
+<p>In the settings layout, we&#39;re providing HTML for the sidebar and telling Rails
+to render the application layout as the parent.</p>
+
+<p>We need to modify the application layout to render the content from the nested
+layout using <code>yield(:content)</code>.</p>
+
+<pre class="code erb#11,23"><code class="erb#11,23">&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+  &lt;head&gt;
+    &lt;%# ... %&gt;
+  &lt;/head&gt;
+
+  &lt;body&gt;
+    &lt;div class=&quot;notice&quot;&gt;&lt;%= flash[:notice] %&gt;&lt;/div&gt;
+    &lt;div class=&quot;alert&quot;&gt;&lt;%= flash[:alert] %&gt;&lt;/div&gt;
+
+    &lt;nav class=&quot;navbar&quot;&gt;
+      &lt;%= link_to &quot;Home&quot;, root_path %&gt;
+      &lt;% if authenticated? %&gt;
+        &lt;%= link_to &quot;Settings&quot;, settings_root_path %&gt;
+        &lt;%= button_to &quot;Log out&quot;, session_path, method: :delete %&gt;
+      &lt;% else %&gt;
+        &lt;%= link_to &quot;Sign Up&quot;, sign_up_path %&gt;
+        &lt;%= link_to &quot;Login&quot;, new_session_path %&gt;
+      &lt;% end %&gt;
+    &lt;/nav&gt;
+
+    &lt;main&gt;
+      &lt;%= content_for?(:content) ? yield(:content) : yield %&gt;
+    &lt;/main&gt;
+  &lt;/body&gt;
+&lt;/html
+</code></pre>
+
+<p>This allows the application controller to be used normally with <code>yield</code> or it
+can be a parent layout if <code>content_for(:content)</code> is used in a nested layout.</p>
+
+<p>We now have two separate <code>&lt;nav&gt;</code> tags, so we need to update our existing CSS
+selectors to avoid conflicts.</p>
+
+<p>To do this, add the <code>.navbar</code> class to these selectors in
+<code>app/assets/stylesheets/application.css</code>.</p>
+
+<pre class="code css#1,11"><code class="css#1,11">nav.navbar {
+  justify-content: flex-end;
+  display: flex;
+  font-size: 0.875em;
+  gap: 0.5rem;
+  max-width: 1024px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+nav.navbar a {
+  display: inline-block;
+}
+</code></pre>
+
+<p>Then add some CSS to display the Settings nav as a sidebar.</p>
+
+<pre class="code css"><code class="css">section.settings {
+  display: flex;
+  gap: 1rem;
+}
+
+section.settings nav {
+  width: 200px;
+}
+
+section.settings nav a {
+  display: block;
+}
+</code></pre>
+
+<p>To use this new layout, we can tell the controller we want to use a specific
+layout. We can add <code>layout &quot;settings&quot;</code> to any controller to change the layout
+that is rendered.</p>
+
+<p>Since we will have many controllers that use this layout, we can create a base
+class to define shared configuration and use inheritance to use them.</p>
+
+<p>Add <code>app/controllers/settings/base_controller.rb</code> and add the following:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Settings</span><span class='op'>::</span><span class='const'>BaseController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
+  <span class='id identifier rubyid_layout'>layout</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>settings</span><span class='tstring_end'>&quot;</span></span>
+<span class='kw'>end</span></code></pre>
+
+<p>Then update <code>app/controllers/settings/passwords_controller.rb</code> to inherit from
+this controller.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Settings</span><span class='op'>::</span><span class='const'>PasswordsController</span> <span class='op'>&lt;</span> <span class='const'>Settings</span><span class='op'>::</span><span class='const'>BaseController</span></code></pre>
+
+<p>And update <code>app/controllers/settings/profiles_controller.rb</code> to inherit from it
+too.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Settings</span><span class='op'>::</span><span class='const'>ProfilesController</span> <span class='op'>&lt;</span> <span class='const'>Settings</span><span class='op'>::</span><span class='const'>BaseController</span></code></pre>
+
+<h2>Deleting Accounts</h2>
+
+<p>Next, let&#39;s add the ability to delete your account. We&#39;ll start by adding
+another namespaced route for account to <code>config/routes.rb</code>.</p>
+
+<pre class="code ruby#4"><code class="ruby#4">namespace :settings do
+  resource :password, only: [ :show, :update ]
+  resource :profile, only: [ :show, :update ]
+  resource :user, only: [ :show, :destroy ]
+
+  root to: redirect(&quot;/settings/profile&quot;)
+end
+</code></pre>
+
+<p>To handle these new routes, create
+<code>app/controllers/settings/users_controller.rb</code> and add the following:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Settings</span><span class='op'>::</span><span class='const'>UsersController</span> <span class='op'>&lt;</span> <span class='const'>Settings</span><span class='op'>::</span><span class='const'>BaseController</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_show'>show</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_destroy'>destroy</span>
+    <span class='id identifier rubyid_terminate_session'>terminate_session</span>
+    <span class='const'>Current</span>.<span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_destroy'>destroy</span>
+    <span class='id identifier rubyid_redirect_to'>redirect_to</span> <span class='id identifier rubyid_root_path'>root_path</span><span class='comma'>,</span> <span class='label'>notice:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Your account has been deleted.</span><span class='tstring_end'>&quot;</span></span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>The controller for deleting accounts is pretty straightforward. We have a <code>show</code>
+action to display the page and a <code>destroy</code> action to logout and delete the user.
+It also inherits from <code>Settings::BaseController</code> so it will use the settings
+layout like the others.</p>
+
+<p>Now let&#39;s add the view at <code>app/views/settings/users/show.html.erb</code> with the
+following:</p>
+
+<pre class="code xml"><code class="xml">&lt;h1&gt;Account&lt;/h1&gt;
+
+&lt;%= button_to &quot;Delete my account&quot;, settings_user_path, method: :delete, data: { turbo_confirm: &quot;Are you sure? This cannot be undone.&quot; } %&gt;
+</code></pre>
+
+<p>And finally, we&#39;ll add a link to Account in the setting layout&#39;s sidebar.</p>
+
+<pre class="code xml"><code class="xml">&lt;%= content_for :content do %&gt;
+  &lt;section class=&quot;settings&quot;&gt;
+    &lt;nav&gt;
+      &lt;h4&gt;Account Settings&lt;/h4&gt;
+      &lt;%= link_to &quot;Profile&quot;, settings_profile_path %&gt;
+      &lt;%= link_to &quot;Password&quot;, settings_password_path %&gt;
+      &lt;%= link_to &quot;Account&quot;, settings_user_path %&gt;
+    &lt;/nav&gt;
+
+    &lt;div&gt;
+      &lt;%= yield %&gt;
+    &lt;/div&gt;
+  &lt;/section&gt;
+&lt;% end %&gt;
+
+&lt;%= render template: &quot;layouts/application&quot; %&gt;
+</code></pre>
+
+<p>That&#39;s it! You can now delete your account.</p>
+
+<h2>Updating Email Addresses</h2>
+
+<p>Occasionally, users need to change the email address on their account. To do
+this safely, we need to store the new email address and send an email to confirm
+the change.</p>
+
+<h3>Adding Unconfirmed Email To Users</h3>
+
+<p>We&#39;ll start by adding a new field to the users table in our database. This will
+store the new email address while we&#39;re waiting for confirmation.</p>
+
+<pre class="code bash"><code class="bash">$ bin/rails g migration AddUnconfirmedEmailToUsers unconfirmed_email:string
+</code></pre>
+
+<p>Then migrate the database.</p>
+
+<pre class="code bash"><code class="bash">$ bin/rails db:migrate
+</code></pre>
+
+<h3>Email Routes &amp; Controller</h3>
+
+<p>Next we can add an email route under the <code>:settings</code> namespace in
+<code>config/routes.rb</code>.</p>
+
+<pre class="code ruby#2"><code class="ruby#2">namespace :settings do
+  resource :email, only: [ :show, :update ]
+  resource :password, only: [ :show, :update ]
+  resource :profile, only: [ :show, :update ]
+  resource :user, only: [ :show, :destroy ]
+
+  root to: redirect(&quot;/settings/profile&quot;)
+end
+</code></pre>
+
+<p>Then we&#39;ll create <code>app/controllers/settings/emails_controller.rb</code> to display
+this.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Settings</span><span class='op'>::</span><span class='const'>EmailsController</span> <span class='op'>&lt;</span> <span class='const'>Settings</span><span class='op'>::</span><span class='const'>BaseController</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_show'>show</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>And finally, we&#39;ll create our view at <code>app/views/settings/emails/show.html.erb</code>:</p>
+
+<pre class="code xml"><code class="xml">&lt;h1&gt;Change Email&lt;/h1&gt;
+
+&lt;%= form_with model: Current.user, url: settings_email_path do |form| %&gt;
+  &lt;% if form.object.errors.any? %&gt;
+    &lt;div&gt;Error: &lt;%= form.object.errors.full_messages.first %&gt;&lt;/div&gt;
+  &lt;% end %&gt;
+
+  &lt;div&gt;
+    &lt;%= form.label :unconfirmed_email, &quot;New email address&quot; %&gt;
+    &lt;%= form.email_field :unconfirmed_email, required: true %&gt;
+  &lt;/div&gt;
+
+  &lt;div&gt;
+    &lt;%= form.label :password_challenge %&gt;
+    &lt;%= form.password_field :password_challenge, required: true, autocomplete: &quot;current-password&quot; %&gt;
+  &lt;/div&gt;
+
+  &lt;div&gt;
+    &lt;%= form.submit &quot;Update email address&quot; %&gt;
+  &lt;/div&gt;
+&lt;% end %&gt;
+</code></pre>
+
+<p>To keep things secure, we need to ask for the new email address and validate
+user&#39;s current password to ensure only the owner of the account can change the
+email.</p>
+
+<p>In our controller, we will validate the current password and save the new email
+address before sending an email to confirm the new email address.</p>
+
+<pre class="code ruby#5-17"><code class="ruby#5-17">class Settings::EmailsController &lt; Settings::BaseController
+  def show
+  end
+
+  def update
+    if Current.user.update(email_params)
+      UserMailer.with(user: Current.user).email_confirmation.deliver_later
+      redirect_to settings_email_path, status: :see_other, notice: &quot;We&#39;ve sent a verification email to #{Current.user.unconfirmed_email}.&quot;
+    else
+      render :show, status: :unprocessable_entity
+    end
+  end
+
+  private
+    def email_params
+      params.expect(user: [ :password_challenge, :unconfirmed_email ]).with_defaults(password_challenge: &quot;&quot;)
+    end
+end
+</code></pre>
+
+<p>This uses the same <code>with_defaults(password_challenge: &quot;&quot;)</code> as
+<code>Settings::PasswordsController</code> to trigger the password challenge validation.</p>
+
+<p>We haven&#39;t created the <code>UserMailer</code> yet, so let&#39;s do that next.</p>
+
+<h3>New Email Confirmation</h3>
+
+<p>Let&#39;s use the mailer generator to create the <code>UserMailer</code> we referenced in
+<code>Settings::EmailsController</code>:</p>
+
+<pre class="code bash"><code class="bash">$ bin/rails generate mailer User email_confirmation
+      create  app/mailers/user_mailer.rb
+      invoke  erb
+      create    app/views/user_mailer
+      create    app/views/user_mailer/email_confirmation.text.erb
+      create    app/views/user_mailer/email_confirmation.html.erb
+      invoke  test_unit
+      create    test/mailers/user_mailer_test.rb
+      create    test/mailers/previews/user_mailer_preview.rb
+</code></pre>
+
+<p>We&#39;ll need to generate a token to include in the email body. Open
+<code>app/models/user.rb</code> and add the following:</p>
+
+<pre class="code ruby#9-15"><code class="ruby#9-15">class User &lt; ApplicationRecord
+  has_secure_password
+  has_many :sessions, dependent: :destroy
+
+  normalizes :email_address, with: -&gt;(e) { e.strip.downcase }
+
+  validates :first_name, :last_name, presence: true
+
+  generates_token_for :email_confirmation, expires_in: 7.days do
+    unconfirmed_email
+  end
+
+  def confirm_email
+    update(email_address: unconfirmed_email, unconfirmed_email: nil)
+  end
+
+  def full_name
+    &quot;#{first_name} #{last_name}&quot;
+  end
+end
+</code></pre>
+
+<p>This adds a token generator we can use for email confirmations. The token
+encodes the unconfirmed email, so it becomes invalid if the email changes or the
+token expires.</p>
+
+<p>Let&#39;s update <code>app/mailers/user_mailer.rb</code> to generate a new token for the email:</p>
+
+<pre class="code ruby#6-9"><code class="ruby#6-9">class UserMailer &lt; ApplicationMailer
+  # Subject can be set in your I18n file at config/locales/en.yml
+  # with the following lookup:
+  #
+  #   en.user_mailer.email_confirmation.subject
+  def email_confirmation
+    @token = params[:user].generate_token_for(:email_confirmation)
+    mail to: params[:user].unconfirmed_email
+  end
+end
+</code></pre>
+
+<p>We&#39;ll include the token in the HTML view at
+<code>app/views/user_mailer/email_confirmation.html.erb</code>:</p>
+
+<pre class="code xml"><code class="xml">&lt;h1&gt;Verify your email address&lt;/h1&gt;
+
+&lt;p&gt;&lt;%= link_to &quot;Confirm your email&quot;, email_confirmation_url(token: @token) %&gt;&lt;/p&gt;
+</code></pre>
+
+<p>And <code>app/views/user_mailer/email_confirmation.text.erb</code>:</p>
+
+<pre class="code erb"><code class="erb">Confirm your email: &lt;%= email_confirmation_url(token: @token) %&gt;
+</code></pre>
+
+<h3>Email Confirmation Controller</h3>
+
+<p>The confirmation email includes a link to our Rails app to verify the email
+change.</p>
+
+<p>Let&#39;s add a route for this to <code>config/routes.rb</code></p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_namespace'>namespace</span> <span class='symbeg'>:</span><span class='id identifier rubyid_email'>email</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_resources'>resources</span> <span class='symbeg'>:</span><span class='id identifier rubyid_confirmations'>confirmations</span><span class='comma'>,</span> <span class='label'>param:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_token'>token</span><span class='comma'>,</span> <span class='label'>only:</span> [ <span class='symbeg'>:</span><span class='id identifier rubyid_show'>show</span> ]
+<span class='kw'>end</span></code></pre>
+
+<p>When a user clicks a link in their email, it will open a browser and make a GET
+request to the app. This means we only need the <code>show</code> action for this
+controller.</p>
+
+<p>Next, add the following to <code>app/controllers/email/confirmations_controller.rb</code></p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Email</span><span class='op'>::</span><span class='const'>ConfirmationsController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
+  <span class='id identifier rubyid_allow_unauthenticated_access'>allow_unauthenticated_access</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_show'>show</span>
+    <span class='id identifier rubyid_user'>user</span> <span class='op'>=</span> <span class='const'>User</span>.<span class='id identifier rubyid_find_by_token_for'>find_by_token_for</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_email_confirmation'>email_confirmation</span><span class='comma'>,</span> <span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_token'>token</span>])
+    <span class='kw'>if</span> <span class='id identifier rubyid_user'>user</span><span class='op'>&amp;.</span><span class='id identifier rubyid_confirm_email'>confirm_email</span>
+      <span class='id identifier rubyid_flash'>flash</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_notice'>notice</span>] <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Your email has been confirmed.</span><span class='tstring_end'>&quot;</span></span>
+    <span class='kw'>else</span>
+      <span class='id identifier rubyid_flash'>flash</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_alert'>alert</span>] <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Invalid token.</span><span class='tstring_end'>&quot;</span></span>
+    <span class='kw'>end</span>
+    <span class='id identifier rubyid_redirect_to'>redirect_to</span> <span class='id identifier rubyid_root_path'>root_path</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>We want to confirm the email address whether the user is authenticated or not,
+so this controller allows unauthenticated access. We use the <code>find_by_token_for</code>
+method to validate the token and look up the matching <code>User</code> record. If
+successful, we call the <code>confirm_email</code> method to update the user&#39;s email and
+reset <code>unconfirmed_email</code> to <code>nil</code>. If the token isn&#39;t valid, the <code>user</code>
+variable will be <code>nil</code>, and we will display an alert message.</p>
+
+<p>Finally, let&#39;s add a link to Email in the settings layout sidebar:</p>
+
+<pre class="code xml"><code class="xml">&lt;%= content_for :content do %&gt;
+  &lt;section class=&quot;settings&quot;&gt;
+    &lt;nav&gt;
+      &lt;h4&gt;Account Settings&lt;/h4&gt;
+      &lt;%= link_to &quot;Profile&quot;, settings_profile_path %&gt;
+      &lt;%= link_to &quot;Email&quot;, settings_email_path %&gt;
+      &lt;%= link_to &quot;Password&quot;, settings_password_path %&gt;
+      &lt;%= link_to &quot;Account&quot;, settings_user_path %&gt;
+    &lt;/nav&gt;
+
+    &lt;div&gt;
+      &lt;%= yield %&gt;
+    &lt;/div&gt;
+  &lt;/section&gt;
+&lt;% end %&gt;
+
+&lt;%= render template: &quot;layouts/application&quot; %&gt;
+</code></pre>
+
+<p>Test out this process by navigating to <a href="http://localhost:3000/settings/email">http://localhost:3000/settings/email</a> and
+updating your email address. Watch the Rails server logs for the email contents
+and open the confirm link in your browser to update the email in the database.</p>
+
+<h2>Separating Admins &amp; Users</h2>
+
+<p>Now that anyone can sign up for an account on our store, we need to
+differentiate between regular users and admins.</p>
+
+<h3>Adding An Admin Flag</h3>
+
+<p>We&#39;ll start by adding a column to the User model.</p>
+
+<pre class="code bash"><code class="bash">$ bin/rails g migration AddAdminToUsers admin:boolean
+</code></pre>
+
+<p>Then migrate the database.</p>
+
+<pre class="code bash"><code class="bash">$ bin/rails db:migrate
+</code></pre>
+
+<p>A <code>User</code> with <code>admin</code> set to <code>true</code> should be able to add and remove products
+and access other administrative areas of the store.</p>
+
+<h3>Readonly Attributes</h3>
+
+<p>We need to be very careful that <code>admin</code> is not editable by any malicious users.
+This is easy enough by keeping the <code>:admin</code> attribute out of any permitted
+parameters list.</p>
+
+<p>Optionally, we can mark the admin attribute as readonly for added security. This
+will tell Rails to raise an error anytime the admin attribute is changed. It can
+still be set when creating a record, but provides an additional layer of
+security against unauthorized changes. You may want to skip this if you&#39;ll be
+changing the admin flag for users often but in our e-commerce store, it&#39;s a
+useful safeguard.</p>
+
+<p>We can add <code>attr_readonly</code> in our model to protect the attribute from updates.</p>
+
+<pre class="code ruby#5"><code class="ruby#5">class User &lt; ApplicationRecord
+  has_secure_password
+  has_many :sessions, dependent: :destroy
+
+  attr_readonly :admin
+
+  # ...
+</code></pre>
+
+<p>When <code>admin</code> is read-only, we have to directly update this in the database
+instead of using Active Record.</p>
+
+<p>Rails has a command called <code>dbconsole</code> that will open a database console where
+we can directly interact with the database using SQL.</p>
+
+<pre class="code bash"><code class="bash">$ bin/rails dbconsole
+SQLite version 3.43.2 2023-10-10 13:08:14
+Enter &quot;.help&quot; for usage hints.
+sqlite&gt;
+</code></pre>
+
+<p>In the SQLite prompt, we can update the admin column for a record using an
+<code>UPDATE</code> statement and using <code>WHERE</code> to filter to a single user ID.</p>
+
+<pre class="code sql"><code class="sql">UPDATE users SET admin=true WHERE users.id=1;
+</code></pre>
+
+<p>To close the SQLite prompt, enter the following command:</p>
+
+<pre class="code ruby"><code class="ruby">.<span class='id identifier rubyid_quit'>quit</span></code></pre>
+
+<h2>Viewing All Users</h2>
+
+<p>As a store admin, we will want to view and manage users for customer support,
+marketing and other use cases.</p>
+
+<p>First, we&#39;ll need to add a route for users in a new <code>store</code> namespace in
+<code>config/routes.rb</code>.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># Admins Only
+</span><span class='id identifier rubyid_namespace'>namespace</span> <span class='symbeg'>:</span><span class='id identifier rubyid_store'>store</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_resources'>resources</span> <span class='symbeg'>:</span><span class='id identifier rubyid_users'>users</span>
+<span class='kw'>end</span></code></pre>
+
+<h3>Adding Admin Only Access</h3>
+
+<p>The controller for users should be accessible to admins only. Before we create
+that controller, let&#39;s create an <code>Authorization</code> module with a class method to
+restrict access to admins only.</p>
+
+<p>Create <code>app/controllers/concerns/authorization.rb</code> with the following code:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'>Authorization</span>
+  <span class='id identifier rubyid_extend'>extend</span> <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/Concern.html" title="ActiveSupport::Concern (module)">Concern</a></span>
+
+  <span class='id identifier rubyid_class_methods'>class_methods</span> <span class='kw'>do</span>
+    <span class='kw'>def</span> <span class='id identifier rubyid_admin_access_only'>admin_access_only</span>(<span class='op'>**</span><span class='id identifier rubyid_options'>options</span>)
+      <span class='id identifier rubyid_before_action'>before_action</span> <span class='tlambda'>-&gt;</span> <span class='tlambeg'>{</span> <span class='id identifier rubyid_redirect_to'>redirect_to</span> <span class='id identifier rubyid_root_path'>root_path</span><span class='comma'>,</span> <span class='label'>alert:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>You aren&#39;t allowed to do that.</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>unless</span> <span class='id identifier rubyid_authenticated?'>authenticated?</span> <span class='op'>&amp;&amp;</span> <span class='const'>Current</span>.<span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_admin?'>admin?</span> }<span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_options'>options</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>To use this module in our controllers, include it in
+<code>app/controllers/application_controller.rb</code></p>
+
+<pre class="code ruby#3"><code class="ruby#3">class ApplicationController &lt; ActionController::Base
+  include Authentication
+  include Authorization
+
+  # ...
+</code></pre>
+
+<p>The <code>Authorization</code> module features can be used in any controller in our app.
+This module provides a home for any additional helpers to manage access for
+admins or other types of roles in the future.</p>
+
+<h3>Users Controller &amp; Views</h3>
+
+<p>First, create a base class for the <code>store</code> namespace at
+<code>app/controllers/store/base_controller.rb</code>.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Store</span><span class='op'>::</span><span class='const'>BaseController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
+  <span class='id identifier rubyid_admin_access_only'>admin_access_only</span>
+  <span class='id identifier rubyid_layout'>layout</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>settings</span><span class='tstring_end'>&quot;</span></span>
+<span class='kw'>end</span></code></pre>
+
+<p>This controller will restrict access to admins only using the
+<code>admin_access_only</code> method we just created. It will also use the same settings
+layout to display the sidebar.</p>
+
+<p>Next, create <code>app/controllers/store/users_controller.rb</code> and add the following:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Store</span><span class='op'>::</span><span class='const'>UsersController</span> <span class='op'>&lt;</span> <span class='const'>Store</span><span class='op'>::</span><span class='const'>BaseController</span>
+  <span class='id identifier rubyid_before_action'>before_action</span> <span class='symbeg'>:</span><span class='id identifier rubyid_set_user'>set_user</span><span class='comma'>,</span> <span class='label'>only:</span> <span class='qsymbols'><span class='qsymbols_beg'>%i[</span><span class='words_sep'> </span><span class='tstring_content'>show</span><span class='words_sep'> </span><span class='tstring_content'>edit</span><span class='words_sep'> </span><span class='tstring_content'>update</span><span class='words_sep'> </span><span class='tstring_content'>destroy</span><span class='words_sep'> </span><span class='tstring_end'>]</span></span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_index'>index</span>
+    <span class='ivar'>@users</span> <span class='op'>=</span> <span class='const'>User</span>.<span class='id identifier rubyid_all'>all</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_show'>show</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_edit'>edit</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_update'>update</span>
+    <span class='kw'>if</span> <span class='ivar'>@user</span>.<span class='id identifier rubyid_update'>update</span>(<span class='id identifier rubyid_user_params'>user_params</span>)
+      <span class='id identifier rubyid_redirect_to'>redirect_to</span> <span class='id identifier rubyid_store_user_path'>store_user_path</span>(<span class='ivar'>@user</span>)<span class='comma'>,</span> <span class='label'>status:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_see_other'>see_other</span><span class='comma'>,</span> <span class='label'>notice:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>User has been updated</span><span class='tstring_end'>&quot;</span></span>
+    <span class='kw'>else</span>
+      <span class='id identifier rubyid_render'>render</span> <span class='symbeg'>:</span><span class='id identifier rubyid_edit'>edit</span><span class='comma'>,</span> <span class='label'>status:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_unprocessable_entity'>unprocessable_entity</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_destroy'>destroy</span>
+  <span class='kw'>end</span>
+
+  <span class='id identifier rubyid_private'>private</span>
+    <span class='kw'>def</span> <span class='id identifier rubyid_set_user'>set_user</span>
+      <span class='ivar'>@user</span> <span class='op'>=</span> <span class='const'>User</span>.<span class='id identifier rubyid_find'>find</span>(<span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span>])
+    <span class='kw'>end</span>
+
+    <span class='kw'>def</span> <span class='id identifier rubyid_user_params'>user_params</span>
+      <span class='id identifier rubyid_params'>params</span>.<span class='id identifier rubyid_expect'>expect</span>(<span class='label'>user:</span> [ <span class='symbeg'>:</span><span class='id identifier rubyid_first_name'>first_name</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_last_name'>last_name</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_email_address'>email_address</span> ])
+    <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>This gives admins the ability to read, update, and destroy users in the
+database.</p>
+
+<p>Next, let&#39;s create the index view at <code>app/views/store/users/index.html.erb</code></p>
+
+<pre class="code xml"><code class="xml">&lt;h1&gt;&lt;%= pluralize @users.count, &quot;user&quot; %&gt;&lt;/h1&gt;
+
+&lt;% @users.each do |user| %&gt;
+  &lt;div&gt;
+    &lt;%= link_to user.full_name, store_user_path(user) %&gt;
+  &lt;/div&gt;
+&lt;% end %&gt;
+</code></pre>
+
+<p>Then, the edit user view at <code>app/views/store/users/edit.html.erb</code>:</p>
+
+<pre class="code xml"><code class="xml">&lt;h1&gt;Edit User&lt;/h1&gt;
+&lt;%= render &quot;form&quot;, user: @user %&gt;
+</code></pre>
+
+<p>And the form partial at <code>app/views/store/users/_form.html.erb</code>:</p>
+
+<pre class="code xml"><code class="xml">&lt;%= form_with model: [ :store, user ] do |form| %&gt;
+  &lt;div&gt;
+    &lt;%= form.label :first_name %&gt;
+    &lt;%= form.text_field :first_name, required: true, autofocus: true, autocomplete: &quot;given-name&quot; %&gt;
+  &lt;/div&gt;
+
+  &lt;div&gt;
+    &lt;%= form.label :last_name %&gt;
+    &lt;%= form.text_field :last_name, required: true, autocomplete: &quot;family-name&quot; %&gt;
+  &lt;/div&gt;
+
+  &lt;div&gt;
+    &lt;%= form.label :email_address %&gt;
+    &lt;%= form.email_field :email_address, required: true, autocomplete: &quot;email&quot; %&gt;
+  &lt;/div&gt;
+
+  &lt;div&gt;
+    &lt;%= form.submit %&gt;
+  &lt;/div&gt;
+&lt;% end %&gt;
+</code></pre>
+
+<p>And finally, the user show view at <code>app/views/store/users/show.html.erb</code>:</p>
+
+<pre class="code xml"><code class="xml">&lt;%= link_to &quot;Back to all users&quot;, store_users_path %&gt;
+
+&lt;h1&gt;&lt;%= @user.full_name %&gt;&lt;/h1&gt;
+&lt;p&gt;&lt;%= @user.email_address %&gt;&lt;/p&gt;
+
+&lt;div&gt;
+  &lt;%= link_to &quot;Edit user&quot;, edit_store_user_path(@user)  %&gt;
+  &lt;%= button_to &quot;Delete user&quot;, store_user_path(@user), method: :delete, data: { turbo_confirm: &quot;Are you sure?&quot; } %&gt;
+&lt;/div&gt;
+</code></pre>
+
+<h3>Settings Navigation</h3>
+
+<p>Next, we want to add this to the Settings sidebar navigation. Since this should
+be only visible to admins, we need to wrap it in a conditional to ensure the
+current user is an admin.</p>
+
+<p>Add the following to the settings layout in
+<code>app/views/layouts/settings.html.erb</code>:</p>
+
+<pre class="code xml"><code class="xml">&lt;%= content_for :content do %&gt;
+  &lt;section class=&quot;settings&quot;&gt;
+    &lt;nav&gt;
+      &lt;h4&gt;Account Settings&lt;/h4&gt;
+      &lt;%= link_to &quot;Profile&quot;, settings_profile_path %&gt;
+      &lt;%= link_to &quot;Email&quot;, settings_email_path %&gt;
+      &lt;%= link_to &quot;Password&quot;, settings_password_path %&gt;
+      &lt;%= link_to &quot;Account&quot;, settings_user_path %&gt;
+
+      &lt;% if Current.user.admin? %&gt;
+        &lt;h4&gt;Store Settings&lt;/h4&gt;
+        &lt;%= link_to &quot;Users&quot;, store_users_path %&gt;
+      &lt;% end %&gt;
+    &lt;/nav&gt;
+
+    &lt;div&gt;
+      &lt;%= yield %&gt;
+    &lt;/div&gt;
+  &lt;/section&gt;
+&lt;% end %&gt;
+
+&lt;%= render template: &quot;layouts/application&quot; %&gt;
+</code></pre>
+
+<h2>Separating Products Controllers</h2>
+
+<p>Now that we have a separation for regular users and admins, we can re-organize
+our Products controller to take advantage of this change. Instead of a single
+controller, we can split the Products controller in two: one public facing and
+one admin facing.</p>
+
+<p>The public facing controller will handle the storefront views and the admin
+controller will handle managing products.</p>
+
+<h3>Public Products Controller</h3>
+
+<p>For the public storefront, we only need to let users view products. This means
+<code>app/controllers/products_controller.rb</code> can be simplified down to the
+following.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ProductsController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
+  <span class='id identifier rubyid_allow_unauthenticated_access'>allow_unauthenticated_access</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_index'>index</span>
+    <span class='ivar'>@products</span> <span class='op'>=</span> <span class='const'>Product</span>.<span class='id identifier rubyid_all'>all</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_show'>show</span>
+    <span class='ivar'>@product</span> <span class='op'>=</span> <span class='const'>Product</span>.<span class='id identifier rubyid_find'>find</span>(<span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span>])
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>We can then adjust the views for the products controller.</p>
+
+<p>First, let&#39;s copy these views to the <code>store</code> namespace since this is where we
+want to manage products for the store.</p>
+
+<pre class="code bash"><code class="bash">$ cp -R app/views/products app/views/store
+</code></pre>
+
+<h3>Clean Up Public Product Views</h3>
+
+<p>Now let&#39;s remove all the create, update and destroy functionality from the
+public product views.</p>
+
+<p>In <code>app/views/products/index.html.erb</code>, let&#39;s remove the link to &quot;New product&quot;.
+We&#39;ll use the Settings area to create new products instead.</p>
+
+<pre class="code diff"><code class="diff">-&lt;%= link_to &quot;New product&quot;, new_product_path if authenticated? %&gt;
+</code></pre>
+
+<p>Remove the Edit and Delete links in <code>app/views/products/show.html.erb</code></p>
+
+<pre class="code diff"><code class="diff">-    &lt;% if authenticated? %&gt;
+-      &lt;%= link_to &quot;Edit&quot;, edit_product_path(@product) %&gt;
+-      &lt;%= button_to &quot;Delete&quot;, @product, method: :delete, data: { turbo_confirm: &quot;Are you sure?&quot; } %&gt;
+-    &lt;% end %&gt;
+</code></pre>
+
+<p>Then remove:</p>
+
+<ul>
+<li><code>app/views/products/new.html.erb</code></li>
+<li><code>app/views/products/edit.html.erb</code></li>
+<li><code>app/views/products/_form.html.erb</code></li>
+</ul>
+
+<h3>Admin Products CRUD</h3>
+
+<p>First, let&#39;s add the namespaced route for products to <code>config/routes.rb</code> and
+also set a root route for this namespace:</p>
+
+<pre class="code ruby#2,5"><code class="ruby#2,5">  namespace :store do
+    resources :products
+    resources :users
+
+    root to: redirect(&quot;/store/products&quot;)
+  end
+</code></pre>
+
+<p>And then update the settings layout navigation in
+<code>app/views/layouts/settings.html.erb</code>:</p>
+
+<pre class="code xml"><code class="xml">&lt;%= content_for :content do %&gt;
+  &lt;section class=&quot;settings&quot;&gt;
+    &lt;nav&gt;
+      &lt;h4&gt;Account Settings&lt;/h4&gt;
+      &lt;%= link_to &quot;Profile&quot;, settings_profile_path %&gt;
+      &lt;%= link_to &quot;Email&quot;, settings_email_path %&gt;
+      &lt;%= link_to &quot;Password&quot;, settings_password_path %&gt;
+      &lt;%= link_to &quot;Account&quot;, settings_user_path %&gt;
+
+      &lt;% if Current.user.admin? %&gt;
+        &lt;h4&gt;Store Settings&lt;/h4&gt;
+        &lt;%= link_to &quot;Products&quot;, store_products_path %&gt;
+        &lt;%= link_to &quot;Users&quot;, store_users_path %&gt;
+      &lt;% end %&gt;
+    &lt;/nav&gt;
+
+    &lt;div&gt;
+      &lt;%= yield %&gt;
+    &lt;/div&gt;
+  &lt;/section&gt;
+&lt;% end %&gt;
+
+&lt;%= render template: &quot;layouts/application&quot; %&gt;
+</code></pre>
+
+<p>Next, create <code>app/controllers/store/products_controller.rb</code> with the following:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Store</span><span class='op'>::</span><span class='const'>ProductsController</span> <span class='op'>&lt;</span> <span class='const'>Store</span><span class='op'>::</span><span class='const'>BaseController</span>
+  <span class='id identifier rubyid_before_action'>before_action</span> <span class='symbeg'>:</span><span class='id identifier rubyid_set_product'>set_product</span><span class='comma'>,</span> <span class='label'>only:</span> <span class='qsymbols'><span class='qsymbols_beg'>%i[</span><span class='words_sep'> </span><span class='tstring_content'>show</span><span class='words_sep'> </span><span class='tstring_content'>edit</span><span class='words_sep'> </span><span class='tstring_content'>update</span><span class='words_sep'> </span><span class='tstring_content'>destroy</span><span class='words_sep'> </span><span class='tstring_end'>]</span></span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_index'>index</span>
+    <span class='ivar'>@products</span> <span class='op'>=</span> <span class='const'>Product</span>.<span class='id identifier rubyid_all'>all</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_show'>show</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_new'>new</span>
+    <span class='ivar'>@product</span> <span class='op'>=</span> <span class='const'>Product</span>.<span class='id identifier rubyid_new'>new</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_create'>create</span>
+    <span class='ivar'>@product</span> <span class='op'>=</span> <span class='const'>Product</span>.<span class='id identifier rubyid_new'>new</span>(<span class='id identifier rubyid_product_params'>product_params</span>)
+    <span class='kw'>if</span> <span class='ivar'>@product</span>.<span class='id identifier rubyid_save'>save</span>
+      <span class='id identifier rubyid_redirect_to'>redirect_to</span> <span class='id identifier rubyid_store_product_path'>store_product_path</span>(<span class='ivar'>@product</span>)
+    <span class='kw'>else</span>
+      <span class='id identifier rubyid_render'>render</span> <span class='symbeg'>:</span><span class='id identifier rubyid_new'>new</span><span class='comma'>,</span> <span class='label'>status:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_unprocessable_entity'>unprocessable_entity</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_edit'>edit</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_update'>update</span>
+    <span class='kw'>if</span> <span class='ivar'>@product</span>.<span class='id identifier rubyid_update'>update</span>(<span class='id identifier rubyid_product_params'>product_params</span>)
+      <span class='id identifier rubyid_redirect_to'>redirect_to</span> <span class='id identifier rubyid_store_product_path'>store_product_path</span>(<span class='ivar'>@product</span>)
+    <span class='kw'>else</span>
+      <span class='id identifier rubyid_render'>render</span> <span class='symbeg'>:</span><span class='id identifier rubyid_edit'>edit</span><span class='comma'>,</span> <span class='label'>status:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_unprocessable_entity'>unprocessable_entity</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_destroy'>destroy</span>
+    <span class='ivar'>@product</span>.<span class='id identifier rubyid_destroy'>destroy</span>
+    <span class='id identifier rubyid_redirect_to'>redirect_to</span> <span class='id identifier rubyid_store_products_path'>store_products_path</span>
+  <span class='kw'>end</span>
+
+  <span class='id identifier rubyid_private'>private</span>
+    <span class='kw'>def</span> <span class='id identifier rubyid_set_product'>set_product</span>
+      <span class='ivar'>@product</span> <span class='op'>=</span> <span class='const'>Product</span>.<span class='id identifier rubyid_find'>find</span>(<span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span>])
+    <span class='kw'>end</span>
+
+    <span class='kw'>def</span> <span class='id identifier rubyid_product_params'>product_params</span>
+      <span class='id identifier rubyid_params'>params</span>.<span class='id identifier rubyid_expect'>expect</span>(<span class='label'>product:</span> [ <span class='symbeg'>:</span><span class='id identifier rubyid_name'>name</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_description'>description</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_featured_image'>featured_image</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_inventory_count'>inventory_count</span> ])
+    <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>This controller is almost the same as <code>ProductsController</code> previously, but two
+important changes:</p>
+
+<ol>
+<li>We have <code>admin_access_only</code> to restrict access to admin users only.</li>
+<li>Redirects use the <code>store</code> namespace to keep the user in the store settings
+area.</li>
+</ol>
+
+<h3>Updating Admin Product Views</h3>
+
+<p>The admin views need some tweaks to work inside the <code>store</code> namespace.</p>
+
+<p>First, let&#39;s fix the form in <code>app/views/store/products/_form.html.erb</code> by
+updating the <code>model:</code> argument to use the <code>store</code> namespace.</p>
+
+<pre class="code xml"><code class="xml">&lt;%= form_with model: [ :store, product ] do |form| %&gt;
+  &lt;%# ... %&gt;
+</code></pre>
+
+<p>Then we can remove the <code>authenticated?</code> check from
+<code>app/views/store/products/index.html.erb</code> and use the <code>store</code> namespace for
+links:</p>
+
+<pre class="code xml"><code class="xml">&lt;h1&gt;&lt;%= t &quot;.title&quot; %&gt;&lt;/h1&gt;
+
+&lt;%= link_to &quot;New product&quot;, new_store_product_path %&gt;
+
+&lt;div id=&quot;products&quot;&gt;
+  &lt;% @products.each do |product| %&gt;
+    &lt;div&gt;
+      &lt;%= link_to product.name, store_product_path(product) %&gt;
+    &lt;/div&gt;
+  &lt;% end %&gt;
+&lt;/div&gt;
+</code></pre>
+
+<p>Since this view is now in the <code>store</code> namespace, the h1 tag&#39;s relative
+translation cannot be found. We can add another translation to
+<code>config/locales/en.yml</code> to fix this:</p>
+
+<pre class="code yaml#7-10"><code class="yaml#7-10">en:
+  hello: &quot;Hello world&quot;
+  products:
+    index:
+      title: &quot;Products&quot;
+
+  store:
+    products:
+      index:
+        title: &quot;Products&quot;
+
+  activerecord:
+    attributes:
+      user:
+        password_challenge: &quot;Current password&quot;
+</code></pre>
+
+<p>We need to update the Cancel link to use the <code>store</code> namespace in
+<code>app/views/store/products/new.html.erb</code>:</p>
+
+<pre class="code xml"><code class="xml">&lt;h1&gt;New product&lt;/h1&gt;
+
+&lt;%= render &quot;form&quot;, product: @product %&gt;
+&lt;%= link_to &quot;Cancel&quot;, store_products_path %&gt;
+</code></pre>
+
+<p>Do the same in <code>app/views/store/products/edit.html.erb</code>:</p>
+
+<pre class="code xml"><code class="xml">&lt;h1&gt;Edit product&lt;/h1&gt;
+
+&lt;%= render &quot;form&quot;, product: @product %&gt;
+&lt;%= link_to &quot;Cancel&quot;, store_product_path(@product) %&gt;
+</code></pre>
+
+<p>Update <code>app/views/store/products/show.html.erb</code> with the following:</p>
+
+<pre class="code xml"><code class="xml">&lt;p&gt;&lt;%= link_to &quot;Back&quot;, store_products_path %&gt;&lt;/p&gt;
+
+&lt;section class=&quot;product&quot;&gt;
+  &lt;%= image_tag @product.featured_image if @product.featured_image.attached? %&gt;
+
+  &lt;section class=&quot;product-info&quot;&gt;
+    &lt;% cache @product do %&gt;
+      &lt;h1&gt;&lt;%= @product.name %&gt;&lt;/h1&gt;
+      &lt;%= @product.description %&gt;
+    &lt;% end %&gt;
+
+    &lt;%= link_to &quot;View in Storefront&quot;, @product %&gt;
+    &lt;%= link_to &quot;Edit&quot;, edit_store_product_path(@product) %&gt;
+    &lt;%= button_to &quot;Delete&quot;, [ :store, @product ], method: :delete, data: { turbo_confirm: &quot;Are you sure?&quot; } %&gt;
+  &lt;/section&gt;
+&lt;/section&gt;
+</code></pre>
+
+<p>This updates the <code>show</code> action so that:</p>
+
+<ul>
+<li>Links now use to the <code>store</code> namespace.</li>
+<li>A &quot;View in Storefront&quot; link is added to make it easier for admins to see how a
+product looks to the public.</li>
+<li>The inventory partial is removed since that&#39;s only useful on the public
+storefront.</li>
+</ul>
+
+<p>Since we&#39;re not using the <code>_inventory.html.erb</code> partial in the admin area, let&#39;s
+remove it:</p>
+
+<pre class="code bash"><code class="bash">$ rm app/views/store/products/_inventory.html.erb
+</code></pre>
+
+<h2>Adding Tests</h2>
+
+<p>Let&#39;s add some tests to verify that our features work correctly.</p>
+
+<h3>Authentication Test Helpers</h3>
+
+<p>In our test suite, we&#39;ll need to sign in users in our tests. The Rails
+authentication generator has been updated to include helpers for authentication,
+but your application may have been created before this, so let&#39;s ensure these
+files exist before writing our tests.</p>
+
+<p>In <code>test/test_helpers/session_test_helper.rb</code>, you should see the following. If
+you don&#39;t, go ahead and create this file.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'>SessionTestHelper</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_sign_in_as'>sign_in_as</span>(<span class='id identifier rubyid_user'>user</span>)
+    <span class='const'>Current</span>.<span class='id identifier rubyid_session'>session</span> <span class='op'>=</span> <span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_sessions'>sessions</span>.<span class='id identifier rubyid_create!'>create!</span>
+
+    <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/TestRequest.html" title="ActionDispatch::TestRequest (class)">TestRequest</a></span>.<span class='id identifier rubyid_create'><a href="ActionDispatch/TestRequest.html#create-class_method" title="ActionDispatch::TestRequest.create (method)">create</a></span>.<span class='id identifier rubyid_cookie_jar'>cookie_jar</span>.<span class='id identifier rubyid_tap'>tap</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_cookie_jar'>cookie_jar</span><span class='op'>|</span>
+      <span class='id identifier rubyid_cookie_jar'>cookie_jar</span>.<span class='id identifier rubyid_signed'>signed</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_session_id'>session_id</span>] <span class='op'>=</span> <span class='const'>Current</span>.<span class='id identifier rubyid_session'>session</span>.<span class='id identifier rubyid_id'>id</span>
+      <span class='id identifier rubyid_cookies'>cookies</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>session_id</span><span class='tstring_end'>&quot;</span></span>] <span class='op'>=</span> <span class='id identifier rubyid_cookie_jar'>cookie_jar</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_session_id'>session_id</span>]
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_sign_out'>sign_out</span>
+    <span class='const'>Current</span>.<span class='id identifier rubyid_session'>session</span><span class='op'>&amp;.</span><span class='id identifier rubyid_destroy!'>destroy!</span>
+    <span class='id identifier rubyid_cookies'>cookies</span>.<span class='id identifier rubyid_delete'>delete</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>session_id</span><span class='tstring_end'>&quot;</span></span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+
+<span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span>.<span class='id identifier rubyid_on_load'><a href="ActiveSupport/LazyLoadHooks.html#on_load-instance_method" title="ActiveSupport::LazyLoadHooks#on_load (method)">on_load</a></span>(<span class='symbeg'>:</span><span class='id identifier rubyid_action_dispatch_integration_test'>action_dispatch_integration_test</span>) <span class='kw'>do</span>
+  <span class='id identifier rubyid_include'>include</span> <span class='const'>SessionTestHelper</span>
+<span class='kw'>end</span></code></pre>
+
+<p>In <code>test/test_helper.rb</code>, you should see these lines. If not, go ahead and add
+them.</p>
+
+<pre class="code ruby#4,8"><code class="ruby#4,8">ENV[&quot;RAILS_ENV&quot;] ||= &quot;test&quot;
+require_relative &quot;../config/environment&quot;
+require &quot;rails/test_help&quot;
+require_relative &quot;test_helpers/session_test_helper&quot;
+
+module ActiveSupport
+  class TestCase
+    include SessionTestHelper
+
+    # Run tests in parallel with specified workers
+    parallelize(workers: :number_of_processors)
+
+    # Setup all fixtures in test/fixtures/*.yml for all tests in alphabetical order.
+    fixtures :all
+
+    # Add more helper methods to be used by all tests here...
+  end
+end
+</code></pre>
+
+<h3>Testing Sign Up</h3>
+
+<p>We have a few different things to test for sign up. Let&#39;s start with a simple
+test to view the page.</p>
+
+<p>Create a controller test at <code>test/controllers/sign_ups_controller_test.rb</code> with
+the following:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>test_helper</span><span class='tstring_end'>&quot;</span></span>
+
+<span class='kw'>class</span> <span class='const'>SignUpsControllerTest</span> <span class='op'>&lt;</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/IntegrationTest.html" title="ActionDispatch::IntegrationTest (class)">IntegrationTest</a></span>
+  <span class='id identifier rubyid_test'>test</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>view sign up</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_get'>get</span> <span class='id identifier rubyid_sign_up_path'>sign_up_path</span>
+    <span class='id identifier rubyid_assert_response'>assert_response</span> <span class='symbeg'>:</span><span class='id identifier rubyid_success'>success</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>This test will visit <code>/sign_up</code> and ensure that it receives a 200 OK response.</p>
+
+<p>Let&#39;s run the test and see if it passes:</p>
+
+<pre class="code bash"><code class="bash">$ bin/rails test test/controllers/sign_ups_controller_test.rb:4
+Running 1 tests in a single process (parallelization threshold is 50)
+Run options: --seed 5967
+
+# Running:
+
+.
+
+Finished in 0.559107s, 1.7886 runs/s, 1.7886 assertions/s.
+1 runs, 1 assertions, 0 failures, 0 errors, 0 skips
+</code></pre>
+
+<p>Next, let&#39;s sign in a user and try to visit the sign up page. In this situation,
+the user should be redirected because they&#39;re already authenticated.</p>
+
+<p>Add the following test to the file.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_test'>test</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>view sign up when authenticated</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_sign_in_as'>sign_in_as</span> <span class='id identifier rubyid_users'>users</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_one'>one</span>)
+  <span class='id identifier rubyid_get'>get</span> <span class='id identifier rubyid_sign_up_path'>sign_up_path</span>
+  <span class='id identifier rubyid_assert_redirected_to'>assert_redirected_to</span> <span class='id identifier rubyid_root_path'>root_path</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Run the tests again and you should see this one passes too.</p>
+
+<p>Next, let&#39;s add a test to ensure a new user is created when they fill out the
+form.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_test'>test</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>successful sign up</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_assert_difference'>assert_difference</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>User.count</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_post'>post</span> <span class='id identifier rubyid_sign_up_path'>sign_up_path</span><span class='comma'>,</span> <span class='label'>params:</span> { <span class='label'>user:</span> { <span class='label'>first_name:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Example</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>last_name:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>User</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>email_address:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>example@user.org</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>password:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>password</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>password_confirmation:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>password</span><span class='tstring_end'>&quot;</span></span> } }
+    <span class='id identifier rubyid_assert_redirected_to'>assert_redirected_to</span> <span class='id identifier rubyid_root_path'>root_path</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>For this test, we need submit params with a POST request to test the <code>create</code>
+action.</p>
+
+<p>Let&#39;s also test with invalid data to ensure the controller returns an error.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_test'>test</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>invalid sign up</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_assert_no_difference'>assert_no_difference</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>User.count</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_post'>post</span> <span class='id identifier rubyid_sign_up_path'>sign_up_path</span><span class='comma'>,</span> <span class='label'>params:</span> { <span class='label'>user:</span> { <span class='label'>email_address:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>example@user.org</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>password:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>password</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>password_confirmation:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>password</span><span class='tstring_end'>&quot;</span></span> } }
+    <span class='id identifier rubyid_assert_response'>assert_response</span> <span class='symbeg'>:</span><span class='id identifier rubyid_unprocessable_entity'>unprocessable_entity</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>This test should be invalid because the user&#39;s name is missing. Since this
+request is invalid, we need to assert the response is a 422 Unprocessable
+Entity. We can also assert that there is no difference in the <code>User.count</code> to
+ensure no User was created.</p>
+
+<p>Another important test to add is ensuring that sign up does not accept the
+<code>admin</code> attribute.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_test'>test</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>sign up ignores admin attribute</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_assert_difference'>assert_difference</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>User.count</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_post'>post</span> <span class='id identifier rubyid_sign_up_path'>sign_up_path</span><span class='comma'>,</span> <span class='label'>params:</span> { <span class='label'>user:</span> { <span class='label'>first_name:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Example</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>last_name:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>User</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>email_address:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>example@user.org</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>password:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>password</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>password_confirmation:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>password</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>admin:</span> <span class='kw'>true</span> } }
+    <span class='id identifier rubyid_assert_redirected_to'>assert_redirected_to</span> <span class='id identifier rubyid_root_path'>root_path</span>
+  <span class='kw'>end</span>
+  <span class='id identifier rubyid_refute'>refute</span> <span class='const'>User</span>.<span class='id identifier rubyid_find_by'>find_by</span>(<span class='label'>email_address:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>example@user.org</span><span class='tstring_end'>&quot;</span></span>).<span class='id identifier rubyid_admin?'>admin?</span>
+<span class='kw'>end</span></code></pre>
+
+<p>This test is just like a successful sign up, but it tries to set <code>admin: true</code>.
+After asserting the user is created, we also need to assert that the user is
+<em>not</em> an admin.</p>
+
+<h3>Testing Email Changes</h3>
+
+<p>Changing a user&#39;s email is a multi-step process that is important to test as
+well.</p>
+
+<p>To start, let&#39;s create a controller test to ensure the email update form handles
+everything correctly.</p>
+
+<p>In <code>test/controllers/settings/emails_controller_test.rb</code> add the following:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>test_helper</span><span class='tstring_end'>&quot;</span></span>
+
+<span class='kw'>class</span> <span class='const'>Settings</span><span class='op'>::</span><span class='const'>EmailsControllerTest</span> <span class='op'>&lt;</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/IntegrationTest.html" title="ActionDispatch::IntegrationTest (class)">IntegrationTest</a></span>
+  <span class='id identifier rubyid_test'>test</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>validates current password</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_user'>user</span> <span class='op'>=</span> <span class='id identifier rubyid_users'>users</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_one'>one</span>)
+    <span class='id identifier rubyid_sign_in_as'>sign_in_as</span> <span class='id identifier rubyid_user'>user</span>
+    <span class='id identifier rubyid_patch'>patch</span> <span class='id identifier rubyid_settings_email_path'>settings_email_path</span><span class='comma'>,</span> <span class='label'>params:</span> { <span class='label'>user:</span> { <span class='label'>password_challenge:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>invalid</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>unconfirmed_email:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>new@example.org</span><span class='tstring_end'>&quot;</span></span> } }
+    <span class='id identifier rubyid_assert_response'>assert_response</span> <span class='symbeg'>:</span><span class='id identifier rubyid_unprocessable_entity'>unprocessable_entity</span>
+    <span class='id identifier rubyid_assert_nil'>assert_nil</span> <span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_reload'>reload</span>.<span class='id identifier rubyid_unconfirmed_email'>unconfirmed_email</span>
+    <span class='id identifier rubyid_assert_no_emails'>assert_no_emails</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Our first test is going to be a submission with an invalid password challenge.
+For this, we want to ensure the response is an error and the unconfirmed email
+was not changed. We can also ensure that no emails were sent in this case as
+well.</p>
+
+<p>Then we can write a test for the success case:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_test'>test</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>sends email confirmation on successful update</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_user'>user</span> <span class='op'>=</span> <span class='id identifier rubyid_users'>users</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_one'>one</span>)
+  <span class='id identifier rubyid_sign_in_as'>sign_in_as</span> <span class='id identifier rubyid_user'>user</span>
+  <span class='id identifier rubyid_patch'>patch</span> <span class='id identifier rubyid_settings_email_path'>settings_email_path</span><span class='comma'>,</span> <span class='label'>params:</span> { <span class='label'>user:</span> { <span class='label'>password_challenge:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>password</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>unconfirmed_email:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>new@example.org</span><span class='tstring_end'>&quot;</span></span> } }
+  <span class='id identifier rubyid_assert_response'>assert_response</span> <span class='symbeg'>:</span><span class='id identifier rubyid_redirect'>redirect</span>
+  <span class='id identifier rubyid_assert_equal'>assert_equal</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>new@example.org</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_reload'>reload</span>.<span class='id identifier rubyid_unconfirmed_email'>unconfirmed_email</span>
+  <span class='id identifier rubyid_assert_enqueued_email_with'>assert_enqueued_email_with</span> <span class='const'>UserMailer</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_email_confirmation'>email_confirmation</span><span class='comma'>,</span> <span class='label'>params:</span> { <span class='label'>user:</span> <span class='id identifier rubyid_user'>user</span> }
+<span class='kw'>end</span></code></pre>
+
+<p>Then add first and last names to the fixtures in <code>test/fixtures/users.yml</code> to
+pass validations:</p>
+
+<pre class="code yaml#6-7,12-13"><code class="yaml#6-7,12-13">&lt;% password_digest = BCrypt::Password.create(&quot;password&quot;) %&gt;
+
+one:
+  email_address: one@example.com
+  password_digest: &lt;%= password_digest %&gt;
+  first_name: User
+  last_name: One
+
+two:
+  email_address: two@example.com
+  password_digest: &lt;%= password_digest %&gt;
+  first_name: User
+  last_name: Two
+</code></pre>
+
+<p>This tests submits successful params, confirms the email is saved to the
+database, the user was redirected and the confirmation email was queued for
+delivery.</p>
+
+<p>Let&#39;s run these tests and make sure they pass:</p>
+
+<pre class="code bash"><code class="bash">$ bin/rails test test/controllers/settings/emails_controller_test.rb
+Running 2 tests in a single process (parallelization threshold is 50)
+Run options: --seed 31545
+
+# Running:
+
+..
+
+Finished in 0.954590s, 2.0951 runs/s, 6.2854 assertions/s.
+2 runs, 6 assertions, 0 failures, 0 errors, 0 skips
+</code></pre>
+
+<p>We also need to test the <code>Email::ConfirmationsController</code> to ensure confirmation
+tokens are validated the email update process completes successfully.</p>
+
+<p>Let&#39;s add another controller test at
+<code>test/controllers/email/confirmations_controller_test.rb</code> with the following:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>test_helper</span><span class='tstring_end'>&quot;</span></span>
+
+<span class='kw'>class</span> <span class='const'>Email</span><span class='op'>::</span><span class='const'>ConfirmationsControllerTest</span> <span class='op'>&lt;</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/IntegrationTest.html" title="ActionDispatch::IntegrationTest (class)">IntegrationTest</a></span>
+  <span class='id identifier rubyid_test'>test</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>invalid tokens are ignored</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_user'>user</span> <span class='op'>=</span> <span class='id identifier rubyid_users'>users</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_one'>one</span>)
+    <span class='id identifier rubyid_previous_email'>previous_email</span> <span class='op'>=</span> <span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_email_address'>email_address</span>
+    <span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_update'>update</span>(<span class='label'>unconfirmed_email:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>new@example.org</span><span class='tstring_end'>&quot;</span></span>)
+    <span class='id identifier rubyid_get'>get</span> <span class='id identifier rubyid_email_confirmation_path'>email_confirmation_path</span>(<span class='label'>token:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>invalid</span><span class='tstring_end'>&quot;</span></span>)
+    <span class='id identifier rubyid_assert_equal'>assert_equal</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Invalid token.</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_flash'>flash</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_alert'>alert</span>]
+    <span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_reload'>reload</span>
+    <span class='id identifier rubyid_assert_equal'>assert_equal</span> <span class='id identifier rubyid_previous_email'>previous_email</span><span class='comma'>,</span> <span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_email_address'>email_address</span>
+  <span class='kw'>end</span>
+
+  <span class='id identifier rubyid_test'>test</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>email is updated with a valid token</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_user'>user</span> <span class='op'>=</span> <span class='id identifier rubyid_users'>users</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_one'>one</span>)
+    <span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_update'>update</span>(<span class='label'>unconfirmed_email:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>new@example.org</span><span class='tstring_end'>&quot;</span></span>)
+    <span class='id identifier rubyid_get'>get</span> <span class='id identifier rubyid_email_confirmation_path'>email_confirmation_path</span>(<span class='label'>token:</span> <span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_generate_token_for'>generate_token_for</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_email_confirmation'>email_confirmation</span>))
+    <span class='id identifier rubyid_assert_equal'>assert_equal</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Your email has been confirmed.</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_flash'>flash</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_notice'>notice</span>]
+    <span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_reload'>reload</span>
+    <span class='id identifier rubyid_assert_equal'>assert_equal</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>new@example.org</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_email_address'>email_address</span>
+    <span class='id identifier rubyid_assert_nil'>assert_nil</span> <span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_unconfirmed_email'>unconfirmed_email</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>The first test simulates a user confirming their email change with an invalid
+token. We assert the error message was set and the email address did not change.</p>
+
+<p>The second test uses valid token and asserts the success notice was set and the
+email address was updated in the database.</p>
+
+<p>We need to fix one more test related to email confirmations and that is the
+automatically generated tests for <code>UserMailer</code>. Let&#39;s update that to match our
+application logic.</p>
+
+<p>Change <code>test/mailers/user_mailer_test.rb</code> to the following:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>test_helper</span><span class='tstring_end'>&quot;</span></span>
+
+<span class='kw'>class</span> <span class='const'>UserMailerTest</span> <span class='op'>&lt;</span> <span class='const'><a href="ActionMailer.html" title="ActionMailer (module)">ActionMailer</a></span><span class='op'>::</span><span class='const'><a href="ActionMailer/TestCase.html" title="ActionMailer::TestCase (class)">TestCase</a></span>
+  <span class='id identifier rubyid_test'>test</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>email_confirmation</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_user'>user</span> <span class='op'>=</span> <span class='id identifier rubyid_users'>users</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_one'>one</span>)
+    <span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_update'>update</span>(<span class='label'>unconfirmed_email:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>new@example.org</span><span class='tstring_end'>&quot;</span></span>)
+    <span class='id identifier rubyid_mail'>mail</span> <span class='op'>=</span> <span class='const'>UserMailer</span>.<span class='id identifier rubyid_with'>with</span>(<span class='label'>user:</span> <span class='id identifier rubyid_user'>user</span>).<span class='id identifier rubyid_email_confirmation'>email_confirmation</span>
+    <span class='id identifier rubyid_assert_equal'>assert_equal</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Email confirmation</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_mail'>mail</span>.<span class='id identifier rubyid_subject'>subject</span>
+    <span class='id identifier rubyid_assert_equal'>assert_equal</span> [ <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>new@example.org</span><span class='tstring_end'>&quot;</span></span> ]<span class='comma'>,</span> <span class='id identifier rubyid_mail'>mail</span>.<span class='id identifier rubyid_to'>to</span>
+    <span class='id identifier rubyid_assert_match'>assert_match</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>/email/confirmations/</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_mail'>mail</span>.<span class='id identifier rubyid_body'>body</span>.<span class='id identifier rubyid_encoded'>encoded</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>This test ensures the user has an <code>unconfirmed_email</code> and the email is sent to
+that email address. It also ensures that the email body contains the path to
+<code>/email/confirmations</code> so we know it contains the link for the user to click and
+confirm their new email address.</p>
+
+<h3>Testing Settings</h3>
+
+<p>Another area that we should test is the Settings navigation. We want to ensure
+the appropriate links are visible to admins and not visible to regular users.</p>
+
+<p>Let&#39;s first create an admin user fixture in <code>test/fixtures/users.yml</code>:</p>
+
+<pre class="code yaml#15-20"><code class="yaml#15-20">&lt;% password_digest = BCrypt::Password.create(&quot;password&quot;) %&gt;
+
+one:
+  email_address: one@example.com
+  password_digest: &lt;%= password_digest %&gt;
+  first_name: User
+  last_name: One
+
+two:
+  email_address: two@example.com
+  password_digest: &lt;%= password_digest %&gt;
+  first_name: User
+  last_name: Two
+
+admin:
+  email_address: admin@example.com
+  password_digest: &lt;%= password_digest %&gt;
+  first_name: Admin
+  last_name: User
+  admin: true
+</code></pre>
+
+<p>Then create a test file for this at <code>test/integration/settings_test.rb</code>.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>test_helper</span><span class='tstring_end'>&quot;</span></span>
+
+<span class='kw'>class</span> <span class='const'>SettingsTest</span> <span class='op'>&lt;</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/IntegrationTest.html" title="ActionDispatch::IntegrationTest (class)">IntegrationTest</a></span>
+  <span class='id identifier rubyid_test'>test</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>user settings nav</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_sign_in_as'>sign_in_as</span> <span class='id identifier rubyid_users'>users</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_one'>one</span>)
+    <span class='id identifier rubyid_get'>get</span> <span class='id identifier rubyid_settings_profile_path'>settings_profile_path</span>
+    <span class='id identifier rubyid_assert_dom'>assert_dom</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>h4</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Account Settings</span><span class='tstring_end'>&quot;</span></span>
+    <span class='id identifier rubyid_assert_not_dom'>assert_not_dom</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>a</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Store Settings</span><span class='tstring_end'>&quot;</span></span>
+  <span class='kw'>end</span>
+
+  <span class='id identifier rubyid_test'>test</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>admin settings nav</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_sign_in_as'>sign_in_as</span> <span class='id identifier rubyid_users'>users</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_admin'>admin</span>)
+    <span class='id identifier rubyid_get'>get</span> <span class='id identifier rubyid_settings_profile_path'>settings_profile_path</span>
+    <span class='id identifier rubyid_assert_dom'>assert_dom</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>h4</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Account Settings</span><span class='tstring_end'>&quot;</span></span>
+    <span class='id identifier rubyid_assert_dom'>assert_dom</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>h4</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Store Settings</span><span class='tstring_end'>&quot;</span></span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>These tests ensure that only admins will see the Store settings in the navbar.</p>
+
+<p>You can run these tests with:</p>
+
+<pre class="code bash"><code class="bash">$ bin/rails test test/integration/settings_test.rb
+</code></pre>
+
+<p>We also want to ensure regular users cannot access the Store settings for
+Products and Users. Let&#39;s add some tests for that.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_test'>test</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>regular user cannot access /store/products</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_sign_in_as'>sign_in_as</span> <span class='id identifier rubyid_users'>users</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_one'>one</span>)
+  <span class='id identifier rubyid_get'>get</span> <span class='id identifier rubyid_store_products_path'>store_products_path</span>
+  <span class='id identifier rubyid_assert_response'>assert_response</span> <span class='symbeg'>:</span><span class='id identifier rubyid_redirect'>redirect</span>
+  <span class='id identifier rubyid_assert_equal'>assert_equal</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>You aren&#39;t allowed to do that.</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_flash'>flash</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_alert'>alert</span>]
+<span class='kw'>end</span>
+
+<span class='id identifier rubyid_test'>test</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>regular user cannot access /store/users</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_sign_in_as'>sign_in_as</span> <span class='id identifier rubyid_users'>users</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_one'>one</span>)
+  <span class='id identifier rubyid_get'>get</span> <span class='id identifier rubyid_store_users_path'>store_users_path</span>
+  <span class='id identifier rubyid_assert_response'>assert_response</span> <span class='symbeg'>:</span><span class='id identifier rubyid_redirect'>redirect</span>
+  <span class='id identifier rubyid_assert_equal'>assert_equal</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>You aren&#39;t allowed to do that.</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_flash'>flash</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_alert'>alert</span>]
+<span class='kw'>end</span></code></pre>
+
+<p>These tests use a regular user to access the admin only areas and ensures they
+are redirected away with a flash message.</p>
+
+<p>Let&#39;s complete these tests by ensuring that admin users <em>can</em> access these
+areas.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_test'>test</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>admins can access /store/products</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_sign_in_as'>sign_in_as</span> <span class='id identifier rubyid_users'>users</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_admin'>admin</span>)
+  <span class='id identifier rubyid_get'>get</span> <span class='id identifier rubyid_store_products_path'>store_products_path</span>
+  <span class='id identifier rubyid_assert_response'>assert_response</span> <span class='symbeg'>:</span><span class='id identifier rubyid_success'>success</span>
+<span class='kw'>end</span>
+
+<span class='id identifier rubyid_test'>test</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>admins can access /store/users</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_sign_in_as'>sign_in_as</span> <span class='id identifier rubyid_users'>users</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_admin'>admin</span>)
+  <span class='id identifier rubyid_get'>get</span> <span class='id identifier rubyid_store_users_path'>store_users_path</span>
+  <span class='id identifier rubyid_assert_response'>assert_response</span> <span class='symbeg'>:</span><span class='id identifier rubyid_success'>success</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Run the test file again and you should see they all pass.</p>
+
+<pre class="code bash"><code class="bash">$ bin/rails test test/integration/settings_test.rb
+Running 6 tests in a single process (parallelization threshold is 50)
+Run options: --seed 33354
+
+# Running:
+
+......
+
+Finished in 0.625542s, 9.5917 runs/s, 12.7889 assertions/s.
+6 runs, 8 assertions, 0 failures, 0 errors, 0 skips
+</code></pre>
+
+<p>And let&#39;s run the full test suite one more time to make sure all the tests pass.</p>
+
+<pre class="code bash"><code class="bash">$ bin/rails test
+Running 18 tests in a single process (parallelization threshold is 50)
+Run options: --seed 38561
+
+# Running:
+
+..................
+
+Finished in 0.915621s, 19.6588 runs/s, 51.3313 assertions/s.
+18 runs, 47 assertions, 0 failures, 0 errors, 0 skips
+</code></pre>
+
+<p>Great! Now, let&#39;s deploy this to production.</p>
+
+<h2>Deploying To Production</h2>
+
+<p>Since we previously setup Kamal in the
+<a href="getting_started.html#deploying-to-production">Getting Started Guide</a>, we just
+need to push our code changes to our Git repository and run:</p>
+
+<pre class="code bash"><code class="bash">$ bin/kamal deploy
+</code></pre>
+
+<p>This will build a new container for our application and deploy it to our
+production server.</p>
+
+<h3>Setting Admins In Production</h3>
+
+<p>If you added <code>attr_readonly :admin</code>, you&#39;ll need to use the dbconsole to update
+your account.</p>
+
+<pre class="code bash"><code class="bash">$ bin/kamal dbc
+UPDATE users SET admin=true WHERE users.email_address=&#39;you@example.org&#39;;
+.quit
+</code></pre>
+
+<p>Otherwise, you can use the Rails console to update your account.</p>
+
+<pre class="code bash"><code class="bash">$ bin/kamal console
+irb&gt; User.find_by(email_address: &quot;you@example.org&quot;).update(admin: true)
+</code></pre>
+
+<p>You can now access the Store settings in production with your account.</p>
+
+<h2>What&#39;s Next</h2>
+
+<p>You did it! Your e-commerce store now supports user sign up, account management,
+and an admin area for managing products and users.</p>
+
+<p>Next, follow the <a href="wishlists.html">Wishlists tutorial</a> to continue learning.</p>
+
+<p>Happy building!</p>
+
+<p><a href="https://rubyonrails.org/docs/tutorials">Return to all tutorials</a></p>
+
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>

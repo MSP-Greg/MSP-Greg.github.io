@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen' content='yes'>
+<meta name='mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Autoloading and Reloading Constants &mdash; Rails main</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "autoloading_and_reloading_constants",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>Rails main</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Autoloading and Reloading Constants&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<p><strong>DO NOT READ THIS FILE ON GITHUB, GUIDES ARE PUBLISHED ON <a href="https://guides.rubyonrails.org">https://guides.rubyonrails.org</a>.</strong></p>
+
+<h1>Autoloading and Reloading Constants</h1>
+
+<p>This guide documents how autoloading and reloading works in <code>zeitwerk</code> mode.</p>
+
+<p>After reading this guide, you will know:</p>
+
+<ul>
+<li>Related Rails configuration</li>
+<li>Project structure</li>
+<li>Autoloading, reloading, and eager loading</li>
+<li>Single Table Inheritance</li>
+<li>And more</li>
+</ul>
+
+<hr>
+
+<h2>Introduction</h2>
+
+<p>INFO. This guide documents autoloading, reloading, and eager loading in <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> applications.</p>
+
+<p>In an ordinary Ruby program, you explicitly load the files that define classes and modules you want to use. For example, the following controller refers to <code>ApplicationController</code> and <code>Post</code>, and you&#39;d normally issue <code>require</code> calls for them:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># DO NOT DO THIS.
+</span><span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>application_controller</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>post</span><span class='tstring_end'>&quot;</span></span>
+<span class='comment'># DO NOT DO THIS.
+</span>
+<span class='kw'>class</span> <span class='const'>PostsController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_index'>index</span>
+    <span class='ivar'>@posts</span> <span class='op'>=</span> <span class='const'>Post</span>.<span class='id identifier rubyid_all'>all</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>This is not the case in Rails applications, where application classes and modules are just available everywhere without <code>require</code> calls:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>PostsController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_index'>index</span>
+    <span class='ivar'>@posts</span> <span class='op'>=</span> <span class='const'>Post</span>.<span class='id identifier rubyid_all'>all</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Rails <em>autoloads</em> them on your behalf if needed. This is possible thanks to a couple of <a href="https://github.com/fxn/zeitwerk">Zeitwerk</a> loaders Rails sets up on your behalf, which provide autoloading, reloading, and eager loading.</p>
+
+<p>On the other hand, those loaders do not manage anything else. In particular, they do not manage the Ruby standard library, gem dependencies, Rails components themselves, or even (by default) the application <code>lib</code> directory. That code has to be loaded as usual.</p>
+
+<h2>Project Structure</h2>
+
+<p>In a Rails application file names have to match the constants they define, with directories acting as namespaces.</p>
+
+<p>For example, the file <code>app/helpers/users_helper.rb</code> should define <code>UsersHelper</code> and the file <code>app/controllers/admin/payments_controller.rb</code> should define <code>Admin::PaymentsController</code>.</p>
+
+<p>By default, Rails configures Zeitwerk to inflect file names with <a href="String.html#camelize-instance_method" title="String#camelize (method)">String#camelize</a>. For example, it expects that <code>app/controllers/users_controller.rb</code> defines the constant <code>UsersController</code> because that is what <code>&quot;users_controller&quot;.camelize</code> returns.</p>
+
+<p>The section <em>Customizing Inflections</em> below documents ways to override this default.</p>
+
+<p>Please, check the <a href="https://github.com/fxn/zeitwerk#file-structure">Zeitwerk documentation</a> for further details.</p>
+
+<h2>config.autoload_paths</h2>
+
+<p>We refer to the list of application directories whose contents are to be autoloaded and (optionally) reloaded as <em>autoload paths</em>. For example, <code>app/models</code>. Such directories represent the root namespace: <a href="Object.html" title="Object (class)"><code>Object</code></a>.</p>
+
+<p>INFO. Autoload paths are called <em>root directories</em> in Zeitwerk documentation, but we&#39;ll stay with &quot;autoload path&quot; in this guide.</p>
+
+<p>Within an autoload path, file names must match the constants they define as documented <a href="https://github.com/fxn/zeitwerk#file-structure">here</a>.</p>
+
+<p>By default, the autoload paths of an application consist of all the subdirectories of <code>app</code> that exist when the application boots ---except for <code>assets</code>, <code>javascript</code>, and <code>views</code>--- plus the autoload paths of engines it might depend on.</p>
+
+<p>For example, if <code>UsersHelper</code> is implemented in <code>app/helpers/users_helper.rb</code>, the module is autoloadable, you do not need (and should not write) a <code>require</code> call for it:</p>
+
+<pre class="code bash"><code class="bash">$ bin/rails runner &#39;p UsersHelper&#39;
+UsersHelper
+</code></pre>
+
+<p>Rails adds custom directories under <code>app</code> to the autoload paths automatically. For example, if your application has <code>app/presenters</code>, you don&#39;t need to configure anything in order to autoload presenters; it works out of the box.</p>
+
+<p>The array of default autoload paths can be extended by pushing to <code>config.autoload_paths</code>, in <code>config/application.rb</code> or <code>config/environments/*.rb</code>. For example:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'>MyApplication</span>
+  <span class='kw'>class</span> <span class='const'>Application</span> <span class='op'>&lt;</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span><span class='op'>::</span><span class='const'><a href="Rails/Application.html" title="Rails::Application (class)">Application</a></span>
+    <span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_autoload_paths'>autoload_paths</span> <span class='op'>&lt;&lt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_root'>root</span><span class='embexpr_end'>}</span><span class='tstring_content'>/extras</span><span class='tstring_end'>&quot;</span></span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Also, engines can push in body of the engine class and in their own <code>config/environments/*.rb</code>.</p>
+
+<p>WARNING. Please do not mutate <a href="ActiveSupport/Dependencies.html#autoload_paths-instance_method" title="ActiveSupport::Dependencies#autoload_paths (method)">ActiveSupport::Dependencies#autoload_paths</a>; the public interface to change autoload paths is <code>config.autoload_paths</code>.</p>
+
+<p>WARNING: You cannot autoload code in the autoload paths while the application boots. In particular, directly in <code>config/initializers/*.rb</code>. Please check <a href="#autoloading-when-the-application-boots"><em>Autoloading when the application boots</em></a> down below for valid ways to do that.</p>
+
+<p>The autoload paths are managed by the <code>Rails.autoloaders.main</code> autoloader.</p>
+
+<h2>config.autoload_lib(ignore:)</h2>
+
+<p>By default, the <code>lib</code> directory does not belong to the autoload paths of applications or engines.</p>
+
+<p>The configuration method <code>config.autoload_lib</code> adds the <code>lib</code> directory to <code>config.autoload_paths</code> and <code>config.eager_load_paths</code>. It has to be invoked from <code>config/application.rb</code> or <code>config/environments/*.rb</code>, and it is not available for engines.</p>
+
+<p>Normally, <code>lib</code> has subdirectories that should not be managed by the autoloaders. Please, pass their name relative to <code>lib</code> in the required <code>ignore</code> keyword argument. For example:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_autoload_lib'>autoload_lib</span>(<span class='label'>ignore:</span> <span class='qwords'><span class='qwords_beg'>%w(</span><span class='tstring_content'>assets</span><span class='words_sep'> </span><span class='tstring_content'>tasks</span><span class='tstring_end'>)</span></span>)</code></pre>
+
+<p>Why? While <code>assets</code> and <code>tasks</code> share the <code>lib</code> directory with regular Ruby code, their contents are not meant to be reloaded or eager loaded.</p>
+
+<p>The <code>ignore</code> list should have all <code>lib</code> subdirectories that do not contain files with <code>.rb</code> extension, or that should not be reloaded or eager loaded. For example,</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_autoload_lib'>autoload_lib</span>(<span class='label'>ignore:</span> <span class='qwords'><span class='qwords_beg'>%w(</span><span class='tstring_content'>assets</span><span class='words_sep'> </span><span class='tstring_content'>tasks</span><span class='words_sep'> </span><span class='tstring_content'>templates</span><span class='words_sep'> </span><span class='tstring_content'>generators</span><span class='words_sep'> </span><span class='tstring_content'>middleware</span><span class='tstring_end'>)</span></span>)</code></pre>
+
+<p><code>config.autoload_lib</code> is not available before 7.1, but you can still emulate it as long as the application uses Zeitwerk:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/application.rb
+</span><span class='kw'>module</span> <span class='const'>MyApp</span>
+  <span class='kw'>class</span> <span class='const'>Application</span> <span class='op'>&lt;</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span><span class='op'>::</span><span class='const'><a href="Rails/Application.html" title="Rails::Application (class)">Application</a></span>
+    <span class='id identifier rubyid_lib'>lib</span> <span class='op'>=</span> <span class='id identifier rubyid_root'>root</span>.<span class='id identifier rubyid_join'>join</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>lib</span><span class='tstring_end'>&quot;</span></span>)
+
+    <span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_autoload_paths'>autoload_paths</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_lib'>lib</span>
+    <span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_eager_load_paths'>eager_load_paths</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_lib'>lib</span>
+
+    <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_autoloaders'><a href="Rails.html#autoloaders-class_method" title="Rails.autoloaders (method)">autoloaders</a></span>.<span class='id identifier rubyid_main'>main</span>.<span class='id identifier rubyid_ignore'>ignore</span>(
+      <span class='id identifier rubyid_lib'>lib</span>.<span class='id identifier rubyid_join'>join</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>assets</span><span class='tstring_end'>&quot;</span></span>)<span class='comma'>,</span>
+      <span class='id identifier rubyid_lib'>lib</span>.<span class='id identifier rubyid_join'>join</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>tasks</span><span class='tstring_end'>&quot;</span></span>)<span class='comma'>,</span>
+      <span class='id identifier rubyid_lib'>lib</span>.<span class='id identifier rubyid_join'>join</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>generators</span><span class='tstring_end'>&quot;</span></span>)
+    )
+
+    <span class='comment'># ...
+</span>  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<h2>config.autoload_once_paths</h2>
+
+<p>You may want to be able to autoload classes and modules without reloading them. The <code>autoload_once_paths</code> configuration stores code that can be autoloaded, but won&#39;t be reloaded.</p>
+
+<p>By default, this collection is empty, but you can extend it pushing to <code>config.autoload_once_paths</code>. You can do so in <code>config/application.rb</code> or <code>config/environments/*.rb</code>. For example:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'>MyApplication</span>
+  <span class='kw'>class</span> <span class='const'>Application</span> <span class='op'>&lt;</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span><span class='op'>::</span><span class='const'><a href="Rails/Application.html" title="Rails::Application (class)">Application</a></span>
+    <span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_autoload_once_paths'>autoload_once_paths</span> <span class='op'>&lt;&lt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_root'>root</span><span class='embexpr_end'>}</span><span class='tstring_content'>/app/serializers</span><span class='tstring_end'>&quot;</span></span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Also, engines can push in body of the engine class and in their own <code>config/environments/*.rb</code>.</p>
+
+<p>INFO. If <code>app/serializers</code> is pushed to <code>config.autoload_once_paths</code>, Rails no longer considers this an autoload path, despite being a custom directory under <code>app</code>. This setting overrides that rule.</p>
+
+<p>This is key for classes and modules that are cached in places that survive reloads, like the Rails framework itself.</p>
+
+<p>For example, Active Job serializers are stored inside Active Job:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/initializers/custom_serializers.rb
+</span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_active_job'>active_job</span>.<span class='id identifier rubyid_custom_serializers'>custom_serializers</span> <span class='op'>&lt;&lt;</span> <span class='const'>MoneySerializer</span></code></pre>
+
+<p>and Active Job itself is not reloaded when there&#39;s a reload, only application and engines code in the autoload paths is.</p>
+
+<p>Making <code>MoneySerializer</code> reloadable would be confusing, because reloading an edited version would have no effect on that class object stored in Active Job. Indeed, if <code>MoneySerializer</code> was reloadable, starting with Rails 7 such initializer would raise a <a href="NameError.html" title="NameError (class)"><code>NameError</code></a>.</p>
+
+<p>Another use case is when engines decorate framework classes:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_initializer'>initializer</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>decorate ActionController::Base</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
+  <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span>.<span class='id identifier rubyid_on_load'><a href="ActiveSupport/LazyLoadHooks.html#on_load-instance_method" title="ActiveSupport::LazyLoadHooks#on_load (method)">on_load</a></span>(<span class='symbeg'>:</span><span class='id identifier rubyid_action_controller_base'>action_controller_base</span>) <span class='kw'>do</span>
+    <span class='id identifier rubyid_include'>include</span> <span class='const'>MyDecoration</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>There, the module object stored in <code>MyDecoration</code> by the time the initializer runs becomes an ancestor of <a href="ActionController/Base.html" title="ActionController::Base (class)"><code>::ActionController::Base</code></a>, and reloading <code>MyDecoration</code> is pointless, it won&#39;t affect that ancestor chain.</p>
+
+<p>Classes and modules from the autoload once paths can be autoloaded in <code>config/initializers</code>. So, with that configuration this works:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/initializers/custom_serializers.rb
+</span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_active_job'>active_job</span>.<span class='id identifier rubyid_custom_serializers'>custom_serializers</span> <span class='op'>&lt;&lt;</span> <span class='const'>MoneySerializer</span></code></pre>
+
+<p>INFO: Technically, you can autoload classes and modules managed by the <code>once</code> autoloader in any initializer that runs after <code>:bootstrap_hook</code>.</p>
+
+<p>The autoload once paths are managed by <code>Rails.autoloaders.once</code>.</p>
+
+<h2>config.autoload_lib_once(ignore:)</h2>
+
+<p>The method <code>config.autoload_lib_once</code> is similar to <code>config.autoload_lib</code>, except that it adds <code>lib</code> to <code>config.autoload_once_paths</code> instead. It has to be invoked from <code>config/application.rb</code> or <code>config/environments/*.rb</code>, and it is not available for engines.</p>
+
+<p>By calling <code>config.autoload_lib_once</code>, classes and modules in <code>lib</code> can be autoloaded, even from application initializers, but won&#39;t be reloaded.</p>
+
+<p><code>config.autoload_lib_once</code> is not available before 7.1, but you can still emulate it as long as the application uses Zeitwerk:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/application.rb
+</span><span class='kw'>module</span> <span class='const'>MyApp</span>
+  <span class='kw'>class</span> <span class='const'>Application</span> <span class='op'>&lt;</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span><span class='op'>::</span><span class='const'><a href="Rails/Application.html" title="Rails::Application (class)">Application</a></span>
+    <span class='id identifier rubyid_lib'>lib</span> <span class='op'>=</span> <span class='id identifier rubyid_root'>root</span>.<span class='id identifier rubyid_join'>join</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>lib</span><span class='tstring_end'>&quot;</span></span>)
+
+    <span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_autoload_once_paths'>autoload_once_paths</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_lib'>lib</span>
+    <span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_eager_load_paths'>eager_load_paths</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_lib'>lib</span>
+
+    <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_autoloaders'><a href="Rails.html#autoloaders-class_method" title="Rails.autoloaders (method)">autoloaders</a></span>.<span class='id identifier rubyid_once'>once</span>.<span class='id identifier rubyid_ignore'>ignore</span>(
+      <span class='id identifier rubyid_lib'>lib</span>.<span class='id identifier rubyid_join'>join</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>assets</span><span class='tstring_end'>&quot;</span></span>)<span class='comma'>,</span>
+      <span class='id identifier rubyid_lib'>lib</span>.<span class='id identifier rubyid_join'>join</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>tasks</span><span class='tstring_end'>&quot;</span></span>)<span class='comma'>,</span>
+      <span class='id identifier rubyid_lib'>lib</span>.<span class='id identifier rubyid_join'>join</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>generators</span><span class='tstring_end'>&quot;</span></span>)
+    )
+
+    <span class='comment'># ...
+</span>  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<h2>Reloading</h2>
+
+<p>Rails automatically reloads classes and modules if application files in the autoload paths change.</p>
+
+<p>More precisely, if the web server is running and application files have been modified, Rails unloads all autoloaded constants managed by the <code>main</code> autoloader just before the next request is processed. That way, application classes or modules used during that request will be autoloaded again, thus picking up their current implementation in the file system.</p>
+
+<p>Reloading can be enabled or disabled. The setting that controls this behavior is <a href="configuring.html#config-enable-reloading"><code>config.enable_reloading</code></a>, which is <code>true</code> by default in <code>development</code> mode, and <code>false</code> by default in <code>production</code> mode. For backwards compatibility, Rails also supports <code>config.cache_classes</code>, which is equivalent to <code>!config.enable_reloading</code>.</p>
+
+<p>Rails uses an evented file monitor to detect files changes by default.  It can be configured instead to detect file changes by walking the autoload paths. This is controlled by the <a href="configuring.html#config-file-watcher"><code>config.file_watcher</code></a> setting.</p>
+
+<p>In a Rails console there is no file watcher active regardless of the value of <code>config.enable_reloading</code>. This is because, normally, it would be confusing to have code reloaded in the middle of a console session. Similar to an individual request, you generally want a console session to be served by a consistent, non-changing set of application classes and modules.</p>
+
+<p>However, you can force a reload in the console by executing <code>reload!</code>:</p>
+
+<pre class="code irb"><code class="irb">irb(main):001:0&gt; User.object_id
+=&gt; 70136277390120
+irb(main):002:0&gt; reload!
+Reloading...
+=&gt; true
+irb(main):003:0&gt; User.object_id
+=&gt; 70136284426020
+</code></pre>
+
+<p>As you can see, the class object stored in the <code>User</code> constant is different after reloading.</p>
+
+<h3>Reloading and Stale Objects</h3>
+
+<p>It is very important to understand that Ruby does not have a way to truly reload classes and modules in memory, and have that reflected everywhere they are already used. Technically, &quot;unloading&quot; the <code>User</code> class means removing the <code>User</code> constant via <code>Object.send(:remove_const, &quot;User&quot;)</code>.</p>
+
+<p>For example, check out this Rails console session:</p>
+
+<pre class="code irb"><code class="irb">irb&gt; joe = User.new
+irb&gt; reload!
+irb&gt; alice = User.new
+irb&gt; joe.class == alice.class
+=&gt; false
+</code></pre>
+
+<p><code>joe</code> is an instance of the original <code>User</code> class. When there is a reload, the <code>User</code> constant then evaluates to a different, reloaded class. <code>alice</code> is an instance of the newly loaded <code>User</code>, but <code>joe</code> is not — his class is stale. You may define <code>joe</code> again, start an IRB subsession, or just launch a new console instead of calling <code>reload!</code>.</p>
+
+<p>Another situation in which you may find this gotcha is subclassing reloadable classes in a place that is not reloaded:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># lib/vip_user.rb
+</span><span class='kw'>class</span> <span class='const'>VipUser</span> <span class='op'>&lt;</span> <span class='const'>User</span>
+<span class='kw'>end</span></code></pre>
+
+<p>if <code>User</code> is reloaded, since <code>VipUser</code> is not, the superclass of <code>VipUser</code> is the original stale class object.</p>
+
+<p>Bottom line: <strong>do not cache reloadable classes or modules</strong>.</p>
+
+<h2>Autoloading When the Application Boots</h2>
+
+<p>While booting, applications can autoload from the autoload once paths, which are managed by the <code>once</code> autoloader. Please check the section <a href="#config-autoload-once-paths"><code>config.autoload_once_paths</code></a> above.</p>
+
+<p>However, you cannot autoload from the autoload paths, which are managed by the <code>main</code> autoloader. This applies to code in <code>config/initializers</code> as well as application or engines initializers.</p>
+
+<p>Why? Initializers only run once, when the application boots. They do not run again on reloads. If an initializer used a reloadable class or module, edits to them would not be reflected in that initial code, thus becoming stale. Therefore, referring to reloadable constants during initialization is disallowed.</p>
+
+<p>Let&#39;s see what to do instead.</p>
+
+<h3>Use Case 1: During Boot, Load Reloadable Code</h3>
+
+<h4>Autoload on Boot and on Each Reload</h4>
+
+<p>Let&#39;s imagine <code>ApiGateway</code> is a reloadable class and you need to configure its endpoint while the application boots:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/initializers/api_gateway_setup.rb
+</span><span class='const'>ApiGateway</span>.<span class='id identifier rubyid_endpoint'>endpoint</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>https://example.com</span><span class='tstring_end'>&quot;</span></span> <span class='comment'># NameError</span></code></pre>
+
+<p>Initializers cannot refer to reloadable constants, you need to wrap that in a <code>to_prepare</code> block, which runs on boot, and after each reload:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/initializers/api_gateway_setup.rb
+</span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_to_prepare'>to_prepare</span> <span class='kw'>do</span>
+  <span class='const'>ApiGateway</span>.<span class='id identifier rubyid_endpoint'>endpoint</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>https://example.com</span><span class='tstring_end'>&quot;</span></span> <span class='comment'># CORRECT
+</span><span class='kw'>end</span></code></pre>
+
+<p>NOTE: For historical reasons, this callback may run twice. The code it executes must be idempotent.</p>
+
+<h4>Autoload on Boot Only</h4>
+
+<p>Reloadable classes and modules can be autoloaded in <code>after_initialize</code> blocks too. These run on boot, but do not run again on reload. In some exceptional cases this may be what you want.</p>
+
+<p>Preflight checks are a use case for this:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/initializers/check_admin_presence.rb
+</span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_after_initialize'>after_initialize</span> <span class='kw'>do</span>
+  <span class='kw'>unless</span> <span class='const'>Role</span>.<span class='id identifier rubyid_where'>where</span>(<span class='label'>name:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>admin</span><span class='tstring_end'>&quot;</span></span>).<span class='id identifier rubyid_exists?'>exists?</span>
+    <span class='id identifier rubyid_abort'>abort</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>The admin role is not present, please seed the database.</span><span class='tstring_end'>&quot;</span></span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<h3>Use Case 2: During Boot, Load Code that Remains Cached</h3>
+
+<p>Some configurations take a class or module object, and they store it in a place that is not reloaded. It is important that these are not reloadable, because edits would not be reflected in those cached stale objects.</p>
+
+<p>One example is middleware:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_middleware'>middleware</span>.<span class='id identifier rubyid_use'>use</span> <span class='const'>MyApp</span><span class='op'>::</span><span class='const'>Middleware</span><span class='op'>::</span><span class='const'>Foo</span></code></pre>
+
+<p>When you reload, the middleware stack is not affected, so it would be confusing that <code>MyApp::Middleware::Foo</code> is reloadable. Changes in its implementation would have no effect.</p>
+
+<p>Another example is Active Job serializers:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/initializers/custom_serializers.rb
+</span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_active_job'>active_job</span>.<span class='id identifier rubyid_custom_serializers'>custom_serializers</span> <span class='op'>&lt;&lt;</span> <span class='const'>MoneySerializer</span></code></pre>
+
+<p>Whatever <code>MoneySerializer</code> evaluates to during initialization gets pushed to the custom serializers, and that object stays there on reloads.</p>
+
+<p>Yet another example are railties or engines decorating framework classes by including modules. For instance, <a href="https://github.com/hotwired/turbo-rails"><code>turbo-rails</code></a> decorates <a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)"><code>::ActiveRecord::Base</code></a> this way:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_initializer'>initializer</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>turbo.broadcastable</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
+  <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span>.<span class='id identifier rubyid_on_load'><a href="ActiveSupport/LazyLoadHooks.html#on_load-instance_method" title="ActiveSupport::LazyLoadHooks#on_load (method)">on_load</a></span>(<span class='symbeg'>:</span><span class='id identifier rubyid_active_record'>active_record</span>) <span class='kw'>do</span>
+    <span class='id identifier rubyid_include'>include</span> <span class='const'>Turbo</span><span class='op'>::</span><span class='const'>Broadcastable</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>That adds a module object to the ancestor chain of <a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)"><code>::ActiveRecord::Base</code></a>. Changes in <code>Turbo::Broadcastable</code> would have no effect if reloaded, the ancestor chain would still have the original one.</p>
+
+<p>Corollary: Those classes or modules <strong>cannot be reloadable</strong>.</p>
+
+<p>An idiomatic way to organize these files is to put them in the <code>lib</code> directory and load them with <code>require</code> where needed. For example, if the application has custom middleware in <code>lib/middleware</code>, issue a regular <code>require</code> call before configuring it:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>middleware/my_middleware</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_middleware'>middleware</span>.<span class='id identifier rubyid_use'>use</span> <span class='const'>MyMiddleware</span></code></pre>
+
+<p>Additionally, if <code>lib</code> is in the autoload paths, configure the autoloader to ignore that subdirectory:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/application.rb
+</span><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_autoload_lib'>autoload_lib</span>(<span class='label'>ignore:</span> <span class='qwords'><span class='qwords_beg'>%w(</span><span class='tstring_content'>assets</span><span class='words_sep'> </span><span class='tstring_content'>tasks</span><span class='words_sep'> </span><span class='tstring_content'>...</span><span class='words_sep'> </span><span class='tstring_content'>middleware</span><span class='tstring_end'>)</span></span>)</code></pre>
+
+<p>since you are loading those files yourself.</p>
+
+<p>As noted above, another option is to have the directory that defines them in the autoload once paths and autoload. Please check the <a href="#config-autoload-once-paths">section about config.autoload_once_paths</a> for details.</p>
+
+<h3>Use Case 3: Configure Application Classes for Engines</h3>
+
+<p>Let&#39;s suppose an engine works with the reloadable application class that models users, and has a configuration point for it:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/initializers/my_engine.rb
+</span><span class='const'>MyEngine</span>.<span class='id identifier rubyid_configure'>configure</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_config'>config</span><span class='op'>|</span>
+  <span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_user_model'>user_model</span> <span class='op'>=</span> <span class='const'>User</span> <span class='comment'># NameError
+</span><span class='kw'>end</span></code></pre>
+
+<p>In order to play well with reloadable application code, the engine instead needs applications to configure the <em>name</em> of that class:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/initializers/my_engine.rb
+</span><span class='const'>MyEngine</span>.<span class='id identifier rubyid_configure'>configure</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_config'>config</span><span class='op'>|</span>
+  <span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_user_model'>user_model</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>User</span><span class='tstring_end'>&quot;</span></span> <span class='comment'># OK
+</span><span class='kw'>end</span></code></pre>
+
+<p>Then, at run time, <code>config.user_model.constantize</code> gives you the current class object.</p>
+
+<h2>Eager Loading</h2>
+
+<p>In production-like environments it is generally better to load all the application code when the application boots. Eager loading puts everything in memory ready to serve requests right away, and it is also <a href="https://en.wikipedia.org/wiki/Copy-on-write">CoW</a>-friendly.</p>
+
+<p>Eager loading is controlled by the flag <a href="configuring.html#config-eager-load"><code>config.eager_load</code></a>, which is disabled by default in all environments except <code>production</code>. When a Rake task gets executed, <code>config.eager_load</code> is overridden by <a href="configuring.html#config-rake-eager-load"><code>config.rake_eager_load</code></a>, which is <code>false</code> by default. So, by default, in production environments Rake tasks do not eager load the application.</p>
+
+<p>The order in which files are eager-loaded is undefined.</p>
+
+<p>During eager loading, Rails invokes <code>Zeitwerk::Loader.eager_load_all</code>. That ensures all gem dependencies managed by Zeitwerk are eager-loaded too.</p>
+
+<h2>Single Table Inheritance</h2>
+
+<p>Single Table Inheritance doesn&#39;t play well with lazy loading: Active Record has to be aware of STI hierarchies to work correctly, but when lazy loading, classes are precisely loaded only on demand!</p>
+
+<p>To address this fundamental mismatch we need to preload STIs. There are a few options to accomplish this, with different trade-offs. Let&#39;s see them.</p>
+
+<h3>Option 1: Enable Eager Loading</h3>
+
+<p>The easiest way to preload STIs is to enable eager loading by setting:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_eager_load'>eager_load</span> <span class='op'>=</span> <span class='kw'>true</span></code></pre>
+
+<p>in <code>config/environments/development.rb</code> and <code>config/environments/test.rb</code>.</p>
+
+<p>This is simple, but may be costly because it eager loads the entire application on boot and on every reload. The trade-off may be worthwhile for small applications, though.</p>
+
+<h3>Option 2: Preload a Collapsed Directory</h3>
+
+<p>Store the files that define the hierarchy in a dedicated directory, which makes sense also conceptually. The directory is not meant to represent a namespace, its sole purpose is to group the STI:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_app'>app</span><span class='op'>/</span><span class='id identifier rubyid_models'>models</span><span class='op'>/</span><span class='id identifier rubyid_shapes'>shapes</span><span class='op'>/</span><span class='id identifier rubyid_shape'>shape</span>.<span class='id identifier rubyid_rb'>rb</span>
+<span class='id identifier rubyid_app'>app</span><span class='op'>/</span><span class='id identifier rubyid_models'>models</span><span class='op'>/</span><span class='id identifier rubyid_shapes'>shapes</span><span class='op'>/</span><span class='id identifier rubyid_circle'>circle</span>.<span class='id identifier rubyid_rb'>rb</span>
+<span class='id identifier rubyid_app'>app</span><span class='op'>/</span><span class='id identifier rubyid_models'>models</span><span class='op'>/</span><span class='id identifier rubyid_shapes'>shapes</span><span class='op'>/</span><span class='id identifier rubyid_square'>square</span>.<span class='id identifier rubyid_rb'>rb</span>
+<span class='id identifier rubyid_app'>app</span><span class='op'>/</span><span class='id identifier rubyid_models'>models</span><span class='op'>/</span><span class='id identifier rubyid_shapes'>shapes</span><span class='op'>/</span><span class='id identifier rubyid_triangle'>triangle</span>.<span class='id identifier rubyid_rb'>rb</span></code></pre>
+
+<p>In this example, we still want <code>app/models/shapes/circle.rb</code> to define <code>Circle</code>, not <code>Shapes::Circle</code>. This may be your personal preference to keep things simple, and also avoids refactors in existing code bases. The <a href="https://github.com/fxn/zeitwerk#collapsing-directories">collapsing</a> feature of Zeitwerk allows us to do that:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/initializers/preload_stis.rb
+</span>
+<span class='id identifier rubyid_shapes'>shapes</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_root'><a href="Rails.html#root-class_method" title="Rails.root (method)">root</a></span><span class='embexpr_end'>}</span><span class='tstring_content'>/app/models/shapes</span><span class='tstring_end'>&quot;</span></span>
+<span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_autoloaders'><a href="Rails.html#autoloaders-class_method" title="Rails.autoloaders (method)">autoloaders</a></span>.<span class='id identifier rubyid_main'>main</span>.<span class='id identifier rubyid_collapse'>collapse</span>(<span class='id identifier rubyid_shapes'>shapes</span>) <span class='comment'># Not a namespace.
+</span>
+<span class='kw'>unless</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_eager_load'>eager_load</span>
+  <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_to_prepare'>to_prepare</span> <span class='kw'>do</span>
+    <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_autoloaders'><a href="Rails.html#autoloaders-class_method" title="Rails.autoloaders (method)">autoloaders</a></span>.<span class='id identifier rubyid_main'>main</span>.<span class='id identifier rubyid_eager_load_dir'>eager_load_dir</span>(<span class='id identifier rubyid_shapes'>shapes</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>In this option, we eager load these few files on boot and reload even if the STI is not used. However, unless your application has a lot of STIs, this won&#39;t have any measurable impact.</p>
+
+<p>INFO: The method <code>Zeitwerk::Loader#eager_load_dir</code> was added in Zeitwerk 2.6.2. For older versions, you can still list the <code>app/models/shapes</code> directory and invoke <code>require_dependency</code> on its contents.</p>
+
+<p>WARNING: If models are added, modified, or deleted from the STI, reloading works as expected. However, if a new separate STI hierarchy is added to the application, you&#39;ll need to edit the initializer and restart the server.</p>
+
+<h3>Option 3: Preload a Regular Directory</h3>
+
+<p>Similar to the previous one, but the directory is meant to be a namespace. That is, <code>app/models/shapes/circle.rb</code> is expected to define <code>Shapes::Circle</code>.</p>
+
+<p>For this one, the initializer is the same except no collapsing is configured:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/initializers/preload_stis.rb
+</span>
+<span class='kw'>unless</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_eager_load'>eager_load</span>
+  <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_to_prepare'>to_prepare</span> <span class='kw'>do</span>
+    <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_autoloaders'><a href="Rails.html#autoloaders-class_method" title="Rails.autoloaders (method)">autoloaders</a></span>.<span class='id identifier rubyid_main'>main</span>.<span class='id identifier rubyid_eager_load_dir'>eager_load_dir</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_root'><a href="Rails.html#root-class_method" title="Rails.root (method)">root</a></span><span class='embexpr_end'>}</span><span class='tstring_content'>/app/models/shapes</span><span class='tstring_end'>&quot;</span></span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Same trade-offs.</p>
+
+<h3>Option 4: Preload Types from the Database</h3>
+
+<p>In this option we do not need to organize the files in any way, but we hit the database:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/initializers/preload_stis.rb
+</span>
+<span class='kw'>unless</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_eager_load'>eager_load</span>
+  <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_to_prepare'>to_prepare</span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_types'>types</span> <span class='op'>=</span> <span class='const'>Shape</span>.<span class='id identifier rubyid_unscoped'>unscoped</span>.<span class='id identifier rubyid_select'>select</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_type'>type</span>).<span class='id identifier rubyid_distinct'>distinct</span>.<span class='id identifier rubyid_pluck'>pluck</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_type'>type</span>)
+    <span class='id identifier rubyid_types'>types</span>.<span class='id identifier rubyid_compact'>compact</span>.<span class='id identifier rubyid_each'>each</span>(<span class='op'>&amp;</span><span class='symbeg'>:</span><span class='id identifier rubyid_constantize'>constantize</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>WARNING: The STI will work correctly even if the table does not have all the types, but methods like <code>subclasses</code> or <code>descendants</code> won&#39;t return the missing types.</p>
+
+<p>WARNING: If models are added, modified, or deleted from the STI, reloading works as expected. However, if a new separate STI hierarchy is added to the application, you&#39;ll need to edit the initializer and restart the server.</p>
+
+<h2>Customizing Inflections</h2>
+
+<p>By default, Rails uses <a href="String.html#camelize-instance_method" title="String#camelize (method)">String#camelize</a> to know which constant a given file or directory name should define. For example, <code>posts_controller.rb</code> should define <code>PostsController</code> because that is what <code>&quot;posts_controller&quot;.camelize</code> returns.</p>
+
+<p>It could be the case that some particular file or directory name does not get inflected as you want. For instance, <code>html_parser.rb</code> is expected to define <code>HtmlParser</code> by default. What if you prefer the class to be <code>HTMLParser</code>? There are a few ways to customize this.</p>
+
+<p>The easiest way is to define acronyms:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/Inflector.html" title="ActiveSupport::Inflector (module)">Inflector</a></span>.<span class='id identifier rubyid_inflections'><a href="ActiveSupport/Inflector.html#inflections-instance_method" title="ActiveSupport::Inflector#inflections (method)">inflections</a></span>(<span class='symbeg'>:</span><span class='id identifier rubyid_en'>en</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_inflect'>inflect</span><span class='op'>|</span>
+  <span class='id identifier rubyid_inflect'>inflect</span>.<span class='id identifier rubyid_acronym'>acronym</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>HTML</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_inflect'>inflect</span>.<span class='id identifier rubyid_acronym'>acronym</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>SSL</span><span class='tstring_end'>&quot;</span></span>
+<span class='kw'>end</span></code></pre>
+
+<p>Doing so affects how Active Support inflects globally. That may be fine in some applications, but you can also customize how to camelize individual basenames independently from Active Support by passing a collection of overrides to the default inflectors:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_autoloaders'><a href="Rails.html#autoloaders-class_method" title="Rails.autoloaders (method)">autoloaders</a></span>.<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_autoloader'>autoloader</span><span class='op'>|</span>
+  <span class='id identifier rubyid_autoloader'>autoloader</span>.<span class='id identifier rubyid_inflector'>inflector</span>.<span class='id identifier rubyid_inflect'>inflect</span>(
+    <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>html_parser</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>HTMLParser</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+    <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ssl_error</span><span class='tstring_end'>&quot;</span></span>   <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>SSLError</span><span class='tstring_end'>&quot;</span></span>
+  )
+<span class='kw'>end</span></code></pre>
+
+<p>That technique still depends on <a href="String.html#camelize-instance_method" title="String#camelize (method)">String#camelize</a>, though, because that is what the default inflectors use as fallback. If you instead prefer not to depend on Active Support inflections at all and have absolute control over inflections, configure the inflectors to be instances of <code>Zeitwerk::Inflector</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_autoloaders'><a href="Rails.html#autoloaders-class_method" title="Rails.autoloaders (method)">autoloaders</a></span>.<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_autoloader'>autoloader</span><span class='op'>|</span>
+  <span class='id identifier rubyid_autoloader'>autoloader</span>.<span class='id identifier rubyid_inflector'>inflector</span> <span class='op'>=</span> <span class='const'>Zeitwerk</span><span class='op'>::</span><span class='const'>Inflector</span>.<span class='id identifier rubyid_new'>new</span>
+  <span class='id identifier rubyid_autoloader'>autoloader</span>.<span class='id identifier rubyid_inflector'>inflector</span>.<span class='id identifier rubyid_inflect'>inflect</span>(
+    <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>html_parser</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>HTMLParser</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+    <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ssl_error</span><span class='tstring_end'>&quot;</span></span>   <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>SSLError</span><span class='tstring_end'>&quot;</span></span>
+  )
+<span class='kw'>end</span></code></pre>
+
+<p>There is no global configuration that can affect said instances; they are deterministic.</p>
+
+<p>You can even define a custom inflector for full flexibility. Please check the <a href="https://github.com/fxn/zeitwerk#custom-inflector">Zeitwerk documentation</a> for further details.</p>
+
+<h3>Where Should Inflection Customization Go?</h3>
+
+<p>If an application does not use the <code>once</code> autoloader, the snippets above can go in <code>config/initializers</code>. For example, <code>config/initializers/inflections.rb</code> for the Active Support use case, or <code>config/initializers/zeitwerk.rb</code> for the other ones.</p>
+
+<p>Applications using the <code>once</code> autoloader have to move or load this configuration from the body of the application class in <code>config/application.rb</code>, because the <code>once</code> autoloader uses the inflector early in the boot process.</p>
+
+<h2>Custom Namespaces</h2>
+
+<p>As we saw above, autoload paths represent the top-level namespace: <a href="Object.html" title="Object (class)"><code>Object</code></a>.</p>
+
+<p>Let&#39;s consider <code>app/services</code>, for example. This directory is not generated by default, but if it exists, Rails automatically adds it to the autoload paths.</p>
+
+<p>By default, the file <code>app/services/users/signup.rb</code> is expected to define <code>Users::Signup</code>, but what if you prefer that entire subtree to be under a <code>Services</code> namespace? Well, with default settings, that can be accomplished by creating a subdirectory: <code>app/services/services</code>.</p>
+
+<p>However, depending on your taste, that just might not feel right to you. You might prefer that <code>app/services/users/signup.rb</code> simply defines <code>Services::Users::Signup</code>.</p>
+
+<p>Zeitwerk supports <a href="https://github.com/fxn/zeitwerk#custom-root-namespaces">custom root namespaces</a> to address this use case, and you can customize the <code>main</code> autoloader to accomplish that:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/initializers/autoloading.rb
+</span>
+<span class='comment'># The namespace has to exist.
+</span><span class='comment'>#
+</span><span class='comment'># In this example we define the module on the spot. Could also be created
+</span><span class='comment'># elsewhere and its definition loaded here with an ordinary `require`. In
+</span><span class='comment'># any case, `push_dir` expects a class or module object.
+</span><span class='kw'>module</span> <span class='const'>Services</span><span class='semicolon'>;</span> <span class='kw'>end</span>
+
+<span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_autoloaders'><a href="Rails.html#autoloaders-class_method" title="Rails.autoloaders (method)">autoloaders</a></span>.<span class='id identifier rubyid_main'>main</span>.<span class='id identifier rubyid_push_dir'>push_dir</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_root'><a href="Rails.html#root-class_method" title="Rails.root (method)">root</a></span><span class='embexpr_end'>}</span><span class='tstring_content'>/app/services</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>namespace:</span> <span class='const'>Services</span>)</code></pre>
+
+<p>Rails &lt; 7.1 did not support this feature, but you can still add this additional code in the same file and get it working:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># Additional code for applications running on Rails &lt; 7.1.
+</span><span class='id identifier rubyid_app_services_dir'>app_services_dir</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_root'><a href="Rails.html#root-class_method" title="Rails.root (method)">root</a></span><span class='embexpr_end'>}</span><span class='tstring_content'>/app/services</span><span class='tstring_end'>&quot;</span></span> <span class='comment'># has to be a string
+</span><span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/Dependencies.html" title="ActiveSupport::Dependencies (module)">Dependencies</a></span>.<span class='id identifier rubyid_autoload_paths'><a href="ActiveSupport/Dependencies.html#autoload_paths-instance_method" title="ActiveSupport::Dependencies#autoload_paths (method)">autoload_paths</a></span>.<span class='id identifier rubyid_delete'>delete</span>(<span class='id identifier rubyid_app_services_dir'>app_services_dir</span>)
+<span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_watchable_dirs'>watchable_dirs</span>[<span class='id identifier rubyid_app_services_dir'>app_services_dir</span>] <span class='op'>=</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_rb'>rb</span>]</code></pre>
+
+<p>Custom namespaces are also supported for the <code>once</code> autoloader. However, since that one is set up earlier in the boot process, the configuration cannot be done in an application initializer. Instead, please put it in <code>config/application.rb</code>, for example.</p>
+
+<h2>Autoloading and Engines</h2>
+
+<p>Engines run in the context of a parent application, and their code is autoloaded, reloaded, and eager loaded by the parent application. If the application runs in <code>zeitwerk</code> mode, the engine code is loaded by <code>zeitwerk</code> mode. If the application runs in <code>classic</code> mode, the engine code is loaded by <code>classic</code> mode.</p>
+
+<p>When Rails boots, engine directories are added to the autoload paths, and from the point of view of the autoloader, there&#39;s no difference. Autoloaders&#39; main inputs are the autoload paths, and whether they belong to the application source tree or to some engine source tree is irrelevant.</p>
+
+<p>For example, this application uses <a href="https://github.com/heartcombo/devise">Devise</a>:</p>
+
+<pre class="code bash"><code class="bash">$ bin/rails runner &#39;pp ActiveSupport::Dependencies.autoload_paths&#39;
+[&quot;.../app/controllers&quot;,
+ &quot;.../app/controllers/concerns&quot;,
+ &quot;.../app/helpers&quot;,
+ &quot;.../app/models&quot;,
+ &quot;.../app/models/concerns&quot;,
+ &quot;.../gems/devise-4.8.0/app/controllers&quot;,
+ &quot;.../gems/devise-4.8.0/app/helpers&quot;,
+ &quot;.../gems/devise-4.8.0/app/mailers&quot;]
+</code></pre>
+
+<p>If the engine controls the autoloading mode of its parent application, the engine can be written as usual.</p>
+
+<p>However, if an engine supports Rails 6 or Rails 6.1 and does not control its parent applications, it has to be ready to run under either <code>classic</code> or <code>zeitwerk</code> mode. Things to take into account:</p>
+
+<ol>
+<li><p>If <code>classic</code> mode would need a <code>require_dependency</code> call to ensure some constant is loaded at some point, write it. While <code>zeitwerk</code> would not need it, it won&#39;t hurt, it will work in <code>zeitwerk</code> mode too.</p></li>
+<li><p><code>classic</code> mode underscores constant names (&quot;User&quot; -&gt; &quot;user.rb&quot;), and <code>zeitwerk</code> mode camelizes file names (&quot;user.rb&quot; -&gt; &quot;User&quot;). They coincide in most cases, but they don&#39;t if there are series of consecutive uppercase letters as in &quot;HTMLParser&quot;. The easiest way to be compatible is to avoid such names. In this case, pick &quot;HtmlParser&quot;.</p></li>
+<li><p>In <code>classic</code> mode, the file <code>app/model/concerns/foo.rb</code> is allowed to define both <code>Foo</code> and <code>Concerns::Foo</code>. In <code>zeitwerk</code> mode, there&#39;s only one option: it has to define <code>Foo</code>. In order to be compatible, define <code>Foo</code>.</p></li>
+</ol>
+
+<h2>Testing</h2>
+
+<h3>Manual Testing</h3>
+
+<p>The task <code>zeitwerk:check</code> checks if the project tree follows the expected naming conventions and it is handy for manual checks. For example, if you&#39;re migrating from <code>classic</code> to <code>zeitwerk</code> mode, or if you&#39;re fixing something:</p>
+
+<pre class="code bash"><code class="bash">$ bin/rails zeitwerk:check
+Hold on, I am eager loading the application.
+All is good!
+</code></pre>
+
+<p>There can be additional output depending on the application configuration, but the last &quot;All is good!&quot; is what you are looking for.</p>
+
+<h3>Automated Testing</h3>
+
+<p>It is a good practice to verify in the test suite that the project eager loads correctly.</p>
+
+<p>That covers Zeitwerk naming compliance and other possible error conditions. Please check the <a href="testing.html#testing-eager-loading">section about testing eager loading</a> in the <a href="testing.html"><em>Testing Rails Applications</em></a> guide.</p>
+
+<h2>Troubleshooting</h2>
+
+<p>The best way to follow what the loaders are doing is to inspect their activity.</p>
+
+<p>The easiest way to do that is to include</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_autoloaders'><a href="Rails.html#autoloaders-class_method" title="Rails.autoloaders (method)">autoloaders</a></span>.<span class='id identifier rubyid_log!'>log!</span></code></pre>
+
+<p>in <code>config/application.rb</code> after loading the framework defaults. That will print traces to standard output.</p>
+
+<p>If you prefer logging to a file, configure this instead:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_autoloaders'><a href="Rails.html#autoloaders-class_method" title="Rails.autoloaders (method)">autoloaders</a></span>.<span class='id identifier rubyid_logger'>logger</span> <span class='op'>=</span> <span class='const'>Logger</span>.<span class='id identifier rubyid_new'>new</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_root'><a href="Rails.html#root-class_method" title="Rails.root (method)">root</a></span><span class='embexpr_end'>}</span><span class='tstring_content'>/log/autoloading.log</span><span class='tstring_end'>&quot;</span></span>)</code></pre>
+
+<p>The Rails logger is not yet available when <code>config/application.rb</code> executes. If you prefer to use the Rails logger, configure this setting in an initializer instead:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/initializers/log_autoloaders.rb
+</span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_autoloaders'><a href="Rails.html#autoloaders-class_method" title="Rails.autoloaders (method)">autoloaders</a></span>.<span class='id identifier rubyid_logger'>logger</span> <span class='op'>=</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_logger'><a href="Rails.html#logger-class_method" title="Rails.logger (method)">logger</a></span></code></pre>
+
+<h2>Rails.autoloaders</h2>
+
+<p>The Zeitwerk instances managing your application are available at</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_autoloaders'><a href="Rails.html#autoloaders-class_method" title="Rails.autoloaders (method)">autoloaders</a></span>.<span class='id identifier rubyid_main'>main</span>
+<span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_autoloaders'><a href="Rails.html#autoloaders-class_method" title="Rails.autoloaders (method)">autoloaders</a></span>.<span class='id identifier rubyid_once'>once</span></code></pre>
+
+<p>The predicate</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_autoloaders'><a href="Rails.html#autoloaders-class_method" title="Rails.autoloaders (method)">autoloaders</a></span>.<span class='id identifier rubyid_zeitwerk_enabled?'>zeitwerk_enabled?</span></code></pre>
+
+<p>is still available in Rails 7 applications, and returns <code>true</code>.</p>
+
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>

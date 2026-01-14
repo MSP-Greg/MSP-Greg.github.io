@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen' content='yes'>
+<meta name='mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Plugins &mdash; Rails main</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "plugins",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>Rails main</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Plugins&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<p><strong>DO NOT READ THIS FILE ON GITHUB, GUIDES ARE PUBLISHED ON <a href="https://guides.rubyonrails.org">https://guides.rubyonrails.org</a>.</strong></p>
+
+<h1>The Basics of Creating Rails Plugins</h1>
+
+<p>This guide is for developers who want to create a <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> plugin, in order to
+extend or modify the behavior of a <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> application.</p>
+
+<p>After reading this guide, you will know:</p>
+
+<ul>
+<li>What Rails plugins are and when to use them.</li>
+<li>How to create a plugin from scratch.</li>
+<li>How to extend core Ruby classes.</li>
+<li>How to add methods to <code>ApplicationRecord</code>.</li>
+<li>How to publish your plugin to RubyGems.</li>
+</ul>
+
+<hr>
+
+<h2>What are Plugins?</h2>
+
+<p>A Rails plugin is a packaged extension that adds functionality to a <a href="Rails.html" title="Rails (module)"><code>Rails</code></a>
+application. Plugins serve several purposes:</p>
+
+<ul>
+<li>They offer a way for developers to experiment with new ideas without affecting
+the stability of the core codebase.</li>
+<li>They support a modular architecture, allowing features to be maintained,
+updated, or released independently.</li>
+<li>They give teams an outlet for introducing powerful features without needing to
+include everything directly into the framework.</li>
+</ul>
+
+<p>At a technical level, a plugin is a Ruby gem that’s designed to work inside a
+<a href="Rails.html" title="Rails (module)"><code>Rails</code></a> application. It often uses a
+<a href="https://api.rubyonrails.org/classes/Rails/Railtie.html">Railtie</a> to hook into the
+<a href="Rails.html" title="Rails (module)"><code>Rails</code></a> boot process, allowing it to extend or modify the framework&#39;s behavior in
+a structured way. A Railtie is the most
+basic integration point for extending <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> — it’s typically used when your
+plugin needs to add configuration, rake tasks, or initializer code, but doesn’t
+expose any controllers, views, or models.</p>
+
+<p>NOTE:
+An <a href="engines.html">Engine</a> is a more advanced type of plugin that behaves like a mini <a href="Rails.html" title="Rails (module)"><code>Rails</code></a>
+application. It can include its own routes, controllers, views, and even assets.
+While all engines are plugins, not all plugins are engines. The main difference lies
+in scope: plugins are typically used for smaller customizations or shared
+behavior across apps, whereas engines provide more fully-featured components
+with their own routes, models, and views.</p>
+
+<h2>Generator Options</h2>
+
+<p><a href="Rails.html" title="Rails (module)"><code>Rails</code></a> plugins are built as gems. They can be shared across different <a href="Rails.html" title="Rails (module)"><code>Rails</code></a>
+applications using <a href="https://guides.rubygems.org/make-your-own-gem/">RubyGems</a>
+and <a href="https://bundler.io/guides/creating_gem.html">Bundler</a> if desired.</p>
+
+<p>The <code>rails plugin new</code> command supports several options that determine what type
+of plugin structure is generated.</p>
+
+<p>The <strong>Basic Plugin</strong> (default), without any arguments, generates a minimal
+plugin structure suitable for simple extensions like core class methods or
+utility functions.</p>
+
+<pre class="code bash"><code class="bash">$ rails plugin new api_boost
+</code></pre>
+
+<p>We&#39;ll use the basic plugin generator for this guide. There are two options,
+<code>--full</code> and <code>--mountable</code>, which are covered in the <a href="engines.html">Rails Engines
+guide</a>.</p>
+
+<p>The <strong>Full Plugin</strong> (<code>--full</code>) option creates a more complete plugin structure
+that includes an <code>app</code> directory tree (models, views, controllers), a
+<code>config/routes.rb</code> file, and an Engine class at <code>lib/api_boost/engine.rb</code>.</p>
+
+<pre class="code bash"><code class="bash">$ rails plugin new api_boost --full
+</code></pre>
+
+<p>Use <code>--full</code> when your plugin needs its own models, controllers, or views but
+doesn&#39;t require namespace isolation.</p>
+
+<p>The <strong>Mountable Engine</strong> (<code>--mountable</code>) option creates a fully isolated,
+mountable engine that includes everything from <code>--full</code> plus:</p>
+
+<ul>
+<li>Namespace isolation (<code>ApiBoost::</code> prefix for all classes)</li>
+<li>Isolated routing (<code>ApiBoost::Engine.routes.draw</code>)</li>
+<li>Asset manifest files</li>
+<li>Namespaced <code>ApplicationController</code> and <code>ApplicationHelper</code></li>
+<li>Automatic mounting in the dummy app for testing</li>
+</ul>
+
+<pre class="code bash"><code class="bash">$ rails plugin new api_boost --mountable
+</code></pre>
+
+<p>Use <code>--mountable</code> when building a self-contained feature that could work as a
+separate application.</p>
+
+<p>For more information about engines, see the <a href="engines.html">Getting Started with Engines
+guide</a>.</p>
+
+<p>Below is some guidance on choosing the right option:</p>
+
+<ul>
+<li><strong>Basic plugin</strong>: Simple utilities, core class extensions, or small helper
+methods</li>
+<li><strong><code>--full</code> plugin</strong>: Complex functionality that needs models/controllers but
+shares the host app&#39;s namespace</li>
+<li><strong><code>--mountable</code> engine</strong>: Self-contained features like admin panels, blogs, or
+API modules</li>
+</ul>
+
+<p>See usage and options by asking for help:</p>
+
+<pre class="code bash"><code class="bash">$ rails plugin new --help
+</code></pre>
+
+<h2>Setup</h2>
+
+<p>For the purpose of this guide, imagine you&#39;re building APIs and want to create a
+plugin that adds common API functionality like request throttling, response
+caching, and automatic API documentation. You&#39;ll create a plugin called
+&quot;ApiBoost&quot; that can enhance any Rails API application.</p>
+
+<h3>Generate the Plugin</h3>
+
+<p>Create a basic plugin with the command:</p>
+
+<pre class="code bash"><code class="bash">$ rails plugin new api_boost
+</code></pre>
+
+<p>This will create the ApiBoost plugin in a directory named <code>api_boost</code>. Let&#39;s
+examine what was generated:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_api_boost'>api_boost</span><span class='op'>/</span>
+<span class='id identifier rubyid_├──'>├──</span> <span class='id identifier rubyid_api_boost'>api_boost</span>.<span class='id identifier rubyid_gemspec'>gemspec</span>
+<span class='id identifier rubyid_├──'>├──</span> <span class='const'>Gemfile</span>
+<span class='id identifier rubyid_├──'>├──</span> <span class='id identifier rubyid_lib'>lib</span><span class='op'>/</span>
+<span class='id identifier rubyid_│'>│</span>   <span class='id identifier rubyid_├──'>├──</span> <span class='id identifier rubyid_api_boost'>api_boost</span><span class='op'>/</span>
+<span class='id identifier rubyid_│'>│</span>   <span class='id identifier rubyid_│'>│</span>   <span class='id identifier rubyid_└──'>└──</span> <span class='id identifier rubyid_version'>version</span>.<span class='id identifier rubyid_rb'>rb</span>
+<span class='id identifier rubyid_│'>│</span>   <span class='id identifier rubyid_├──'>├──</span> <span class='id identifier rubyid_api_boost'>api_boost</span>.<span class='id identifier rubyid_rb'>rb</span>
+<span class='id identifier rubyid_│'>│</span>   <span class='id identifier rubyid_└──'>└──</span> <span class='id identifier rubyid_tasks'>tasks</span><span class='op'>/</span>
+<span class='id identifier rubyid_│'>│</span>       <span class='id identifier rubyid_└──'>└──</span> <span class='id identifier rubyid_api_boost_tasks'>api_boost_tasks</span>.<span class='id identifier rubyid_rake'>rake</span>
+<span class='id identifier rubyid_├──'>├──</span> <span class='id identifier rubyid_test'>test</span><span class='op'>/</span>
+<span class='id identifier rubyid_│'>│</span>   <span class='id identifier rubyid_├──'>├──</span> <span class='id identifier rubyid_dummy'>dummy</span><span class='op'>/</span>
+<span class='id identifier rubyid_│'>│</span>   <span class='id identifier rubyid_│'>│</span>   <span class='id identifier rubyid_├──'>├──</span> <span class='id identifier rubyid_app'>app</span><span class='op'>/</span>
+<span class='id identifier rubyid_│'>│</span>   <span class='id identifier rubyid_│'>│</span>   <span class='id identifier rubyid_├──'>├──</span> <span class='id identifier rubyid_bin'>bin</span><span class='op'>/</span>
+<span class='id identifier rubyid_│'>│</span>   <span class='id identifier rubyid_│'>│</span>   <span class='id identifier rubyid_├──'>├──</span> <span class='id identifier rubyid_config'>config</span><span class='op'>/</span>
+<span class='id identifier rubyid_│'>│</span>   <span class='id identifier rubyid_│'>│</span>   <span class='id identifier rubyid_├──'>├──</span> <span class='id identifier rubyid_db'>db</span><span class='op'>/</span>
+<span class='id identifier rubyid_│'>│</span>   <span class='id identifier rubyid_│'>│</span>   <span class='id identifier rubyid_├──'>├──</span> <span class='id identifier rubyid_public'>public</span><span class='op'>/</span>
+<span class='id identifier rubyid_│'>│</span>   <span class='id identifier rubyid_│'>│</span>   <span class='id identifier rubyid_└──'>└──</span> <span class='op'>...</span> (<span class='id identifier rubyid_full'>full</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span> <span class='id identifier rubyid_application'>application</span>)
+<span class='id identifier rubyid_│'>│</span>   <span class='id identifier rubyid_├──'>├──</span> <span class='id identifier rubyid_integration'>integration</span><span class='op'>/</span>
+<span class='id identifier rubyid_│'>│</span>   <span class='id identifier rubyid_└──'>└──</span> <span class='id identifier rubyid_test_helper'>test_helper</span>.<span class='id identifier rubyid_rb'>rb</span>
+<span class='id identifier rubyid_├──'>├──</span> <span class='const'>MIT</span><span class='op'>-</span><span class='const'>LICENSE</span>
+<span class='id identifier rubyid_└──'>└──</span> <span class='const'>README</span>.<span class='id identifier rubyid_md'>md</span></code></pre>
+
+<p><strong>The <code>lib</code> directory</strong> contains your plugin&#39;s source code:</p>
+
+<ul>
+<li><code>lib/api_boost.rb</code> is the main entry point for your plugin</li>
+<li><code>lib/api_boost/</code> contains modules and classes for your plugin functionality</li>
+<li><code>lib/tasks/</code> contains any Rake tasks your plugin provides</li>
+</ul>
+
+<p><strong>The <code>test/dummy</code> directory</strong> contains a complete Rails application that&#39;s used
+for testing your plugin. This dummy application:</p>
+
+<ul>
+<li>Loads your plugin automatically through the Gemfile</li>
+<li>Provides a Rails environment to test your plugin&#39;s integration</li>
+<li>Includes generators, models, controllers, and views as needed for testing</li>
+<li>Can be used interactively with <code>rails console</code> and <code>rails server</code></li>
+</ul>
+
+<p><strong>The Gemspec file</strong> (<code>api_boost.gemspec</code>) defines your gem&#39;s metadata,
+dependencies, and the files to include when packaging.</p>
+
+<h3>Set Up the Plugin</h3>
+
+<p>Navigate to the directory that contains the plugin, and edit <code>api_boost.gemspec</code>
+to replace any lines that have <code>TODO</code> values:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_spec'>spec</span>.<span class='id identifier rubyid_homepage'>homepage</span>    <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>http://example.com</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_spec'>spec</span>.<span class='id identifier rubyid_summary'>summary</span>     <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Enhance your API endpoints</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_spec'>spec</span>.<span class='id identifier rubyid_description'>description</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Adds common API functionality like request throttling, response caching, and automatic API documentation.</span><span class='tstring_end'>&quot;</span></span>
+
+<span class='comment'>#...
+</span>
+<span class='id identifier rubyid_spec'>spec</span>.<span class='id identifier rubyid_metadata'>metadata</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>source_code_uri</span><span class='tstring_end'>&quot;</span></span>] <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>http://example.com</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_spec'>spec</span>.<span class='id identifier rubyid_metadata'>metadata</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>changelog_uri</span><span class='tstring_end'>&quot;</span></span>] <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>http://example.com</span><span class='tstring_end'>&quot;</span></span></code></pre>
+
+<p>Then run the <code>bundle install</code> command.</p>
+
+<p>After that, set up your testing database by navigating to the <code>test/dummy</code>
+directory and running the following command:</p>
+
+<pre class="code bash"><code class="bash">$ cd test/dummy
+$ bin/rails db:create
+</code></pre>
+
+<p>The dummy application works just like any Rails application - you can generate
+models, run migrations, start the server, or open a console to test the plugin&#39;s
+functionality as you develop it.</p>
+
+<p>Once the database is created, return to the plugin&#39;s root directory (<code>cd
+../..</code>).</p>
+
+<p>Now you can run the tests using the <code>bin/test</code> command, and you should see:</p>
+
+<pre class="code bash"><code class="bash">$ bin/test
+...
+1 runs, 1 assertions, 0 failures, 0 errors, 0 skips
+</code></pre>
+
+<p>This will tell you that everything got generated properly, and you are ready to
+start adding functionality.</p>
+
+<h2>Extending Core Classes</h2>
+
+<p>This section will explain how to add a method to
+<a href="https://docs.ruby-lang.org/en/master/Integer.html">Integer</a> that will be
+available anywhere in your Rails application.</p>
+
+<p>WARNING: Before proceeding, it&#39;s important to understand that extending core
+classes (like String, Array, Hash, etc.) should be used sparingly, if at all.
+Core class extensions can be brittle, dangerous, and are often
+unnecessary.<br></br> They can:</br></p>
+
+<ul>
+<li>Cause naming conflicts when multiple gems extend the same class with the same
+method name</br></li>
+<li>Break unexpectedly when Ruby or Rails updates change core class behavior</br></li>
+<li>Make debugging difficult because it&#39;s not obvious where methods come from</br></li>
+<li>Create coupling issues between your plugin and other code<br></br> Better
+alternatives to consider:</br></li>
+<li>Create utility modules or helper classes instead</br></li>
+<li>Use composition over monkey patching</br></li>
+<li>Implement functionality as instance methods on your own classes<br></br> For
+more details on why core class extensions can be problematic, see <a href="https://shopify.engineering/the-case-against-monkey-patching">The Case
+Against Monkey
+Patching</a>.
+<br></br> That said, understanding how core class extensions work is valuable.
+The example below demonstrates the technique, but they should be used sparingly.</li>
+</ul>
+
+<p>In this example you will add a method to Integer named <code>requests_per_hour</code>.</p>
+
+<p>In <code>lib/api_boost.rb</code>, add <code>require &quot;api_boost/core_ext&quot;</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># api_boost/lib/api_boost.rb
+</span>
+<span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>api_boost/version</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>api_boost/railtie</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>api_boost/core_ext</span><span class='tstring_end'>&quot;</span></span>
+
+<span class='kw'>module</span> <span class='const'>ApiBoost</span>
+  <span class='comment'># Your code goes here...
+</span><span class='kw'>end</span></code></pre>
+
+<p>Create the <code>core_ext.rb</code> file and add a method to Integer to define a RateLimit
+that could define <code>10.requests_per_hour</code>, similar to <code>10.hours</code> that returns a
+Time.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># api_boost/lib/api_boost/core_ext.rb
+</span>
+<span class='const'>ApiBoost</span><span class='op'>::</span><span class='const'>RateLimit</span> <span class='op'>=</span> <span class='const'><a href="Data.html" title="Data (class)">Data</a></span>.<span class='id identifier rubyid_define'>define</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_requests'>requests</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_per'>per</span>)
+
+<span class='kw'>class</span> <span class='const'><a href="Integer.html" title="Integer (class)">Integer</a></span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_requests_per_hour'>requests_per_hour</span>
+    <span class='const'>ApiBoost</span><span class='op'>::</span><span class='const'>RateLimit</span>.<span class='id identifier rubyid_new'>new</span>(<span class='kw'>self</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_hour'>hour</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>To see this in action, change to the <code>test/dummy</code> directory, start <code>bin/rails
+console</code>, and test the API response formatting:</p>
+
+<pre class="code bash"><code class="bash">$ cd test/dummy
+$ bin/rails console
+</code></pre>
+
+<pre class="code irb"><code class="irb">irb&gt; 10.requests_per_hour
+=&gt; #&lt;data ApiBoost::RateLimit requests=10, per=:hour&gt;
+</code></pre>
+
+<p>The dummy application automatically loads your plugin, so any extensions you add
+are immediately available for testing.</p>
+
+<h2>Add an &quot;acts_as&quot; Method to Active Record</h2>
+
+<p>A common pattern in plugins is to add a method called <code>acts_as_something</code> to
+models. In this case, you want to write a method called <code>acts_as_api_resource</code>
+that adds API-specific functionality to your Active Record models.</p>
+
+<p>Let’s say you’re building an API, and you want to keep track of the last time a
+resource (like a <code>Product</code>) was accessed via that API. You might want to use
+that timestamp to:</p>
+
+<ul>
+<li>throttle requests</li>
+<li>show “last active” times in your admin panel</li>
+<li>prioritize stale records for syncing</li>
+</ul>
+
+<p>Instead of writing this logic in every model, you can use a shared plugin. The
+<code>acts_as_api_resource</code> method adds this functionality to any model, letting you
+track API activity by updating a timestamp field.</p>
+
+<p>To begin, set up your files so that you have:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># api_boost/lib/api_boost.rb
+</span>
+<span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>api_boost/version</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>api_boost/railtie</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>api_boost/core_ext</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>api_boost/acts_as_api_resource</span><span class='tstring_end'>&quot;</span></span>
+
+<span class='kw'>module</span> <span class='const'>ApiBoost</span>
+  <span class='comment'># Your code goes here...
+</span><span class='kw'>end</span></code></pre>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># api_boost/lib/api_boost/acts_as_api_resource.rb
+</span>
+<span class='kw'>module</span> <span class='const'>ApiBoost</span>
+  <span class='kw'>module</span> <span class='const'>ActsAsApiResource</span>
+    <span class='id identifier rubyid_extend'>extend</span> <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/Concern.html" title="ActiveSupport::Concern (module)">Concern</a></span>
+
+    <span class='id identifier rubyid_class_methods'>class_methods</span> <span class='kw'>do</span>
+      <span class='kw'>def</span> <span class='id identifier rubyid_acts_as_api_resource'>acts_as_api_resource</span>(<span class='label'>api_timestamp_field:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_last_requested_at'>last_requested_at</span>)
+        <span class='comment'># Create a class-level setting that stores which field to use for the API timestamp.
+</span>        <span class='id identifier rubyid_cattr_accessor'>cattr_accessor</span> <span class='symbeg'>:</span><span class='id identifier rubyid_api_timestamp_field'>api_timestamp_field</span><span class='comma'>,</span> <span class='label'>default:</span> <span class='id identifier rubyid_api_timestamp_field'>api_timestamp_field</span>.<span class='id identifier rubyid_to_s'>to_s</span>
+      <span class='kw'>end</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>The code above uses <a href="ActiveSupport/Concern.html" title="ActiveSupport::Concern (module)"><code>::ActiveSupport::Concern</code></a> to simplify including modules with
+both class and instance methods. Methods in the <code>class_methods</code> block become
+class methods when the module is included. For more details, see the
+<a href="https://api.rubyonrails.org/classes/ActiveSupport/Concern.html">ActiveSupport::Concern API
+documentation</a>.</p>
+
+<h3>Add a Class Method</h3>
+
+<p>By default, this plugin expects your model to have a column named
+<code>last_requested_at</code>. However, since that column name might already be used for
+something else, the plugin lets you customize it. You can override the default
+by passing a different column name with the <code>api_timestamp_field:</code> option.
+Internally, this value is stored in a class-level setting called
+<code>api_timestamp_field</code>, which the plugin uses when updating the timestamp.</p>
+
+<p>For example, if you want to use <code>last_api_call</code> instead of <code>last_requested_at</code> as
+the column name, you can do the following:</p>
+
+<p>First, generate some models in your &quot;dummy&quot; Rails application to test this
+functionality. Run the following commands from the <code>test/dummy</code> directory:</p>
+
+<pre class="code bash"><code class="bash">$ cd test/dummy
+$ bin/rails generate model Product last_requested_at:datetime last_api_call:datetime
+$ bin/rails db:migrate
+</code></pre>
+
+<p>Now update the Product model so that it acts like an API resource:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># test/dummy/app/models/product.rb
+</span>
+<span class='kw'>class</span> <span class='const'>Product</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_acts_as_api_resource'>acts_as_api_resource</span> <span class='label'>api_timestamp_field:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_last_api_call'>last_api_call</span>
+<span class='kw'>end</span></code></pre>
+
+<p>To make the plugin available to all models, include the module in
+<code>ApplicationRecord</code> (we&#39;ll look at doing this automatically later):</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># test/dummy/app/models/application_record.rb
+</span>
+<span class='kw'>class</span> <span class='const'>ApplicationRecord</span> <span class='op'>&lt;</span> <span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)">Base</a></span>
+  <span class='id identifier rubyid_include'>include</span> <span class='const'>ApiBoost</span><span class='op'>::</span><span class='const'>ActsAsApiResource</span>
+
+  <span class='kw'>self</span>.<span class='id identifier rubyid_abstract_class'>abstract_class</span> <span class='op'>=</span> <span class='kw'>true</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Now you can test this functionality in the Rails console:</p>
+
+<pre class="code irb"><code class="irb">irb&gt; Product.api_timestamp_field
+=&gt; &quot;last_api_call&quot;
+</code></pre>
+
+<h3>Add an Instance Method</h3>
+
+<p>This plugin adds an instance method called <code>track_api_request</code> to any Active
+Record model that calls <code>acts_as_api_resource</code>. This method sets the value of
+the configured timestamp field to the current time (or a custom time if
+provided), allowing you to track when an API request was made.</p>
+
+<p>To add this behavior, update <code>acts_as_api_resource.rb</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># api_boost/lib/api_boost/acts_as_api_resource.rb
+</span>
+<span class='kw'>module</span> <span class='const'>ApiBoost</span>
+  <span class='kw'>module</span> <span class='const'>ActsAsApiResource</span>
+    <span class='id identifier rubyid_extend'>extend</span> <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/Concern.html" title="ActiveSupport::Concern (module)">Concern</a></span>
+
+    <span class='id identifier rubyid_class_methods'>class_methods</span> <span class='kw'>do</span>
+      <span class='kw'>def</span> <span class='id identifier rubyid_acts_as_api_resource'>acts_as_api_resource</span>(<span class='id identifier rubyid_options'>options</span> <span class='op'>=</span> {})
+        <span class='id identifier rubyid_cattr_accessor'>cattr_accessor</span> <span class='symbeg'>:</span><span class='id identifier rubyid_api_timestamp_field'>api_timestamp_field</span><span class='comma'>,</span>
+                       <span class='label'>default:</span> (<span class='id identifier rubyid_options'>options</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_api_timestamp_field'>api_timestamp_field</span>] <span class='op'>||</span> <span class='symbeg'>:</span><span class='id identifier rubyid_last_requested_at'>last_requested_at</span>).<span class='id identifier rubyid_to_s'>to_s</span>
+      <span class='kw'>end</span>
+    <span class='kw'>end</span>
+
+    <span class='kw'>def</span> <span class='id identifier rubyid_track_api_request'>track_api_request</span>(<span class='id identifier rubyid_timestamp'>timestamp</span> <span class='op'>=</span> <span class='const'><a href="Time.html" title="Time (class)">Time</a></span>.<span class='id identifier rubyid_current'><a href="Time.html#current-class_method" title="Time.current (method)">current</a></span>)
+      <span class='id identifier rubyid_write_attribute'>write_attribute</span>(<span class='kw'>self</span>.<span class='id identifier rubyid_class'>class</span>.<span class='id identifier rubyid_api_timestamp_field'>api_timestamp_field</span><span class='comma'>,</span> <span class='id identifier rubyid_timestamp'>timestamp</span>)
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>NOTE: The use of <code>write_attribute</code> above to write to the field in model is just
+one example of how a plugin can interact with the model, and will not always be
+the right method to use. For example, you might prefer using <code>send</code>, which calls
+the setter method</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_send'>send</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='kw'>self</span>.<span class='id identifier rubyid_class'>class</span>.<span class='id identifier rubyid_api_timestamp_field'>api_timestamp_field</span><span class='embexpr_end'>}</span><span class='tstring_content'>=</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_timestamp'>timestamp</span>)</code></pre>
+
+<p>Now you can test the functionality in the Rails console:</p>
+
+<pre class="code irb"><code class="irb">irb&gt; product = Product.new
+irb&gt; product.track_api_request
+irb&gt; product.last_api_call
+=&gt; 2025-06-01 10:31:15 UTC
+</code></pre>
+
+<h2>Advanced Integration: Using Railties</h2>
+
+<p>The plugin we&#39;ve built so far works great for basic functionality. However, if
+the plugin needs to integrate more deeply with Rails&#39; framework, you&#39;ll want to
+use a <a href="https://api.rubyonrails.org/classes/Rails/Railtie.html">Railtie</a>.</p>
+
+<p>A Railtie is required when your plugin needs to:</p>
+
+<ul>
+<li>Add configuration options accessible via <code>Rails.application.config</code></li>
+<li>Automatically include modules in Rails classes without manual setup</li>
+<li>Provide Rake tasks to the host application</li>
+<li>Set up initializers that run during Rails boot</li>
+<li>Add middleware to the application stack</li>
+<li>Configure Rails generators</li>
+<li>Subscribe to <a href="ActiveSupport/Notifications.html" title="ActiveSupport::Notifications (module)"><code>::ActiveSupport::Notifications</code></a></li>
+</ul>
+
+<p>For simple plugins like ours that only extend core classes or add modules, a
+Railtie isn&#39;t necessary.</p>
+
+<h3>Configuration Options</h3>
+
+<p>Let&#39;s say you want to make the default rate limit in your
+<code>to_throttled_response</code> method configurable. First, create a Railtie:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># api_boost/lib/api_boost/railtie.rb
+</span>
+<span class='kw'>module</span> <span class='const'>ApiBoost</span>
+  <span class='kw'>class</span> <span class='const'>Railtie</span> <span class='op'>&lt;</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span><span class='op'>::</span><span class='const'><a href="Rails/Railtie.html" title="Rails::Railtie (class)">Railtie</a></span>
+    <span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_api_boost'>api_boost</span> <span class='op'>=</span> <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/OrderedOptions.html" title="ActiveSupport::OrderedOptions (class)">OrderedOptions</a></span>.<span class='id identifier rubyid_new'>new</span>
+    <span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_api_boost'>api_boost</span>.<span class='id identifier rubyid_default_rate_limit'>default_rate_limit</span> <span class='op'>=</span> <span class='int'>60</span>.<span class='id identifier rubyid_requests_per_hour'>requests_per_hour</span>
+
+    <span class='id identifier rubyid_initializer'>initializer</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>api_boost.configure</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_app'>app</span><span class='op'>|</span>
+      <span class='const'>ApiBoost</span>.<span class='id identifier rubyid_configuration'>configuration</span> <span class='op'>=</span> <span class='id identifier rubyid_app'>app</span>.<span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_api_boost'>api_boost</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Add a configuration module to your plugin:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># api_boost/lib/api_boost/configuration.rb
+</span>
+<span class='kw'>module</span> <span class='const'>ApiBoost</span>
+  <span class='id identifier rubyid_mattr_accessor'>mattr_accessor</span> <span class='symbeg'>:</span><span class='id identifier rubyid_configuration'>configuration</span><span class='comma'>,</span> <span class='label'>default:</span> <span class='kw'>nil</span>
+
+  <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_configure'>configure</span>
+    <span class='kw'>yield</span>(<span class='id identifier rubyid_configuration'>configuration</span>) <span class='kw'>if</span> <span class='id identifier rubyid_block_given?'>block_given?</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Update your core extension to use the configuration:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># api_boost/lib/api_boost/core_ext.rb
+</span>
+<span class='kw'>module</span> <span class='const'>ApiBoost</span>
+  <span class='kw'>module</span> <span class='const'>ActsAsApiResource</span>
+    <span class='kw'>def</span> <span class='id identifier rubyid_to_throttled_json'>to_throttled_json</span>(<span class='id identifier rubyid_rate_limit'>rate_limit</span> <span class='op'>=</span> <span class='const'>ApiBoost</span>.<span class='id identifier rubyid_configuration'>configuration</span>.<span class='id identifier rubyid_default_rate_limit'>default_rate_limit</span>)
+      <span class='id identifier rubyid_limit_window'>limit_window</span> <span class='op'>=</span> <span class='int'>1</span>.<span class='id identifier rubyid_send'>send</span>(<span class='id identifier rubyid_rate_limit'>rate_limit</span>.<span class='id identifier rubyid_per'>per</span>).<span class='id identifier rubyid_ago'>ago</span><span class='op'>..</span>
+      <span class='id identifier rubyid_num_of_requests'>num_of_requests</span> <span class='op'>=</span> <span class='kw'>self</span>.<span class='id identifier rubyid_class'>class</span>.<span class='id identifier rubyid_where'>where</span>(<span class='kw'>self</span>.<span class='id identifier rubyid_class'>class</span>.<span class='id identifier rubyid_api_timestamp_field'>api_timestamp_field</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_limit_window'>limit_window</span>).<span class='id identifier rubyid_count'>count</span>
+      <span class='kw'>if</span> <span class='id identifier rubyid_num_of_requests'>num_of_requests</span> <span class='op'>&gt;</span> <span class='id identifier rubyid_rate_limit'>rate_limit</span>.<span class='id identifier rubyid_requests'>requests</span>
+        { <span class='label'>error:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Rate limit reached</span><span class='tstring_end'>&quot;</span></span> }.<span class='id identifier rubyid_to_json'>to_json</span>
+      <span class='kw'>else</span>
+        <span class='id identifier rubyid_to_json'>to_json</span>
+      <span class='kw'>end</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Require the new files in your main plugin file:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># api_boost/lib/api_boost.rb
+</span>
+<span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>api_boost/version</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>api_boost/configuration</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>api_boost/railtie</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>api_boost/core_ext</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>api_boost/acts_as_api_resource</span><span class='tstring_end'>&quot;</span></span>
+
+<span class='kw'>module</span> <span class='const'>ApiBoost</span>
+  <span class='comment'># Your code goes here...
+</span><span class='kw'>end</span></code></pre>
+
+<p>Now applications using your plugin can configure it:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/application.rb
+</span><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_api_boost'>api_boost</span>.<span class='id identifier rubyid_default_rate_limit'>default_rate_limit</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>100 requests per hour</span><span class='tstring_end'>&quot;</span></span></code></pre>
+
+<h3>Automatic Module Inclusion</h3>
+
+<p>Instead of requiring users to manually include <code>ActsAsApiResource</code> in their
+<code>ApplicationRecord</code>, you can use a Railtie to do it automatically:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># api_boost/lib/api_boost/railtie.rb
+</span>
+<span class='kw'>module</span> <span class='const'>ApiBoost</span>
+  <span class='kw'>class</span> <span class='const'>Railtie</span> <span class='op'>&lt;</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span><span class='op'>::</span><span class='const'><a href="Rails/Railtie.html" title="Rails::Railtie (class)">Railtie</a></span>
+    <span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_api_boost'>api_boost</span> <span class='op'>=</span> <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/OrderedOptions.html" title="ActiveSupport::OrderedOptions (class)">OrderedOptions</a></span>.<span class='id identifier rubyid_new'>new</span>
+    <span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_api_boost'>api_boost</span>.<span class='id identifier rubyid_default_rate_limit'>default_rate_limit</span> <span class='op'>=</span> <span class='int'>60</span>.<span class='id identifier rubyid_requests_per_hour'>requests_per_hour</span>
+
+    <span class='id identifier rubyid_initializer'>initializer</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>api_boost.configure</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_app'>app</span><span class='op'>|</span>
+      <span class='const'>ApiBoost</span>.<span class='id identifier rubyid_configuration'>configuration</span> <span class='op'>=</span> <span class='id identifier rubyid_app'>app</span>.<span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_api_boost'>api_boost</span>
+    <span class='kw'>end</span>
+
+    <span class='id identifier rubyid_initializer'>initializer</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>api_boost.active_record</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
+      <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span>.<span class='id identifier rubyid_on_load'><a href="ActiveSupport/LazyLoadHooks.html#on_load-instance_method" title="ActiveSupport::LazyLoadHooks#on_load (method)">on_load</a></span>(<span class='symbeg'>:</span><span class='id identifier rubyid_active_record'>active_record</span>) <span class='kw'>do</span>
+        <span class='id identifier rubyid_include'>include</span> <span class='const'>ApiBoost</span><span class='op'>::</span><span class='const'>ActsAsApiResource</span>
+      <span class='kw'>end</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>The <code>ActiveSupport.on_load</code> hook ensures your module is included at the right
+time during Rails initialization, after ActiveRecord is fully loaded.</p>
+
+<h3>Rake Tasks</h3>
+
+<p>To provide Rake tasks to applications using your plugin:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># api_boost/lib/api_boost/railtie.rb
+</span>
+<span class='kw'>module</span> <span class='const'>ApiBoost</span>
+  <span class='kw'>class</span> <span class='const'>Railtie</span> <span class='op'>&lt;</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span><span class='op'>::</span><span class='const'><a href="Rails/Railtie.html" title="Rails::Railtie (class)">Railtie</a></span>
+    <span class='comment'># ... existing configuration ...
+</span>
+    <span class='id identifier rubyid_rake_tasks'>rake_tasks</span> <span class='kw'>do</span>
+      <span class='id identifier rubyid_load'>load</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>tasks/api_boost_tasks.rake</span><span class='tstring_end'>&quot;</span></span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Create the Rake task file:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># api_boost/lib/tasks/api_boost_tasks.rake
+</span>
+<span class='id identifier rubyid_namespace'>namespace</span> <span class='symbeg'>:</span><span class='id identifier rubyid_api_boost'>api_boost</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_desc'>desc</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Show API usage statistics</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_task'>task</span> <span class='label'>stats:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_environment'>environment</span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>API Boost Statistics:</span><span class='tstring_end'>&quot;</span></span>
+    <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Models using acts_as_api_resource: </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_api_resource_models'>api_resource_models</span>.<span class='id identifier rubyid_count'>count</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_api_resource_models'>api_resource_models</span>
+    <span class='const'>ApplicationRecord</span>.<span class='id identifier rubyid_descendants'>descendants</span>.<span class='id identifier rubyid_select'>select</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_model'>model</span><span class='op'>|</span>
+      <span class='id identifier rubyid_model'>model</span>.<span class='id identifier rubyid_include?'>include?</span>(<span class='const'>ApiBoost</span><span class='op'>::</span><span class='const'>ActsAsApiResource</span>)
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Applications using your plugin will now have access to <code>rails api_boost:stats</code>.</p>
+
+<h3>Testing the Railtie</h3>
+
+<p>You can test that your Railtie works correctly in the dummy application:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># api_boost/test/railtie_test.rb
+</span>
+<span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>test_helper</span><span class='tstring_end'>&quot;</span></span>
+
+<span class='kw'>class</span> <span class='const'>RailtieTest</span> <span class='op'>&lt;</span> <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/TestCase.html" title="ActiveSupport::TestCase (class)">TestCase</a></span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_test_configuration_is_available'>test_configuration_is_available</span>
+    <span class='id identifier rubyid_assert_not_nil'>assert_not_nil</span> <span class='const'>ApiBoost</span>.<span class='id identifier rubyid_configuration'>configuration</span>
+    <span class='id identifier rubyid_assert_equal'>assert_equal</span> <span class='int'>60</span>.<span class='id identifier rubyid_requests_per_hour'>requests_per_hour</span><span class='comma'>,</span> <span class='const'>ApiBoost</span>.<span class='id identifier rubyid_configuration'>configuration</span>.<span class='id identifier rubyid_default_rate_limit'>default_rate_limit</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_test_acts_as_api_resource_is_automatically_included'>test_acts_as_api_resource_is_automatically_included</span>
+    <span class='id identifier rubyid_assert'>assert</span> <span class='const'><a href="Class.html" title="Class (class)">Class</a></span>.<span class='id identifier rubyid_new'>new</span>(<span class='const'>ApplicationRecord</span>).<span class='id identifier rubyid_include?'>include?</span>(<span class='const'>ApiBoost</span><span class='op'>::</span><span class='const'>ActsAsApiResource</span>)
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_test_rake_tasks_are_loaded'>test_rake_tasks_are_loaded</span>
+    <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_load_tasks'>load_tasks</span>
+    <span class='id identifier rubyid_assert'>assert</span> <span class='const'>Rake</span><span class='op'>::</span><span class='const'>Task</span>.<span class='id identifier rubyid_task_defined?'>task_defined?</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>api_boost:stats</span><span class='tstring_end'>&quot;</span></span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Railties provide a clean way to integrate your plugin with Rails&#39; initialization
+process. For more details about the complete Rails initialization lifecycle, see
+the <a href="initialization.html">Rails Initialization Process Guide</a>.</p>
+
+<h2>Testing Your Plugin</h2>
+
+<p>It&#39;s good practice to add tests. The Rails
+plugin generator created a test framework for you. Let&#39;s add tests for the
+functionality we just built.</p>
+
+<h3>Testing Core Extensions</h3>
+
+<p>Create a test file for your core extensions:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># api_boost/test/core_ext_test.rb
+</span>
+<span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>test_helper</span><span class='tstring_end'>&quot;</span></span>
+
+<span class='kw'>class</span> <span class='const'>CoreExtTest</span> <span class='op'>&lt;</span> <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/TestCase.html" title="ActiveSupport::TestCase (class)">TestCase</a></span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_test_to_throttled_response_adds_rate_limit_header'>test_to_throttled_response_adds_rate_limit_header</span>
+    <span class='id identifier rubyid_response_data'>response_data</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Hello API</span><span class='tstring_end'>&quot;</span></span>
+    <span class='id identifier rubyid_expected'>expected</span> <span class='op'>=</span> { <span class='label'>data:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Hello API</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>rate_limit:</span> <span class='int'>60</span>.<span class='id identifier rubyid_requests_per_hour'>requests_per_hour</span> }
+    <span class='id identifier rubyid_assert_equal'>assert_equal</span> <span class='id identifier rubyid_expected'>expected</span><span class='comma'>,</span> <span class='id identifier rubyid_response_data'>response_data</span>.<span class='id identifier rubyid_to_throttled_response'>to_throttled_response</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_test_to_throttled_response_with_custom_limit'>test_to_throttled_response_with_custom_limit</span>
+    <span class='id identifier rubyid_response_data'>response_data</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>User data</span><span class='tstring_end'>&quot;</span></span>
+    <span class='id identifier rubyid_expected'>expected</span> <span class='op'>=</span> { <span class='label'>data:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>User data</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>rate_limit:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>100 requests per hour</span><span class='tstring_end'>&quot;</span></span> }
+    <span class='id identifier rubyid_assert_equal'>assert_equal</span> <span class='id identifier rubyid_expected'>expected</span><span class='comma'>,</span> <span class='id identifier rubyid_response_data'>response_data</span>.<span class='id identifier rubyid_to_throttled_response'>to_throttled_response</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>100 requests per hour</span><span class='tstring_end'>&quot;</span></span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<h3>Testing Acts As Methods</h3>
+
+<p>Create a test file for your ActsAs functionality:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># api_boost/test/acts_as_api_resource_test.rb
+</span>
+<span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>test_helper</span><span class='tstring_end'>&quot;</span></span>
+
+<span class='kw'>class</span> <span class='const'>ActsAsApiResourceTest</span> <span class='op'>&lt;</span> <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/TestCase.html" title="ActiveSupport::TestCase (class)">TestCase</a></span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_test_a_users_api_timestamp_field_should_be_last_requested_at'>test_a_users_api_timestamp_field_should_be_last_requested_at</span>
+    <span class='id identifier rubyid_assert_equal'>assert_equal</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>last_requested_at</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='const'>User</span>.<span class='id identifier rubyid_api_timestamp_field'>api_timestamp_field</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_test_a_products_api_timestamp_field_should_be_last_api_call'>test_a_products_api_timestamp_field_should_be_last_api_call</span>
+    <span class='id identifier rubyid_assert_equal'>assert_equal</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>last_api_call</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='const'>Product</span>.<span class='id identifier rubyid_api_timestamp_field'>api_timestamp_field</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_test_users_track_api_request_should_populate_last_requested_at'>test_users_track_api_request_should_populate_last_requested_at</span>
+    <span class='id identifier rubyid_user'>user</span> <span class='op'>=</span> <span class='const'>User</span>.<span class='id identifier rubyid_new'>new</span>
+    <span class='id identifier rubyid_freeze_time'>freeze_time</span> <span class='op'>=</span> <span class='const'><a href="Time.html" title="Time (class)">Time</a></span>.<span class='id identifier rubyid_current'><a href="Time.html#current-class_method" title="Time.current (method)">current</a></span>
+    <span class='const'><a href="Time.html" title="Time (class)">Time</a></span>.<span class='id identifier rubyid_stub'>stub</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_current'>current</span><span class='comma'>,</span> <span class='id identifier rubyid_freeze_time'>freeze_time</span>) <span class='kw'>do</span>
+      <span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_track_api_request'>track_api_request</span>
+      <span class='id identifier rubyid_assert_equal'>assert_equal</span> <span class='id identifier rubyid_freeze_time'>freeze_time</span>.<span class='id identifier rubyid_to_s'>to_s</span><span class='comma'>,</span> <span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_last_requested_at'>last_requested_at</span>.<span class='id identifier rubyid_to_s'>to_s</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_test_products_track_api_request_should_populate_last_api_call'>test_products_track_api_request_should_populate_last_api_call</span>
+    <span class='id identifier rubyid_product'>product</span> <span class='op'>=</span> <span class='const'>Product</span>.<span class='id identifier rubyid_new'>new</span>
+    <span class='id identifier rubyid_freeze_time'>freeze_time</span> <span class='op'>=</span> <span class='const'><a href="Time.html" title="Time (class)">Time</a></span>.<span class='id identifier rubyid_current'><a href="Time.html#current-class_method" title="Time.current (method)">current</a></span>
+    <span class='const'><a href="Time.html" title="Time (class)">Time</a></span>.<span class='id identifier rubyid_stub'>stub</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_current'>current</span><span class='comma'>,</span> <span class='id identifier rubyid_freeze_time'>freeze_time</span>) <span class='kw'>do</span>
+      <span class='id identifier rubyid_product'>product</span>.<span class='id identifier rubyid_track_api_request'>track_api_request</span>
+      <span class='id identifier rubyid_assert_equal'>assert_equal</span> <span class='id identifier rubyid_freeze_time'>freeze_time</span>.<span class='id identifier rubyid_to_s'>to_s</span><span class='comma'>,</span> <span class='id identifier rubyid_product'>product</span>.<span class='id identifier rubyid_last_api_call'>last_api_call</span>.<span class='id identifier rubyid_to_s'>to_s</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Run your tests to make sure everything is working:</p>
+
+<pre class="code bash"><code class="bash">$ bin/test
+...
+6 runs, 6 assertions, 0 failures, 0 errors, 0 skips
+</code></pre>
+
+<h2>Generators</h2>
+
+<p>Generators can be included in your gem simply by creating them in a
+<code>lib/generators</code> directory of your plugin. More information about the creation
+of generators can be found in the <a href="generators.html">Generators Guide</a>.</p>
+
+<h2>Publishing Your Gem</h2>
+
+<p>Gem plugins currently in development can easily be shared from any Git
+repository. To share the ApiBoost gem with others, simply commit the code to a
+Git repository (like GitHub) and add a line to the <code>Gemfile</code> of the application
+in question:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_gem'>gem</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>api_boost</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>git:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>https://github.com/YOUR_GITHUB_HANDLE/api_boost.git</span><span class='tstring_end'>&quot;</span></span></code></pre>
+
+<p>After running <code>bundle install</code>, your gem functionality will be available to the
+application.</p>
+
+<p>When the gem is ready to be shared as a formal release, it can be published to
+<a href="https://rubygems.org">RubyGems</a>.</p>
+
+<p>Alternatively, you can benefit from Bundler&#39;s Rake tasks. You can see a full
+list with the following:</p>
+
+<pre class="code bash"><code class="bash">$ bundle exec rake -T
+
+$ bundle exec rake build
+# Build api_boost-0.1.0.gem into the pkg directory
+
+$ bundle exec rake install
+# Build and install api_boost-0.1.0.gem into system gems
+
+$ bundle exec rake release
+# Create tag v0.1.0 and build and push api_boost-0.1.0.gem to Rubygems
+</code></pre>
+
+<p>For more information about publishing gems to RubyGems, see: <a href="https://guides.rubygems.org/publishing">Publishing your
+gem</a>.</p>
+
+<h2>RDoc Documentation</h2>
+
+<p>Once your plugin is stable, you can write documentation for it. The first step
+is to update the <code>README.md</code> file with detailed information about how to use
+your plugin. A few key things to include are:</p>
+
+<ul>
+<li>Your name</li>
+<li>How to install</li>
+<li>How to add the functionality to the app (several examples of common use cases)</li>
+<li>Warnings, gotchas or tips that might help users and save them time</li>
+</ul>
+
+<p>Once your <code>README.md</code> is solid, go through and add RDoc comments to all the
+methods that developers will use. It&#39;s also customary to add <code># :nodoc:</code>
+comments to those parts of the code that are not included in the public API.</p>
+
+<p>Once your comments are good to go, navigate to your plugin directory and run:</p>
+
+<pre class="code bash"><code class="bash">$ bundle exec rake rdoc
+</code></pre>
+
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>

@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen' content='yes'>
+<meta name='mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Pointers &mdash; FFI master</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "Pointers",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>FFI master</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Pointers&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<p>Traditionally with pointers you&#8217;ll have a method, like <code>attach_function :GetForegroundWindow, [  ], :pointer</code> What this returns to you is a pointer that, probably, some other library is managing.  You don&#8217;t need to release this pointer or anything.</p>
+<p>To create your own pointer, do something like <code>ptr = MemoryPointer.new(4) 4 bytes worth of memory</code> It will be freed when the pointer object is GC&#8217;ed or you call <code>ptr.free</code>.</p>
+<p><code>ptr.address</code> is the address it points at.  To copy some other pointer, it&#8217;s <code>another_ptr = ptr</code></p>
+<p>A pointer is merely a Fixnum that holds a native memory address. Think of &#8220;Pointer&#8221; as &#8220;fixnum with methods to read/write the native memory at the address&#8221;.</p>
+<h3>Handing off memory to external libraries</h3>
+<p>Some situations will require allocating native memory and handing off that buffer to an external library. The external library then handles the lifecycle of that buffer including eventually freeing it.</p>
+<p>Wrap libc and use its <code>malloc()</code> and <code>free()</code> functions to allocate and free native memory.</p>
+<pre class="code ruby"><code class='ruby'><span class='kw'>module</span> <span class='const'>LibC</span>
+  <span class='id identifier rubyid_extend'>extend</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/Library.html" title="FFI::Library (module)">Library</a></span>
+  <span class='id identifier rubyid_ffi_lib'>ffi_lib</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/Library.html" title="FFI::Library (module)">Library</a></span><span class='op'>::</span><span class='const'><a href="FFI/Library.html#LIBC-constant" title="FFI::Library::LIBC (constant)">LIBC</a></span>
+  
+  <span class='comment'># memory allocators
+</span>  <span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_malloc'>malloc</span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_size_t'>size_t</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span>
+  <span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_calloc'>calloc</span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_size_t'>size_t</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span>
+  <span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_valloc'>valloc</span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_size_t'>size_t</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span>
+  <span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_realloc'>realloc</span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_size_t'>size_t</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span>
+  <span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_free'>free</span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_void'>void</span>
+  
+  <span class='comment'># memory movers
+</span>  <span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_memcpy'>memcpy</span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_size_t'>size_t</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span>
+  <span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_bcopy'>bcopy</span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_size_t'>size_t</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_void'>void</span>
+  
+<span class='kw'>end</span> <span class='comment'># module LibC</span></code></pre>
+<p>In the Ruby code, calls to these functions will return instances of <code>FFI::Pointer</code>. Use the methods defined on <code>FFI::Pointer</code> to move data from Ruby memory to native memory.</p>
+<pre class="code ruby"><code class='ruby'><span class='id identifier rubyid_foo'>foo</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>a Ruby string</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_bar'>bar</span> <span class='op'>=</span> <span class='float'>3.14159</span>
+<span class='id identifier rubyid_baz'>baz</span> <span class='op'>=</span> [<span class='int'>1</span><span class='comma'>,</span> <span class='int'>2</span><span class='comma'>,</span> <span class='int'>3</span><span class='comma'>,</span> <span class='int'>4</span><span class='comma'>,</span> <span class='int'>5</span>]
+
+<span class='id identifier rubyid_buffer1'>buffer1</span> <span class='op'>=</span> <span class='const'>LibC</span>.<span class='id identifier rubyid_malloc'>malloc</span> <span class='id identifier rubyid_foo'>foo</span>.<span class='id identifier rubyid_size'>size</span>
+<span class='id identifier rubyid_buffer1'>buffer1</span>.<span class='id identifier rubyid_write_string'>write_string</span> <span class='id identifier rubyid_foo'>foo</span>
+
+<span class='id identifier rubyid_buffer2'>buffer2</span> <span class='op'>=</span> <span class='const'>LibC</span>.<span class='id identifier rubyid_malloc'>malloc</span> <span class='id identifier rubyid_bar'>bar</span>.<span class='id identifier rubyid_size'>size</span>
+<span class='id identifier rubyid_buffer2'>buffer2</span>.<span class='id identifier rubyid_write_float'>write_float</span> <span class='id identifier rubyid_bar'>bar</span>
+
+<span class='comment'># all of the array elements need to be the same type
+</span><span class='comment'># meaning you can&#39;t mix ints, floats, strings, etc.
+</span><span class='id identifier rubyid_buffer3'>buffer3</span> <span class='op'>=</span> <span class='const'>LibC</span>.<span class='id identifier rubyid_malloc'>malloc</span>(<span class='id identifier rubyid_baz'>baz</span>.<span class='id identifier rubyid_first'>first</span>.<span class='id identifier rubyid_size'>size</span> <span class='op'>*</span> <span class='id identifier rubyid_baz'>baz</span>.<span class='id identifier rubyid_size'>size</span>)
+<span class='id identifier rubyid_buffer3'>buffer3</span>.<span class='id identifier rubyid_write_array_of_int'>write_array_of_int</span> <span class='id identifier rubyid_baz'>baz</span></code></pre>
+<h3>MemoryPointer</h3>
+<p>The <code>FFI::MemoryPointer</code> class allocates native memory with automatic garbage collection as a sweetener. When a MemoryPointer goes out of scope, the memory is freed up as part of the garbage collection process.</p>
+<p>The MemoryPointer constructor takes 3 arguments: <code>size</code>, <code>count</code> and <code>clear</code>.  The <code>size</code> argument is a <a href="http://wiki.github.com/ffi/ffi/types">symbol type</a> that determines the number of bytes to allocate. The <code>size</code> argument can also be any object that responds to <code>#size</code> in which case it will allocate that specific number of bytes. The <code>count</code> argument is a multiplier for size; it will allocate <code>size * count</code> bytes of memory. Lastly, the <code>clear</code> argument tells the memory allocator to zero/initialize the memory when true, skip initialization when false.</p>
+<p>The block form of MemoryPointer is also useful for automatically freeing the pointer when finished, as follows:</p>
+<pre class="code ruby"><code class='ruby'><span class='id identifier rubyid_baz'>baz</span> <span class='op'>=</span> [ <span class='int'>5</span><span class='comma'>,</span> <span class='int'>2</span><span class='comma'>,</span> <span class='int'>88</span><span class='comma'>,</span> <span class='int'>92</span><span class='comma'>,</span> <span class='int'>32</span><span class='comma'>,</span> <span class='int'>1291</span> ]
+<span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/MemoryPointer.html" title="FFI::MemoryPointer (class)">MemoryPointer</a></span>.<span class='id identifier rubyid_new'><a href="FFI/MemoryPointer.html#new-class_method" title="FFI::MemoryPointer.new (method)">new</a></span>(<span class='symbeg'>:</span><span class='id identifier rubyid_int'>int</span><span class='comma'>,</span> <span class='id identifier rubyid_baz'>baz</span>.<span class='id identifier rubyid_size'>size</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_p'>p</span><span class='op'>|</span>
+  <span class='id identifier rubyid_p'>p</span>.<span class='id identifier rubyid_write_array_of_int'>write_array_of_int</span>(<span class='id identifier rubyid_baz'>baz</span>)
+  <span class='const'>C</span>.<span class='const'>DoSomethingWithArrayOfInt</span>(<span class='id identifier rubyid_p'>p</span>)
+<span class='kw'>end</span></code></pre>
+<h4>String pointer</h4>
+<p>a pointer into a Ruby string:</p>
+<p><code>FFI::MemoryPointer.from_string('some string')</code></p>
+<h4>Fresh Memory</h4>
+<p>Some C libraries will return you a pointer to &#8220;fresh&#8221; memory. That means you&#8217;re responsible for freeing that memory after you&#8217;re finished with it. Such a library (&#8220;foo&#8221;) might have the following interface:</p>
+<pre class="code c"><code class="c">// Encodes data of length data_size. The caller is responsible for destroying
+// the return value using foo_free() when finished with it.
+char * foo_encode (const byte *data, size_t data_size);
+
+// Frees a pointer returned by foo_encode().
+void foo_free (char * data);
+</code></pre>
+<p>So <code>foo_encode()</code> takes a pointer to some data, and a length of that data. It&#8217;ll do s</p>
+<p>A very basic way to release the memory after being done with it this is:</p>
+<pre class="code ruby"><code class='ruby'><span class='kw'>module</span> <span class='const'>Foo</span>
+  <span class='comment'># Module with native functions of libfoo.
+</span>  <span class='kw'>module</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span>
+    <span class='id identifier rubyid_extend'>extend</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/Library.html" title="FFI::Library (module)">Library</a></span>
+    <span class='id identifier rubyid_ffi_lib'>ffi_lib</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>libfoo</span><span class='tstring_end'>&#39;</span></span>
+    <span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_foo_encode'>foo_encode</span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_size_t'>size_t</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span> <span class='comment'># returns fresh memory
+</span>    <span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_foo_free'>foo_free</span><span class='comma'>,</span> [ <span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span> ]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_void'>void</span>             <span class='comment'># frees memory
+</span>  <span class='kw'>end</span>
+<span class='kw'>end</span>
+
+<span class='comment'># #...
+</span>
+<span class='kw'>begin</span>
+  <span class='id identifier rubyid_p_input'>p_input</span> <span class='op'>=</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/MemoryPointer.html" title="FFI::MemoryPointer (class)">MemoryPointer</a></span>.<span class='id identifier rubyid_from_string'><a href="FFI/MemoryPointer.html#from_string-class_method" title="FFI::MemoryPointer.from_string (method)">from_string</a></span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>input</span><span class='tstring_end'>&quot;</span></span>)
+  <span class='id identifier rubyid_p_out'>p_out</span> <span class='op'>=</span> <span class='const'>Foo</span><span class='op'>::</span><span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span>.<span class='id identifier rubyid_foo_encode'>foo_encode</span>(<span class='id identifier rubyid_p_input'>p_input</span><span class='comma'>,</span> <span class='id identifier rubyid_p_input'>p_input</span>.<span class='id identifier rubyid_size'>size</span>)
+
+  <span class='comment'># with p_out, we can:
+</span>  <span class='comment'>#   * get a Ruby string from it, when needed:
+</span>  <span class='comment'>#       puts p_out.read_string
+</span>  <span class='comment'>#   * pass it to another C function
+</span>  <span class='comment'>#   * use it to free the memory
+</span>
+<span class='kw'>ensure</span> <span class='comment'># make sure this block is called, no matter what
+</span>
+  <span class='comment'># free it, if p_out still holds a pointer
+</span>  <span class='const'>Foo</span><span class='op'>::</span><span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span>.<span class='id identifier rubyid_free'>free</span>(<span class='id identifier rubyid_p_out'>p_out</span>) <span class='kw'>if</span> <span class='id identifier rubyid_p_out'>p_out</span> 
+<span class='kw'>end</span></code></pre>
+<p>Pretty straight-forward, but not very clean. We&#8217;re explicitly freeing the memory here, and we had to put it in an <code>ensure</code> block to be sure it&#8217;ll be freed.  But it&#8217;s a bit cumbersome to do it this way. In Ruby, we&#8217;re not used to worry about these things, because there&#8217;s the Garbage Collector.</p>
+<p>What if we want to keep the pointer around for longer, maybe to pass it to another C function later (outside of this block)? We want to be sure that the memory eventually gets freed, to avoid a memory leak. This should happen when our reference to it (like <code>p_out</code>) goes out of scope, because that&#8217;s the point where we won&#8217;t have access to that memory anymore.</p>
+<p>To do this, we can wrap our pointer in an instance of <code>FFI::AutoPointer</code> along with our custom release strategy as a <code>Method</code> object:</p>
+<pre class="code ruby"><code class='ruby'><span class='kw'>module</span> <span class='const'>Foo</span>
+  <span class='comment'># Module with native functions of libfoo.
+</span>  <span class='kw'>module</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span>
+    <span class='id identifier rubyid_extend'>extend</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/Library.html" title="FFI::Library (module)">Library</a></span>
+    <span class='id identifier rubyid_ffi_lib'>ffi_lib</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>libfoo</span><span class='tstring_end'>&#39;</span></span>
+    <span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_foo_encode'>foo_encode</span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_size_t'>size_t</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span> <span class='comment'># returns fresh memory
+</span>    <span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_foo_free'>foo_free</span><span class='comma'>,</span> [ <span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span> ]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_void'>void</span>             <span class='comment'># frees memory
+</span>  <span class='kw'>end</span>
+<span class='kw'>end</span>
+
+<span class='comment'># #...
+</span>
+<span class='kw'>begin</span>
+  <span class='id identifier rubyid_p_input'>p_input</span> <span class='op'>=</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/MemoryPointer.html" title="FFI::MemoryPointer (class)">MemoryPointer</a></span>.<span class='id identifier rubyid_from_string'><a href="FFI/MemoryPointer.html#from_string-class_method" title="FFI::MemoryPointer.from_string (method)">from_string</a></span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>input</span><span class='tstring_end'>&quot;</span></span>)
+
+  <span class='comment'># wrap result in a Foo::FFI::AutoPointer
+</span>  <span class='id identifier rubyid_p_out'>p_out</span> <span class='op'>=</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/AutoPointer.html" title="FFI::AutoPointer (class)">AutoPointer</a></span>.<span class='id identifier rubyid_new'><a href="FFI/AutoPointer.html#new-class_method" title="FFI::AutoPointer.new (method)">new</a></span>(<span class='const'>Foo</span><span class='op'>::</span><span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span>.<span class='id identifier rubyid_foo_encode'>foo_encode</span>(<span class='id identifier rubyid_p_input'>p_input</span><span class='comma'>,</span> <span class='id identifier rubyid_p_input'>p_input</span>.<span class='id identifier rubyid_size'>size</span>)<span class='comma'>,</span>
+            <span class='const'>Foo</span><span class='op'>::</span><span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span>.<span class='id identifier rubyid_method'>method</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_foo_free'>foo_free</span>))
+
+  <span class='comment'># #...
+</span><span class='kw'>end</span>
+
+<span class='comment'># p_input is out of scope here, so it gets GC&#39;d soon #...</span></code></pre>
+<p>As you can see, we&#8217;re not explicitly freeing the pointer here. There&#8217;s no need to manually free it here. It&#8217;ll be freed as soon as p_input goes out of scope and is GC&#8217;d.</p>
+<p>As an alternative, we could have inherited from <code>FFI::AutoPointer</code> and specified our custom release strategy in its <code>release</code> class method:</p>
+<pre class="code ruby"><code class='ruby'><span class='kw'>module</span> <span class='const'>Foo</span>
+  <span class='kw'>module</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span>
+    <span class='comment'># Used to automatically free memory using the foo_free() function.
+</span>    <span class='kw'>class</span> <span class='const'>AutoPointer</span> <span class='op'>&lt;</span> <span class='op'>::</span><span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/AutoPointer.html" title="FFI::AutoPointer (class)">AutoPointer</a></span>
+      <span class='comment'># This method will be called by FFI::AutoPointer::DefaultReleaser.
+</span>      <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_release'>release</span>(<span class='id identifier rubyid_ptr'>ptr</span>)
+        <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span>.<span class='id identifier rubyid_foo_free'>foo_free</span>(<span class='id identifier rubyid_ptr'>ptr</span>)
+      <span class='kw'>end</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+
+<span class='comment'># #...
+</span><span class='id identifier rubyid_p_out'>p_out</span> <span class='op'>=</span> <span class='const'>Foo</span><span class='op'>::</span><span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'>AutoPointer</span>.<span class='id identifier rubyid_new'>new</span>(<span class='id identifier rubyid_p_out'>p_out</span>)</code></pre>
+<p>Whatever suits your needs. But providing a <code>Method</code> object is the preferred way.</p>
+<h5>Fresh Strings</h5>
+<p>If you want to access the memory as a String (every time), you can use <code>:strptr</code> as a convenience:</p>
+<pre class="code ruby"><code class='ruby'><span class='kw'>module</span> <span class='const'>Foo</span>
+  <span class='comment'># Module with native functions of libfoo.
+</span>  <span class='kw'>module</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span>
+    <span class='id identifier rubyid_extend'>extend</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/Library.html" title="FFI::Library (module)">Library</a></span>
+    <span class='id identifier rubyid_ffi_lib'>ffi_lib</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>libfoo</span><span class='tstring_end'>&#39;</span></span>
+    <span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_foo_encode'>foo_encode</span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_size_t'>size_t</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_strptr'>strptr</span> <span class='comment'># return String AND Pointer
+</span>    <span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_foo_free'>foo_free</span><span class='comma'>,</span> [ <span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span> ]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_void'>void</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+
+<span class='comment'># #...
+</span>
+<span class='id identifier rubyid_p_input'>p_input</span> <span class='op'>=</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/MemoryPointer.html" title="FFI::MemoryPointer (class)">MemoryPointer</a></span>.<span class='id identifier rubyid_from_string'><a href="FFI/MemoryPointer.html#from_string-class_method" title="FFI::MemoryPointer.from_string (method)">from_string</a></span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>input</span><span class='tstring_end'>&quot;</span></span>)
+
+<span class='comment'># call foo_encode() and get a String and a Pointer back
+</span><span class='id identifier rubyid_string_out'>string_out</span><span class='comma'>,</span> <span class='id identifier rubyid_p_out'>p_out</span> <span class='op'>=</span> <span class='const'>Foo</span><span class='op'>::</span><span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span>.<span class='id identifier rubyid_foo_encode'>foo_encode</span>(<span class='id identifier rubyid_p_input'>p_input</span><span class='comma'>,</span> <span class='id identifier rubyid_p_input'>p_input</span>.<span class='id identifier rubyid_size'>size</span>)
+
+<span class='comment'># wrap pointer in a Foo::FFI::AutoPointer
+</span><span class='id identifier rubyid_p_out'>p_out</span> <span class='op'>=</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/AutoPointer.html" title="FFI::AutoPointer (class)">AutoPointer</a></span>.<span class='id identifier rubyid_new'><a href="FFI/AutoPointer.html#new-class_method" title="FFI::AutoPointer.new (method)">new</a></span>(<span class='id identifier rubyid_p_out'>p_out</span><span class='comma'>,</span> <span class='const'>Foo</span><span class='op'>::</span><span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span>.<span class='id identifier rubyid_method'>method</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_foo_free'>foo_free</span>))
+
+<span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>encoded string: </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_string_out'>string_out</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
+
+<span class='comment'># #...</span></code></pre>
+<p>This way, you don&#8217;t have to call <code>#read_string</code> before having access to the Ruby string.</p>
+<p>Beware that the returned String might have the wrong encoding set. Use <code>String#force_encoding</code>. See [[Binary Data]] as well.</p>
+<h3>Passing by reference</h3>
+<p>Since C can only return 1 value, most C APIs take pointers to output locations which they will write to.
+For an example, let&#8217;s call the C-function:
+```C
+void set_value(int <strong>x) {
+  *x = (</strong>x + 1) % 31337;
+}
+</code></pre></p>
+<p>Since this function treats <code>int *x</code> as equivalent to <code>int x[1]</code>, this situation can be handled by defining a 1-element array (as in the last section) or, alternately by defining a 1-element structure,</p>
+<pre class="code ruby"><code class='ruby'><span class='kw'>class</span> <span class='const'>IntPtr</span> <span class='op'>&lt;</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/Struct.html" title="FFI::Struct (class)">Struct</a></span>
+    <span class='id identifier rubyid_layout'>layout</span>  <span class='symbeg'>:</span><span class='id identifier rubyid_value'>value</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_int'>int</span>
+<span class='kw'>end</span>
+<span class='kw'>module</span> <span class='const'>ValueSetter</span>
+    <span class='id identifier rubyid_extend'>extend</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/Library.html" title="FFI::Library (module)">Library</a></span>
+    <span class='id identifier rubyid_ffi_lib'>ffi_lib</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>/usr/local/lib/set_value.so</span><span class='tstring_end'>&#39;</span></span>
+
+    <span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_set_value'>set_value</span><span class='comma'>,</span> [<span class='const'>IntPtr</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_void'>void</span>
+<span class='kw'>end</span>
+
+<span class='id identifier rubyid_xptr'>xptr</span> <span class='op'>=</span> <span class='const'>IntPtr</span>.<span class='id identifier rubyid_new'>new</span>
+<span class='id identifier rubyid_xptr'>xptr</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_value'>value</span>] <span class='op'>=</span> <span class='int'>42</span>
+<span class='const'>ValueSetter</span><span class='op'>::</span><span class='id identifier rubyid_set_value'>set_value</span>(<span class='id identifier rubyid_xptr'>xptr</span>)
+<span class='id identifier rubyid_puts'>puts</span> <span class='id identifier rubyid_xptr'>xptr</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_value'>value</span>]</code></pre>
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>

@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen' content='yes'>
+<meta name='mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Node Pattern &mdash; RuboCop-AST master</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "node_pattern",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>RuboCop-AST master</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Node Pattern&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<div id="preamble">
+<div class="sectionbody">
+<div class="paragraph">
+<p>Node pattern is a DSL to help find specific nodes in the Abstract Syntax Tree
+using a simple string.</p>
+</div>
+<div class="paragraph">
+<p>It evokes the pattern-matching capabilities of regular expressions,
+but is designed to target specific nodes in Ruby code.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_history">History</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The Node Pattern was introduced by <a href="https://github.com/alexdowad">Alex Dowad</a>
+and solves a problem that RuboCop contributors were facing for a long time:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Ability to declaratively define rules for node search, matching, and capture.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The code below belongs to <a href="https://www.rubydoc.info/gems/rubocop/RuboCop/Cop/Style/ArrayJoin">Style/ArrayJoin</a>
+cop and it&#8217;s in favor of <code>Array#join</code> over <code>Array#*</code>. Then it tries to find
+code like <code>%w(one two three) * ", "</code> and suggest to use <code>#join</code> instead.</p>
+</div>
+<div class="paragraph">
+<p>It can also be an array of integers, and the code doesn&#8217;t check it. However,
+it checks if the argument sent is a string.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_on_send'>on_send</span>(<span class='id identifier rubyid_node'>node</span>)
+  <span class='id identifier rubyid_receiver_node'>receiver_node</span><span class='comma'>,</span> <span class='id identifier rubyid_method_name'>method_name</span><span class='comma'>,</span> <span class='op'>*</span><span class='id identifier rubyid_arg_nodes'>arg_nodes</span> <span class='op'>=</span> <span class='op'>*</span><span class='id identifier rubyid_node'>node</span>
+  <span class='kw'>return</span> <span class='kw'>unless</span> <span class='id identifier rubyid_receiver_node'>receiver_node</span> <span class='op'>&amp;&amp;</span> <span class='id identifier rubyid_receiver_node'>receiver_node</span>.<span class='id identifier rubyid_array_type?'>array_type?</span> <span class='op'>&amp;&amp;</span>
+    <span class='id identifier rubyid_method_name'>method_name</span> <span class='op'>==</span> <span class='symbeg'>:</span><span class='op'>*</span> <span class='op'>&amp;&amp;</span> <span class='id identifier rubyid_arg_nodes'>arg_nodes</span>.<span class='id identifier rubyid_first'>first</span>.<span class='id identifier rubyid_str_type?'>str_type?</span>
+
+  <span class='id identifier rubyid_add_offense'>add_offense</span>(<span class='id identifier rubyid_node'>node</span><span class='comma'>,</span> <span class='label'>location:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_selector'>selector</span>)
+<span class='kw'>end</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This code was replaced in the cop defining a new matcher that does the same as the code above:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_def_node_matcher'>def_node_matcher</span> <span class='symbeg'>:</span><span class='id identifier rubyid_join_candidate?'>join_candidate?</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>(send $array :* $str)</span><span class='tstring_end'>&#39;</span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>And the <code>on_send</code> method is simplified to a method usage:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_on_send'>on_send</span>(<span class='id identifier rubyid_node'>node</span>)
+  <span class='id identifier rubyid_join_candidate?'>join_candidate?</span>(<span class='id identifier rubyid_node'>node</span>) { <span class='id identifier rubyid_add_offense'>add_offense</span>(<span class='id identifier rubyid_node'>node</span><span class='comma'>,</span> <span class='label'>location:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_selector'>selector</span>) }
+<span class='kw'>end</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_ruby_abstract_syntax_tree_ast">Ruby Abstract Syntax Tree (AST)</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Parser translates Ruby source code to a tree structure represented in text.
+A simple integer literal like <code>1</code> is represented by <code>(int 1)</code> in the AST.
+A method call with two integer literals:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_foo'>foo</span>(<span class='int'>1</span><span class='comma'>,</span> <span class='int'>2</span>)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>is represented with:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code>(send nil :foo
+  (int 1)
+  (int 2)
+)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Every node is represented with a sequence.
+The first element is the node type.
+Other elements are the children. They are optionally present and depend on the node type.
+E.g.:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>nil</code> is just <code>(nil)</code></p>
+</li>
+<li>
+<p><code>1</code> is <code>(int 1)</code></p>
+</li>
+<li>
+<p><code>[1]</code> is <code>(array (int 1))</code></p>
+</li>
+<li>
+<p><code>[1, 2]</code> is <code>(array (int 1) (int 2))</code></p>
+</li>
+<li>
+<p><code>foo</code> is <code>(send nil :foo)</code></p>
+</li>
+<li>
+<p><code>foo(1)</code> is <code>(send nil :foo (int 1))</code></p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_getting_the_ast_representation">Getting the AST representation</h3>
+<div class="sect3">
+<h4 id="_from_the_command_line_with_ruby_parse">From the command-line with <code>ruby-parse</code></h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sh" data-lang="sh">$ ruby-parse --legacy -e 'foo(1)'
+(send nil :foo
+  (int 1))</code></pre>
+</div>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">
+Use the <code>--legacy</code> <code>ruby-parse</code> flag to get <a href="https://github.com/whitequark/parser/#usage">the same AST that RuboCop AST returns</a>.
+There are several differences, e.g. without <code>--legacy</code>, <code>foo(a: 1)</code> would return <code>kwargs</code>, and with <code>--legacy</code> it returns <code>hash</code>.
+</td>
+</tr>
+</table>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_from_repl">From REPL</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='op'>&gt;</span> <span class='id identifier rubyid_puts'>puts</span> <span class='const'><a href="RuboCop.html" title="RuboCop (module)">RuboCop</a></span><span class='op'>::</span><span class='const'><a href="RuboCop/AST.html" title="RuboCop::AST (module)">AST</a></span><span class='op'>::</span><span class='const'><a href="RuboCop/AST/ProcessedSource.html" title="RuboCop::AST::ProcessedSource (class)">ProcessedSource</a></span>.<span class='id identifier rubyid_new'><a href="RuboCop/AST/ProcessedSource.html#new-class_method" title="RuboCop::AST::ProcessedSource.new (method)">new</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>foo(1)</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='const'>RUBY_VERSION</span>.<span class='id identifier rubyid_to_f'>to_f</span>).<span class='id identifier rubyid_ast'><a href="RuboCop/AST/ProcessedSource.html#ast-instance_method" title="RuboCop::AST::ProcessedSource#ast (method)">ast</a></span>.<span class='id identifier rubyid_to_s'>to_s</span>
+(<span class='id identifier rubyid_send'>send</span> <span class='kw'>nil</span> <span class='op'>:</span><span class='id identifier rubyid_foo'>foo</span>
+  (<span class='id identifier rubyid_int'>int</span> <span class='int'>1</span>))</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_basic_node_pattern_structure">Basic Node Pattern Structure</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The simplest Node Pattern would match just the node type.
+E.g. the <code>int</code> node pattern would match the <code>(int 1)</code> AST (literal <code>1</code> in Ruby code).
+More sophisticated node patterns match more than one child.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_and_to_match_elements"><code>(</code> and <code>)</code> to Match Elements</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Several matchers surrounded by parentheses would match a node with elements each matching a corresponding matcher, order-dependently.
+Ruby code with an array with two integer literals, <code>[1, 2]</code> represented in AST as <code>(array (int 1) (int 2))</code> could be matched with <code>(array int int)</code> node pattern.</p>
+</div>
+<div class="paragraph">
+<p>For a literal integer, e.g. <code>1</code> Ruby code represented by <code>(int 1)</code> in AST:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>int</code> node pattern will match exactly the node, looking only the node type</p>
+</li>
+<li>
+<p><code>(int 1)</code> node pattern will match precisely the node</p>
+</li>
+<li>
+<p><code>(int 2)</code> node pattern will not match</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_and_for_nested_matching"><code>(</code> and <code>)</code> for Nested Matching</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Ruby code with a method call with two integer literals as arguments, <code>foo(1, 2)</code> represented in AST as <code>(send nil :foo (int 1) (int 2))</code> could be matched with <code>(send nil? :foo int int)</code> node pattern.
+To match just those method calls where the first argument is a literal <code>1</code>, use <code>(send nil? :foo (int 1) int)</code>.
+Any child that is a node can be a target for nested matching.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="any-single-node"><code>_</code> for any single node</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>_</code> will check if there&#8217;s something present in the specific position, no matter the
+value:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>(int _)</code> will match any number</p>
+</li>
+<li>
+<p><code>(int _ _)</code> will not match because <code>int</code> types have just one child that
+contains the value.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>You can specify a name to make a more descriptive reference:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby">(<span class='id identifier rubyid_send'>send</span> <span class='id identifier rubyid_nil?'>nil?</span> <span class='id identifier rubyid__method_name'>_method_name</span>)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>You can also reference them later in the pattern to match against the value that was previously captured:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby">(<span class='id identifier rubyid_pair'>pair</span>
+  (<span class='id identifier rubyid__'>_</span> <span class='id identifier rubyid__key'>_key</span>)
+  (<span class='id identifier rubyid__'>_</span> <span class='id identifier rubyid__key'>_key</span>))</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>{ a: :a }</code> will match, while <code>{ a: :b }</code> won&#8217;t.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_for_several_subsequent_nodes"><code>...</code> for several subsequent nodes</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Where <code>_</code> matches any single node, <code>...</code> matches any number of nodes.</p>
+</div>
+<div class="paragraph">
+<p>Say for example you want to find instances of calls to the method <code>sum</code> with any
+number of arguments, be it <code>sum(1, 2)</code> or <code>sum(1, 2, 3, n)</code>.
+First, let&#8217;s check how it looks like in the AST:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sh" data-lang="sh">$ ruby-parse -e 'sum(1, 2)'
+(send nil :sum
+  (int 1)
+  (int 2))</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Or with more children:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sh" data-lang="sh">$ ruby-parse -e 'sum(1, 2, 3, n)'
+(send nil :sum
+  (int 1)
+  (int 2)
+  (int 3)
+  (send nil :n))</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The following expression would only match a call with 2 arguments:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby">(<span class='id identifier rubyid_send'>send</span> <span class='id identifier rubyid_nil?'>nil?</span> <span class='symbeg'>:</span><span class='id identifier rubyid_sum'>sum</span> <span class='id identifier rubyid__'>_</span> <span class='id identifier rubyid__'>_</span>)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Instead, the following expression will any number of arguments (and thus both examples above):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby">(<span class='id identifier rubyid_send'>send</span> <span class='id identifier rubyid_nil?'>nil?</span> <span class='symbeg'>:</span><span class='id identifier rubyid_sum'>sum</span> <span class='op'>...</span>)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Note that <code>...</code> can be appear anywhere in a sequence, for example <code>(send nil? :sum ... int)</code>
+would no longer match the second example, as the last argument is not an integer.</p>
+</div>
+<div class="paragraph">
+<p>Nesting <code>...</code> is also supported; the only limitation is that <code>...</code> and
+other "variable length" patterns can only appear once within a sequence.
+For example <code>(send ... :sum ...)</code> is not supported.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_for_repetitions"><code>*</code>, <code>+</code>, <code>?</code> for repetitions</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Another way to handle a variable number of nodes is by using <code>*</code>, <code>+</code>, <code>?</code> to signify
+a particular pattern should match any number of times, at least once and at most once respectively.</p>
+</div>
+<div class="paragraph">
+<p>Following on the previous example, to find sums of integer literals, we could use:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby">(<span class='id identifier rubyid_send'>send</span> <span class='id identifier rubyid_nil?'>nil?</span> <span class='symbeg'>:</span><span class='id identifier rubyid_sum'>sum</span> <span class='id identifier rubyid_int'>int</span><span class='op'>*</span>)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This would match our first example <code>sum(1, 2)</code> but not the other <code>sum(1, 2, 3, n)</code></p>
+</div>
+<div class="paragraph">
+<p>This pattern would also match a call to <code>sum</code> without any argument, which might not be desirable.</p>
+</div>
+<div class="paragraph">
+<p>Using <code>+</code> would insure that only sums with at least one argument would be matched.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby">(<span class='id identifier rubyid_send'>send</span> <span class='id identifier rubyid_nil?'>nil?</span> <span class='symbeg'>:</span><span class='id identifier rubyid_sum'>sum</span> <span class='id identifier rubyid_int'>int</span><span class='op'>+</span>)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The <code>?</code> can limit the match only 0 or 1 nodes.
+The following example would match any sum of three integer literals
+optionally followed by a method call:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby">(<span class='id identifier rubyid_send'>send</span> <span class='id identifier rubyid_nil?'>nil?</span> <span class='symbeg'>:</span><span class='id identifier rubyid_sum'>sum</span> <span class='id identifier rubyid_int'>int</span> <span class='id identifier rubyid_int'>int</span> <span class='id identifier rubyid_int'>int</span> <span class='id identifier rubyid_send'>send</span> <span class='op'>?</span>)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Note that we have to put a space between <code>send</code> and <code>?</code>,
+since <code>send?</code> would be considered as a predicate (described below).</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_for_match_in_any_order"><code>&lt;&gt;</code> for match in any order</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>You may not care about the exact order of the nodes you want to match.
+In this case you can put the nodes without brackets:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby">(<span class='id identifier rubyid_send'>send</span> <span class='id identifier rubyid_nil?'>nil?</span> <span class='symbeg'>:</span><span class='id identifier rubyid_sum'>sum</span> <span class='op'>&lt;</span>(<span class='id identifier rubyid_int'>int</span> <span class='int'>2</span>) <span class='id identifier rubyid_int'>int</span><span class='op'>&gt;</span>)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This will match our first example (<code>sum(1, 2)</code>).</p>
+</div>
+<div class="paragraph">
+<p>It won&#8217;t match our second example though, as it specifies that there must be
+exactly two arguments to the method call <code>sum</code>.</p>
+</div>
+<div class="paragraph">
+<p>You can add <code>...</code> before the closing bracket to allow for additional parameters:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby">(<span class='id identifier rubyid_send'>send</span> <span class='id identifier rubyid_nil?'>nil?</span> <span class='symbeg'>:</span><span class='id identifier rubyid_sum'>sum</span> <span class='op'>&lt;</span>(<span class='id identifier rubyid_int'>int</span> <span class='int'>2</span>) <span class='id identifier rubyid_int'>int</span> <span class='op'>...</span><span class='op'>&gt;</span>)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This will match both our examples, but not <code>sum(1.0, 2)</code> or <code>sum(2)</code>,
+since the first node in the brackets is found, but not the second (<code>int</code>).</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_for_or_union"><code>{}</code> for "OR" (union)</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Lets make it a bit more complex and introduce floats:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sh" data-lang="sh">$ ruby-parse -e '1'
+(int 1)
+$ ruby-parse -e '1.0'
+(float 1.0)</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>({int | float} _)</code> - int or float types, no matter the value</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Branches of the union can contain more than one term:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>(array {int int | range})</code> - matches an array with two integers or a single range element</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>If all the branches have a single term, you can omit the <code>|</code>, so <code>{int | float}</code> can be
+simplified to <code>{int float}</code>.</p>
+</div>
+<div class="paragraph">
+<p>When checking for symbols or string, you can use regexp literals for a similar effect:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sh" data-lang="sh">(send _ /to_s|inspect/) # =&gt; matches calls to `to_s` or `inspect`</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_for_and"><code>[]</code> for "AND"</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Imagine you want to check if the number is <code>odd?</code> and also positive numbers:</p>
+</div>
+<div class="paragraph">
+<p><code>(int [odd? positive?])</code> - is an int and the value should be odd and positive.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">
+Refer to <a href="#_predicate_methods">Predicate methods</a> to see how <code>odd?</code> works.
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_for_negation"><code>!</code> for Negation</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Node pattern <code>(send nil? :sum !int _)</code> would match a <code>sum</code> call where the first argument is <strong>not</strong> a literal integer.
+E.g.:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>it will match <code>sum(2.0, 3)</code>, as the first argument is of a <code>float</code> type</p>
+</li>
+<li>
+<p>it will not match <code>sum(2, 3)</code>, as the first argument is of an <code>int</code> type</p>
+</li>
+</ul>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">
+Negation operator works with other node pattern syntax elements, <code>{}</code>, <code>[]</code>, <code>()</code>, <code>$</code>, but only with those that target a single element. E.g. <code>$!(int 1)</code>, <code>!{false nil}</code>, <code>![#positive? #even?]</code> will work, while <code>!{int int | sym}</code>, <code>!{int int | sym sym}</code>, and any use of <code>&lt;&gt;</code> won&#8217;t.
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_for_captures"><code>$</code> for captures</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>You can capture elements or nodes along with your search, prefixing the expression
+with <code>$</code>. For example, in a tuple like <code>(int 1)</code>, you can capture the value using <code>(int $_)</code>.</p>
+</div>
+<div class="paragraph">
+<p>You can also capture multiple things like:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby">(<span class='gvar'>$</span>{<span class='id identifier rubyid_int'>int</span> <span class='id identifier rubyid_float'>float</span>} <span class='gvar'>$_</span>)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The tuple can be entirely captured using the <code>$</code> before the open parens:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='gvar'>$</span>({<span class='id identifier rubyid_int'>int</span> <span class='id identifier rubyid_float'>float</span>} <span class='id identifier rubyid__'>_</span>)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Or remove the parens and match directly from node head:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='gvar'>$</span>{<span class='id identifier rubyid_int'>int</span> <span class='id identifier rubyid_float'>float</span>}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>All variable length patterns (<code>...</code>, <code>*</code>, <code>+</code>, <code>?</code>, <code>&lt;&gt;</code>) are captured as arrays.</p>
+</div>
+<div class="paragraph">
+<p>The following pattern will have two captures, both arrays:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby">(<span class='id identifier rubyid_send'>send</span> <span class='id identifier rubyid_nil?'>nil?</span> <span class='gvar'>$int</span><span class='op'>+</span> (<span class='id identifier rubyid_send'>send</span> <span class='gvar'>$.</span><span class='op'>..</span>))</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>When capturing <a href="#any-single-node">any single node</a>, you can reference the value you previously captured.</p>
+</div>
+<div class="paragraph">
+<p>The following pattern will have one capture:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby">(<span class='id identifier rubyid_pair'>pair</span>
+  (<span class='id identifier rubyid__'>_</span> <span class='gvar'>$_key</span>)
+  (<span class='id identifier rubyid__'>_</span> <span class='id identifier rubyid__key'>_key</span>))</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_for_parent"><code>^</code> for parent</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>One may use the <code>^</code> character to check against a parent.</p>
+</div>
+<div class="paragraph">
+<p>For example, the following pattern would find any node with two children and
+with a parent that is a hash:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby">(<span class='op'>^</span><span class='id identifier rubyid_hash'>hash</span> <span class='id identifier rubyid__key'>_key</span> <span class='gvar'>$_value</span>)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>It is possible to use <code>^</code> somewhere else than the head of a sequence; in that
+case it is relative to that child (i.e. the current node). One case also use
+multiple <code>^</code> to go up multiple levels.
+For example, the previous example is basically the same as:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby">(<span class='id identifier rubyid_pair'>pair</span> <span class='op'>^</span><span class='op'>^</span><span class='id identifier rubyid_hash'>hash</span> <span class='gvar'>$_value</span>)</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_for_descendants"><code>`</code> for descendants</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The <code>`</code> character can be used to search a node and all its descendants.
+For example if looking for a <code>return</code> statement anywhere within a method definition,
+we can write:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby">(<span class='kw'>def</span> <span class='id identifier rubyid__method_name'>_method_name</span> <span class='id identifier rubyid__args'>_args</span> <span class='backtick'>`</span><span class='tstring_content'>return)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This would match both of these methods <code>foo</code> and <code>bar</code>, even though
+these <code>return</code> for <code>foo</code> and <code>bar</code> are not at the same level.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_foo'>foo</span>              <span class='comment'># (def :foo
+</span>  <span class='kw'>return</span> <span class='int'>42</span>          <span class='comment'>#   (args)
+</span><span class='kw'>end</span>                  <span class='comment'>#   (return
+</span>                     <span class='comment'>#     (int 42)))
+</span>
+<span class='kw'>def</span> <span class='id identifier rubyid_bar'>bar</span>              <span class='comment'># (def :bar
+</span>  <span class='kw'>return</span> <span class='int'>42</span> <span class='kw'>if</span> <span class='id identifier rubyid_foo'>foo</span>   <span class='comment'>#   (args)
+</span>  <span class='kw'>nil</span>                <span class='comment'>#   (begin
+</span><span class='kw'>end</span>                  <span class='comment'>#     (if
+</span>                     <span class='comment'>#       (send nil :foo)
+</span>                     <span class='comment'>#       (return
+</span>                     <span class='comment'>#         (int 42)) nil)
+</span>                     <span class='comment'>#     (nil)))</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_predicate_methods">Predicate methods</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Words which end with a <code>?</code> are predicate methods, are called on the target
+to see if it matches any Ruby method which the matched object supports can be
+used.</p>
+</div>
+<div class="paragraph">
+<p>Example:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>int_type?</code> can be used herein replacement of <code>(int _)</code>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>And refactoring the expression to allow both int or float types:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>{int_type? float_type?}</code> can be used herein replacement of <code>({int float} _)</code></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>You can also use it at the node level, asking for each child:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>(int odd?)</code> will match only with odd numbers, asking it to the current
+number.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_to_call_functions"><code>#</code> to call functions</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Sometimes, we want to add extra logic. Let&#8217;s imagine we&#8217;re searching for
+prime numbers, so we have a method to detect it:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_prime?'>prime?</span>(<span class='id identifier rubyid_n'>n</span>)
+  <span class='kw'>if</span> <span class='id identifier rubyid_n'>n</span> <span class='op'>&lt;=</span> <span class='int'>1</span>
+    <span class='kw'>false</span>
+  <span class='kw'>elsif</span> <span class='id identifier rubyid_n'>n</span> <span class='op'>==</span> <span class='int'>2</span>
+    <span class='kw'>true</span>
+  <span class='kw'>else</span>
+    (<span class='int'>2</span><span class='op'>..</span><span class='id identifier rubyid_n'>n</span><span class='op'>/</span><span class='int'>2</span>).<span class='id identifier rubyid_none?'>none?</span> { <span class='op'>|</span><span class='id identifier rubyid_i'>i</span><span class='op'>|</span> <span class='id identifier rubyid_n'>n</span> <span class='op'>%</span> <span class='id identifier rubyid_i'>i</span> <span class='op'>==</span> <span class='int'>0</span> }
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>We can use the <code>#prime?</code> function directly in the expression:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby">(<span class='id identifier rubyid_int'>int</span> <span class='comment'>#prime?)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>You may call a method on a constant too. Let&#8217;s say you define:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'>Util</span>
+  <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_palindrome?'>palindrome?</span>(<span class='id identifier rubyid_str'>str</span>)
+    <span class='id identifier rubyid_str'>str</span> <span class='op'>==</span> <span class='id identifier rubyid_str'>str</span>.<span class='id identifier rubyid_reverse'>reverse</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>You can refer to it like this:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby">(<span class='id identifier rubyid_str'>str</span> <span class='comment'>#Util.palindrome?)</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_arguments_for_predicate_and_function_calls">Arguments for predicate and function calls</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Arguments can be passed to predicates and function calls, like literals, parameters:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_divisible_by?'>divisible_by?</span>(<span class='id identifier rubyid_value'>value</span><span class='comma'>,</span> <span class='id identifier rubyid_divisor'>divisor</span>)
+  <span class='id identifier rubyid_value'>value</span> <span class='op'>%</span> <span class='id identifier rubyid_divisor'>divisor</span> <span class='op'>==</span> <span class='int'>0</span>
+<span class='kw'>end</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Example patterns using this function:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby">(<span class='id identifier rubyid_int'>int</span> <span class='comment'>#divisible_by?(42))
+</span>(<span class='id identifier rubyid_send'>send</span> (<span class='id identifier rubyid_int'>int</span> <span class='id identifier rubyid__value'>_value</span>) <span class='op'>:</span><span class='op'>+</span> (<span class='id identifier rubyid_int'>int</span> <span class='comment'>#divisible_by?(_value))</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The arguments can be pattern themselves, in which case a matcher responding to <code>===</code> will be passed. This makes patterns composable:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_def_node_matcher'>def_node_matcher</span> <span class='symbeg'>:</span><span class='id identifier rubyid_global_const?'>global_const?</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>(const {nil? cbase} %1)</span><span class='tstring_end'>&#39;</span></span>
+<span class='id identifier rubyid_def_node_matcher'>def_node_matcher</span> <span class='symbeg'>:</span><span class='id identifier rubyid_class_creator'>class_creator</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>(send #global_const?({:Class :Module}) :new ...)</span><span class='tstring_end'>&#39;</span></span></code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_using_node_matcher_macros">Using node matcher macros</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The RuboCop base includes two useful methods to use the node pattern with Ruby in a
+simple way. You can use the macros to define methods. The basics are
+<a href="https://www.rubydoc.info/gems/rubocop-ast/RuboCop/AST/NodePattern/Macros#def_node_matcher-instance_method">def_node_matcher</a>
+and <a href="https://www.rubydoc.info/gems/rubocop-ast/RuboCop/AST/NodePattern/Macros#def_node_search-instance_method">def_node_search</a>.</p>
+</div>
+<div class="paragraph">
+<p>When you define a pattern, it creates a method that accepts a node and tries to match.</p>
+</div>
+<div class="paragraph">
+<p>Lets create an example where we&#8217;re trying to find the symbols <code>user</code> and
+<code>current_user</code> in expressions like: <code>user: current_user</code> or
+<code>current_user: User.first</code>, so the objective here is pick all keys:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sh" data-lang="sh">$ ruby-parse -e ':current_user'
+(sym :current_user)
+$ ruby-parse -e ':user'
+(sym :user)
+$ ruby-parse -e '{ user: current_user }'
+(hash
+  (pair
+    (sym :user)
+    (send nil :current_user)))</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Our minimal matcher can get it in the simple node <code>sym</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_def_node_matcher'>def_node_matcher</span> <span class='symbeg'>:</span><span class='id identifier rubyid_user_symbol?'>user_symbol?</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>(sym {:current_user :user})</span><span class='tstring_end'>&#39;</span></span></code></pre>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_composing_complex_expressions_with_multiple_matchers">Composing complex expressions with multiple matchers</h3>
+<div class="paragraph">
+<p>Now let&#8217;s go deeply combining the previous expression and also match if the
+current symbol is being called from an initialization method, like:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sh" data-lang="sh">$ ruby-parse --legacy -e 'Comment.new(user: current_user)'
+(send
+  (const nil :Comment) :new
+  (hash
+    (pair
+      (sym :user)
+      (send nil :current_user))))</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>And we can also reuse this and check if it&#8217;s a constructor:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_def_node_matcher'>def_node_matcher</span> <span class='symbeg'>:</span><span class='id identifier rubyid_initializing_with_user?'>initializing_with_user?</span><span class='comma'>,</span> <span class='heredoc_beg'>&lt;&lt;~PATTERN</span>
+<span class='ignored_sp'>  </span><span class='tstring_content'>(send _ :new (hash (pair #user_symbol?)))
+</span><span class='heredoc_end'>PATTERN</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_for_arguments"><code>%</code> for arguments</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Arguments can be passed to matchers, either as external method arguments,
+or to be used to compare elements. An example of method argument:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_multiple_of?'>multiple_of?</span>(<span class='id identifier rubyid_n'>n</span><span class='comma'>,</span> <span class='id identifier rubyid_factor'>factor</span>)
+  <span class='id identifier rubyid_n'>n</span> <span class='op'>%</span> <span class='id identifier rubyid_factor'>factor</span> <span class='op'>==</span> <span class='int'>0</span>
+<span class='kw'>end</span>
+
+<span class='id identifier rubyid_def_node_matcher'>def_node_matcher</span> <span class='symbeg'>:</span><span class='id identifier rubyid_int_node_multiple?'>int_node_multiple?</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>(int #multiple_of?(%1))</span><span class='tstring_end'>&#39;</span></span>
+
+<span class='comment'># ...
+</span>
+<span class='id identifier rubyid_int_node_multiple?'>int_node_multiple?</span>(<span class='id identifier rubyid_node'>node</span><span class='comma'>,</span> <span class='int'>10</span>) <span class='comment'># =&gt; true if node is an &#39;int&#39; node with a multiple of 10</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Arguments can be used to match nodes directly:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_def_node_matcher'>def_node_matcher</span> <span class='symbeg'>:</span><span class='id identifier rubyid_has_sensitive_data?'>has_sensitive_data?</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>(hash &lt;(pair (_ %1) $_) ...&gt;)</span><span class='tstring_end'>&#39;</span></span>
+
+<span class='comment'># ...
+</span>
+<span class='id identifier rubyid_has_sensitive_data?'>has_sensitive_data?</span>(<span class='id identifier rubyid_node'>node</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_password'>password</span>) <span class='comment'># =&gt; true if node is a hash with a key +:password+
+</span>
+<span class='comment'># matching uses ===, so to match strings or symbols, &#39;pass&#39; or &#39;password&#39; one can:
+</span><span class='id identifier rubyid_has_sensitive_data?'>has_sensitive_data?</span>(<span class='id identifier rubyid_node'>node</span><span class='comma'>,</span> <span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>^pass(word)?$</span><span class='regexp_end'>/i</span></span>)
+
+<span class='comment'># one can also pass lambdas...
+</span><span class='id identifier rubyid_has_sensitive_data?'>has_sensitive_data?</span>(<span class='id identifier rubyid_node'>node</span><span class='comma'>,</span> <span class='tlambda'>-&gt;</span>(<span class='id identifier rubyid_key'>key</span>) <span class='tlambeg'>{</span> <span class='comment'># return true or false depending on key })</span></code></pre>
+</div>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">
+<code>Array#===</code> will never match a single node element (so don&#8217;t pass arrays),
+but <code>Set#===</code> is an alias to <code>Set#include?</code> (Ruby 2.5+ only), and so can be
+very useful to match within many possible literals / Nodes.
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_param_name_for_named_parameters"><code>%param_name</code> for named parameters</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Arguments can be passed as named parameters. They will be matched using <code>===</code>
+(see <code>%</code> above).</p>
+</div>
+<div class="paragraph">
+<p>Contrary to positional arguments, defaults values can be passed to
+<code>def_node_matcher</code> and <code>def_node_search</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_def_node_matcher'>def_node_matcher</span> <span class='symbeg'>:</span><span class='id identifier rubyid_interesting_call?'>interesting_call?</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>(send _ %method ...)</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span>
+                 <span class='label'>method:</span> <span class='const'>Set</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_transform_values'>transform_values</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_transform_keys'>transform_keys</span><span class='comma'>,</span>
+                             <span class='symbeg'>:</span><span class='id identifier rubyid_transform_values!'>transform_values!</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_transform_keys!'>transform_keys!</span><span class='comma'>,</span>
+                             <span class='symbeg'>:</span><span class='id identifier rubyid_to_h'>to_h</span>].<span class='id identifier rubyid_freeze'>freeze</span>
+
+<span class='comment'># Usage:
+</span>
+<span class='id identifier rubyid_interesting_call?'>interesting_call?</span>(<span class='id identifier rubyid_node'>node</span>) <span class='comment'># use the default methods
+</span><span class='id identifier rubyid_interesting_call?'>interesting_call?</span>(<span class='id identifier rubyid_node'>node</span><span class='comma'>,</span> <span class='label'>method:</span> <span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>^transform</span><span class='regexp_end'>/</span></span>) <span class='comment'># match anything starting with &#39;transform&#39;</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Named parameters as arguments to custom methods are also supported.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_const_or_const_for_constants"><code>CONST</code> or <code>%CONST</code> for constants</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Constants can be included in patterns. They will be matched using <code>===</code>, so
+Regexp / Set / Proc can be used in addition to literals and Nodes:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='const'>SOME_CALLS</span> <span class='op'>=</span> <span class='const'>Set</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_transform_values'>transform_values</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_transform_keys'>transform_keys</span><span class='comma'>,</span>
+                 <span class='symbeg'>:</span><span class='id identifier rubyid_transform_values!'>transform_values!</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_transform_keys!'>transform_keys!</span><span class='comma'>,</span>
+                 <span class='symbeg'>:</span><span class='id identifier rubyid_to_h'>to_h</span>].<span class='id identifier rubyid_freeze'>freeze</span>
+
+<span class='id identifier rubyid_def_node_matcher'>def_node_matcher</span> <span class='symbeg'>:</span><span class='id identifier rubyid_interesting_call?'>interesting_call?</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>(send _ SOME_CALLS ...)</span><span class='tstring_end'>&#39;</span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Constants as arguments to custom methods are also supported.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments">Comments</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>You may have comments in node patterns at the end of lines
+by preceding them with <code>'# '</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_def_node_matcher'>def_node_matcher</span> <span class='symbeg'>:</span><span class='id identifier rubyid_complex_stuff'>complex_stuff</span><span class='comma'>,</span> <span class='heredoc_beg'>&lt;&lt;~PATTERN</span>
+<span class='ignored_sp'>  </span><span class='tstring_content'>(send
+</span><span class='ignored_sp'>  </span><span class='tstring_content'>  {#global_const?(:Kernel) nil?}  # check for explicit call like Kernel.p too
+</span><span class='ignored_sp'>  </span><span class='tstring_content'>  {:p :pp}                        # let&#39;s consider `pp` also
+</span><span class='ignored_sp'>  </span><span class='tstring_content'>  $...                            # capture all arguments
+</span><span class='ignored_sp'>  </span><span class='tstring_content'>)
+</span><span class='heredoc_end'>PATTERN</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_nil_or_nil"><code>nil</code> or <code>nil?</code></h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Take a special attention to nil behavior:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sh" data-lang="sh">$ ruby-parse -e 'nil'
+(nil)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In this case, the <code>nil</code> implicit matches with expressions like: <code>nil</code>, <code>(nil)</code>, or <code>nil_type?</code>.</p>
+</div>
+<div class="paragraph">
+<p>But, nil is also used to represent a call from <code>nothing</code> from a simple method call:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sh" data-lang="sh">$ ruby-parse -e 'method'
+(send nil :method)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Then, for such case you can use the predicate <code>nil?</code>. And the code can be
+matched with an expression like:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby">(<span class='id identifier rubyid_send'>send</span> <span class='id identifier rubyid_nil?'>nil?</span> <span class='symbeg'>:</span><span class='id identifier rubyid_method'>method</span>)</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_more_resources">More resources</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Curious about how it works?</p>
+</div>
+<div class="paragraph">
+<p>Check more details in the
+<a href="https://www.rubydoc.info/gems/rubocop-ast/RuboCop/AST/NodePattern">documentation</a>
+or browse the <a href="https://github.com/rubocop/rubocop-ast/blob/master/lib/rubocop/ast/node_pattern.rb">source code</a>
+directly. It&#8217;s easy to read and hack on. The <a href="https://nodepattern.herokuapp.com/">node pattern debugger</a>
+is an online tool where you can quickly try out patterns you create.</p>
+</div>
+<div class="paragraph">
+<p>The <a href="https://github.com/rubocop/rubocop-ast/blob/master/spec/rubocop/ast/node_pattern_spec.rb">specs</a>
+are also very useful to comprehend each feature.</p>
+</div>
+</div>
+</div>
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>
