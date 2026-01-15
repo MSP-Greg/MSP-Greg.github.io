@@ -78,6 +78,7 @@ changes to your tables.</p>
 <li>How to change existing migrations and update your schema.</li>
 <li>How migrations relate to <code>schema.rb</code>.</li>
 <li>How to maintain referential integrity.</li>
+<li>How to customize migration behavior with swappable strategies.</li>
 </ul>
 
 <hr>
@@ -1654,6 +1655,114 @@ tables, affecting application performance and availability.</li>
 gem provides a framework for creating and managing data migrations and other
 maintenance tasks in a way that is safe and easy to manage without interfering
 with schema migrations.</p>
+
+<h2>Customizing Migration Behavior with Swappable Strategies</h2>
+
+<p>Rails allows you to customize how migrations execute by using <strong>migration
+strategies</strong>. A migration strategy is an object that sits between your migration
+and the connection, giving you control over how schema changes are applied to
+the database.</p>
+
+<p>By default, Rails uses <a href="https://api.rubyonrails.org/classes/ActiveRecord/Migration/DefaultStrategy.html"><a href="ActiveRecord/Migration/DefaultStrategy.html" title="ActiveRecord::Migration::DefaultStrategy (class)"><code>::ActiveRecord::Migration::DefaultStrategy</code></a></a>, which
+executes migrations by sending method calls directly to the connection.
+However, you can replace this with your own strategy to modify, validate,
+or even prevent certain migration operations. Migration strategies are
+especially useful when you need different migration behavior across
+environments. For example, production migrations may require:</p>
+
+<ul>
+<li><strong>Safety and Validation</strong>: Prevent dangerous operations like dropping tables
+or removing columns in production environments.</li>
+<li><strong>Online Schema Changes</strong>: Integrate with tools that perform schema
+changes without downtime (e.g., <code>pt-online-schema-change</code>, <code>gh-ost</code>).</li>
+<li><strong>Centralized Management</strong>: Submit migrations to a centralized service
+rather than executing them directly, useful in large-scale deployments.</li>
+</ul>
+
+<h3>Configuring a Global Migration Strategy</h3>
+
+<p>To customize how migrations are executed, you can define your own migration
+strategy by subclassing <a href="https://api.rubyonrails.org/classes/ActiveRecord/Migration/DefaultStrategy.html"><a href="ActiveRecord/Migration/DefaultStrategy.html" title="ActiveRecord::Migration::DefaultStrategy (class)"><code>::ActiveRecord::Migration::DefaultStrategy</code></a></a>. This
+default class automatically forwards all migration methods to the underlying
+database connection, so you only need to override the methods you want to
+customize.</p>
+
+<p>For example, to prevent dropping tables in production:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>CustomMigrationStrategy</span> <span class='op'>&lt;</span> <span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/Migration.html" title="ActiveRecord::Migration (class)">Migration</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/Migration/DefaultStrategy.html" title="ActiveRecord::Migration::DefaultStrategy (class)">DefaultStrategy</a></span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_drop_table'>drop_table</span>(<span class='id identifier rubyid_table_name'>table_name</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_options'>options</span>)
+    <span class='id identifier rubyid_raise'>raise</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Dropping tables is not allowed in production!</span><span class='tstring_end'>&quot;</span></span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>You can override any schema statement method your application needs, such as:</p>
+
+<ul>
+<li><code>create_table</code></li>
+<li><code>drop_table</code></li>
+<li><code>add_column</code></li>
+<li><code>remove_column</code></li>
+<li><code>add_index</code></li>
+<li><code>remove_index</code></li>
+<li>Or any other method from
+<a href="https://api.rubyonrails.org/classes/ActiveRecord/ConnectionAdapters/SchemaStatements.html"><a href="ActiveRecord/ConnectionAdapters/SchemaStatements.html" title="ActiveRecord::ConnectionAdapters::SchemaStatements (module)"><code>::ActiveRecord::ConnectionAdapters::SchemaStatements</code></a></a></li>
+</ul>
+
+<p>You can also subclass <a href="https://api.rubyonrails.org/classes/ActiveRecord/Migration/ExecutionStrategy.html"><a href="ActiveRecord/Migration/ExecutionStrategy.html" title="ActiveRecord::Migration::ExecutionStrategy (class)"><code>::ActiveRecord::Migration::ExecutionStrategy</code></a></a>, the base
+strategy class. This is useful if you want to define all migration behavior from
+scratch, without having any methods forwarded to the connection.</p>
+
+<p>Once you&#39;ve defined your custom strategy, make it the default for migrations across
+all database connections by setting <a href="configuring.html#config-active-record-migration-strategy"><code>config.active_record.migration_strategy</code></a>.
+For example, to set a custom strategy in production:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/environments/production.rb
+</span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_configure'>configure</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_active_record'>active_record</span>.<span class='id identifier rubyid_migration_strategy'>migration_strategy</span> <span class='op'>=</span> <span class='const'>CustomMigrationStrategy</span>
+<span class='kw'>end</span></code></pre>
+
+<p>All migrations methods will be sent to your custom strategy in production.</p>
+
+<h3>Configuring Per-Adapter Migration Strategies</h3>
+
+<p>If you&#39;re working with multiple database systems, a single global strategy is
+likely insufficient: you may need to tailor migration behavior according to the
+database. Active Record allows you to configure migration strategies on a
+per-adapter basis. For example, suppose your application has a MySQL database,
+<code>primary</code>, and a PostgreSQL database, <code>animals</code>:</p>
+
+<pre class="code yaml"><code class="yaml">  primary:
+    database: my_primary_database
+    username: root
+    password: &lt;%= ENV[&#39;ROOT_PASSWORD&#39;] %&gt;
+    adapter: trilogy
+  animals:
+    database: my_animals_database
+    username: animals_root
+    password: &lt;%= ENV[&#39;ANIMALS_ROOT_PASSWORD&#39;] %&gt;
+    adapter: postgresql
+    migrations_paths: db/animals_migrate
+</code></pre>
+
+<p>You can configure a <code>migration_strategy</code> on each adapter class:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/initializers/migration_strategies.rb
+</span><span class='kw'>if</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_env'><a href="Rails.html#env-class_method" title="Rails.env (method)">env</a></span>.<span class='id identifier rubyid_production?'>production?</span>
+  <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span>.<span class='id identifier rubyid_on_load'><a href="ActiveSupport/LazyLoadHooks.html#on_load-instance_method" title="ActiveSupport::LazyLoadHooks#on_load (method)">on_load</a></span>(<span class='symbeg'>:</span><span class='id identifier rubyid_active_record_trilogyadapter'>active_record_trilogyadapter</span>) <span class='kw'>do</span>
+    <span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/ConnectionAdapters.html" title="ActiveRecord::ConnectionAdapters (module)">ConnectionAdapters</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/ConnectionAdapters/Trilogy.html" title="ActiveRecord::ConnectionAdapters::Trilogy (module)">Trilogy</a></span>.<span class='id identifier rubyid_migration_strategy'>migration_strategy</span> <span class='op'>=</span>
+      <span class='const'>MySQLMigrationStrategy</span>
+  <span class='kw'>end</span>
+
+  <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span>.<span class='id identifier rubyid_on_load'><a href="ActiveSupport/LazyLoadHooks.html#on_load-instance_method" title="ActiveSupport::LazyLoadHooks#on_load (method)">on_load</a></span>(<span class='symbeg'>:</span><span class='id identifier rubyid_active_record_postgresqladapter'>active_record_postgresqladapter</span>) <span class='kw'>do</span>
+    <span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/ConnectionAdapters.html" title="ActiveRecord::ConnectionAdapters (module)">ConnectionAdapters</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/ConnectionAdapters/PostgreSQLAdapter.html" title="ActiveRecord::ConnectionAdapters::PostgreSQLAdapter (class)">PostgreSQLAdapter</a></span>.<span class='id identifier rubyid_migration_strategy'><a href="ActiveRecord/ConnectionAdapters/AbstractAdapter.html#migration_strategy-class_method" title="ActiveRecord::ConnectionAdapters::AbstractAdapter.migration_strategy (method)">migration_strategy</a></span> <span class='op'>=</span>
+      <span class='const'>PostgreSQLMigrationStrategy</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Migrations running against <code>primary</code> will use <code>MySQLMigrationStrategy</code>, and
+migrations running against <code>animals</code> will use <code>PostgreSQLMigrationStrategy</code>.
+The adapter-specific strategy takes precedence over any globally-configured
+stategy.</p>
 
 <div id='footer'></div>
 </div> <!-- content  -->
