@@ -8,7 +8,7 @@
 <meta name='mobile-web-app-capable' content='yes'>
 <meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
 
-<title>File: Active Record Callbacks &mdash; Rails 8-0-stable</title>
+<title>File: Active Record Callbacks &mdash; Rails 8-1-stable</title>
 
 <link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
 <link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
@@ -50,7 +50,7 @@
   <header id='y_header'>
     <div id='y_menu'>
       <a id='home_no_xhr' href='/'>Home</a> &raquo; 
-      <a href='.'>Rails 8-0-stable</a> &raquo; 
+      <a href='.'>Rails 8-1-stable</a> &raquo; 
       <a href='_index.html'>Index</a> &raquo; 
       <span class='title'><a id='t2_doc_top' href='#'>File: Active Record Callbacks&nbsp;&#x25B2;</a></span>
           </div>
@@ -1208,6 +1208,39 @@ for more details.</p>
 
 <p>NOTE: This applies to all <code>after_*_commit</code> variations too, such as
 <code>after_destroy_commit</code>.</p>
+
+<h3>Per transaction callback</h3>
+
+<p>You can also register transactional callbacks such as <code>before_commit</code>, <code>after_commit</code> and <code>after_rollback</code> on a specific transaction.
+This is handy in situations where you need to perform an action that isn&#39;t specific to a model but rather a unit of work.</p>
+
+<p><code>ActiveRecord::Base.transaction</code> yields an <a href="ActiveRecord/Transaction.html" title="ActiveRecord::Transaction (class)"><code>::ActiveRecord::Transaction</code></a> object, which allows registering the said callbacks on it.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Article</span>.<span class='id identifier rubyid_transaction'>transaction</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_transaction'>transaction</span><span class='op'>|</span>
+  <span class='id identifier rubyid_article'>article</span>.<span class='id identifier rubyid_update'>update</span>(<span class='label'>published:</span> <span class='kw'>true</span>)
+
+  <span class='id identifier rubyid_transaction'>transaction</span>.<span class='id identifier rubyid_after_commit'>after_commit</span> <span class='kw'>do</span>
+    <span class='const'>PublishNotificationMailer</span>.<span class='id identifier rubyid_with'>with</span>(<span class='label'>article:</span> <span class='id identifier rubyid_article'>article</span>).<span class='id identifier rubyid_deliver_later'>deliver_later</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<h3><a href="ActiveRecord.html#after_all_transactions_commit-class_method" title="ActiveRecord.after_all_transactions_commit (method)">ActiveRecord.after_all_transactions_commit</a></h3>
+
+<p><a href="https://api.rubyonrails.org/classes/ActiveRecord.html#method-c-after_all_transactions_commit"><a href="ActiveRecord.html#after_all_transactions_commit-class_method" title="ActiveRecord.after_all_transactions_commit (method)">ActiveRecord.after_all_transactions_commit</a></a> is a callback that allows you to run code after all the current transactions have been successfully committed to the database.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_publish_article'>publish_article</span>(<span class='id identifier rubyid_article'>article</span>)
+  <span class='const'>Article</span>.<span class='id identifier rubyid_transaction'>transaction</span> <span class='kw'>do</span>
+    <span class='const'>Post</span>.<span class='id identifier rubyid_transaction'>transaction</span> <span class='kw'>do</span>
+      <span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span>.<span class='id identifier rubyid_after_all_transactions_commit'><a href="ActiveRecord.html#after_all_transactions_commit-class_method" title="ActiveRecord.after_all_transactions_commit (method)">after_all_transactions_commit</a></span> <span class='kw'>do</span>
+        <span class='const'>PublishNotificationMailer</span>.<span class='id identifier rubyid_with'>with</span>(<span class='label'>article:</span> <span class='id identifier rubyid_article'>article</span>).<span class='id identifier rubyid_deliver_later'>deliver_later</span>
+        <span class='comment'># An email will be sent after the outermost transaction is committed.
+</span>      <span class='kw'>end</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>A callback registered to <code>after_all_transactions_commit</code> will be triggered after the outermost transaction is committed. If any of the currently open transactions is rolled back, the block is never called.
+In the event that there are no open transactions at the time a callback is registered, the block will be yielded immediately.</p>
 
 <h2>Callback Objects</h2>
 

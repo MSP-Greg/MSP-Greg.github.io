@@ -8,7 +8,7 @@
 <meta name='mobile-web-app-capable' content='yes'>
 <meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
 
-<title>Class: ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper &mdash; Rails 8-0-stable</title>
+<title>Class: ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper &mdash; Rails 8-1-stable</title>
 
 <link rel='stylesheet'  type='text/css' href='../../../../css/y_fonts.css' />
 <link rel='stylesheet'  type='text/css' href='../../../../css/highlight.github.css' />
@@ -50,7 +50,7 @@
   <header id='y_header'>
     <div id='y_menu'>
       <a id='home_no_xhr' href='/'>Home</a> &raquo; 
-      <a href='../../../'>Rails 8-0-stable</a> &raquo; 
+      <a href='../../../'>Rails 8-1-stable</a> &raquo; 
       <a href='../../../_index.html#alpha_R'>Index (R)</a> &raquo; 
         <a href="../../../ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a> &raquo; 
         <a href="../../ConnectionAdapters.html" title="ActiveRecord::ConnectionAdapters (module)">ConnectionAdapters</a> &raquo; 
@@ -79,7 +79,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/rails/rails/blob/8-0-stable/activerecord/lib/active_record/connection_adapters/abstract/connection_pool/reaper.rb#L16'>activerecord/lib/active_record/connection_adapters/abstract/connection_pool/reaper.rb</a>      </td>
+      <td class='box_rel'><a class='repo' href='https://github.com/rails/rails/blob/8-1-stable/activerecord/lib/active_record/connection_adapters/abstract/connection_pool/reaper.rb#L33'>activerecord/lib/active_record/connection_adapters/abstract/connection_pool/reaper.rb</a>      </td>
     </tr>
   </tbody>
 </table>
@@ -91,9 +91,20 @@
     
 <h3 id="label-Active+Record+Connection+Pool+Reaper">Active Record Connection Pool Reaper</h3>
 
-<p>Every <a href="#frequency-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper#frequency (method)">#frequency</a> seconds, the reaper will call <a href="../ConnectionPool.html#reap-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#reap (method)">#reap</a> and <a href="../ConnectionPool.html#flush-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#flush (method)">#flush</a> on <a href="#pool-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper#pool (method)">#pool</a>. A reaper instantiated with a zero frequency will never reap the connection pool.</p>
+<p>The reaper is a singleton that exists in the background of the process and is responsible for general maintenance of all the connection pools.</p>
 
-<p>Configure the frequency by setting <code>reaping_frequency</code> in your database YAML file (default 60 seconds).</p>
+<p>It will reclaim connections that are leased to now-dead threads, ensuring that a bad thread can’t leak a pool slot forever. By definition, this involves touching currently-leased connections, but that is safe because the owning thread is known to be dead.</p>
+
+<p>Beyond that, it manages the health of available / unleased connections:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='op'>*</span> <span class='id identifier rubyid_retiring'>retiring</span> <span class='id identifier rubyid_connections'><a href="../ConnectionPool.html#connections-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#connections (method)">connections</a></span> <span class='id identifier rubyid_that'>that</span> <span class='id identifier rubyid_have'>have</span> <span class='id identifier rubyid_been'>been</span> <span class='id identifier rubyid_idle'>idle</span>[<span class='int'>1</span>] <span class='kw'>for</span> <span class='id identifier rubyid_too'>too</span> <span class='id identifier rubyid_long'>long</span>
+<span class='op'>*</span> <span class='id identifier rubyid_creating'>creating</span> <span class='id identifier rubyid_occasional'>occasional</span> <span class='id identifier rubyid_activity'>activity</span> <span class='id identifier rubyid_on'>on</span> <span class='id identifier rubyid_inactive'>inactive</span>[<span class='int'>1</span>] <span class='id identifier rubyid_connections'><a href="../ConnectionPool.html#connections-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#connections (method)">connections</a></span>
+<span class='op'>*</span> <span class='id identifier rubyid_keeping'>keeping</span> <span class='id identifier rubyid_the'>the</span> <span class='id identifier rubyid_pool'><a href="#pool-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper#pool (method)">pool</a></span> <span class='id identifier rubyid_prepopulated'>prepopulated</span> <span class='id identifier rubyid_up'>up</span> <span class='id identifier rubyid_to'>to</span> <span class='id identifier rubyid_its'>its</span> <span class='id identifier rubyid_minimum'>minimum</span> <span class='id identifier rubyid_size'><a href="../ConnectionPool.html#size-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#size (method)">size</a></span>
+<span class='op'>*</span> <span class='id identifier rubyid_proactively'>proactively</span> <span class='id identifier rubyid_connecting'>connecting</span> <span class='id identifier rubyid_to'>to</span> <span class='id identifier rubyid_the'>the</span> <span class='id identifier rubyid_target'>target</span> <span class='id identifier rubyid_database'>database</span> <span class='id identifier rubyid_from'>from</span> <span class='id identifier rubyid_any'>any</span> <span class='id identifier rubyid_pooled'>pooled</span>
+  <span class='id identifier rubyid_connections'><a href="../ConnectionPool.html#connections-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#connections (method)">connections</a></span> <span class='id identifier rubyid_that'>that</span> <span class='id identifier rubyid_had'>had</span> <span class='id identifier rubyid_lazily'>lazily</span> <span class='id identifier rubyid_deferred'>deferred</span> <span class='id identifier rubyid_that'>that</span> <span class='id identifier rubyid_step'>step</span>
+<span class='op'>*</span> <span class='id identifier rubyid_resetting'>resetting</span> <span class='kw'>or</span> <span class='id identifier rubyid_replacing'>replacing</span> <span class='id identifier rubyid_connections'><a href="../ConnectionPool.html#connections-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#connections (method)">connections</a></span> <span class='id identifier rubyid_that'>that</span> <span class='id identifier rubyid_are'>are</span> <span class='id identifier rubyid_known'>known</span> <span class='id identifier rubyid_to'>to</span> <span class='id identifier rubyid_be'>be</span> <span class='id identifier rubyid_broken'>broken</span></code></pre>
+
+<p>[1]: “idle” and “inactive” here distinguish between connections that have not been requested by the application in a while (idle) and those that have not spoken to their remote server in a while (inactive). The former is a desirable opportunity to reduce our connection count (<code>idle_timeout</code>); the latter is a risk that the server or a firewall may drop a connection we still anticipate using (avoided by <a href="../ConnectionPool.html#keepalive-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#keepalive (method)">#keepalive</a>).</p>
 
   </div>
 </div>
@@ -112,6 +123,12 @@
       <a href="#spawn_thread-class_method" title=".spawn_thread (class method)">.<strong>spawn_thread</strong>(frequency)  </a>
     </span>
     <span class='note title private'>private</span>
+  </li>
+  <li>
+    <span class='summary_signature nodoc'>
+      <a href="#pools-class_method" title=".pools (class method)">.<strong>pools</strong>(refs = nil)  </a>
+    </span>
+    <span class='nodoc note title'>Internal use only</span>
   </li>
   <li>
     <span class='summary_signature nodoc'>
@@ -164,11 +181,11 @@
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/8-0-stable/activerecord/lib/active_record/connection_adapters/abstract/connection_pool/reaper.rb#L19-L22'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/8-1-stable/activerecord/lib/active_record/connection_adapters/abstract/connection_pool/reaper.rb#L36-L39'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='19' data-end='22'></pre>
+  <pre class='lines_num' data-start='36' data-end='39'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/abstract/connection_pool/reaper.rb', line 19</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/abstract/connection_pool/reaper.rb', line 36</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span>(<span class='id identifier rubyid_pool'><a href="#pool-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper#pool (method)">pool</a></span><span class='comma'>,</span> <span class='id identifier rubyid_frequency'><a href="#frequency-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper#frequency (method)">frequency</a></span>)
@@ -181,18 +198,45 @@
 </section>
 
 <h2 class='y_details'>Class Method Details</h2>
-<section class='method_details first' id="register_pool-class_method">
+<section class='method_details first' id="pools-class_method">
   <h3 class='signature nodoc first'>
+    .<strong>pools</strong>(refs = nil)  
+  </h3>
+  <div class='note nodoc inline-block'>
+    <strong>This method is for internal use only.</strong>
+  </div><div></div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/8-1-stable/activerecord/lib/active_record/connection_adapters/abstract/connection_pool/reaper.rb#L56-L63'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='56' data-end='63'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/abstract/connection_pool/reaper.rb', line 56</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_pools'>pools</span>(<span class='id identifier rubyid_refs'>refs</span> <span class='op'>=</span> <span class='kw'>nil</span>) <span class='comment'># :nodoc:
+</span>  <span class='id identifier rubyid_refs'>refs</span> <span class='op'>||=</span> <span class='ivar'>@mutex</span>.<span class='id identifier rubyid_synchronize'>synchronize</span> { <span class='ivar'>@pools</span>.<span class='id identifier rubyid_values'>values</span>.<span class='id identifier rubyid_flatten'>flatten</span>(<span class='int'>1</span>) }
+
+  <span class='id identifier rubyid_refs'>refs</span>.<span class='id identifier rubyid_filter_map'>filter_map</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_ref'>ref</span><span class='op'>|</span>
+    <span class='id identifier rubyid_ref'>ref</span>.<span class='id identifier rubyid___getobj__'>__getobj__</span> <span class='kw'>if</span> <span class='id identifier rubyid_ref'>ref</span>.<span class='id identifier rubyid_weakref_alive?'>weakref_alive?</span>
+  <span class='kw'>rescue</span> <span class='const'>WeakRef</span><span class='op'>::</span><span class='const'>RefError</span>
+  <span class='kw'>end</span>.<span class='id identifier rubyid_select'>select</span>(<span class='op'>&amp;</span><span class='symbeg'>:</span><span class='id identifier rubyid_maintainable?'><a href="../ConnectionPool.html#maintainable%3F-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#maintainable? (method)">maintainable?</a></span>)
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="register_pool-class_method">
+  <h3 class='signature nodoc'>
     .<strong>register_pool</strong>(pool, frequency)  
   </h3>
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/8-0-stable/activerecord/lib/active_record/connection_adapters/abstract/connection_pool/reaper.rb#L29-L37'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/8-1-stable/activerecord/lib/active_record/connection_adapters/abstract/connection_pool/reaper.rb#L46-L54'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='29' data-end='37'></pre>
+  <pre class='lines_num' data-start='46' data-end='54'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/abstract/connection_pool/reaper.rb', line 29</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/abstract/connection_pool/reaper.rb', line 46</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_register_pool'>register_pool</span>(<span class='id identifier rubyid_pool'><a href="#pool-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper#pool (method)">pool</a></span><span class='comma'>,</span> <span class='id identifier rubyid_frequency'><a href="#frequency-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper#frequency (method)">frequency</a></span>) <span class='comment'># :nodoc:
@@ -213,11 +257,11 @@
   <h3 class='signature priv'>
     .<strong>spawn_thread</strong>(frequency)   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/8-0-stable/activerecord/lib/active_record/connection_adapters/abstract/connection_pool/reaper.rb#L40-L68'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/8-1-stable/activerecord/lib/active_record/connection_adapters/abstract/connection_pool/reaper.rb#L66-L107'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='40' data-end='68'></pre>
+  <pre class='lines_num' data-start='66' data-end='107'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/abstract/connection_pool/reaper.rb', line 40</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/abstract/connection_pool/reaper.rb', line 66</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_spawn_thread'>spawn_thread</span>(<span class='id identifier rubyid_frequency'><a href="#frequency-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper#frequency (method)">frequency</a></span>)
@@ -229,21 +273,34 @@
     <span class='id identifier rubyid_running'>running</span> <span class='op'>=</span> <span class='kw'>true</span>
     <span class='kw'>while</span> <span class='id identifier rubyid_running'>running</span>
       <span class='id identifier rubyid_sleep'>sleep</span> <span class='id identifier rubyid_t'>t</span>
-      <span class='ivar'>@mutex</span>.<span class='id identifier rubyid_synchronize'>synchronize</span> <span class='kw'>do</span>
-        <span class='ivar'>@pools</span>[<span class='id identifier rubyid_frequency'><a href="#frequency-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper#frequency (method)">frequency</a></span>].<span class='id identifier rubyid_select!'>select!</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_pool'><a href="#pool-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper#pool (method)">pool</a></span><span class='op'>|</span>
-          <span class='id identifier rubyid_pool'><a href="#pool-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper#pool (method)">pool</a></span>.<span class='id identifier rubyid_weakref_alive?'>weakref_alive?</span> <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='id identifier rubyid_pool'><a href="#pool-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper#pool (method)">pool</a></span>.<span class='id identifier rubyid_discarded?'><a href="../ConnectionPool.html#discarded%3F-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#discarded? (method)">discarded?</a></span>
-        <span class='kw'>end</span>
 
-        <span class='ivar'>@pools</span>[<span class='id identifier rubyid_frequency'><a href="#frequency-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper#frequency (method)">frequency</a></span>].<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_p'>p</span><span class='op'>|</span>
-          <span class='id identifier rubyid_p'>p</span>.<span class='id identifier rubyid_reap'><a href="../ConnectionPool.html#reap-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#reap (method)">reap</a></span>
-          <span class='id identifier rubyid_p'>p</span>.<span class='id identifier rubyid_flush'><a href="../ConnectionPool.html#flush-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#flush (method)">flush</a></span>
+      <span class='id identifier rubyid_refs'>refs</span> <span class='op'>=</span> <span class='kw'>nil</span>
+
+      <span class='ivar'>@mutex</span>.<span class='id identifier rubyid_synchronize'>synchronize</span> <span class='kw'>do</span>
+        <span class='id identifier rubyid_refs'>refs</span> <span class='op'>=</span> <span class='ivar'>@pools</span>[<span class='id identifier rubyid_frequency'><a href="#frequency-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper#frequency (method)">frequency</a></span>]
+
+        <span class='id identifier rubyid_refs'>refs</span>.<span class='id identifier rubyid_select!'>select!</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_pool'><a href="#pool-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper#pool (method)">pool</a></span><span class='op'>|</span>
+          <span class='id identifier rubyid_pool'><a href="#pool-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper#pool (method)">pool</a></span>.<span class='id identifier rubyid_weakref_alive?'>weakref_alive?</span> <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='id identifier rubyid_pool'><a href="#pool-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper#pool (method)">pool</a></span>.<span class='id identifier rubyid_discarded?'><a href="../ConnectionPool.html#discarded%3F-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#discarded? (method)">discarded?</a></span>
         <span class='kw'>rescue</span> <span class='const'>WeakRef</span><span class='op'>::</span><span class='const'>RefError</span>
         <span class='kw'>end</span>
 
-        <span class='kw'>if</span> <span class='ivar'>@pools</span>[<span class='id identifier rubyid_frequency'><a href="#frequency-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper#frequency (method)">frequency</a></span>].<span class='id identifier rubyid_empty?'>empty?</span>
+        <span class='kw'>if</span> <span class='id identifier rubyid_refs'>refs</span>.<span class='id identifier rubyid_empty?'>empty?</span>
           <span class='ivar'>@pools</span>.<span class='id identifier rubyid_delete'>delete</span>(<span class='id identifier rubyid_frequency'><a href="#frequency-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper#frequency (method)">frequency</a></span>)
           <span class='ivar'>@threads</span>.<span class='id identifier rubyid_delete'>delete</span>(<span class='id identifier rubyid_frequency'><a href="#frequency-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper#frequency (method)">frequency</a></span>)
           <span class='id identifier rubyid_running'>running</span> <span class='op'>=</span> <span class='kw'>false</span>
+        <span class='kw'>end</span>
+      <span class='kw'>end</span>
+
+      <span class='kw'>if</span> <span class='id identifier rubyid_running'>running</span>
+        <span class='id identifier rubyid_pools'><a href="#pools-class_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper.pools (method)">pools</a></span>(<span class='id identifier rubyid_refs'>refs</span>).<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_pool'><a href="#pool-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper#pool (method)">pool</a></span><span class='op'>|</span>
+          <span class='id identifier rubyid_pool'><a href="#pool-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper#pool (method)">pool</a></span>.<span class='id identifier rubyid_reaper_lock'><a href="../ConnectionPool.html#reaper_lock-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#reaper_lock (method)">reaper_lock</a></span> <span class='kw'>do</span>
+            <span class='id identifier rubyid_pool'><a href="#pool-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper#pool (method)">pool</a></span>.<span class='id identifier rubyid_reap'><a href="../ConnectionPool.html#reap-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#reap (method)">reap</a></span>
+            <span class='id identifier rubyid_pool'><a href="#pool-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper#pool (method)">pool</a></span>.<span class='id identifier rubyid_flush'><a href="../ConnectionPool.html#flush-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#flush (method)">flush</a></span>
+            <span class='id identifier rubyid_pool'><a href="#pool-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper#pool (method)">pool</a></span>.<span class='id identifier rubyid_prepopulate'><a href="../ConnectionPool.html#prepopulate-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#prepopulate (method)">prepopulate</a></span>
+            <span class='id identifier rubyid_pool'><a href="#pool-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper#pool (method)">pool</a></span>.<span class='id identifier rubyid_retire_old_connections'><a href="../ConnectionPool.html#retire_old_connections-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#retire_old_connections (method)">retire_old_connections</a></span>
+            <span class='id identifier rubyid_pool'><a href="#pool-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper#pool (method)">pool</a></span>.<span class='id identifier rubyid_keep_alive'><a href="../ConnectionPool.html#keep_alive-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#keep_alive (method)">keep_alive</a></span>
+            <span class='id identifier rubyid_pool'><a href="#pool-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper#pool (method)">pool</a></span>.<span class='id identifier rubyid_preconnect'><a href="../ConnectionPool.html#preconnect-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#preconnect (method)">preconnect</a></span>
+          <span class='kw'>end</span>
         <span class='kw'>end</span>
       <span class='kw'>end</span>
     <span class='kw'>end</span>
@@ -259,11 +316,11 @@
   <h3 class='signature ro first'>
     #<strong>frequency</strong>   <span class="extras">(<span class='readonly'>readonly</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/8-0-stable/activerecord/lib/active_record/connection_adapters/abstract/connection_pool/reaper.rb#L17-L17'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/8-1-stable/activerecord/lib/active_record/connection_adapters/abstract/connection_pool/reaper.rb#L34-L34'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='17' data-end='17'></pre>
+  <pre class='lines_num' data-start='34' data-end='34'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/abstract/connection_pool/reaper.rb', line 17</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/abstract/connection_pool/reaper.rb', line 34</span></pre>
 <pre class='code ruby'>
 
 <span class='id identifier rubyid_attr_reader'>attr_reader</span> <span class='symbeg'>:</span><span class='id identifier rubyid_pool'><a href="#pool-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper#pool (method)">pool</a></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_frequency'>frequency</span>
@@ -276,11 +333,11 @@
   <h3 class='signature ro'>
     #<strong>pool</strong>   <span class="extras">(<span class='readonly'>readonly</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/8-0-stable/activerecord/lib/active_record/connection_adapters/abstract/connection_pool/reaper.rb#L17-L17'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/8-1-stable/activerecord/lib/active_record/connection_adapters/abstract/connection_pool/reaper.rb#L34-L34'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='17' data-end='17'></pre>
+  <pre class='lines_num' data-start='34' data-end='34'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/abstract/connection_pool/reaper.rb', line 17</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/abstract/connection_pool/reaper.rb', line 34</span></pre>
 <pre class='code ruby'>
 
 <span class='id identifier rubyid_attr_reader'>attr_reader</span> <span class='symbeg'>:</span><span class='id identifier rubyid_pool'>pool</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_frequency'><a href="#frequency-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper#frequency (method)">frequency</a></span>
@@ -294,11 +351,11 @@
   <h3 class='signature  first'>
     #<strong>run</strong>  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/8-0-stable/activerecord/lib/active_record/connection_adapters/abstract/connection_pool/reaper.rb#L71-L74'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/8-1-stable/activerecord/lib/active_record/connection_adapters/abstract/connection_pool/reaper.rb#L110-L113'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='71' data-end='74'></pre>
+  <pre class='lines_num' data-start='110' data-end='113'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/abstract/connection_pool/reaper.rb', line 71</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/abstract/connection_pool/reaper.rb', line 110</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_run'>run</span>

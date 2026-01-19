@@ -8,7 +8,7 @@
 <meta name='mobile-web-app-capable' content='yes'>
 <meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
 
-<title>File: Security &mdash; Rails 8-0-stable</title>
+<title>File: Security &mdash; Rails 8-1-stable</title>
 
 <link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
 <link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
@@ -50,7 +50,7 @@
   <header id='y_header'>
     <div id='y_menu'>
       <a id='home_no_xhr' href='/'>Home</a> &raquo; 
-      <a href='.'>Rails 8-0-stable</a> &raquo; 
+      <a href='.'>Rails 8-1-stable</a> &raquo; 
       <a href='_index.html'>Index</a> &raquo; 
       <span class='title'><a id='t2_doc_top' href='#'>File: Security&nbsp;&#x25B2;</a></span>
           </div>
@@ -107,7 +107,7 @@ allowing access to verified users.</p>
 views, routes, and migrations needed for basic authentication and password reset
 functionality.</p>
 
-<p>To use this feature in your application, you can run <code>rails generate
+<p>To use this feature in your application, you can run <code>bin/rails generate
 authentication</code>. Here are all of the files the generator modifies and new files
 it adds:</p>
 
@@ -203,6 +203,9 @@ a &quot;forgot password?&quot; link on the &quot;sign in&quot; page. Clicking th
 the <code>/passwords/new</code> path and routes to the passwords controller. The <code>new</code>
 method of the <code>PasswordsController</code> class runs through the flow for sending a
 password reset email.</p>
+
+<p>The link is valid for 15 minutes by default, but this can be configured with
+<code>has_secure_password</code>.</p>
 
 <p>The mailers for <em>reset password</em> are also set up by the generator at
 <code>app/mailers/password_mailer.rb</code> and render the following email to send to the
@@ -676,7 +679,7 @@ you could do something like:</p>
 
 <h3>Brute-Forcing Accounts</h3>
 
-<p>NOTE: <em>Brute-force attacks on accounts are trial and error attacks on the login credentials. Fend them off with more generic error messages and possibly require to enter a CAPTCHA.</em></p>
+<p>NOTE: <em>Brute-force attacks on accounts are trial and error attacks on the login credentials. Fend them off with rate-limiting, more generic error messages and possibly require to enter a CAPTCHA.</em></p>
 
 <p>A list of usernames for your web application may be misused to brute-force the corresponding passwords, because most people don&#39;t use sophisticated passwords. Most passwords are a combination of dictionary words and possibly numbers. So armed with a list of usernames and a dictionary, an automatic program may find the correct password in a matter of minutes.</p>
 
@@ -684,7 +687,18 @@ you could do something like:</p>
 
 <p>However, what most web application designers neglect, are the forgot-password pages. These pages often admit that the entered username or e-mail address has (not) been found. This allows an attacker to compile a list of usernames and brute-force the accounts.</p>
 
-<p>In order to mitigate such attacks, <em>display a generic error message on forgot-password pages, too</em>. Moreover, you can <em>require to enter a CAPTCHA after a number of failed logins from a certain IP address</em>. Note, however, that this is not a bullet-proof solution against automatic programs, because these programs may change their IP address exactly as often. However, it raises the barrier of an attack.</p>
+<p>In order to mitigate such attacks, you can use rate limiting. Rails comes with a
+built-in <a href="https://edgeapi.rubyonrails.org/classes/ActionController/RateLimiting/ClassMethods.html#method-i-rate_limit">rate-limiter</a>. You can enable it in your sessions controller with a single line:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>SessionsController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
+  <span class='id identifier rubyid_rate_limit'>rate_limit</span> <span class='label'>to:</span> <span class='int'>10</span><span class='comma'>,</span> <span class='label'>within:</span> <span class='int'>3</span>.<span class='id identifier rubyid_minutes'>minutes</span><span class='comma'>,</span> <span class='label'>only:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_create'>create</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Refer to the <a href="https://edgeapi.rubyonrails.org/classes/ActionController/RateLimiting/ClassMethods.html#method-i-rate_limit">API documentation</a> for details about the various parameters.</p>
+
+<p>Additionally, you can <em>display a generic error message on forgot-password pages, too</em>. Moreover, you can <em>require to enter a CAPTCHA after a number of failed logins from a certain IP address</em>.</p>
+
+<p>NOTE: All of these mitigation techniques are not a bullet-proof solution against automatic programs, because these programs may change their IP address exactly as often. However, it raises the barrier of an attack.</p>
 
 <h3>Account Hijacking</h3>
 
@@ -1417,6 +1431,19 @@ can be added to script tags by passing <code>nonce: true</code> as part of <code
 <pre class="code xml"><code class="xml">&lt;%= javascript_include_tag &quot;script&quot;, nonce: true %&gt;
 &lt;%= stylesheet_link_tag &quot;style.css&quot;, nonce: true %&gt;
 </code></pre>
+
+<p>To automatically attach a nonce to <code>javascript_tag</code>, <code>javascript_include_tag</code>, and
+<code>stylesheet_link_tag</code> if the corresponding directives are specified in <code>config.content_security_policy_nonce_directives</code>,
+you can set <code>config.content_security_policy_nonce_auto</code> to <code>true</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_content_security_policy_nonce_auto'>content_security_policy_nonce_auto</span> <span class='op'>=</span> <span class='kw'>true</span></code></pre>
+
+<p>This is especially useful for 3rd-party views when using nonce-based source expressions
+in your Content Security Policy.</p>
+
+<p>NOTE: Be mindful of caching. Since the nonce is typically generated per request,
+enabling this may lead to cache fragmentation or stale content if your caching strategy
+doesn&#39;t account for dynamic nonces.</p>
 
 <p>Use <a href="https://api.rubyonrails.org/classes/ActionView/Helpers/CspHelper.html#method-i-csp_meta_tag"><code>csp_meta_tag</code></a>
 helper to create a meta tag &quot;csp-nonce&quot; with the per-session nonce value

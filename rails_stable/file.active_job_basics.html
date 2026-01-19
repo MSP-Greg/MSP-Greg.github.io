@@ -8,7 +8,7 @@
 <meta name='mobile-web-app-capable' content='yes'>
 <meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
 
-<title>File: Active Job Basics &mdash; Rails 8-0-stable</title>
+<title>File: Active Job Basics &mdash; Rails 8-1-stable</title>
 
 <link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
 <link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
@@ -50,7 +50,7 @@
   <header id='y_header'>
     <div id='y_menu'>
       <a id='home_no_xhr' href='/'>Home</a> &raquo; 
-      <a href='.'>Rails 8-0-stable</a> &raquo; 
+      <a href='.'>Rails 8-1-stable</a> &raquo; 
       <a href='_index.html'>Index</a> &raquo; 
       <span class='title'><a id='t2_doc_top' href='#'>File: Active Job Basics&nbsp;&#x25B2;</a></span>
           </div>
@@ -193,7 +193,7 @@ in the production environment:</p>
 <span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_solid_queue'>solid_queue</span>.<span class='id identifier rubyid_connects_to'>connects_to</span> <span class='op'>=</span> { <span class='label'>database:</span> { <span class='label'>writing:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_queue'>queue</span> } }</code></pre>
 
 <p>which sets the <code>:solid_queue</code> adapter as the default for Active Job in the
-production environment, and connects to the <code>queue</code> database for writing.</p>
+development environment, and connects to the <code>queue</code> database for writing.</p>
 
 <p>Thereafter, you&#39;d add <code>queue</code> to the development database configuration:</p>
 
@@ -211,10 +211,9 @@ development:
 <p>NOTE: The key <code>queue</code> from the database configuration needs to match the key
 used in the configuration for <code>config.solid_queue.connects_to</code>.</p>
 
-<p>You can run the migrations for the <code>queue</code> database to ensure all the tables in
-queue database are created:</p>
+<p>You can then run <code>db:prepare</code> to ensure the <code>queue</code> database in <code>development</code> has all the required tables:</p>
 
-<pre class="code bash"><code class="bash">$ bin/rails db:migrate:queue
+<pre class="code bash"><code class="bash">$ bin/rails db:prepare
 </code></pre>
 
 <p>TIP: You can find the default generated schema for the <code>queue</code> database in
@@ -250,6 +249,11 @@ production:
     &lt;&lt;: *default
     database: storage/production_queue.sqlite3
     migrations_paths: db/queue_migrate
+</code></pre>
+
+<p>Make sure you run <code>db:prepare</code> so your database is ready to use:</p>
+
+<pre class="code bash"><code class="bash">$ bin/rails db:prepare
 </code></pre>
 
 <h3>Configuration</h3>
@@ -368,9 +372,11 @@ its own or at the end of a queue name to match all queues with the same prefix.
 You can&#39;t specify queue names such as <code>*_some_queue</code>.</p>
 
 <p>WARNING: Using wildcard queue names (e.g., <code>queues: active_storage*</code>) can slow
-down polling performance due to the need for a <code>DISTINCT</code> query to identify all
-matching queues, which can be slow on large tables. For better performance, it’s
-best to specify exact queue names instead of using wildcards.</p>
+down polling performance in SQLite and PostgreSQL due to the need for a <code>DISTINCT</code>
+query to identify all matching queues, which can be slow on large tables in these RDBMS.
+For better performance, it’s best to specify exact queue names instead of using
+wildcards. Read more about this in <a href="https://github.com/rails/solid_queue?tab=readme-ov-file#queues-specification-and-performance">Queues specification and performance in the
+Solid Queue documentation</a></p>
 
 <p>Active Job supports positive integer priorities when enqueuing jobs (see
 <a href="#priority">Priority section</a>). Within a single queue, jobs are picked based on
@@ -475,21 +481,29 @@ separately:</p>
 
 <h3>Transactional Integrity on Jobs</h3>
 
-<p>By default, Solid Queue uses a separate database from your main application.
-This avoids issues with transactional integrity, which ensures that jobs are
-only enqueued if the transaction commits.</p>
+<p>⚠️ Having your jobs in the same ACID-compliant database as your application data
+enables a powerful yet sharp tool: taking advantage of transactional integrity
+to ensure some action in your app is not committed unless your job is also committed
+and vice versa, and ensuring that your job won&#39;t be enqueued until the transaction
+within which you&#39;re enqueuing it is committed. This can be very powerful and useful,
+but it can also backfire if you base some of your logic on this behavior,
+and in the future, you move to another active job backend, or if you simply move
+Solid Queue to its own database, and suddenly the behavior changes under you.</p>
 
-<p>However, if you use Solid Queue in the same database as your app, you can enable
-transactional integrity with Active Job’s <code>enqueue_after_transaction_commit</code>
-option which can be enabled for individual jobs or all jobs through
-<code>ApplicationJob</code>:</p>
+<p>Because this can be quite tricky and many people shouldn&#39;t need to worry about it,
+by default Solid Queue is configured in a different database as the main app.</p>
+
+<p>However, if you use Solid Queue in the same database as your app, you can make sure you
+don&#39;t rely accidentallly on transactional integrity with Active Job’s
+<code>enqueue_after_transaction_commit</code> option which can be enabled for individual jobs or
+all jobs through <code>ApplicationJob</code>:</p>
 
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ApplicationJob</span> <span class='op'>&lt;</span> <span class='const'><a href="ActiveJob.html" title="ActiveJob (module)">ActiveJob</a></span><span class='op'>::</span><span class='const'><a href="ActiveJob/Base.html" title="ActiveJob::Base (class)">Base</a></span>
   <span class='kw'>self</span>.<span class='id identifier rubyid_enqueue_after_transaction_commit'>enqueue_after_transaction_commit</span> <span class='op'>=</span> <span class='kw'>true</span>
 <span class='kw'>end</span></code></pre>
 
 <p>You can also configure Solid Queue to use the same database as your app while
-avoiding transactional integrity issues by setting up a separate database
+avoiding relying on transactional integrity by setting up a separate database
 connection for Solid Queue jobs. Read more about <a href="https://github.com/rails/solid_queue?tab=readme-ov-file#jobs-and-transactional-integrity">Transactional Integrity in the
 Solid Queue
 documentation</a></p>
@@ -515,7 +529,7 @@ scheduled at specific times. Here&#39;s an example of a task configuration:</p>
 jobs, such as in the example for <code>MyJob</code> where <code>args</code> are passed. This can be
 passed as a single argument, a hash, or an array of arguments that can also
 include kwargs as the last element in the array. This allows jobs to run
-periodically or at specified times.</p>
+periodically at specified times.</p>
 
 <p>Read more about <a href="https://github.com/rails/solid_queue?tab=readme-ov-file#recurring-tasks">Recurring Tasks in the Solid Queue
 documentation</a>.</p>
@@ -674,6 +688,53 @@ number depends on the adapter implementation. Refer to documentation of your
 backend for more information. Adapter authors are encouraged to treat a lower
 number as more important.</p>
 
+<h2>Job Continuations</h2>
+
+<p>Jobs can be split into resumable steps using continuations. This is useful when
+a job may be interrupted - for example, during queue shutdown. When using
+continuations, the job can resume from the last completed step, avoiding the
+need to restart from the beginning.</p>
+
+<p>To use continuations, include the <a href="ActiveJob/Continuable.html" title="ActiveJob::Continuable (module)"><code>::ActiveJob::Continuable</code></a> module. You can then
+define each step using the <code>step</code> method inside the <code>perform</code> method. Each step can
+be declared with a block or by referencing a method name.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ProcessImportJob</span> <span class='op'>&lt;</span> <span class='const'>ApplicationJob</span>
+  <span class='id identifier rubyid_include'>include</span> <span class='const'><a href="ActiveJob.html" title="ActiveJob (module)">ActiveJob</a></span><span class='op'>::</span><span class='const'><a href="ActiveJob/Continuable.html" title="ActiveJob::Continuable (module)">Continuable</a></span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_perform'>perform</span>(<span class='id identifier rubyid_import_id'>import_id</span>)
+    <span class='comment'># Always runs on job start, even when resuming from an interrupted step.
+</span>    <span class='ivar'>@import</span> <span class='op'>=</span> <span class='const'>Import</span>.<span class='id identifier rubyid_find'>find</span>(<span class='id identifier rubyid_import_id'>import_id</span>)
+
+    <span class='comment'># Step defined using a block
+</span>    <span class='id identifier rubyid_step'>step</span> <span class='symbeg'>:</span><span class='id identifier rubyid_initialize'>initialize</span> <span class='kw'>do</span>
+      <span class='ivar'>@import</span>.<span class='id identifier rubyid_initialize'>initialize</span>
+    <span class='kw'>end</span>
+
+    <span class='comment'># Step with a cursor — progress is saved and resumed if the job is interrupted
+</span>    <span class='id identifier rubyid_step'>step</span> <span class='symbeg'>:</span><span class='id identifier rubyid_process'>process</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_step'>step</span><span class='op'>|</span>
+      <span class='ivar'>@import</span>.<span class='id identifier rubyid_records'>records</span>.<span class='id identifier rubyid_find_each'>find_each</span>(<span class='label'>start:</span> <span class='id identifier rubyid_step'>step</span>.<span class='id identifier rubyid_cursor'>cursor</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_record'>record</span><span class='op'>|</span>
+        <span class='id identifier rubyid_record'>record</span>.<span class='id identifier rubyid_process'>process</span>
+        <span class='id identifier rubyid_step'>step</span>.<span class='id identifier rubyid_advance!'>advance!</span> <span class='label'>from:</span> <span class='id identifier rubyid_record'>record</span>.<span class='id identifier rubyid_id'>id</span>
+      <span class='kw'>end</span>
+    <span class='kw'>end</span>
+
+    <span class='comment'># Step defined by referencing a method
+</span>    <span class='id identifier rubyid_step'>step</span> <span class='symbeg'>:</span><span class='id identifier rubyid_finalize'>finalize</span>
+  <span class='kw'>end</span>
+
+  <span class='id identifier rubyid_private'>private</span>
+    <span class='kw'>def</span> <span class='id identifier rubyid_finalize'>finalize</span>
+      <span class='ivar'>@import</span>.<span class='id identifier rubyid_finalize'>finalize</span>
+    <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Each step runs sequentially. If the job is interrupted between steps, or within a
+step that uses a cursor, the job resumes from the last recorded position. This
+makes it easier to build long-running or multi-phase jobs that can safely pause
+and resume without losing progress.
+For more details, see <a href="https://api.rubyonrails.org/classes/ActiveJob/Continuation.html">ActiveJob::Continuation</a>.</p>
+
 <h2>Callbacks</h2>
 
 <p>Active Job provides hooks to trigger logic during the life cycle of a job. Like
@@ -714,6 +775,7 @@ For example, you could send metrics for every job enqueued:</p>
 <li><a href="https://api.rubyonrails.org/classes/ActiveJob/Callbacks/ClassMethods.html#method-i-before_perform"><code>before_perform</code></a></li>
 <li><a href="https://api.rubyonrails.org/classes/ActiveJob/Callbacks/ClassMethods.html#method-i-around_perform"><code>around_perform</code></a></li>
 <li><a href="https://api.rubyonrails.org/classes/ActiveJob/Callbacks/ClassMethods.html#method-i-after_perform"><code>after_perform</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActiveJob/Exceptions/ClassMethods.html#method-i-after_discard"><code>after_discard</code></a></li>
 </ul>
 
 <p>Please note that when enqueuing jobs in bulk using <code>perform_all_later</code>,
@@ -905,11 +967,10 @@ your own serializer:</p>
     <span class='const'>Money</span>.<span class='id identifier rubyid_new'>new</span>(<span class='id identifier rubyid_hash'>hash</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>amount</span><span class='tstring_end'>&quot;</span></span>]<span class='comma'>,</span> <span class='id identifier rubyid_hash'>hash</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>currency</span><span class='tstring_end'>&quot;</span></span>])
   <span class='kw'>end</span>
 
-  <span class='id identifier rubyid_private'>private</span>
-    <span class='comment'># Checks if an argument should be serialized by this serializer.
-</span>    <span class='kw'>def</span> <span class='id identifier rubyid_klass'>klass</span>
-      <span class='const'>Money</span>
-    <span class='kw'>end</span>
+  <span class='comment'># Checks if an argument should be serialized by this serializer.
+</span>  <span class='kw'>def</span> <span class='id identifier rubyid_klass'>klass</span>
+    <span class='const'>Money</span>
+  <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
 
 <p>and add this serializer to the list:</p>
