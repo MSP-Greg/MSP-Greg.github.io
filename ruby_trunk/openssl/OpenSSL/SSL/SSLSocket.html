@@ -91,7 +91,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2 o'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L3104'>ext/openssl/ossl_ssl.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/lib/openssl/ssl.rb#L333'>ext/openssl/lib/openssl/ssl.rb</a></span>
+      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L3129'>ext/openssl/ossl_ssl.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/lib/openssl/ssl.rb#L333'>ext/openssl/lib/openssl/ssl.rb</a></span>
       </td>
     </tr>
   </tbody>
@@ -673,6 +673,7 @@
     <div class='inline-block'>
       <span class='overload'>.<strong>new</strong>(io)  &#x21d2; <code>SSLSocket</code> </span>
       <span class='overload'>.<strong>new</strong>(io, ctx)  &#x21d2; <code>SSLSocket</code> </span>
+      <span class='overload'>.<strong>new</strong>(io, ctx, sync_close:)  &#x21d2; <code>SSLSocket</code> </span>
     </div>
   </h3>
 <div class='docstring'>
@@ -681,6 +682,8 @@
 <p>Creates a new <a href="../SSL.html" title="OpenSSL::SSL (module)"><code>::OpenSSL::SSL</code></a> socket from <em>io</em> which must be a real <a href="../../IO.html" title="IO (class)"><code>::IO</code></a> object (not an IO-like object that responds to read/write).</p>
 
 <p>If <em>ctx</em> is provided the <a href="../SSL.html" title="OpenSSL::SSL (module)"><code>::OpenSSL::SSL</code></a> Sockets initial params will be taken from the context.</p>
+
+<p>The optional <em>sync_close</em> keyword parameter sets the <em>sync_close</em> instance variable. Setting this to <code>true</code> will cause the underlying socket to be closed when the SSL/TLS connection is shut down.</p>
 
 <p>The <a href="../Buffering.html" title="OpenSSL::Buffering (module)"><code>::OpenSSL::Buffering</code></a> module provides additional <a href="../../IO.html" title="IO (class)"><code>::IO</code></a> methods.</p>
 
@@ -691,16 +694,20 @@
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L1631-L1665'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L1634-L1681'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1631' data-end='1665'></pre>
+  <pre class='lines_num' data-start='1634' data-end='1681'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 1631</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 1634</span></pre>
 <pre class='code cpp'>
 
 static VALUE
 ossl_ssl_initialize(int argc, VALUE *argv, VALUE self)
 {
+    static ID kw_ids[1];
+    VALUE kw_args[1];
+    VALUE opts;
+
     VALUE io, v_ctx;
     SSL *ssl;
     SSL_CTX *ctx;
@@ -709,8 +716,17 @@ ossl_ssl_initialize(int argc, VALUE *argv, VALUE self)
     if (ssl)
         ossl_raise(eSSLError, &quot;SSL already initialized&quot;);
 
-    if (rb_scan_args(argc, argv, &quot;11&quot;, &amp;io, &amp;v_ctx) == 1)
+    if (rb_scan_args(argc, argv, &quot;11:&quot;, &amp;io, &amp;v_ctx, &amp;opts) == 1)
         v_ctx = rb_funcall(cSSLContext, rb_intern(&quot;new&quot;), 0);
+
+    if (!kw_ids[0]) {
+        kw_ids[0] = rb_intern_const(&quot;sync_close&quot;);
+    }
+
+    rb_get_kwargs(opts, kw_ids, 0, 1, kw_args);
+    if (kw_args[0] != Qundef) {
+        rb_ivar_set(self, id_i_sync_close, kw_args[0]);
+    }
 
     GetSSLCTX(v_ctx, ctx);
     rb_ivar_set(self, id_i_context, v_ctx);
@@ -832,11 +848,11 @@ ossl_ssl_initialize(int argc, VALUE *argv, VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2417-L2435'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2442-L2460'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2417' data-end='2435'></pre>
+  <pre class='lines_num' data-start='2442' data-end='2460'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2417</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2442</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -925,11 +941,11 @@ ossl_ssl_set_hostname(VALUE self, VALUE arg)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2395-L2408'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2420-L2433'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2395' data-end='2408'></pre>
+  <pre class='lines_num' data-start='2420' data-end='2433'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2395</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2420</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -961,11 +977,11 @@ ossl_ssl_set_session(VALUE self, VALUE arg1)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2379-L2387'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2404-L2412'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2379' data-end='2387'></pre>
+  <pre class='lines_num' data-start='2404' data-end='2412'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2379</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2404</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1062,11 +1078,11 @@ ossl_ssl_session_reused(VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L1898-L1904'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L1920-L1926'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1898' data-end='1904'></pre>
+  <pre class='lines_num' data-start='1920' data-end='1926'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 1898</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 1920</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1104,11 +1120,11 @@ ossl_ssl_accept(VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L1928-L1937'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L1950-L1959'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1928' data-end='1937'></pre>
+  <pre class='lines_num' data-start='1950' data-end='1959'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 1928</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 1950</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1136,11 +1152,11 @@ ossl_ssl_accept_nonblock(int argc, VALUE *argv, VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2563-L2577'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2588-L2602'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2563' data-end='2577'></pre>
+  <pre class='lines_num' data-start='2588' data-end='2602'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2563</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2588</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1173,11 +1189,11 @@ ossl_ssl_alpn_protocol(VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2224-L2242'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2249-L2267'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2224' data-end='2242'></pre>
+  <pre class='lines_num' data-start='2249' data-end='2267'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2224</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2249</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1214,11 +1230,11 @@ ossl_ssl_get_cert(VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2323-L2332'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2348-L2357'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2323' data-end='2332'></pre>
+  <pre class='lines_num' data-start='2348' data-end='2357'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2323</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2348</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1248,11 +1264,11 @@ ossl_ssl_get_cipher(VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2517-L2529'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2542-L2554'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2517' data-end='2529'></pre>
+  <pre class='lines_num' data-start='2542' data-end='2554'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2517</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2542</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1367,11 +1383,11 @@ ossl_ssl_get_client_ca_list(VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L1851-L1857'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L1873-L1879'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1851' data-end='1857'></pre>
+  <pre class='lines_num' data-start='1873' data-end='1879'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 1851</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 1873</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1409,11 +1425,11 @@ ossl_ssl_connect(VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L1881-L1890'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L1903-L1912'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1881' data-end='1890'></pre>
+  <pre class='lines_num' data-start='1903' data-end='1912'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 1881</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 1903</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1441,11 +1457,11 @@ ossl_ssl_connect_nonblock(int argc, VALUE *argv, VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2585-L2620'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2610-L2645'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2585' data-end='2620'></pre>
+  <pre class='lines_num' data-start='2610' data-end='2645'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2585</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2610</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1499,11 +1515,11 @@ ossl_ssl_export_keying_material(int argc, VALUE *argv, VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2463-L2479'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2488-L2504'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2463' data-end='2479'></pre>
+  <pre class='lines_num' data-start='2488' data-end='2504'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2463</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2488</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1538,11 +1554,11 @@ ossl_ssl_get_finished(VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2688-L2698'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2713-L2723'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2688' data-end='2698'></pre>
+  <pre class='lines_num' data-start='2713' data-end='2723'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2688</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2713</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1571,11 +1587,11 @@ ossl_ssl_get_group(VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2539-L2553'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2564-L2578'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2539' data-end='2553'></pre>
+  <pre class='lines_num' data-start='2564' data-end='2578'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2539</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2564</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1608,11 +1624,11 @@ ossl_ssl_npn_protocol(VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2250-L2268'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2275-L2293'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2250' data-end='2268'></pre>
+  <pre class='lines_num' data-start='2275' data-end='2293'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2250</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2275</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1649,11 +1665,11 @@ ossl_ssl_get_peer_cert(VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2276-L2297'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2301-L2322'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2276' data-end='2297'></pre>
+  <pre class='lines_num' data-start='2301' data-end='2322'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2276</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2301</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1693,11 +1709,11 @@ ossl_ssl_get_peer_cert_chain(VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2488-L2504'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2513-L2529'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2488' data-end='2504'></pre>
+  <pre class='lines_num' data-start='2513' data-end='2529'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2488</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2513</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1732,11 +1748,11 @@ ossl_ssl_get_peer_finished(VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2667-L2677'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2692-L2702'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2667' data-end='2677'></pre>
+  <pre class='lines_num' data-start='2692' data-end='2702'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2667</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2692</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1765,11 +1781,11 @@ ossl_ssl_get_peer_sigalg(VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2363-L2371'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2388-L2396'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2363' data-end='2371'></pre>
+  <pre class='lines_num' data-start='2388' data-end='2396'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2363</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2388</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1873,11 +1889,11 @@ ossl_ssl_pending(VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2648-L2658'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2673-L2683'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2648' data-end='2658'></pre>
+  <pre class='lines_num' data-start='2673' data-end='2683'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2648</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2673</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1906,11 +1922,11 @@ ossl_ssl_get_sigalg(VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2306-L2314'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2331-L2339'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2306' data-end='2314'></pre>
+  <pre class='lines_num' data-start='2331' data-end='2339'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2306</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2331</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1937,11 +1953,11 @@ ossl_ssl_get_version(VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2341-L2355'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2366-L2380'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2341' data-end='2355'></pre>
+  <pre class='lines_num' data-start='2366' data-end='2380'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2341</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2366</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1974,11 +1990,11 @@ ossl_ssl_get_state(VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2193-L2216'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2218-L2241'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2193' data-end='2216'></pre>
+  <pre class='lines_num' data-start='2218' data-end='2241'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2193</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2218</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2056,11 +2072,11 @@ ossl_ssl_stop(VALUE self)
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2043-L2047'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2066-L2070'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2043' data-end='2047'></pre>
+  <pre class='lines_num' data-start='2066' data-end='2070'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2043</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2066</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2093,11 +2109,11 @@ ossl_ssl_read(int argc, VALUE *argv, VALUE self)
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2062-L2066'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2085-L2089'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2062' data-end='2066'></pre>
+  <pre class='lines_num' data-start='2085' data-end='2089'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2062</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2085</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2120,11 +2136,11 @@ ossl_ssl_read_nonblock(int argc, VALUE *argv, VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2163-L2167'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2188-L2192'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2163' data-end='2167'></pre>
+  <pre class='lines_num' data-start='2188' data-end='2192'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2163</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2188</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2147,11 +2163,11 @@ ossl_ssl_write(VALUE self, VALUE str)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2176-L2184'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2201-L2209'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2176' data-end='2184'></pre>
+  <pre class='lines_num' data-start='2201' data-end='2209'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2176</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2201</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2178,11 +2194,11 @@ ossl_ssl_write_nonblock(int argc, VALUE *argv, VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2628-L2638'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2653-L2663'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2628' data-end='2638'></pre>
+  <pre class='lines_num' data-start='2653' data-end='2663'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2628</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2653</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2213,11 +2229,11 @@ ossl_ssl_tmp_key(VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2446-L2454'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl.c#L2471-L2479'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2446' data-end='2454'></pre>
+  <pre class='lines_num' data-start='2471' data-end='2479'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2446</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl.c', line 2471</span></pre>
 <pre class='code cpp'>
 
 static VALUE
