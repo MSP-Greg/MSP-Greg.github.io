@@ -116,10 +116,23 @@
 <ul class='summary full'>
   <li>
     <span class='summary_signature '>
+      <a href="#create_pipeline-instance_method" title="#create_pipeline (instance method)">#<strong>create_pipeline</strong>(current_assoc, mapping)  </a>
+    </span>
+  </li>
+  <li>
+    <span class='summary_signature '>
       <a href="#eager_load-instance_method" title="#eager_load (instance method)">#<strong>eager_load</strong>(docs)  &#x21d2; Array&lt;Mongoid::Document&gt; </a>
     </span>
     <div class='summary_desc'>
       <div class='inline'><p>Load the associations for the given documents.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#eager_load_with_lookup-instance_method" title="#eager_load_with_lookup (instance method)">#<strong>eager_load_with_lookup</strong>  &#x21d2; Array&lt;Mongoid::Document&gt; </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Load the associations for the given documents using $lookup.</p></div>
     </div>
   </li>
   <li>
@@ -129,6 +142,19 @@
     <div class='summary_desc'>
       <div class='inline'><p>Load the associations for the given documents.</p></div>
     </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#preload_for_lookup-instance_method" title="#preload_for_lookup (instance method)">#<strong>preload_for_lookup</strong>(criteria)  </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Load the associations for the given documents.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#switch_local_and_foreign_fields%3F-instance_method" title="#switch_local_and_foreign_fields? (instance method)">#<strong>switch_local_and_foreign_fields?</strong>(association)  &#x21d2; Boolean </a>
+    </span>
   </li>
 </ul>
 </div>  <!-- instance_method_summary -->
@@ -172,8 +198,74 @@
 </section>
 
 <h2 class='y_details'>Instance Method Details</h2>
-<section class='method_details first' id="eager_load-instance_method">
+<section class='method_details first' id="create_pipeline-instance_method">
   <h3 class='signature  first'>
+    #<strong>create_pipeline</strong>(current_assoc, mapping)  
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongoid/blob/master/lib/mongoid/association/eager_loadable.rb#L117-L166'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='117' data-end='166'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/mongoid/association/eager_loadable.rb', line 117</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_create_pipeline'>create_pipeline</span>(<span class='id identifier rubyid_current_assoc'>current_assoc</span><span class='comma'>,</span> <span class='id identifier rubyid_mapping'>mapping</span>)
+  <span class='comment'># Build nested pipeline for children and ordering
+</span>  <span class='id identifier rubyid_pipeline_stages'>pipeline_stages</span> <span class='op'>=</span> []
+
+  <span class='comment'># For belongs_to and has_and_belongs_to_many, the foreign key is on the current document
+</span>  <span class='comment'># For has_many/has_one, the foreign key is on the related document
+</span>  <span class='kw'>if</span> <span class='id identifier rubyid_switch_local_and_foreign_fields?'><a href="#switch_local_and_foreign_fields%3F-instance_method" title="Mongoid::Association::EagerLoadable#switch_local_and_foreign_fields? (method)">switch_local_and_foreign_fields?</a></span>(<span class='id identifier rubyid_current_assoc'>current_assoc</span>)
+    <span class='id identifier rubyid_local_field'>local_field</span> <span class='op'>=</span> <span class='id identifier rubyid_current_assoc'>current_assoc</span>.<span class='id identifier rubyid_foreign_key'>foreign_key</span>
+    <span class='id identifier rubyid_foreign_field'>foreign_field</span> <span class='op'>=</span> <span class='id identifier rubyid_current_assoc'>current_assoc</span>.<span class='id identifier rubyid_primary_key'>primary_key</span>
+  <span class='kw'>else</span>
+    <span class='id identifier rubyid_local_field'>local_field</span> <span class='op'>=</span> <span class='id identifier rubyid_current_assoc'>current_assoc</span>.<span class='id identifier rubyid_primary_key'>primary_key</span>
+    <span class='id identifier rubyid_foreign_field'>foreign_field</span> <span class='op'>=</span> <span class='id identifier rubyid_current_assoc'>current_assoc</span>.<span class='id identifier rubyid_foreign_key'>foreign_key</span>
+  <span class='kw'>end</span>
+  
+  <span class='comment'># Build the &#39;as&#39; field with embedded path prefix if needed
+</span>  <span class='id identifier rubyid_as_field'>as_field</span> <span class='op'>=</span> <span class='id identifier rubyid_current_assoc'>current_assoc</span>.<span class='id identifier rubyid_name'>name</span>.<span class='id identifier rubyid_to_s'>to_s</span>
+  
+  <span class='id identifier rubyid_stage'>stage</span> <span class='op'>=</span> {
+    <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>$lookup</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> {
+      <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>from</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_current_assoc'>current_assoc</span>.<span class='id identifier rubyid_klass'>klass</span>.<span class='id identifier rubyid_collection'>collection</span>.<span class='id identifier rubyid_name'>name</span><span class='comma'>,</span>
+      <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>localField</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_local_field'>local_field</span><span class='comma'>,</span>
+      <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>foreignField</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_foreign_field'>foreign_field</span><span class='comma'>,</span>
+      <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>as</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_as_field'>as_field</span>
+    }
+  }
+  
+  <span class='comment'># Add ordering if defined on the association, or default to _id for consistent order
+</span>  <span class='kw'>if</span> <span class='id identifier rubyid_current_assoc'>current_assoc</span>.<span class='id identifier rubyid_order'>order</span>
+    <span class='id identifier rubyid_sort_spec'>sort_spec</span> <span class='op'>=</span> <span class='id identifier rubyid_current_assoc'>current_assoc</span>.<span class='id identifier rubyid_order'>order</span>.<span class='id identifier rubyid_is_a?'>is_a?</span>(<span class='const'><a href="../../Hash.html" title="Hash (class)">Hash</a></span>) <span class='op'>?</span> <span class='id identifier rubyid_current_assoc'>current_assoc</span>.<span class='id identifier rubyid_order'>order</span> <span class='op'>:</span> { <span class='id identifier rubyid_current_assoc'>current_assoc</span>.<span class='id identifier rubyid_order'>order</span> <span class='op'>=&gt;</span> <span class='int'>1</span> }
+    <span class='id identifier rubyid_pipeline_stages'>pipeline_stages</span> <span class='op'>&lt;&lt;</span> { <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>$sort</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_sort_spec'>sort_spec</span> }
+  <span class='kw'>else</span>
+    <span class='comment'># Default to sorting by _id to maintain insertion order consistency
+</span>    <span class='id identifier rubyid_pipeline_stages'>pipeline_stages</span> <span class='op'>&lt;&lt;</span> { <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>$sort</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> { <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>_id</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> <span class='int'>1</span> } }
+  <span class='kw'>end</span>
+  
+  <span class='comment'># Add nested lookups for child associations
+</span>  <span class='comment'># Child associations don&#39;t need the embedded_path prefix since they&#39;re referenced from the looked-up document
+</span>  <span class='comment'># Remove this class from the mapping to prevent infinite loops with circular references
+</span>  <span class='id identifier rubyid_class_name'>class_name</span> <span class='op'>=</span> <span class='id identifier rubyid_current_assoc'>current_assoc</span>.<span class='id identifier rubyid_klass'>klass</span>.<span class='id identifier rubyid_to_s'>to_s</span>
+  <span class='kw'>if</span> <span class='id identifier rubyid_child_assocs'>child_assocs</span> <span class='op'>=</span> <span class='id identifier rubyid_mapping'>mapping</span>.<span class='id identifier rubyid_delete'>delete</span>(<span class='id identifier rubyid_class_name'>class_name</span>)
+    <span class='id identifier rubyid_child_assocs'>child_assocs</span>.<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_child'>child</span><span class='op'>|</span>
+      <span class='id identifier rubyid_pipeline_stages'>pipeline_stages</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_create_pipeline'>create_pipeline</span>(<span class='id identifier rubyid_child'>child</span><span class='comma'>,</span> <span class='id identifier rubyid_mapping'>mapping</span>)
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+  
+  <span class='comment'># Always add pipeline since we always have at least $sort
+</span>  <span class='id identifier rubyid_stage'>stage</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>$lookup</span><span class='tstring_end'>&quot;</span></span>][<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>pipeline</span><span class='tstring_end'>&quot;</span></span>] <span class='op'>=</span> <span class='id identifier rubyid_pipeline_stages'>pipeline_stages</span>
+  
+  <span class='id identifier rubyid_stage'>stage</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="eager_load-instance_method">
+  <h3 class='signature '>
     #<strong>eager_load</strong>(docs)  &#x21d2; <a href="../../Array.html" title="Array (class)">Array</a>&lt;<a href="../Document.html" title="Mongoid::Document (module)">Mongoid::Document</a>&gt; 
   </h3>
 <div class='docstring'>
@@ -224,6 +316,44 @@
 </div>
 </section>
 
+<section class='method_details' id="eager_load_with_lookup-instance_method">
+  <h3 class='signature '>
+    #<strong>eager_load_with_lookup</strong>  &#x21d2; <a href="../../Array.html" title="Array (class)">Array</a>&lt;<a href="../Document.html" title="Mongoid::Document (module)">Mongoid::Document</a>&gt; 
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Load the associations for the given documents using $lookup.</p>
+
+  </div>
+</div>
+<div class='tags'>
+  <p class='tag_title'>Returns:</p>
+<ul class='return'>
+  <li>
+    <span class='type'>(<a href="../../Array.html" title="Array (class)">Array</a>&lt;<a href="../Document.html" title="Mongoid::Document (module)">Mongoid::Document</a>&gt;)</span>
+&mdash;    <div class='inline'>
+<p>The given documents.</p>
+</div>
+  </li>
+</ul>
+
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongoid/blob/master/lib/mongoid/association/eager_loadable.rb#L36-L38'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='36' data-end='38'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/mongoid/association/eager_loadable.rb', line 36</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_eager_load_with_lookup'>eager_load_with_lookup</span>
+  <span class='id identifier rubyid_preload_for_lookup'><a href="#preload_for_lookup-instance_method" title="Mongoid::Association::EagerLoadable#preload_for_lookup (method)">preload_for_lookup</a></span>(<span class='id identifier rubyid_criteria'>criteria</span>)
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
 <section class='method_details' id="preload-instance_method">
   <h3 class='signature '>
     #<strong>preload</strong>(associations, docs)  
@@ -255,11 +385,11 @@
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongoid/blob/master/lib/mongoid/association/eager_loadable.rb#L40-L68'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongoid/blob/master/lib/mongoid/association/eager_loadable.rb#L47-L75'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='40' data-end='68'></pre>
+  <pre class='lines_num' data-start='47' data-end='75'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongoid/association/eager_loadable.rb', line 40</span></pre>
+<pre><span class='info file'># File 'lib/mongoid/association/eager_loadable.rb', line 47</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_preload'>preload</span>(<span class='id identifier rubyid_associations'>associations</span><span class='comma'>,</span> <span class='id identifier rubyid_docs'>docs</span>)
@@ -290,6 +420,104 @@
       <span class='kw'>end</span>
     <span class='kw'>end</span>
   <span class='kw'>end</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="preload_for_lookup-instance_method">
+  <h3 class='signature '>
+    #<strong>preload_for_lookup</strong>(criteria)  
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Load the associations for the given documents. This will be done recursively to load the associations of the given documents’ associated documents.</p>
+
+  </div>
+</div>
+<div class='tags'>
+  <p class='tag_title'>Parameters:</p>
+<ul class='param'>
+  <li>
+    <span class='name'>associations</span>
+    <span class='type'>(<a href="../../Array.html" title="Array (class)">Array</a>&lt;<a href="Relatable.html" title="Mongoid::Association::Relatable (module)">Mongoid::Association::Relatable</a>&gt;)</span>
+&mdash;    <div class='inline'>
+<p>The associations to load.</p>
+</div>
+  </li>
+  <li>
+    <span class='name'>docs</span>
+    <span class='type'>(<a href="../../Array.html" title="Array (class)">Array</a>&lt;<a href="../Document.html" title="Mongoid::Document (module)">Mongoid::Document</a>&gt;)</span>
+&mdash;    <div class='inline'>
+<p>The documents.</p>
+</div>
+  </li>
+</ul>
+
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongoid/blob/master/lib/mongoid/association/eager_loadable.rb#L84-L110'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='84' data-end='110'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/mongoid/association/eager_loadable.rb', line 84</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_preload_for_lookup'>preload_for_lookup</span>(<span class='id identifier rubyid_criteria'>criteria</span>)
+  <span class='id identifier rubyid_assoc_map'>assoc_map</span> <span class='op'>=</span> <span class='id identifier rubyid_criteria'>criteria</span>.<span class='id identifier rubyid_inclusions'>inclusions</span>.<span class='id identifier rubyid_group_by'>group_by</span>(<span class='op'>&amp;</span><span class='symbeg'>:</span><span class='id identifier rubyid_inverse_class_name'>inverse_class_name</span>)
+
+  <span class='comment'># match first
+</span>  <span class='id identifier rubyid_pipeline'>pipeline</span> <span class='op'>=</span> <span class='id identifier rubyid_criteria'>criteria</span>.<span class='id identifier rubyid_selector'>selector</span>.<span class='id identifier rubyid_to_pipeline'>to_pipeline</span>
+  <span class='comment'># then sort, skip, limit
+</span>  <span class='id identifier rubyid_pipeline'>pipeline</span>.<span class='id identifier rubyid_concat'>concat</span>(<span class='id identifier rubyid_criteria'>criteria</span>.<span class='id identifier rubyid_options'>options</span>.<span class='id identifier rubyid_to_pipeline_for_lookup'>to_pipeline_for_lookup</span>)
+
+  <span class='comment'># account for single-collection inheritance
+</span>  <span class='id identifier rubyid_root_class'>root_class</span> <span class='op'>=</span> <span class='id identifier rubyid_klass'>klass</span>.<span class='id identifier rubyid_root_class'>root_class</span>
+
+  <span class='kw'>if</span> <span class='id identifier rubyid_assoc_map'>assoc_map</span>[<span class='id identifier rubyid_klass'>klass</span>.<span class='id identifier rubyid_to_s'>to_s</span>]
+    <span class='id identifier rubyid_assoc_map'>assoc_map</span>[<span class='id identifier rubyid_klass'>klass</span>.<span class='id identifier rubyid_to_s'>to_s</span>].<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_assoc'>assoc</span><span class='op'>|</span>
+      <span class='comment'># Create a copy of the mapping for each top-level association to avoid mutation issues
+</span>      <span class='id identifier rubyid_pipeline'>pipeline</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_create_pipeline'><a href="#create_pipeline-instance_method" title="Mongoid::Association::EagerLoadable#create_pipeline (method)">create_pipeline</a></span>(<span class='id identifier rubyid_assoc'>assoc</span><span class='comma'>,</span> <span class='id identifier rubyid_assoc_map'>assoc_map</span>.<span class='id identifier rubyid_dup'>dup</span>)
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>if</span> <span class='id identifier rubyid_klass'>klass</span> <span class='op'>!=</span> <span class='id identifier rubyid_root_class'>root_class</span> <span class='op'>&amp;&amp;</span> <span class='id identifier rubyid_assoc_map'>assoc_map</span>[<span class='id identifier rubyid_root_class'>root_class</span>.<span class='id identifier rubyid_to_s'>to_s</span>]
+    <span class='id identifier rubyid_assoc_map'>assoc_map</span>[<span class='id identifier rubyid_root_class'>root_class</span>.<span class='id identifier rubyid_to_s'>to_s</span>].<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_assoc'>assoc</span><span class='op'>|</span>
+      <span class='comment'># Create a copy of the mapping for each top-level association to avoid mutation issues
+</span>      <span class='id identifier rubyid_pipeline'>pipeline</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_create_pipeline'><a href="#create_pipeline-instance_method" title="Mongoid::Association::EagerLoadable#create_pipeline (method)">create_pipeline</a></span>(<span class='id identifier rubyid_assoc'>assoc</span><span class='comma'>,</span> <span class='id identifier rubyid_assoc_map'>assoc_map</span>.<span class='id identifier rubyid_dup'>dup</span>)
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+
+  <span class='const'><a href="Eager.html" title="Mongoid::Association::Eager (class)">Eager</a></span>.<span class='id identifier rubyid_new'><a href="Eager.html#new-class_method" title="Mongoid::Association::Eager.new (method)">new</a></span>(<span class='id identifier rubyid_criteria'>criteria</span>.<span class='id identifier rubyid_inclusions'>inclusions</span><span class='comma'>,</span> []<span class='comma'>,</span> <span class='kw'>true</span><span class='comma'>,</span> <span class='id identifier rubyid_pipeline'>pipeline</span>).<span class='id identifier rubyid_run'>run</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="switch_local_and_foreign_fields?-instance_method">
+  <h3 class='signature '>
+    #<strong>switch_local_and_foreign_fields?</strong>(association)  &#x21d2; <a href="../Boolean.html" title="Mongoid::Boolean (class)">Boolean</a> 
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+  </div>
+</div>
+<div class='tags'>
+  
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongoid/blob/master/lib/mongoid/association/eager_loadable.rb#L112-L115'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='112' data-end='115'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/mongoid/association/eager_loadable.rb', line 112</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_switch_local_and_foreign_fields?'>switch_local_and_foreign_fields?</span>(<span class='id identifier rubyid_association'>association</span>)
+  <span class='id identifier rubyid_association'>association</span>.<span class='id identifier rubyid_is_a?'>is_a?</span>(<span class='const'><a href="../../Mongoid.html" title="Mongoid (module)">Mongoid</a></span><span class='op'>::</span><span class='const'><a href="../Association.html" title="Mongoid::Association (module)">Association</a></span><span class='op'>::</span><span class='const'><a href="Referenced.html" title="Mongoid::Association::Referenced (module)">Referenced</a></span><span class='op'>::</span><span class='const'><a href="Referenced/BelongsTo.html" title="Mongoid::Association::Referenced::BelongsTo (class)">BelongsTo</a></span>) <span class='op'>||</span>
+    <span class='id identifier rubyid_association'>association</span>.<span class='id identifier rubyid_is_a?'>is_a?</span>(<span class='const'><a href="../../Mongoid.html" title="Mongoid (module)">Mongoid</a></span><span class='op'>::</span><span class='const'><a href="../Association.html" title="Mongoid::Association (module)">Association</a></span><span class='op'>::</span><span class='const'><a href="Referenced.html" title="Mongoid::Association::Referenced (module)">Referenced</a></span><span class='op'>::</span><span class='const'><a href="Referenced/HasAndBelongsToMany.html" title="Mongoid::Association::Referenced::HasAndBelongsToMany (class)">HasAndBelongsToMany</a></span>)
 <span class='kw'>end</span>
 </pre>
   </div>
