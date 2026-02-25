@@ -64,15 +64,40 @@
 <div id="preamble">
 <div class="sectionbody">
 <div class="paragraph">
-<p>This section of the documentation will teach you how to develop new cops.  We&#8217;ll
-start with generating a cop template and then we&#8217;ll address the various aspects
-of its implementation (interacting with the AST, autocorrect, configuration)
-and testing.</p>
+<p>This guide covers developing new cops for RuboCop. It walks through:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="#create-a-new-cop">Scaffolding</a> a cop from a template</p>
+</li>
+<li>
+<p><a href="#understanding-the-ast">Understanding the AST</a> that RuboCop operates on</p>
+</li>
+<li>
+<p><a href="#implementing-the-cop">Implementing</a> detection with node patterns and callbacks</p>
+</li>
+<li>
+<p><a href="#autocorrect">Autocorrect</a> to fix offenses automatically</p>
+</li>
+<li>
+<p><a href="#limit-by-ruby-or-gem-versions">Constraining</a> cops by Ruby or gem version</p>
+</li>
+<li>
+<p><a href="#common-patterns">Common patterns</a> and conventions</p>
+</li>
+<li>
+<p><a href="#running-tests">Testing</a> your cop</p>
+</li>
+<li>
+<p><a href="#documentation">Documenting</a> the cop for users</p>
+</li>
+</ul>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_create_a_new_cop">Create a new cop</h2>
+<h2 id="create-a-new-cop">Create a new cop</h2>
 <div class="sectionbody">
 <div class="admonitionblock note">
 <table>
@@ -109,7 +134,7 @@ Do 4 steps:
 </div>
 </div>
 <div class="sect1">
-<h2 id="_basics">Basics</h2>
+<h2 id="understanding-the-ast">Understanding the AST</h2>
 <div class="sectionbody">
 <div class="paragraph">
 <p>RuboCop uses the <a href="https://github.com/whitequark/parser">parser</a> library to create the
@@ -150,7 +175,7 @@ string value "John":</p>
 </div>
 </div>
 <div class="sect2">
-<h3 id="_inspecting_the_ast_representation">Inspecting the AST representation</h3>
+<h3 id="_inspecting_the_ast">Inspecting the AST</h3>
 <div class="paragraph">
 <p>Let&#8217;s imagine we want to simplify statements from <code>!array.empty?</code> to
 <code>array.any?</code>:</p>
@@ -202,19 +227,19 @@ that is a simple wrap to make the parser interpret the code and build the AST:</
 </div>
 </div>
 <div class="sect1">
-<h2 id="_implementation">Implementation</h2>
+<h2 id="implementing-the-cop">Implementing the cop</h2>
 <div class="sectionbody">
 <div class="sect2">
-<h3 id="_writing_node_pattern_rules">Writing Node Pattern Rules</h3>
-<div class="admonitionblock note">
+<h3 id="_writing_node_pattern_rules">Writing node pattern rules</h3>
+<div class="admonitionblock tip">
 <table>
 <tr>
 <td class="icon">
-<div class="title">Note</div>
+<div class="title">Tip</div>
 </td>
 <td class="content">
 You can write cops without using <code>NodePattern</code> (and many older cops don&#8217;t use it), but it
-generally simplifies a lot the code, as manual node matching and destructuring can be
+generally simplifies the code a lot, as manual node matching and destructuring can be
 quite verbose.
 </td>
 </tr>
@@ -246,7 +271,7 @@ representation, then let&#8217;s start with something very generic:</p>
 </div>
 </div>
 <div class="paragraph">
-<p>It matches because the root is a <code>send</code> type. Now lets match it deeply using
+<p>It matches because the root is a <code>send</code> type. Now let&#8217;s match it deeply using
 parentheses to define details for sub-nodes. If you don&#8217;t care about what an internal
 node is, you can use <code>...</code> to skip it and just consider " a node".</p>
 </div>
@@ -298,7 +323,7 @@ another internal node:</p>
 <p>In other words, it says: "Match code calling <code>!&lt;expression&gt;.empty?</code>".</p>
 </div>
 <div class="paragraph">
-<p>Great! Now, lets implement our cop to simplify such statements:</p>
+<p>Great! Now, let&#8217;s implement our cop to simplify such statements:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -344,7 +369,7 @@ cop scaffold already suggested:</p>
 method names with a constant <code>RESTRICT_ON_SEND</code>.</p>
 </div>
 <div class="paragraph">
-<p>And the final cop code will look like something like this:</p>
+<p>The final cop code will look something like this:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -361,7 +386,7 @@ method names with a constant <code>RESTRICT_ON_SEND</code>.</p>
 </span>      <span class='comment'>#   array.any?
 </span>      <span class='comment'>#
 </span>      <span class='kw'>class</span> <span class='const'>SimplifyNotEmptyWithAny</span> <span class='op'>&lt;</span> <span class='const'>Base</span>
-        <span class='const'>MSG</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Use `.any?` and remove the negation part.</span><span class='tstring_end'>&#39;</span></span>.<span class='id identifier rubyid_freeze'>freeze</span>
+        <span class='const'>MSG</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Use `.any?` and remove the negation part.</span><span class='tstring_end'>&#39;</span></span>
         <span class='const'>RESTRICT_ON_SEND</span> <span class='op'>=</span> [<span class='symbeg'>:</span><span class='op'>!</span>].<span class='id identifier rubyid_freeze'>freeze</span> <span class='comment'># optimization: don&#39;t call `on_send` unless
 </span>                                       <span class='comment'># the method name is in this list
 </span>
@@ -381,7 +406,10 @@ method names with a constant <code>RESTRICT_ON_SEND</code>.</p>
 </div>
 </div>
 <div class="paragraph">
-<p>Note that <code>on_send</code> will be called on a given <code>node</code> before the callbacks <code>on_&lt;some type&gt;</code> for its children are called. There&#8217;s also a callback <code>after_send</code> that is called after the children are processed. There&#8217;s a similar <code>after_&lt;some type&gt;</code> callback for all types, except those that never have children.</p>
+<p>Callback ordering: <code>on_send</code> is called on a node <em>before</em> the <code>on_&lt;type&gt;</code>
+callbacks for its children. There is also an <code>after_send</code> callback that runs
+<em>after</em> children are processed. Every node type has a corresponding
+<code>after_&lt;type&gt;</code> callback (except types that never have children).</p>
 </div>
 <div class="paragraph">
 <p>Update the spec to cover the expected syntax:</p>
@@ -407,7 +435,7 @@ method names with a constant <code>RESTRICT_ON_SEND</code>.</p>
 </div>
 <div class="paragraph">
 <p>If your code has variables of different lengths, you can use the following
-markers to format your template by passing the variables as a keyword
+markers to format your template by passing the variables as keyword
 arguments:</p>
 </div>
 <div class="ulist">
@@ -446,9 +474,9 @@ arguments:</p>
 </div>
 </div>
 <div class="sect2">
-<h3 id="_autocorrect">Autocorrect</h3>
+<h3 id="autocorrect">Autocorrect</h3>
 <div class="paragraph">
-<p>The autocorrect can help humans automatically fix offenses that have been detected.
+<p>Autocorrect lets cops automatically fix the offenses they detect.
 It&#8217;s necessary to <code>extend AutoCorrector</code>.
 The method <code>add_offense</code> yields a corrector object that is a thin wrapper on
 <a href="https://www.rubydoc.info/gems/parser/Parser/Source/TreeRewriter">parser&#8217;s TreeRewriter</a>
@@ -498,7 +526,7 @@ offensive node.</p>
 ranges for expression or other internal information that the node holds.</p>
 </div>
 <div class="sect3">
-<h4 id="_preventing_clobbering">Preventing Clobbering</h4>
+<h4 id="_preventing_clobbering">Preventing clobbering</h4>
 <div class="paragraph">
 <p>The corrector detects and prevents correcting overlapping nodes, to prevent one correction from clobbering another.
 Supporting nested corrections is done by taking multiple passes, and skipping corrections for nested nodes.
@@ -531,7 +559,7 @@ This can be implemented using the <code>IgnoredNode</code> module:</p>
 </div>
 </div>
 <div class="sect2">
-<h3 id="_limit_by_ruby_or_gem_versions">Limit by Ruby or Gem versions</h3>
+<h3 id="_limit_by_ruby_or_gem_versions">Limit by Ruby or gem versions</h3>
 <div class="paragraph">
 <p>Some cops apply changes that only apply in particular contexts, such as if the user has a minimum Ruby version. There are helpers that let you constrain your cops automatically, to only run where applicable.</p>
 </div>
@@ -564,7 +592,7 @@ This can be implemented using the <code>IgnoredNode</code> module:</p>
 <p>Mirroring <code>minimum_target_ruby_version</code>, you can also specify a maximum Ruby version your cop should analyze.</p>
 </div>
 <div class="paragraph">
-<p>For example, the <code>Lint/CircularArgumentReference</code> cop only runs when analyzing code for Ruby before 2.7. The code it is looking for can never be written in more recent Rubies, it would be a syntax error:</p>
+<p>For example, the <code>Lint/CircularArgumentReference</code> cop only runs when analyzing code for Ruby before 2.7. The code it looks for can never be written in more recent Rubies — it would be a syntax error:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -668,34 +696,6 @@ end</code></pre>
 </div>
 </div>
 <div class="sect2">
-<h3 id="_run_tests">Run tests</h3>
-<div class="paragraph">
-<p>RuboCop supports two parser engines: the Parser gem and Prism. By default, tests are executed with the Parser:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="highlight"><code class="language-console" data-lang="console">$ bundle exec rake spec</code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>To run all tests with the experimental support for Prism, use <code>bundle exec prism_spec</code>, and to execute tests for individual files,
-specify the environment variable <code>PARSER_ENGINE=parser_prism</code>.</p>
-</div>
-<div class="paragraph">
-<p>e.g., <code>PARSER_ENGINE=parser_prism spec/rubocop/cop/style/hash_syntax_spec.rb</code></p>
-</div>
-<div class="paragraph">
-<p><code>bundle exec rake</code> runs tests for both Parser gem and Prism parsers.</p>
-</div>
-<div class="paragraph">
-<p>But <code>ascii_spec</code> rake task does not run by default. Because <code>ascii_spec</code> task has not been failing for a while.
-However, <code>ascii_spec</code> task will continue to be checked in CI.</p>
-</div>
-<div class="paragraph">
-<p>In CI, all tests required for merging are executed. Please investigate if anything fails.</p>
-</div>
-</div>
-<div class="sect2">
 <h3 id="_configuration">Configuration</h3>
 <div class="paragraph">
 <p>Each cop can hold a configuration and you can refer to <code>cop_config</code> in the
@@ -703,8 +703,8 @@ instance and it will bring a hash with options declared in the <code>.rubocop.ym
 file.</p>
 </div>
 <div class="paragraph">
-<p>For example, lets imagine we want to make configurable to make the replacement
-works with other method than <code>.any?</code>:</p>
+<p>For example, let&#8217;s imagine we want to make the replacement method configurable,
+so it works with a method other than <code>.any?</code>:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -714,7 +714,7 @@ works with other method than <code>.any?</code>:</p>
 </div>
 </div>
 <div class="paragraph">
-<p>And then on the autocorrect method, you just need to use the <code>cop_config</code> it:</p>
+<p>And then in the autocorrect method, you just need to use <code>cop_config</code>:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -733,75 +733,169 @@ works with other method than <code>.any?</code>:</p>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_documentation">Documentation</h2>
+<h2 id="common-patterns">Common patterns</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Every new cop requires explanation and examples to make it easy for the community
-to understand its purpose. This documentation is generated by <code>yard</code> and is added
-directly into the <code>cop.rb</code> file. For every <code>SupportedStyle</code> and unique
-configuration you have included in the cop, there needs to be examples. Examples must
-have valid Ruby syntax. Do not use upticks.</p>
+<p>This section covers conventions and patterns you should follow when writing cops.</p>
+</div>
+<div class="sect2">
+<h3 id="_handling_safe_navigation">Handling safe navigation (<code>&amp;.</code>)</h3>
+<div class="paragraph">
+<p>If your cop defines <code>on_send</code>, you should almost always also handle the
+safe navigation operator by aliasing <code>on_csend</code>:</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'>Department</span>
-  <span class='comment'># Description of your cop. Include description of ALL config options. Particularly
-</span>  <span class='comment'># ones that take booleans and arrays, because we generally do not show examples for
-</span>  <span class='comment'># configs with these value types.
-</span>  <span class='comment'>#
-</span>  <span class='comment'># @example EnforcedStyle: bar
-</span>  <span class='comment'>#   # Description about this particular option
-</span>  <span class='comment'>#
-</span>  <span class='comment'>#   # bad
-</span>  <span class='comment'>#   bad_example1
-</span>  <span class='comment'>#   bad_example2
-</span>  <span class='comment'>#
-</span>  <span class='comment'>#   # good
-</span>  <span class='comment'>#   good_example1
-</span>  <span class='comment'>#   good_example2
-</span>  <span class='comment'>#
-</span>  <span class='comment'># @example EnforcedStyle: foo (default)
-</span>  <span class='comment'>#   # Description about this particular option
-</span>  <span class='comment'>#
-</span>  <span class='comment'>#   # bad
-</span>  <span class='comment'>#   bad_example1
-</span>  <span class='comment'>#   bad_example2
-</span>  <span class='comment'>#
-</span>  <span class='comment'>#   # good
-</span>  <span class='comment'>#   good_example1
-</span>  <span class='comment'>#   good_example2
-</span>  <span class='comment'>#
-</span>  <span class='comment'># @example AnyUniqueConfigKeyThatIsAString: qux (default)
-</span>  <span class='comment'>#   # Description about this particular option
-</span>  <span class='comment'>#
-</span>  <span class='comment'>#   # bad
-</span>  <span class='comment'>#   bad_example1
-</span>  <span class='comment'>#   bad_example2
-</span>  <span class='comment'>#
-</span>  <span class='comment'>#   # good
-</span>  <span class='comment'>#   good_example1
-</span>  <span class='comment'>#   good_example2
-</span>  <span class='comment'>#
-</span>  <span class='comment'># @example AnyUniqueConfigKeyThatIsAString: thud
-</span>  <span class='comment'>#   # Description about this particular option
-</span>  <span class='comment'>#
-</span>  <span class='comment'>#   # bad
-</span>  <span class='comment'>#   bad_example1
-</span>  <span class='comment'>#   bad_example2
-</span>  <span class='comment'>#
-</span>  <span class='comment'>#   # good
-</span>  <span class='comment'>#   good_example1
-</span>  <span class='comment'>#   good_example2
-</span>  <span class='comment'>#
-</span>  <span class='kw'>class</span> <span class='const'>YourCop</span>
-    <span class='comment'># ...</span></code></pre>
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_on_send'>on_send</span>(<span class='id identifier rubyid_node'>node</span>)
+  <span class='comment'># ...
+</span><span class='kw'>end</span>
+<span class='kw'>alias</span> <span class='id identifier rubyid_on_csend'>on_csend</span> <span class='id identifier rubyid_on_send'>on_send</span></code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>Take note of the placement and spacing of all the documentation pieces. Such as config
-keys being in alphabetical order, the <code>(default)</code> being specified, and one empty line
-before <code>class YourCop</code>. While not all examples in the codebase follow this exact format,
-we strive to make this consistent. PRs improving RuboCop documentation are very welcome.</p>
+<p>Without this, your cop will silently ignore code like <code>foo&amp;.bar</code>. Only skip
+this if the cop explicitly does not apply to safe navigation.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_handling_numbered_parameter_and_it_parameter_blocks">Handling numbered-parameter and <code>it</code>-parameter blocks</h3>
+<div class="paragraph">
+<p>Similarly, if your cop defines <code>on_block</code>, alias the numbered-parameter and
+<code>it</code>-parameter variants:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_on_block'>on_block</span>(<span class='id identifier rubyid_node'>node</span>)
+  <span class='comment'># ...
+</span><span class='kw'>end</span>
+<span class='kw'>alias</span> <span class='id identifier rubyid_on_numblock'>on_numblock</span> <span class='id identifier rubyid_on_block'>on_block</span>
+<span class='kw'>alias</span> <span class='id identifier rubyid_on_itblock'>on_itblock</span> <span class='id identifier rubyid_on_block'>on_block</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_using_restrict_on_send">Using <code>RESTRICT_ON_SEND</code></h3>
+<div class="paragraph">
+<p>When your cop uses <code>on_send</code>, define a <code>RESTRICT_ON_SEND</code> constant listing
+the method names the cop cares about. This is a performance optimization —
+RuboCop will skip calling <code>on_send</code> entirely for method names not in the list:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='const'>RESTRICT_ON_SEND</span> <span class='op'>=</span> <span class='qsymbols'><span class='qsymbols_beg'>%i[</span><span class='tstring_content'>bad_method</span><span class='words_sep'> </span><span class='tstring_content'>other_bad_method</span><span class='tstring_end'>]</span></span>.<span class='id identifier rubyid_freeze'>freeze</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_documenting_node_matchers_with_method">Documenting node matchers with <code>@!method</code></h3>
+<div class="paragraph">
+<p>Every <code>def_node_matcher</code> and <code>def_node_search</code> should have a <code>@!method</code>
+YARD tag above it so that documentation tools can find the generated method:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='comment'># @!method not_empty_call?(node)
+</span><span class='id identifier rubyid_def_node_matcher'>def_node_matcher</span> <span class='symbeg'>:</span><span class='id identifier rubyid_not_empty_call?'>not_empty_call?</span><span class='comma'>,</span> <span class='heredoc_beg'>&lt;&lt;~PATTERN</span>
+<span class='ignored_sp'>  </span><span class='tstring_content'>(send (send $(...) :empty?) :!)
+</span><span class='heredoc_end'>PATTERN</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_declaring_autocorrect_support">Declaring autocorrect support</h3>
+<div class="paragraph">
+<p>If your cop provides a corrector block inside <code>add_offense</code>, you must declare
+<code>extend AutoCorrector</code> at the top of the class. Without it, RuboCop won&#8217;t
+know the cop supports autocorrection.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="running-tests">Running tests</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>RuboCop supports two parser engines: the Parser gem and Prism. By default, tests are executed with the Parser:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-console" data-lang="console">$ bundle exec rake spec</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>To run all tests with Prism, use <code>bundle exec rake prism_spec</code>. To run a single spec file with Prism,
+set the <code>PARSER_ENGINE</code> environment variable:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-console" data-lang="console">$ PARSER_ENGINE=parser_prism bundle exec rspec spec/rubocop/cop/style/hash_syntax_spec.rb</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>bundle exec rake</code> runs the full CI suite: specs for both parser engines, self-linting, and documentation checks. Always run this before submitting a PR.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="documentation">Documentation</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Every cop needs YARD documentation with examples directly in the source file.
+The CI <code>documentation_syntax_check</code> task parses every <code>@example</code> block, so all
+examples must contain valid Ruby syntax.</p>
+</div>
+<div class="paragraph">
+<p>Key rules:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The first line of the YARD comment must be a complete sentence starting with
+a verb and ending with a period (e.g., "Checks for &#8230;&#8203;", "Enforces &#8230;&#8203;").</p>
+</li>
+<li>
+<p>Every cop must have at least one <code># bad</code> / <code># good</code> example pair.</p>
+</li>
+<li>
+<p>For each <code>SupportedStyle</code> or unique configuration key, add a separate
+<code>@example</code> block.</p>
+</li>
+<li>
+<p>Mark the default style with <code>(default)</code>.</p>
+</li>
+<li>
+<p>List config keys in alphabetical order.</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'><a href="RuboCop.html" title="RuboCop (module)">RuboCop</a></span>
+  <span class='kw'>module</span> <span class='const'>Cop</span>
+    <span class='kw'>module</span> <span class='const'>Style</span>
+      <span class='comment'># Simplifies `!array.empty?` to `array.any?`.
+</span>      <span class='comment'>#
+</span>      <span class='comment'># @example EnforcedStyle: any? (default)
+</span>      <span class='comment'>#   # bad
+</span>      <span class='comment'>#   !array.empty?
+</span>      <span class='comment'>#
+</span>      <span class='comment'>#   # good
+</span>      <span class='comment'>#   array.any?
+</span>      <span class='comment'>#
+</span>      <span class='comment'># @example EnforcedStyle: size
+</span>      <span class='comment'>#   # bad
+</span>      <span class='comment'>#   !array.empty?
+</span>      <span class='comment'>#
+</span>      <span class='comment'>#   # good
+</span>      <span class='comment'>#   array.size &gt; 0
+</span>      <span class='comment'>#
+</span>      <span class='kw'>class</span> <span class='const'>SimplifyNotEmptyWithAny</span> <span class='op'>&lt;</span> <span class='const'>Base</span>
+        <span class='comment'># ...</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Add additional <code>@example</code> blocks following the same pattern for each style or
+config value.</p>
 </div>
 </div>
 </div>
@@ -829,14 +923,132 @@ guarantee it&#8217;s working in a range of different syntaxes.</p>
 <div class="paragraph">
 <p>With approach #2, you can use local versions of RuboCop extension repos such as <code>rubocop-rspec</code> as well.</p>
 </div>
-<div class="paragraph">
-<p>To make it fast and do not get confused with other cops in action,  you can use
-<code>--only</code> parameter in the command line to filter by your cop name:</p>
+<div class="admonitionblock tip">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Tip</div>
+</td>
+<td class="content">
+Use <code>--only</code> to run just your cop and avoid noise from other cops:
+</td>
+</tr>
+</table>
 </div>
 <div class="listingblock">
 <div class="content">
 <pre class="highlight"><code class="language-sh" data-lang="sh">$ rubocop --only Style/SimplifyNotEmptyWithAny</code></pre>
 </div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="custom-formatters">Custom formatters</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Beyond cops, RuboCop can also be extended with custom output formatters.</p>
+</div>
+<div class="sect2">
+<h3 id="_creating_a_custom_formatter">Creating a custom formatter</h3>
+<div class="paragraph">
+<p>To implement a custom formatter, you need to subclass
+<a href="RuboCop/Formatter/BaseFormatter.html" title="RuboCop::Formatter::BaseFormatter (class)"><code>::RuboCop::Formatter::BaseFormatter</code></a> and override some methods,
+or implement all formatter API methods by duck typing.</p>
+</div>
+<div class="paragraph">
+<p>Please see the documents below for more formatter API details.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://www.rubydoc.info/gems/rubocop/RuboCop/Formatter/BaseFormatter">RuboCop::Formatter::BaseFormatter</a></p>
+</li>
+<li>
+<p><a href="https://www.rubydoc.info/gems/rubocop/RuboCop/Cop/Offense">RuboCop::Cop::Offense</a></p>
+</li>
+<li>
+<p><a href="https://www.rubydoc.info/gems/parser/Parser/Source/Range">Parser::Source::Range</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_using_a_custom_formatter_from_the_command_line">Using a custom formatter from the command line</h3>
+<div class="paragraph">
+<p>You can tell RuboCop to use your custom formatter with a combination of
+<code>--format</code> and <code>--require</code> option.
+For example, when you have defined <code>MyCustomFormatter</code> in
+<code>./path/to/my_custom_formatter.rb</code>, you would type this command:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sh" data-lang="sh">$ rubocop --require ./path/to/my_custom_formatter --format MyCustomFormatter</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_template_support">Template support</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>RuboCop can also analyze Ruby embedded in templates (ERB, Haml, Slim, etc.)
+through a Ruby extractor API.</p>
+</div>
+<div class="paragraph">
+<p>A template file contains multiple embedded Ruby snippets, unlike a regular
+Ruby file. RuboCop solves this with <a href="RuboCop/Runner.html#ruby_extractors-class_method" title="RuboCop::Runner.ruby_extractors (method)">RuboCop::Runner.ruby_extractors</a> — a
+list of callable extractors that plugins can prepend to.</p>
+</div>
+<div class="paragraph">
+<p>A Ruby extractor takes a <a href="RuboCop.html#ProcessedSource-constant" title="RuboCop::ProcessedSource (constant)">RuboCop::ProcessedSource</a> and returns either an
+<code>Array</code> of <code>Hash</code>-es containing extracted Ruby source and offsets, or <code>nil</code>
+if the file is not relevant.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_ruby_extractor'>ruby_extractor</span>.<span class='id identifier rubyid_call'>call</span>(<span class='id identifier rubyid_processed_source'>processed_source</span>)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>An example returned value from a Ruby extractor would be as follows:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby">[
+  {
+    <span class='label'>offset:</span> <span class='int'>2</span><span class='comma'>,</span>
+    <span class='label'>processed_source:</span> <span class='comment'>#&lt;RuboCop::ProcessedSource&gt;
+</span>  }<span class='comma'>,</span>
+  {
+    <span class='label'>offset:</span> <span class='int'>10</span><span class='comma'>,</span>
+    <span class='label'>processed_source:</span> <span class='comment'>#&lt;RuboCop::ProcessedSource&gt;
+</span>  }
+]</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>On the extension side, the code would be something like this:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="RuboCop.html" title="RuboCop (module)">RuboCop</a></span><span class='op'>::</span><span class='const'><a href="RuboCop/Runner.html" title="RuboCop::Runner (class)">Runner</a></span>.<span class='id identifier rubyid_ruby_extractors'><a href="RuboCop/Runner.html#ruby_extractors-class_method" title="RuboCop::Runner.ruby_extractors (method)">ruby_extractors</a></span>.<span class='id identifier rubyid_unshift'>unshift</span>(<span class='id identifier rubyid_ruby_extractor'>ruby_extractor</span>)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><a href="RuboCop/Runner.html#ruby_extractors-class_method" title="RuboCop::Runner.ruby_extractors (method)">RuboCop::Runner.ruby_extractors</a> is processed from the beginning and ends when one of them returns a non-nil value. By default, there is a Ruby extractor that returns the given Ruby source code with offset 0, so you can unshift any Ruby extractor before it.</p>
+</div>
+<div class="admonitionblock warning">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Warning</div>
+</td>
+<td class="content">
+This is still an experimental feature and may change in the future.
+</td>
+</tr>
+</table>
 </div>
 </div>
 </div>
