@@ -8,7 +8,7 @@
 <meta name='mobile-web-app-capable' content='yes'>
 <meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
 
-<title>Class: OpenSSL::HMAC &mdash; openssl  Ruby-3.4.8 p72</title>
+<title>Class: OpenSSL::HMAC &mdash; openssl  Ruby-3.4.9 p82</title>
 
 <link rel='stylesheet'  type='text/css' href='../../../css/y_fonts.css' />
 <link rel='stylesheet'  type='text/css' href='../../../css/highlight.github.css' />
@@ -50,7 +50,7 @@
   <header id='y_header'>
     <div id='y_menu'>
       <a id='home_no_xhr' href='/'>Home</a> &raquo; 
-      <a href='../../'>Ruby-3.4.8</a> &raquo; 
+      <a href='../../'>Ruby-3.4.9</a> &raquo; 
       <a href='../'>openssl</a> &raquo; 
       <a href='../_index.html#alpha_H'>Index (H)</a> &raquo; 
         <a href="../OpenSSL.html" title="OpenSSL (module)">OpenSSL</a> &raquo; 
@@ -78,7 +78,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2 o'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_8/ext/openssl/ossl_hmac.c#L259'>ext/openssl/ossl_hmac.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_8/ext/openssl/ossl_hmac.c#L288'>ext/openssl/ossl_hmac.c</a>,<br/> <a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_8/ext/openssl/lib/openssl/hmac.rb#L4'>ext/openssl/lib/openssl/hmac.rb</a></span>
+      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_9/ext/openssl/ossl_hmac.c#L267'>ext/openssl/ossl_hmac.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_9/ext/openssl/ossl_hmac.c#L296'>ext/openssl/ossl_hmac.c</a>,<br/> <a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_9/ext/openssl/lib/openssl/hmac.rb#L4'>ext/openssl/lib/openssl/hmac.rb</a></span>
       </td>
     </tr>
   </tbody>
@@ -198,6 +198,11 @@
   </li>
   <li>
     <span class='summary_signature '>
+      <a href="#initialize_copy-instance_method" title="#initialize_copy (instance method)">#<strong>initialize_copy</strong>(other)  </a>
+    </span>
+  </li>
+  <li>
+    <span class='summary_signature '>
       <a href="#inspect-instance_method" title="#inspect (instance method)">#<strong>inspect</strong>  &#x21d2; String </a>
     </span>
     <div class='summary_desc'>
@@ -228,12 +233,6 @@
     <div class='summary_desc'>
       <div class='inline'><p>Alias for <a href="#<<-instance_method" title="OpenSSL::HMAC#&lt;&lt; (method)">#&lt;&lt;</a>.</p></div>
     </div>
-  </li>
-  <li>
-    <span class='summary_signature nodoc'>
-      <a href="#initialize_copy-instance_method" title="#initialize_copy (instance method)">#<strong>initialize_copy</strong>(other)  </a>
-    </span>
-    <span class='nodoc note title'>Internal use only</span>
   </li>
 </ul>
 </div>  <!-- instance_method_summary -->
@@ -266,11 +265,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_8/ext/openssl/ossl_hmac.c#L93-L118'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_9/ext/openssl/ossl_hmac.c#L92-L122'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='93' data-end='118'></pre>
+  <pre class='lines_num' data-start='92' data-end='122'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_hmac.c', line 93</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_hmac.c', line 92</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -278,22 +277,27 @@ ossl_hmac_initialize(VALUE self, VALUE key, VALUE digest)
 {
     EVP_MD_CTX *ctx;
     EVP_PKEY *pkey;
-    const EVP_MD *md;
-    VALUE md_holder;
 
     GetHMAC(self, ctx);
     StringValue(key);
-    md = ossl_evp_md_fetch(digest, &amp;md_holder);
+#ifdef HAVE_EVP_PKEY_NEW_RAW_PRIVATE_KEY
     pkey = EVP_PKEY_new_raw_private_key(EVP_PKEY_HMAC, NULL,
                                         (unsigned char *)RSTRING_PTR(key),
                                         RSTRING_LENINT(key));
     if (!pkey)
         ossl_raise(eHMACError, &quot;EVP_PKEY_new_raw_private_key&quot;);
-    if (EVP_DigestSignInit(ctx, NULL, md, NULL, pkey) != 1) {
+#else
+    pkey = EVP_PKEY_new_mac_key(EVP_PKEY_HMAC, NULL,
+                                (unsigned char *)RSTRING_PTR(key),
+                                RSTRING_LENINT(key));
+    if (!pkey)
+        ossl_raise(eHMACError, &quot;EVP_PKEY_new_mac_key&quot;);
+#endif
+    if (EVP_DigestSignInit(ctx, NULL, ossl_evp_get_digestbyname(digest),
+                           NULL, pkey) != 1) {
         EVP_PKEY_free(pkey);
         ossl_raise(eHMACError, &quot;EVP_DigestSignInit&quot;);
     }
-    rb_ivar_set(self, id_md_holder, md_holder);
     /* Decrement reference counter; EVP_MD_CTX still keeps it */
     EVP_PKEY_free(pkey);
 
@@ -323,7 +327,7 @@ ossl_hmac_initialize(VALUE self, VALUE key, VALUE digest)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_8/ext/openssl/lib/openssl/hmac.rb#L73-L75'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_9/ext/openssl/lib/openssl/hmac.rb#L73-L75'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
   <pre class='lines_num' data-start='73' data-end='75'></pre>
   <div class='lines_code'>
@@ -356,7 +360,7 @@ ossl_hmac_initialize(VALUE self, VALUE key, VALUE digest)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_8/ext/openssl/lib/openssl/hmac.rb#L35-L39'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_9/ext/openssl/lib/openssl/hmac.rb#L35-L39'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
   <pre class='lines_num' data-start='35' data-end='39'></pre>
   <div class='lines_code'>
@@ -391,7 +395,7 @@ ossl_hmac_initialize(VALUE self, VALUE key, VALUE digest)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_8/ext/openssl/lib/openssl/hmac.rb#L54-L58'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_9/ext/openssl/lib/openssl/hmac.rb#L54-L58'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
   <pre class='lines_num' data-start='54' data-end='58'></pre>
   <div class='lines_code'>
@@ -430,11 +434,11 @@ ossl_hmac_initialize(VALUE self, VALUE key, VALUE digest)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_8/ext/openssl/ossl_hmac.c#L154-L165'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_9/ext/openssl/ossl_hmac.c#L157-L168'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='154' data-end='165'></pre>
+  <pre class='lines_num' data-start='157' data-end='168'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_hmac.c', line 154</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_hmac.c', line 157</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -465,7 +469,7 @@ ossl_hmac_update(VALUE self, VALUE data)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_8/ext/openssl/lib/openssl/hmac.rb#L6-L11'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_9/ext/openssl/lib/openssl/hmac.rb#L6-L11'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
   <pre class='lines_num' data-start='6' data-end='11'></pre>
   <div class='lines_code'>
@@ -493,7 +497,7 @@ ossl_hmac_update(VALUE self, VALUE data)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_8/ext/openssl/lib/openssl/hmac.rb#L17-L19'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_9/ext/openssl/lib/openssl/hmac.rb#L17-L19'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
   <pre class='lines_num' data-start='17' data-end='19'></pre>
   <div class='lines_code'>
@@ -525,11 +529,11 @@ ossl_hmac_update(VALUE self, VALUE data)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_8/ext/openssl/ossl_hmac.c#L179-L194'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_9/ext/openssl/ossl_hmac.c#L182-L197'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='179' data-end='194'></pre>
+  <pre class='lines_num' data-start='182' data-end='197'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_hmac.c', line 179</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_hmac.c', line 182</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -574,17 +578,14 @@ ossl_hmac_digest(VALUE self)
 </section>
 
 <section class='method_details' id="initialize_copy-instance_method">
-  <h3 class='signature nodoc'>
+  <h3 class='signature '>
     #<strong>initialize_copy</strong>(other)  
   </h3>
-  <div class='note nodoc inline-block'>
-    <strong>This method is for internal use only.</strong>
-  </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_8/ext/openssl/ossl_hmac.c#L121-L134'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_9/ext/openssl/ossl_hmac.c#L124-L137'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='121' data-end='134'></pre>
+  <pre class='lines_num' data-start='124' data-end='137'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_hmac.c', line 121</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_hmac.c', line 124</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -647,11 +648,11 @@ ossl_hmac_copy(VALUE self, VALUE other)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_8/ext/openssl/ossl_hmac.c#L239-L251'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_9/ext/openssl/ossl_hmac.c#L242-L254'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='239' data-end='251'></pre>
+  <pre class='lines_num' data-start='242' data-end='254'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_hmac.c', line 239</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_hmac.c', line 242</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -683,11 +684,11 @@ ossl_hmac_reset(VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_8/ext/openssl/ossl_hmac.c#L203-L218'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/v3_4_9/ext/openssl/ossl_hmac.c#L206-L221'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='203' data-end='218'></pre>
+  <pre class='lines_num' data-start='206' data-end='221'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_hmac.c', line 203</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_hmac.c', line 206</span></pre>
 <pre class='code cpp'>
 
 static VALUE
