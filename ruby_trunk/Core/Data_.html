@@ -77,7 +77,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2 o'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2240'>struct.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L1647'>struct.c</a></span>
+      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2286'>struct.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L1665'>struct.c</a></span>
       </td>
     </tr>
   </tbody>
@@ -191,8 +191,11 @@
   </li>
   <li>
     <span class='summary_signature '>
-      <a href="#deconstruct_keys-instance_method" title="#deconstruct_keys (instance method)">#<strong>deconstruct_keys</strong>  </a>
+      <a href="#deconstruct_keys-instance_method" title="#deconstruct_keys (instance method)">#<strong>deconstruct_keys</strong>(array_of_names_or_nil)  &#x21d2; Hash </a>
     </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Returns a hash of the name/value pairs, to use in pattern matching.</p></div>
+    </div>
   </li>
   <li>
     <span class='summary_signature '>
@@ -303,11 +306,11 @@
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L1801-L1837'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L1834-L1879'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1801' data-end='1837'></pre>
+  <pre class='lines_num' data-start='1834' data-end='1879'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'struct.c', line 1801</span></pre>
+<pre><span class='info file'># File 'struct.c', line 1834</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -329,22 +332,31 @@ rb_data_initialize_m(int argc, const VALUE *argv, VALUE self)
         rb_error_arity(argc, 0, 0);
     }
 
-    if (RHASH_SIZE(argv[0]) &lt; num_members) {
-        VALUE missing = rb_ary_diff(members, rb_hash_keys(argv[0]));
-        rb_exc_raise(rb_keyword_error_new(&quot;missing&quot;, missing));
-    }
-
-    struct struct_hash_set_arg arg;
+    VALUE missing = rb_ary_dup(members);
+    RBASIC_CLEAR_CLASS(missing);
+    struct struct_hash_set_arg arg = {
+        .self = self,
+        .unknown_keywords = Qnil,
+        .missing_keywords = missing,
+        .missing_count = (long)num_members,
+    };
     rb_mem_clear((VALUE *)RSTRUCT_CONST_PTR(self), num_members);
-    arg.self = self;
-    arg.unknown_keywords = Qnil;
-    rb_hash_foreach(argv[0], struct_hash_set_i, (VALUE)&amp;arg);
+    rb_hash_foreach(argv[0], data_hash_set_i, (VALUE)&amp;arg);
     // Freeze early before potentially raising, so that we don&#39;t leave an
     // unfrozen copy on the heap, which could get exposed via ObjectSpace.
     OBJ_FREEZE(self);
-    if (arg.unknown_keywords != Qnil) {
-        rb_exc_raise(rb_keyword_error_new(&quot;unknown&quot;, arg.unknown_keywords));
+    if (UNLIKELY(arg.missing_count &gt; 0)) {
+        rb_ary_compact_bang(missing);
+        RUBY_ASSERT(RARRAY_LEN(missing) == arg.missing_count, &quot;missing_count=%ld but %ld&quot;, arg.missing_count, RARRAY_LEN(missing));
+        RBASIC_SET_CLASS_RAW(missing, rb_cArray);
+        rb_exc_raise(rb_keyword_error_new(&quot;missing&quot;, missing));
     }
+    VALUE unknown_keywords = arg.unknown_keywords;
+    if (UNLIKELY(!NIL_P(unknown_keywords))) {
+        RBASIC_SET_CLASS_RAW(unknown_keywords, rb_cArray);
+        rb_exc_raise(rb_keyword_error_new(&quot;unknown&quot;, unknown_keywords));
+    }
+
     return Qnil;
 }
 </pre>
@@ -397,11 +409,11 @@ rb_data_initialize_m(int argc, const VALUE *argv, VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L1692-L1721'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L1710-L1739'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1692' data-end='1721'></pre>
+  <pre class='lines_num' data-start='1710' data-end='1739'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'struct.c', line 1692</span></pre>
+<pre><span class='info file'># File 'struct.c', line 1710</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -443,7 +455,7 @@ rb_data_s_def(int argc, VALUE *argv, VALUE klass)
   <h3 class='signature '>
     .<strong>members</strong>  
   </h3>
-  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2247'>GitHub</a> ]</span>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2293'>GitHub</a> ]</span>
 
 </section>
 
@@ -452,7 +464,7 @@ rb_data_s_def(int argc, VALUE *argv, VALUE klass)
   <h3 class='signature  first'>
     #<strong>==</strong>  
   </h3>
-  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2253'>GitHub</a> ]</span>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2299'>GitHub</a> ]</span>
 
 </section>
 
@@ -460,16 +472,58 @@ rb_data_s_def(int argc, VALUE *argv, VALUE klass)
   <h3 class='signature '>
     #<strong>deconstruct</strong>  
   </h3>
-  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2263'>GitHub</a> ]</span>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2309'>GitHub</a> ]</span>
 
 </section>
 
 <section class='method_details' id="deconstruct_keys-instance_method">
   <h3 class='signature '>
-    #<strong>deconstruct_keys</strong>  
-  </h3>
-  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2264'>GitHub</a> ]</span>
+    #<strong>deconstruct_keys</strong>(array_of_names_or_nil)  &#x21d2; <a href="Hash.html" title="Hash (class)">Hash</a>   </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Returns a hash of the name/value pairs, to use in pattern matching.</p>
 
+<pre class="code ruby"><code class="ruby"><span class='const'>Measure</span> <span class='op'>=</span> <span class='const'>Data</span>.<span class='id identifier rubyid_define'><a href="#define-class_method" title="Data.define (method)">define</a></span>(<span class='symbeg'>:</span><span class='id identifier rubyid_amount'>amount</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_unit'>unit</span>)
+
+<span class='id identifier rubyid_distance'>distance</span> <span class='op'>=</span> <span class='const'>Measure</span>[<span class='int'>10</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>km</span><span class='tstring_end'>&#39;</span></span>]
+<span class='id identifier rubyid_distance'>distance</span>.<span class='id identifier rubyid_deconstruct_keys'>deconstruct_keys</span>(<span class='kw'>nil</span>) <span class='comment'>#=&gt; {:amount=&gt;10, :unit=&gt;&quot;km&quot;}
+</span><span class='id identifier rubyid_distance'>distance</span>.<span class='id identifier rubyid_deconstruct_keys'>deconstruct_keys</span>([<span class='symbeg'>:</span><span class='id identifier rubyid_amount'>amount</span>]) <span class='comment'>#=&gt; {:amount=&gt;10}
+</span>
+<span class='comment'># usage
+</span><span class='kw'>case</span> <span class='id identifier rubyid_distance'>distance</span>
+<span class='kw'>in</span> <span class='label'>amount:</span><span class='comma'>,</span> <span class='label'>unit:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>km</span><span class='tstring_end'>&#39;</span></span> <span class='comment'># calls #deconstruct_keys underneath
+</span>  <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>It is </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_amount'>amount</span><span class='embexpr_end'>}</span><span class='tstring_content'> kilometers away</span><span class='tstring_end'>&quot;</span></span>
+<span class='kw'>else</span>
+  <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Don&#39;t know how to handle it</span><span class='tstring_end'>&quot;</span></span>
+<span class='kw'>end</span>
+<span class='comment'># prints &quot;It is 10 kilometers away&quot;</span></code></pre>
+
+<p>Or, with checking the class, too:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>case</span> <span class='id identifier rubyid_distance'>distance</span>
+<span class='kw'>in</span> <span class='const'>Measure</span>(<span class='label'>amount:</span><span class='comma'>,</span> <span class='label'>unit:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>km</span><span class='tstring_end'>&#39;</span></span>)
+  <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>It is </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_amount'>amount</span><span class='embexpr_end'>}</span><span class='tstring_content'> kilometers away</span><span class='tstring_end'>&quot;</span></span>
+<span class='comment'># ...
+</span><span class='kw'>end</span></code></pre>
+
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2132-L2136'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='2132' data-end='2136'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'struct.c', line 2132</span></pre>
+<pre class='code cpp'>
+
+static VALUE
+rb_data_deconstruct_keys(VALUE s, VALUE keys)
+{
+    return deconstruct_keys(s, keys, true);
+}
+</pre>
+  </div>
+</div>
 </section>
 
 <section class='method_details' id="eql?-instance_method">
@@ -484,7 +538,7 @@ rb_data_s_def(int argc, VALUE *argv, VALUE klass)
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2254'>GitHub</a> ]</span>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2300'>GitHub</a> ]</span>
 
 </section>
 
@@ -492,7 +546,7 @@ rb_data_s_def(int argc, VALUE *argv, VALUE klass)
   <h3 class='signature '>
     #<strong>hash</strong>  
   </h3>
-  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2255'>GitHub</a> ]</span>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2301'>GitHub</a> ]</span>
 
 </section>
 
@@ -503,11 +557,11 @@ rb_data_s_def(int argc, VALUE *argv, VALUE klass)
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L1840-L1846'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L1882-L1888'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1840' data-end='1846'></pre>
+  <pre class='lines_num' data-start='1882' data-end='1888'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'struct.c', line 1840</span></pre>
+<pre><span class='info file'># File 'struct.c', line 1882</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -546,7 +600,7 @@ rb_data_init_copy(VALUE copy, VALUE s)
   <h3 class='signature '>
     #<strong>members</strong>  
   </h3>
-  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2261'>GitHub</a> ]</span>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2307'>GitHub</a> ]</span>
 
 </section>
 
@@ -554,7 +608,7 @@ rb_data_init_copy(VALUE copy, VALUE s)
   <h3 class='signature '>
     #<strong>to_h</strong>  
   </h3>
-  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2259'>GitHub</a> ]</span>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2305'>GitHub</a> ]</span>
 
 </section>
 
@@ -583,11 +637,11 @@ rb_data_init_copy(VALUE copy, VALUE s)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L1911-L1915'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L1953-L1957'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1911' data-end='1915'></pre>
+  <pre class='lines_num' data-start='1953' data-end='1957'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'struct.c', line 1911</span></pre>
+<pre><span class='info file'># File 'struct.c', line 1953</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -628,11 +682,11 @@ rb_data_inspect(VALUE s)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L1878-L1890'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L1920-L1932'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1878' data-end='1890'></pre>
+  <pre class='lines_num' data-start='1920' data-end='1932'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'struct.c', line 1878</span></pre>
+<pre><span class='info file'># File 'struct.c', line 1920</span></pre>
 <pre class='code cpp'>
 
 static VALUE
