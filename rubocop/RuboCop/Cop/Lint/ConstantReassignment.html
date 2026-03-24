@@ -110,7 +110,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L65'>lib/rubocop/cop/lint/constant_reassignment.rb</a>      </td>
+      <td class='box_rel'><a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L76'>lib/rubocop/cop/lint/constant_reassignment.rb</a>      </td>
     </tr>
   </tbody>
 </table>
@@ -124,8 +124,12 @@
 </div>
 <div class="paragraph">
 <p>Emulates Ruby&#8217;s runtime warning "already initialized constant X"
-when a constant is reassigned in the same file and namespace using the
-<code>NAME = value</code> syntax.</p>
+when a constant is reassigned in the same file and namespace.</p>
+</div>
+<div class="paragraph">
+<p>The cop tracks constants defined via <code>NAME = value</code> syntax as well as
+class/module keyword definitions. It detects reassignment when a constant
+is first defined one way and then redefined using the <code>NAME = value</code> syntax.</p>
 </div>
 <div class="paragraph">
 <p>The cop cannot catch all offenses, like, for example, when a constant
@@ -160,6 +164,14 @@ or string argument.</p>
   <span class='const'>X</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_foo'>foo</span>
   <span class='const'>X</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_bar'>bar</span>
 <span class='kw'>end</span>
+
+<span class='comment'># bad
+</span><span class='kw'>class</span> <span class='const'>FooError</span> <span class='op'>&lt;</span> <span class='const'>StandardError</span><span class='semicolon'>;</span> <span class='kw'>end</span>
+<span class='const'>FooError</span> <span class='op'>=</span> <span class='const'>Class</span>.<span class='id identifier rubyid_new'>new</span>(<span class='const'>RuntimeError</span>)
+
+<span class='comment'># bad
+</span><span class='kw'>module</span> <span class='const'>M</span><span class='semicolon'>;</span> <span class='kw'>end</span>
+<span class='const'>M</span> <span class='op'>=</span> <span class='int'>1</span>
 
 <span class='comment'># good - keep only one assignment
 </span><span class='const'>X</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_bar'>bar</span>
@@ -196,12 +208,12 @@ or string argument.</p>
   <li>
     <span id='MSG-constant' class='summary_signature'>MSG =</span>
     <br/>
-    <a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L66-L66'># File 'lib/rubocop/cop/lint/constant_reassignment.rb', line 66</a>    <pre class='code ruby'><span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Constant `%&lt;constant&gt;s` is already assigned in this namespace.</span><span class='tstring_end'>&#39;</span></span></pre>
+    <a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L77-L77'># File 'lib/rubocop/cop/lint/constant_reassignment.rb', line 77</a>    <pre class='code ruby'><span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Constant `%&lt;constant&gt;s` is already assigned in this namespace.</span><span class='tstring_end'>&#39;</span></span></pre>
   </li>
   <li>
     <span id='RESTRICT_ON_SEND-constant' class='summary_signature'>RESTRICT_ON_SEND =</span>
     <br/>
-    <a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L68-L68'># File 'lib/rubocop/cop/lint/constant_reassignment.rb', line 68</a>    <pre class='code ruby'><span class='qsymbols'><span class='qsymbols_beg'>%i[</span><span class='tstring_content'>remove_const</span><span class='tstring_end'>]</span></span>.<span class='id identifier rubyid_freeze'>freeze</span></pre>
+    <a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L79-L79'># File 'lib/rubocop/cop/lint/constant_reassignment.rb', line 79</a>    <pre class='code ruby'><span class='qsymbols'><span class='qsymbols_beg'>%i[</span><span class='tstring_content'>remove_const</span><span class='tstring_end'>]</span></span>.<span class='id identifier rubyid_freeze'>freeze</span></pre>
   </li>
 </ul>
   <h3 class='inherited'><a href="../Base.html" title="RuboCop::Cop::Base (class)"><code>::RuboCop::Cop::Base</code></a> - Inherited</h3>
@@ -360,6 +372,16 @@ or string argument.</p>
   </li>
   <li>
     <span class='summary_signature '>
+      <a href="#on_class-instance_method" title="#on_class (instance method)">#<strong>on_class</strong>(node)  </a>
+    </span>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#on_module-instance_method" title="#on_module (instance method)">#<strong>on_module</strong>(node)  </a>
+    </span>
+  </li>
+  <li>
+    <span class='summary_signature '>
       <a href="#on_send-instance_method" title="#on_send (instance method)">#<strong>on_send</strong>(node)  </a>
     </span>
   </li>
@@ -376,13 +398,25 @@ or string argument.</p>
   </li>
   <li>
     <span class='summary_signature priv'>
-      <a href="#constant_names-instance_method" title="#constant_names (instance method)">#<strong>constant_names</strong>  </a>
+      <a href="#constant_definitions-instance_method" title="#constant_definitions (instance method)">#<strong>constant_definitions</strong>  </a>
+    </span>
+    <span class='note title private'>private</span>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
+      <a href="#constant_display_name-instance_method" title="#constant_display_name (instance method)">#<strong>constant_display_name</strong>(node)  </a>
     </span>
     <span class='note title private'>private</span>
   </li>
   <li>
     <span class='summary_signature priv'>
       <a href="#constant_namespaces-instance_method" title="#constant_namespaces (instance method)">#<strong>constant_namespaces</strong>(node)  </a>
+    </span>
+    <span class='note title private'>private</span>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
+      <a href="#definition_name-instance_method" title="#definition_name (instance method)">#<strong>definition_name</strong>(node)  </a>
     </span>
     <span class='note title private'>private</span>
   </li>
@@ -412,7 +446,19 @@ or string argument.</p>
   </li>
   <li>
     <span class='summary_signature priv'>
+      <a href="#identifier_namespaces-instance_method" title="#identifier_namespaces (instance method)">#<strong>identifier_namespaces</strong>(identifier)  </a>
+    </span>
+    <span class='note title private'>private</span>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
       <a href="#simple_assignment%3F-instance_method" title="#simple_assignment? (instance method)">#<strong>simple_assignment?</strong>(node)  &#x21d2; Boolean </a>
+    </span>
+    <span class='note title private'>private</span>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
+      <a href="#unconditional_definition%3F-instance_method" title="#unconditional_definition? (instance method)">#<strong>unconditional_definition?</strong>(node)  &#x21d2; Boolean </a>
     </span>
     <span class='note title private'>private</span>
   </li>
@@ -452,9 +498,10 @@ or string argument.</p>
       <td><a class='i_m ' href="../Base.html#external_dependency_checksum-instance_method" title="RuboCop::Cop::Base#external_dependency_checksum (method)">#external_dependency_checksum</a></td>
       <td><div class='inline'><div class="paragraph"><p>This method should be overridden when a cop&#8217;s behavior depends on state that lives outside of these locations:</p></div></div></td>
     </tr>
-    <tr class='i_ds'>
-      <td><a class='i_m ' href="../Base.html#inspect-instance_method" title="RuboCop::Cop::Base#inspect (method)">#inspect</a></td>
-      <td><div class='inline'></div></td>
+    <tr>
+      <td colspan='2'>
+        <a class='i_m nodoc' href="../Base.html#inspect-instance_method" title="RuboCop::Cop::Base#inspect (method)">#inspect</a>,
+      </td>
     </tr>
     <tr class='i_ds'>
       <td><a class='i_m ' href="../Base.html#message-instance_method" title="RuboCop::Cop::Base#message (method)">#message</a></td>
@@ -612,11 +659,11 @@ or string argument.</p>
   <h3 class='signature priv first'>
     #<strong>ancestor_namespaces</strong>(node)   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L135-L140'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L164-L169'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='135' data-end='140'></pre>
+  <pre class='lines_num' data-start='164' data-end='169'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/lint/constant_reassignment.rb', line 135</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/lint/constant_reassignment.rb', line 164</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_ancestor_namespaces'>ancestor_namespaces</span>(<span class='id identifier rubyid_node'>node</span>)
@@ -630,19 +677,38 @@ or string argument.</p>
 </div>
 </section>
 
-<section class='method_details' id="constant_names-instance_method">
+<section class='method_details' id="constant_definitions-instance_method">
   <h3 class='signature priv'>
-    #<strong>constant_names</strong>   <span class="extras">(<span class='priv'>private</span>)</span>
+    #<strong>constant_definitions</strong>   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L142-L144'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L192-L194'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='142' data-end='144'></pre>
+  <pre class='lines_num' data-start='192' data-end='194'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/lint/constant_reassignment.rb', line 142</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/lint/constant_reassignment.rb', line 192</span></pre>
 <pre class='code ruby'>
 
-<span class='kw'>def</span> <span class='id identifier rubyid_constant_names'>constant_names</span>
-  <span class='ivar'>@constant_names</span> <span class='op'>||=</span> <span class='const'>Set</span>.<span class='id identifier rubyid_new'>new</span>
+<span class='kw'>def</span> <span class='id identifier rubyid_constant_definitions'>constant_definitions</span>
+  <span class='ivar'>@constant_definitions</span> <span class='op'>||=</span> {}
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="constant_display_name-instance_method">
+  <h3 class='signature priv'>
+    #<strong>constant_display_name</strong>(node)   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L156-L158'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='156' data-end='158'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/rubocop/cop/lint/constant_reassignment.rb', line 156</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_constant_display_name'>constant_display_name</span>(<span class='id identifier rubyid_node'>node</span>)
+  [<span class='op'>*</span><span class='id identifier rubyid_constant_namespaces'><a href="#constant_namespaces-instance_method" title="RuboCop::Cop::Lint::ConstantReassignment#constant_namespaces (method)">constant_namespaces</a></span>(<span class='id identifier rubyid_node'>node</span>)<span class='comma'>,</span> <span class='id identifier rubyid_node'>node</span>.<span class='id identifier rubyid_name'>name</span>].<span class='id identifier rubyid_join'>join</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>::</span><span class='tstring_end'>&#39;</span></span>)
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -653,15 +719,41 @@ or string argument.</p>
   <h3 class='signature priv'>
     #<strong>constant_namespaces</strong>(node)   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L131-L133'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L160-L162'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='131' data-end='133'></pre>
+  <pre class='lines_num' data-start='160' data-end='162'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/lint/constant_reassignment.rb', line 131</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/lint/constant_reassignment.rb', line 160</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_constant_namespaces'>constant_namespaces</span>(<span class='id identifier rubyid_node'>node</span>)
   <span class='id identifier rubyid_node'>node</span>.<span class='id identifier rubyid_each_path'>each_path</span>.<span class='id identifier rubyid_select'>select</span>(<span class='op'>&amp;</span><span class='symbeg'>:</span><span class='id identifier rubyid_const_type?'>const_type?</span>).<span class='id identifier rubyid_map'>map</span>(<span class='op'>&amp;</span><span class='symbeg'>:</span><span class='id identifier rubyid_short_name'>short_name</span>)
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="definition_name-instance_method">
+  <h3 class='signature priv'>
+    #<strong>definition_name</strong>(node)   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L177-L186'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='177' data-end='186'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/rubocop/cop/lint/constant_reassignment.rb', line 177</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_definition_name'>definition_name</span>(<span class='id identifier rubyid_node'>node</span>)
+  <span class='id identifier rubyid_identifier'>identifier</span> <span class='op'>=</span> <span class='id identifier rubyid_node'>node</span>.<span class='id identifier rubyid_identifier'>identifier</span>
+
+  <span class='kw'>if</span> <span class='id identifier rubyid_identifier'>identifier</span>.<span class='id identifier rubyid_namespace'>namespace</span><span class='op'>&amp;.</span><span class='id identifier rubyid_cbase_type?'>cbase_type?</span>
+    <span class='id identifier rubyid_fully_qualified_name_for'><a href="#fully_qualified_name_for-instance_method" title="RuboCop::Cop::Lint::ConstantReassignment#fully_qualified_name_for (method)">fully_qualified_name_for</a></span>([]<span class='comma'>,</span> <span class='id identifier rubyid_identifier'>identifier</span>.<span class='id identifier rubyid_short_name'>short_name</span>)
+  <span class='kw'>else</span>
+    <span class='id identifier rubyid_namespaces'>namespaces</span> <span class='op'>=</span> <span class='id identifier rubyid_ancestor_namespaces'><a href="#ancestor_namespaces-instance_method" title="RuboCop::Cop::Lint::ConstantReassignment#ancestor_namespaces (method)">ancestor_namespaces</a></span>(<span class='id identifier rubyid_node'>node</span>) <span class='op'>+</span> <span class='id identifier rubyid_identifier_namespaces'><a href="#identifier_namespaces-instance_method" title="RuboCop::Cop::Lint::ConstantReassignment#identifier_namespaces (method)">identifier_namespaces</a></span>(<span class='id identifier rubyid_identifier'>identifier</span>)
+    <span class='id identifier rubyid_fully_qualified_name_for'><a href="#fully_qualified_name_for-instance_method" title="RuboCop::Cop::Lint::ConstantReassignment#fully_qualified_name_for (method)">fully_qualified_name_for</a></span>(<span class='id identifier rubyid_namespaces'>namespaces</span><span class='comma'>,</span> <span class='id identifier rubyid_identifier'>identifier</span>.<span class='id identifier rubyid_short_name'>short_name</span>)
+  <span class='kw'>end</span>
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -680,11 +772,11 @@ or string argument.</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L98-L100'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L123-L125'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='98' data-end='100'></pre>
+  <pre class='lines_num' data-start='123' data-end='125'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/lint/constant_reassignment.rb', line 98</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/lint/constant_reassignment.rb', line 123</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_fixed_constant_path?'>fixed_constant_path?</span>(<span class='id identifier rubyid_node'>node</span>)
@@ -707,11 +799,11 @@ or string argument.</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L111-L113'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L136-L138'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='111' data-end='113'></pre>
+  <pre class='lines_num' data-start='136' data-end='138'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/lint/constant_reassignment.rb', line 111</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/lint/constant_reassignment.rb', line 136</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_freeze_method?'>freeze_method?</span>(<span class='id identifier rubyid_node'>node</span>)
@@ -726,11 +818,11 @@ or string argument.</p>
   <h3 class='signature priv'>
     #<strong>fully_qualified_constant_name</strong>(node)   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L115-L125'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L140-L150'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='115' data-end='125'></pre>
+  <pre class='lines_num' data-start='140' data-end='150'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/lint/constant_reassignment.rb', line 115</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/lint/constant_reassignment.rb', line 140</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_fully_qualified_constant_name'>fully_qualified_constant_name</span>(<span class='id identifier rubyid_node'>node</span>)
@@ -753,11 +845,11 @@ or string argument.</p>
   <h3 class='signature priv'>
     #<strong>fully_qualified_name_for</strong>(namespaces, constant)   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L127-L129'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L152-L154'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='127' data-end='129'></pre>
+  <pre class='lines_num' data-start='152' data-end='154'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/lint/constant_reassignment.rb', line 127</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/lint/constant_reassignment.rb', line 152</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_fully_qualified_name_for'>fully_qualified_name_for</span>(<span class='id identifier rubyid_namespaces'>namespaces</span><span class='comma'>,</span> <span class='id identifier rubyid_constant'>constant</span>)
@@ -768,23 +860,86 @@ or string argument.</p>
 </div>
 </section>
 
+<section class='method_details' id="identifier_namespaces-instance_method">
+  <h3 class='signature priv'>
+    #<strong>identifier_namespaces</strong>(identifier)   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L188-L190'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='188' data-end='190'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/rubocop/cop/lint/constant_reassignment.rb', line 188</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_identifier_namespaces'>identifier_namespaces</span>(<span class='id identifier rubyid_identifier'>identifier</span>)
+  <span class='id identifier rubyid_identifier'>identifier</span>.<span class='id identifier rubyid_each_path'>each_path</span>.<span class='id identifier rubyid_select'>select</span>(<span class='op'>&amp;</span><span class='symbeg'>:</span><span class='id identifier rubyid_const_type?'>const_type?</span>).<span class='id identifier rubyid_map'>map</span>(<span class='op'>&amp;</span><span class='symbeg'>:</span><span class='id identifier rubyid_short_name'>short_name</span>)
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
 <section class='method_details' id="on_casgn-instance_method">
   <h3 class='signature '>
     #<strong>on_casgn</strong>(node)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L76-L82'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L99-L107'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='76' data-end='82'></pre>
+  <pre class='lines_num' data-start='99' data-end='107'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/lint/constant_reassignment.rb', line 76</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/lint/constant_reassignment.rb', line 99</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_on_casgn'>on_casgn</span>(<span class='id identifier rubyid_node'>node</span>)
   <span class='kw'>return</span> <span class='kw'>unless</span> <span class='id identifier rubyid_fixed_constant_path?'><a href="#fixed_constant_path%3F-instance_method" title="RuboCop::Cop::Lint::ConstantReassignment#fixed_constant_path? (method)">fixed_constant_path?</a></span>(<span class='id identifier rubyid_node'>node</span>)
   <span class='kw'>return</span> <span class='kw'>unless</span> <span class='id identifier rubyid_simple_assignment?'><a href="#simple_assignment%3F-instance_method" title="RuboCop::Cop::Lint::ConstantReassignment#simple_assignment? (method)">simple_assignment?</a></span>(<span class='id identifier rubyid_node'>node</span>)
-  <span class='kw'>return</span> <span class='kw'>if</span> <span class='id identifier rubyid_constant_names'><a href="#constant_names-instance_method" title="RuboCop::Cop::Lint::ConstantReassignment#constant_names (method)">constant_names</a></span>.<span class='id identifier rubyid_add?'>add?</span>(<span class='id identifier rubyid_fully_qualified_constant_name'><a href="#fully_qualified_constant_name-instance_method" title="RuboCop::Cop::Lint::ConstantReassignment#fully_qualified_constant_name (method)">fully_qualified_constant_name</a></span>(<span class='id identifier rubyid_node'>node</span>))
 
-  <span class='id identifier rubyid_add_offense'>add_offense</span>(<span class='id identifier rubyid_node'>node</span><span class='comma'>,</span> <span class='label'>message:</span> <span class='id identifier rubyid_format'>format</span>(<span class='const'><a href="#MSG-constant" title="RuboCop::Cop::Lint::ConstantReassignment::MSG (constant)">MSG</a></span><span class='comma'>,</span> <span class='label'>constant:</span> <span class='id identifier rubyid_node'>node</span>.<span class='id identifier rubyid_name'>name</span>))
+  <span class='id identifier rubyid_name'>name</span> <span class='op'>=</span> <span class='id identifier rubyid_fully_qualified_constant_name'><a href="#fully_qualified_constant_name-instance_method" title="RuboCop::Cop::Lint::ConstantReassignment#fully_qualified_constant_name (method)">fully_qualified_constant_name</a></span>(<span class='id identifier rubyid_node'>node</span>)
+  <span class='kw'>return</span> <span class='id identifier rubyid_constant_definitions'><a href="#constant_definitions-instance_method" title="RuboCop::Cop::Lint::ConstantReassignment#constant_definitions (method)">constant_definitions</a></span>[<span class='id identifier rubyid_name'>name</span>] <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_casgn'>casgn</span> <span class='kw'>unless</span> <span class='id identifier rubyid_constant_definitions'><a href="#constant_definitions-instance_method" title="RuboCop::Cop::Lint::ConstantReassignment#constant_definitions (method)">constant_definitions</a></span>.<span class='id identifier rubyid_key?'>key?</span>(<span class='id identifier rubyid_name'>name</span>)
+
+  <span class='id identifier rubyid_add_offense'>add_offense</span>(<span class='id identifier rubyid_node'>node</span><span class='comma'>,</span> <span class='label'>message:</span> <span class='id identifier rubyid_format'>format</span>(<span class='const'><a href="#MSG-constant" title="RuboCop::Cop::Lint::ConstantReassignment::MSG (constant)">MSG</a></span><span class='comma'>,</span> <span class='label'>constant:</span> <span class='id identifier rubyid_constant_display_name'><a href="#constant_display_name-instance_method" title="RuboCop::Cop::Lint::ConstantReassignment#constant_display_name (method)">constant_display_name</a></span>(<span class='id identifier rubyid_node'>node</span>)))
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="on_class-instance_method">
+  <h3 class='signature '>
+    #<strong>on_class</strong>(node)  
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L87-L91'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='87' data-end='91'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/rubocop/cop/lint/constant_reassignment.rb', line 87</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_on_class'>on_class</span>(<span class='id identifier rubyid_node'>node</span>)
+  <span class='kw'>return</span> <span class='kw'>unless</span> <span class='id identifier rubyid_unconditional_definition?'><a href="#unconditional_definition%3F-instance_method" title="RuboCop::Cop::Lint::ConstantReassignment#unconditional_definition? (method)">unconditional_definition?</a></span>(<span class='id identifier rubyid_node'>node</span>)
+
+  <span class='id identifier rubyid_constant_definitions'><a href="#constant_definitions-instance_method" title="RuboCop::Cop::Lint::ConstantReassignment#constant_definitions (method)">constant_definitions</a></span>[<span class='id identifier rubyid_definition_name'><a href="#definition_name-instance_method" title="RuboCop::Cop::Lint::ConstantReassignment#definition_name (method)">definition_name</a></span>(<span class='id identifier rubyid_node'>node</span>)] <span class='op'>||=</span> <span class='symbeg'>:</span><span class='kw'>class</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="on_module-instance_method">
+  <h3 class='signature '>
+    #<strong>on_module</strong>(node)  
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L93-L97'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='93' data-end='97'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/rubocop/cop/lint/constant_reassignment.rb', line 93</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_on_module'>on_module</span>(<span class='id identifier rubyid_node'>node</span>)
+  <span class='kw'>return</span> <span class='kw'>unless</span> <span class='id identifier rubyid_unconditional_definition?'><a href="#unconditional_definition%3F-instance_method" title="RuboCop::Cop::Lint::ConstantReassignment#unconditional_definition? (method)">unconditional_definition?</a></span>(<span class='id identifier rubyid_node'>node</span>)
+
+  <span class='id identifier rubyid_constant_definitions'><a href="#constant_definitions-instance_method" title="RuboCop::Cop::Lint::ConstantReassignment#constant_definitions (method)">constant_definitions</a></span>[<span class='id identifier rubyid_definition_name'><a href="#definition_name-instance_method" title="RuboCop::Cop::Lint::ConstantReassignment#definition_name (method)">definition_name</a></span>(<span class='id identifier rubyid_node'>node</span>)] <span class='op'>||=</span> <span class='symbeg'>:</span><span class='kw'>module</span>
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -795,11 +950,11 @@ or string argument.</p>
   <h3 class='signature '>
     #<strong>on_send</strong>(node)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L84-L94'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L109-L119'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='84' data-end='94'></pre>
+  <pre class='lines_num' data-start='109' data-end='119'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/lint/constant_reassignment.rb', line 84</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/lint/constant_reassignment.rb', line 109</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_on_send'>on_send</span>(<span class='id identifier rubyid_node'>node</span>)
@@ -811,7 +966,7 @@ or string argument.</p>
 
   <span class='kw'>return</span> <span class='kw'>if</span> <span class='id identifier rubyid_namespaces'>namespaces</span>.<span class='id identifier rubyid_none?'>none?</span>
 
-  <span class='id identifier rubyid_constant_names'><a href="#constant_names-instance_method" title="RuboCop::Cop::Lint::ConstantReassignment#constant_names (method)">constant_names</a></span>.<span class='id identifier rubyid_delete'>delete</span>(<span class='id identifier rubyid_fully_qualified_name_for'><a href="#fully_qualified_name_for-instance_method" title="RuboCop::Cop::Lint::ConstantReassignment#fully_qualified_name_for (method)">fully_qualified_name_for</a></span>(<span class='id identifier rubyid_namespaces'>namespaces</span><span class='comma'>,</span> <span class='id identifier rubyid_constant'>constant</span>))
+  <span class='id identifier rubyid_constant_definitions'><a href="#constant_definitions-instance_method" title="RuboCop::Cop::Lint::ConstantReassignment#constant_definitions (method)">constant_definitions</a></span>.<span class='id identifier rubyid_delete'>delete</span>(<span class='id identifier rubyid_fully_qualified_name_for'><a href="#fully_qualified_name_for-instance_method" title="RuboCop::Cop::Lint::ConstantReassignment#fully_qualified_name_for (method)">fully_qualified_name_for</a></span>(<span class='id identifier rubyid_namespaces'>namespaces</span><span class='comma'>,</span> <span class='id identifier rubyid_constant'>constant</span>))
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -822,15 +977,15 @@ or string argument.</p>
   <h3 class='signature '>
     #<strong>remove_constant</strong>(node)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L71-L74'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L82-L85'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='71' data-end='74'></pre>
+  <pre class='lines_num' data-start='82' data-end='85'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/lint/constant_reassignment.rb', line 71</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/lint/constant_reassignment.rb', line 82</span></pre>
 <pre class='code ruby'>
 
 <span class='id identifier rubyid_def_node_matcher'>def_node_matcher</span> <span class='symbeg'>:</span><span class='id identifier rubyid_remove_constant'>remove_constant</span><span class='comma'>,</span> <span class='heredoc_beg'>&lt;&lt;~PATTERN</span>
-<span class='ignored_sp'>  </span><span class='tstring_content'>(send _ :remove_const
+<span class='ignored_sp'>  </span><span class='tstring_content'>(send {nil? self} :remove_const
 </span><span class='ignored_sp'>  </span><span class='tstring_content'>  ({sym str} $_))
 </span><span class='heredoc_end'>PATTERN</span>
 </pre>
@@ -850,11 +1005,11 @@ or string argument.</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L102-L109'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L127-L134'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='102' data-end='109'></pre>
+  <pre class='lines_num' data-start='127' data-end='134'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/lint/constant_reassignment.rb', line 102</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/lint/constant_reassignment.rb', line 127</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_simple_assignment?'>simple_assignment?</span>(<span class='id identifier rubyid_node'>node</span>)
@@ -862,7 +1017,36 @@ or string argument.</p>
     <span class='kw'>return</span> <span class='kw'>true</span> <span class='kw'>if</span> <span class='id identifier rubyid_ancestor'>ancestor</span>.<span class='id identifier rubyid_type?'>type?</span>(<span class='symbeg'>:</span><span class='kw'>module</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='kw'>class</span>)
 
     <span class='id identifier rubyid_ancestor'>ancestor</span>.<span class='id identifier rubyid_begin_type?'>begin_type?</span> <span class='op'>||</span> <span class='id identifier rubyid_ancestor'>ancestor</span>.<span class='id identifier rubyid_literal?'>literal?</span> <span class='op'>||</span> <span class='id identifier rubyid_ancestor'>ancestor</span>.<span class='id identifier rubyid_casgn_type?'>casgn_type?</span> <span class='op'>||</span>
-      <span class='id identifier rubyid_freeze_method?'><a href="#freeze_method%3F-instance_method" title="RuboCop::Cop::Lint::ConstantReassignment#freeze_method? (method)">freeze_method?</a></span>(<span class='id identifier rubyid_ancestor'>ancestor</span>)
+      <span class='id identifier rubyid_ancestor'>ancestor</span>.<span class='id identifier rubyid_type?'>type?</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_masgn'>masgn</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_mlhs'>mlhs</span>) <span class='op'>||</span> <span class='id identifier rubyid_freeze_method?'><a href="#freeze_method%3F-instance_method" title="RuboCop::Cop::Lint::ConstantReassignment#freeze_method? (method)">freeze_method?</a></span>(<span class='id identifier rubyid_ancestor'>ancestor</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="unconditional_definition?-instance_method">
+  <h3 class='signature priv'>
+    #<strong>unconditional_definition?</strong>(node)  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+  </div>
+</div>
+<div class='tags'>
+  
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/lint/constant_reassignment.rb#L171-L175'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='171' data-end='175'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/rubocop/cop/lint/constant_reassignment.rb', line 171</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_unconditional_definition?'>unconditional_definition?</span>(<span class='id identifier rubyid_node'>node</span>)
+  <span class='id identifier rubyid_node'>node</span>.<span class='id identifier rubyid_each_ancestor'>each_ancestor</span>.<span class='id identifier rubyid_all?'>all?</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_ancestor'>ancestor</span><span class='op'>|</span>
+    <span class='id identifier rubyid_ancestor'>ancestor</span>.<span class='id identifier rubyid_type?'>type?</span>(<span class='symbeg'>:</span><span class='kw'>begin</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='kw'>module</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='kw'>class</span>)
   <span class='kw'>end</span>
 <span class='kw'>end</span>
 </pre>
