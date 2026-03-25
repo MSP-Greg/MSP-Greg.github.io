@@ -115,7 +115,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2 o'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/ffi/ffi/blob/master/ext/ffi_c/StructLayout.c#L699'>ext/ffi_c/StructLayout.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ffi/ffi/blob/master/lib/ffi/struct_layout.rb#L36'>lib/ffi/struct_layout.rb</a></span>
+      <td class='box_rel'><a class='repo' href='https://github.com/ffi/ffi/blob/master/ext/ffi_c/StructLayout.c#L817'>ext/ffi_c/StructLayout.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ffi/ffi/blob/master/lib/ffi/struct_layout.rb#L36'>lib/ffi/struct_layout.rb</a></span>
       </td>
     </tr>
   </tbody>
@@ -172,7 +172,7 @@
   </li>
   <li>
     <span class='summary_signature '>
-      <a href="#__union!-instance_method" title="#[] (instance method)">#<strong>[]</strong>(field)  </a>
+      <a href="#__union!-instance_method" title="#__union! (instance method)">#<strong>__union!</strong>  </a>
     </span>
   </li>
   <li>
@@ -321,13 +321,24 @@ struct_layout_initialize(VALUE self, VALUE fields, VALUE size, VALUE align)
 <h2 class='y_details'>Instance Method Details</h2>
 <section class='method_details first' id="[]-instance_method">
   <h3 class='signature  first'>
-    #<strong>[]</strong>(field)  
+    <div class='inline-block'>
+      <span class='overload'>#<strong>[]</strong>(field)  </span>
+      <span class='overload'>#<strong>a</strong>(field)  </span>
+    </div>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ffi/ffi/blob/master/ext/ffi_c/StructLayout.c#L591-L599'>GitHub</a>&#8202;]</span>
+<div class='docstring'>
+  <div class='discussion'>
+    
+  </div>
+</div>
+<div class='tags'>
+  
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ffi/ffi/blob/master/ext/ffi_c/StructLayout.c#L709-L717'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='591' data-end='599'></pre>
+  <pre class='lines_num' data-start='709' data-end='717'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/ffi_c/StructLayout.c', line 591</span></pre>
+<pre><span class='info file'># File 'ext/ffi_c/StructLayout.c', line 709</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -346,43 +357,69 @@ struct_layout_aref(VALUE self, VALUE field)
 
 <section class='method_details' id="__union!-instance_method">
   <h3 class='signature '>
-    <div class='inline-block'>
-      <span class='overload'>#<strong>[]</strong>(field)  </span>
-      <span class='overload'>#<strong>a</strong>(field)  </span>
-    </div>
+    #<strong>__union!</strong>  
   </h3>
-<div class='docstring'>
-  <div class='discussion'>
-    
-  </div>
-</div>
-<div class='tags'>
-  
-</div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ffi/ffi/blob/master/ext/ffi_c/StructLayout.c#L557-L589'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ffi/ffi/blob/master/ext/ffi_c/StructLayout.c#L632-L701'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='557' data-end='589'></pre>
+  <pre class='lines_num' data-start='632' data-end='701'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/ffi_c/StructLayout.c', line 557</span></pre>
+<pre><span class='info file'># File 'ext/ffi_c/StructLayout.c', line 632</span></pre>
 <pre class='code cpp'>
 
 static VALUE
 struct_layout_union_bang(VALUE self)
 {
-    const ffi_type *alignment_types[] = { &amp;ffi_type_sint8, &amp;ffi_type_sint16, &amp;ffi_type_sint32, &amp;ffi_type_sint64,
-                                          &amp;ffi_type_float, &amp;ffi_type_double, &amp;ffi_type_longdouble, NULL };
     StructLayout* layout;
     ffi_type *t = NULL;
     int count, i;
+    bool float_only = true;
+    const ffi_type *homogeneous = NULL;
 
     TypedData_Get_Struct(self, StructLayout, &amp;rbffi_struct_layout_data_type, layout);
 
-    for (i = 0; alignment_types[i] != NULL; ++i) {
-        if (alignment_types[i]-&gt;alignment == layout-&gt;align) {
-            t = (ffi_type *) alignment_types[i];
-            break;
-        }
+    /*
+     * __union! replaces the real field types with a repeated filler type.
+     * The filler must be chosen so that libffi uses the same calling convention
+     * as the C compiler would for the real union.
+     *
+     * The rules vary by architecture:
+     *
+     * ARM64: A &quot;Homogeneous Floating-point Aggregate&quot; (HFA) is
+     * passed in floating-point registers (d0-d3). An HFA requires all members
+     * to be the *same* float type. {double, double} is an HFA; {float, double}
+     * is NOT. Non-HFAs use integer registers.
+     *
+     * x86_64 targets using the System V ABI (Linux/macOS/BSD, not Windows):
+     * an eightbyte containing only float/double fields is classified as SSE
+     * and passed in XMM registers, regardless of whether the float types are
+     * mixed. {float, double} is SSE; {int, double} is INTEGER.
+     *
+     * Strategy:
+     * 1. If all fields are the same float type, use that type directly.
+     *    Correct on all platforms.
+     * 2. If fields are mixed float types (e.g. {float, double}):
+     *    - On ARM64: not an HFA, use integer filler.
+     *    - On x86_64 System V targets: still SSE class, use float filler.
+     * 3. Otherwise: use integer filler.
+     */
+    homogeneous = find_homogeneous_leaf_type(layout-&gt;base.ffiType, &amp;float_only);
+
+    if (homogeneous != NULL &amp;&amp; float_only) {
+        /* Case 1: all fields are the same float type. */
+        t = (ffi_type *) homogeneous;
     }
+#if defined(__x86_64__) &amp;&amp; !defined(_WIN32)
+    else if (float_only) {
+        /* Case 2: mixed float types use float filler on SysV x86_64. */
+        t = (ffi_type *) find_type_by_alignment(get_float_types(), layout-&gt;align);
+    }
+#endif
+
+    if (t == NULL) {
+        /* Case 3: integer or mixed int/float — use integer filler */
+        t = (ffi_type *) find_type_by_alignment(get_int_types(), layout-&gt;align);
+    }
+
     if (t == NULL) {
         rb_raise(rb_eRuntimeError, &quot;cannot create libffi union representation for alignment %d&quot;, layout-&gt;align);
         return Qnil;
@@ -419,11 +456,11 @@ struct_layout_union_bang(VALUE self)
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ffi/ffi/blob/master/ext/ffi_c/StructLayout.c#L606-L614'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ffi/ffi/blob/master/ext/ffi_c/StructLayout.c#L724-L732'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='606' data-end='614'></pre>
+  <pre class='lines_num' data-start='724' data-end='732'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/ffi_c/StructLayout.c', line 606</span></pre>
+<pre><span class='info file'># File 'ext/ffi_c/StructLayout.c', line 724</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -455,11 +492,11 @@ struct_layout_fields(VALUE self)
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ffi/ffi/blob/master/ext/ffi_c/StructLayout.c#L621-L629'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ffi/ffi/blob/master/ext/ffi_c/StructLayout.c#L739-L747'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='621' data-end='629'></pre>
+  <pre class='lines_num' data-start='739' data-end='747'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/ffi_c/StructLayout.c', line 621</span></pre>
+<pre><span class='info file'># File 'ext/ffi_c/StructLayout.c', line 739</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -558,11 +595,11 @@ struct_layout_members(VALUE self)
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ffi/ffi/blob/master/ext/ffi_c/StructLayout.c#L636-L644'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ffi/ffi/blob/master/ext/ffi_c/StructLayout.c#L754-L762'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='636' data-end='644'></pre>
+  <pre class='lines_num' data-start='754' data-end='762'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/ffi_c/StructLayout.c', line 636</span></pre>
+<pre><span class='info file'># File 'ext/ffi_c/StructLayout.c', line 754</span></pre>
 <pre class='code cpp'>
 
 static VALUE
