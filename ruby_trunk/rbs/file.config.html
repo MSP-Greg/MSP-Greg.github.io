@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen' content='yes'>
+<meta name='mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Config &mdash; rbs  Ruby-master dev</title>
+
+<link rel='stylesheet'  type='text/css' href='../../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "config",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='../.'>Ruby-master</a> &raquo; 
+      <a href='.'>rbs</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Config&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<h1>config.yml</h1>
+
+<p><code>config.yml</code> is the definition of data structure for parser results -- AST.</p>
+
+<p>It defines the data structure for the parser implementation in C and Rust <code>node</code> modules.</p>
+
+<h2>C parser code</h2>
+
+<pre class="code sh"><code class="sh">$ rake templates
+</code></pre>
+
+<p>Our C parser consists of two components:</p>
+
+<ol>
+<li>Pure C Parser</li>
+<li>Translator from the pure C AST to Ruby object</li>
+</ol>
+
+<p><code>config.yml</code> defines the AST for pure C parser in <code>ast.h</code>/<code>ast.c</code> and translator from the C AST to Ruby objects in <code>ast_translation.h</code>/<code>ast_translation.c</code>.</p>
+
+<h2><code>ruby-rbs</code> crate</h2>
+
+<pre class="code sh"><code class="sh">$ cd rust; cargo build
+</code></pre>
+
+<p>The <code>build.rs</code> in <code>ruby-rbs</code> crate defines the data structure derived from <code>config.yml</code> definitions under <code>node</code> module.</p>
+
+<h2>nodes</h2>
+
+<p><code>nodes</code> defines <em>node</em> data types in C or Rust.</p>
+
+<pre class="code yaml"><code class="yaml">nodes:
+  - name: RBS::AST::Declarations::Class
+    rust_name: ClassNode
+    fields:
+      - name: name
+        c_type: rbs_type_name
+      - name: type_params
+        c_type: rbs_node_list
+      - name: super_class
+        c_type: rbs_ast_declarations_class_super
+        optional: true  # NULL when no superclass (e.g., `class Foo end` vs `class Foo &lt; Bar end`)
+      - name: members
+        c_type: rbs_node_list
+      - name: annotations
+        c_type: rbs_node_list
+      - name: comment
+        c_type: rbs_ast_comment
+        optional: true  # NULL when no comment precedes the declaration
+</code></pre>
+
+<p>This defines <code>rbs_ast_declarations_class</code> struct so that the parser constructs the AST using the structs.</p>
+
+<pre class="code c"><code class="c">typedef struct rbs_ast_declarations_class {
+    rbs_node_t base;
+
+    struct rbs_type_name *name;
+    struct rbs_node_list *type_params;
+    struct rbs_ast_declarations_class_super *super_class; /* Optional */
+    struct rbs_node_list *members;
+    struct rbs_node_list *annotations;
+    struct rbs_ast_comment *comment; /* Optional */
+
+    rbs_location_range keyword_range;     /* Required */
+    rbs_location_range name_range;        /* Required */
+    rbs_location_range end_range;         /* Required */
+    rbs_location_range type_params_range; /* Optional */
+    rbs_location_range lt_range;          /* Optional */
+} rbs_ast_declarations_class_t;
+</code></pre>
+
+<p>The <code>rbs_ast_declarations_class</code> struct is a pure C AST, and <code>ast_translation.c</code> defines translation into a Ruby object of <a href="RBS/AST/Declarations/Class.html" title="RBS::AST::Declarations::Class (class)"><code>::RBS::AST::Declarations::Class</code></a> class.</p>
+
+<pre class="code c"><code class="c">    case RBS_AST_DECLARATIONS_CLASS: {
+        rbs_ast_declarations_class_t *node = (rbs_ast_declarations_class_t *) instance;
+
+        VALUE h = rb_hash_new();
+        VALUE location = rbs_location_range_to_ruby_location(ctx, node-&gt;base.location);
+        rbs_loc *loc = rbs_check_location(location);
+        rbs_loc_legacy_alloc_children(loc, 5);
+        rbs_loc_legacy_add_required_child(loc, rb_intern(&quot;keyword&quot;), (rbs_loc_range) { .start = node-&gt;keyword_range.start_char, .end = node-&gt;keyword_range.end_char });
+        rbs_loc_legacy_add_required_child(loc, rb_intern(&quot;name&quot;), (rbs_loc_range) { .start = node-&gt;name_range.start_char, .end = node-&gt;name_range.end_char });
+        rbs_loc_legacy_add_required_child(loc, rb_intern(&quot;end&quot;), (rbs_loc_range) { .start = node-&gt;end_range.start_char, .end = node-&gt;end_range.end_char });
+        rbs_loc_legacy_add_optional_child(loc, rb_intern(&quot;type_params&quot;), (rbs_loc_range) { .start = node-&gt;type_params_range.start_char, .end = node-&gt;type_params_range.end_char });
+        rbs_loc_legacy_add_optional_child(loc, rb_intern(&quot;lt&quot;), (rbs_loc_range) { .start = node-&gt;lt_range.start_char, .end = node-&gt;lt_range.end_char });
+        rb_hash_aset(h, ID2SYM(rb_intern(&quot;location&quot;)), location);
+        rb_hash_aset(h, ID2SYM(rb_intern(&quot;name&quot;)), rbs_struct_to_ruby_value(ctx, (rbs_node_t *) node-&gt;name)); // rbs_type_name
+        rb_hash_aset(h, ID2SYM(rb_intern(&quot;type_params&quot;)), rbs_node_list_to_ruby_array(ctx, node-&gt;type_params));
+        rb_hash_aset(h, ID2SYM(rb_intern(&quot;super_class&quot;)), rbs_struct_to_ruby_value(ctx, (rbs_node_t *) node-&gt;super_class)); // rbs_ast_declarations_class_super
+        rb_hash_aset(h, ID2SYM(rb_intern(&quot;members&quot;)), rbs_node_list_to_ruby_array(ctx, node-&gt;members));
+        rb_hash_aset(h, ID2SYM(rb_intern(&quot;annotations&quot;)), rbs_node_list_to_ruby_array(ctx, node-&gt;annotations));
+        rb_hash_aset(h, ID2SYM(rb_intern(&quot;comment&quot;)), rbs_struct_to_ruby_value(ctx, (rbs_node_t *) node-&gt;comment)); // rbs_ast_comment
+
+        rb_funcall(
+            RBS_AST_TypeParam,
+            rb_intern(&quot;resolve_variables&quot;),
+            1,
+            rb_hash_lookup(h, ID2SYM(rb_intern(&quot;type_params&quot;)))
+        );
+        return CLASS_NEW_INSTANCE(
+            RBS_AST_Declarations_Class,
+            1,
+            &amp;h
+        );
+    }
+</code></pre>
+
+<h2>enums</h2>
+
+<p><code>enums</code> defines <em>enum</em> data types in C or Rust.</p>
+
+<pre class="code yaml"><code class="yaml">enums:
+  attribute_visibility:
+    optional: true
+    symbols:
+      - unspecified
+      - public
+      - private
+</code></pre>
+
+<p>For example, the <code>attribute_visibility</code> enum is a data type for <code>visibility</code> attribute of <code>attr_reader</code>, <code>attr_writer</code>, and <code>attr_accessor</code> definitions.
+The <code>visibility</code> attribute can be one of <code>unspecified</code>, <code>public</code>, and <code>private</code>.</p>
+
+<h3>Symbol enums</h3>
+
+<p>Enum definition with <code>symbols:</code> attribute defines <em>enum</em> data that is mapped to Ruby symbols.</p>
+
+<pre class="code yaml"><code class="yaml">enums:
+  attribute_visibility:
+    optional: true
+    symbols:
+      - unspecified
+      - public
+      - private
+</code></pre>
+
+<p>It defines an <code>enum</code> in C AST definition.</p>
+
+<pre class="code c"><code class="c">enum RBS_ATTRIBUTE_VISIBILITY_TAG {
+    RBS_ATTRIBUTE_VISIBILITY_TAG_UNSPECIFIED,
+    RBS_ATTRIBUTE_VISIBILITY_TAG_PUBLIC,
+    RBS_ATTRIBUTE_VISIBILITY_TAG_PRIVATE,
+};
+</code></pre>
+
+<p>The C extension also defines a translation:</p>
+
+<pre class="code c"><code class="c">VALUE rbs_attribute_visibility_to_ruby(enum rbs_attribute_visibility value) {
+    switch (value) {
+    case RBS_ATTRIBUTE_VISIBILITY_UNSPECIFIED:
+        return Qnil;
+    case RBS_ATTRIBUTE_VISIBILITY_PUBLIC:
+        return rb_id2sym(rb_intern(&quot;public&quot;));
+    case RBS_ATTRIBUTE_VISIBILITY_PRIVATE:
+        return rb_id2sym(rb_intern(&quot;private&quot;));
+    default:
+        rb_fatal(&quot;unknown enum rbs_attribute_visibility value: %d&quot;, value);
+    }
+}
+</code></pre>
+
+<p><code>RBS_ATTRIBUTE_VISIBILITY_PUBLIC</code> and <code>RBS_ATTRIBUTE_VISIBILITY_PRIVATE</code> are translated to Ruby symbols <code>:public</code> and <code>:private</code> respectively. </p>
+
+<p>Note that the first <code>RBS_ATTRIBUTE_VISIBILITY_UNSPECIFIED</code> is translated to <code>nil</code> in Ruby. This is specified by the <code>optional: true</code> attribute in YAML. When <code>optional: true</code> is set, the first enum value is translated to <code>nil</code>.</p>
+
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>
