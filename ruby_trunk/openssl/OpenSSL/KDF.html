@@ -78,7 +78,7 @@
     </td></tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_kdf.c#L289'>ext/openssl/ossl_kdf.c</a>      </td>
+      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_kdf.c#L357'>ext/openssl/ossl_kdf.c</a>      </td>
     </tr>
   </tbody>
 </table>
@@ -203,11 +203,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_kdf.c#L172-L237'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_kdf.c#L240-L305'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='172' data-end='237'></pre>
+  <pre class='lines_num' data-start='240' data-end='305'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_kdf.c', line 172</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_kdf.c', line 240</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -311,19 +311,19 @@ kdf_hkdf(int argc, VALUE *argv, VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_kdf.c#L35-L66'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_kdf.c#L56-L99'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='35' data-end='66'></pre>
+  <pre class='lines_num' data-start='56' data-end='99'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_kdf.c', line 35</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_kdf.c', line 56</span></pre>
 <pre class='code cpp'>
 
 static VALUE
 kdf_pbkdf2_hmac(int argc, VALUE *argv, VALUE self)
 {
-    VALUE pass, salt, opts, kwargs[4], str, md_holder;
+    VALUE pass, salt, opts, kwargs[4], str, md_holder, pass_tmp, salt_tmp;
     static ID kwargs_ids[4];
-    int iters, len;
+    int passlen, saltlen, iters, len;
     const EVP_MD *md;
 
     if (!kwargs_ids[0]) {
@@ -340,14 +340,26 @@ kdf_pbkdf2_hmac(int argc, VALUE *argv, VALUE self)
     iters = NUM2INT(kwargs[1]);
     len = NUM2INT(kwargs[2]);
     md = ossl_evp_md_fetch(kwargs[3], &amp;md_holder);
-
-    str = rb_str_new(0, len);
-    if (!PKCS5_PBKDF2_HMAC(RSTRING_PTR(pass), RSTRING_LENINT(pass),
-                           (unsigned char *)RSTRING_PTR(salt),
-                           RSTRING_LENINT(salt), iters, md, len,
-                           (unsigned char *)RSTRING_PTR(str)))
+    passlen = RSTRING_LENINT(pass);
+    saltlen = RSTRING_LENINT(salt);
+    str = rb_str_new(NULL, len);
+    struct pbkdf2_hmac_args args = {
+        .pass = ALLOCV(pass_tmp, passlen),
+        .passlen = passlen,
+        .salt = ALLOCV(salt_tmp, saltlen),
+        .saltlen = saltlen,
+        .iters = iters,
+        .md = md,
+        .len = len,
+        .out = (unsigned char *)RSTRING_PTR(str),
+    };
+    memcpy(args.pass, RSTRING_PTR(pass), passlen);
+    memcpy(args.salt, RSTRING_PTR(salt), saltlen);
+    if (!rb_thread_call_without_gvl(pbkdf2_hmac_nogvl, &amp;args, NULL, NULL))
         ossl_raise(eKDF, &quot;PKCS5_PBKDF2_HMAC&quot;);
-
+    OPENSSL_cleanse(&amp;args.pass, passlen);
+    ALLOCV_END(pass_tmp);
+    ALLOCV_END(salt_tmp);
     return str;
 }
 </pre>
@@ -399,20 +411,21 @@ kdf_pbkdf2_hmac(int argc, VALUE *argv, VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_kdf.c#L101-L139'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_kdf.c#L160-L207'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='101' data-end='139'></pre>
+  <pre class='lines_num' data-start='160' data-end='207'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_kdf.c', line 101</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_kdf.c', line 160</span></pre>
 <pre class='code cpp'>
 
 static VALUE
 kdf_scrypt(int argc, VALUE *argv, VALUE self)
 {
-    VALUE pass, salt, opts, kwargs[5], str;
+    VALUE pass, salt, opts, kwargs[5], str, pass_tmp, salt_tmp;
     static ID kwargs_ids[5];
-    size_t len;
-    uint64_t N, r, p, maxmem;
+    size_t passlen, saltlen;
+    long len;
+    uint64_t N, r, p;
 
     if (!kwargs_ids[0]) {
         kwargs_ids[0] = rb_intern_const(&quot;salt&quot;);
@@ -430,19 +443,27 @@ kdf_scrypt(int argc, VALUE *argv, VALUE self)
     r = NUM2UINT64T(kwargs[2]);
     p = NUM2UINT64T(kwargs[3]);
     len = NUM2LONG(kwargs[4]);
-    /*
-     * OpenSSL uses 32MB by default (if zero is specified), which is too small.
-     * Let&#39;s not limit memory consumption but just let malloc() fail inside
-     * OpenSSL. The amount is controllable by other parameters.
-     */
-    maxmem = SIZE_MAX;
-
-    str = rb_str_new(0, len);
-    if (!EVP_PBE_scrypt(RSTRING_PTR(pass), RSTRING_LEN(pass),
-                        (unsigned char *)RSTRING_PTR(salt), RSTRING_LEN(salt),
-                        N, r, p, maxmem, (unsigned char *)RSTRING_PTR(str), len))
+    passlen = RSTRING_LEN(pass);
+    saltlen = RSTRING_LEN(salt);
+    str = rb_str_new(NULL, len);
+    struct scrypt_args args = {
+        .pass = ALLOCV(pass_tmp, passlen),
+        .passlen = passlen,
+        .salt = ALLOCV(salt_tmp, saltlen),
+        .saltlen = saltlen,
+        .N = N,
+        .r = r,
+        .p = p,
+        .len = len,
+        .out = (unsigned char *)RSTRING_PTR(str),
+    };
+    memcpy(args.pass, RSTRING_PTR(pass), passlen);
+    memcpy(args.salt, RSTRING_PTR(salt), saltlen);
+    if (!rb_thread_call_without_gvl(scrypt_nogvl, &amp;args, NULL, NULL))
         ossl_raise(eKDF, &quot;EVP_PBE_scrypt&quot;);
-
+    OPENSSL_cleanse(&amp;args.pass, passlen);
+    ALLOCV_END(pass_tmp);
+    ALLOCV_END(salt_tmp);
     return str;
 }
 </pre>
