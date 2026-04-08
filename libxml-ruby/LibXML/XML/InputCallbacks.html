@@ -78,7 +78,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2 o'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/xml4r/libxml-ruby/blob/master/ext/libxml/ruby_xml_input_cbg.c#L182'>ext/libxml/ruby_xml_input_cbg.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/xml4r/libxml-ruby/blob/master/ext/libxml/ruby_xml_input_cbg.c#L11'>ext/libxml/ruby_xml_input_cbg.c</a></span>
+      <td class='box_rel'><a class='repo' href='https://github.com/xml4r/libxml-ruby/blob/master/ext/libxml/ruby_xml_input_cbg.c#L210'>ext/libxml/ruby_xml_input_cbg.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/xml4r/libxml-ruby/blob/master/ext/libxml/ruby_xml_input_cbg.c#L11'>ext/libxml/ruby_xml_input_cbg.c</a></span>
       </td>
     </tr>
   </tbody>
@@ -134,11 +134,11 @@
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/xml4r/libxml-ruby/blob/master/ext/libxml/ruby_xml_input_cbg.c#L103-L130'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/xml4r/libxml-ruby/blob/master/ext/libxml/ruby_xml_input_cbg.c#L132-L162'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='103' data-end='130'></pre>
+  <pre class='lines_num' data-start='132' data-end='162'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/libxml/ruby_xml_input_cbg.c', line 103</span></pre>
+<pre><span class='info file'># File 'ext/libxml/ruby_xml_input_cbg.c', line 132</span></pre>
 <pre class='code cpp'>
 
 static VALUE input_callbacks_add_scheme(VALUE self, VALUE scheme_name,
@@ -148,11 +148,14 @@ static VALUE input_callbacks_add_scheme(VALUE self, VALUE scheme_name,
 
   Check_Type(scheme_name, T_STRING);
 
-  scheme = (ic_scheme*) malloc(sizeof(ic_scheme));
+  input_callbacks_register_once();
+
+  scheme = ALLOC(ic_scheme);
   scheme-&gt;next_scheme = 0;
-  scheme-&gt;scheme_name = strdup(StringValuePtr(scheme_name)); /* TODO alloc, dealloc */
+  scheme-&gt;scheme_name = ic_strdup(StringValueCStr(scheme_name));
   scheme-&gt;name_len = (int)strlen(scheme-&gt;scheme_name);
-  scheme-&gt;class = class; /* TODO alloc, dealloc */
+  scheme-&gt;class = class;
+  rb_gc_register_address(&amp;scheme-&gt;class);
 
   //fprintf( stderr, &quot;registered: %s, %d, %s\n&quot;, scheme-&gt;scheme_name, scheme-&gt;name_len, scheme-&gt;class );
 
@@ -184,16 +187,16 @@ static VALUE input_callbacks_add_scheme(VALUE self, VALUE scheme_name,
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/xml4r/libxml-ruby/blob/master/ext/libxml/ruby_xml_input_cbg.c#L91-L95'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/xml4r/libxml-ruby/blob/master/ext/libxml/ruby_xml_input_cbg.c#L120-L124'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='91' data-end='95'></pre>
+  <pre class='lines_num' data-start='120' data-end='124'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/libxml/ruby_xml_input_cbg.c', line 91</span></pre>
+<pre><span class='info file'># File 'ext/libxml/ruby_xml_input_cbg.c', line 120</span></pre>
 <pre class='code cpp'>
 
 static VALUE input_callbacks_register_input_callbacks(VALUE self)
 {
-  xmlRegisterInputCallbacks(ic_match, ic_open, ic_read, ic_close);
+  input_callbacks_register_once();
   return (Qtrue);
 }
 </pre>
@@ -211,11 +214,11 @@ static VALUE input_callbacks_register_input_callbacks(VALUE self)
 
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/xml4r/libxml-ruby/blob/master/ext/libxml/ruby_xml_input_cbg.c#L138-L177'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/xml4r/libxml-ruby/blob/master/ext/libxml/ruby_xml_input_cbg.c#L170-L205'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='138' data-end='177'></pre>
+  <pre class='lines_num' data-start='170' data-end='205'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/libxml/ruby_xml_input_cbg.c', line 138</span></pre>
+<pre><span class='info file'># File 'ext/libxml/ruby_xml_input_cbg.c', line 170</span></pre>
 <pre class='code cpp'>
 
 static VALUE input_callbacks_remove_scheme(VALUE self, VALUE scheme_name)
@@ -233,9 +236,7 @@ static VALUE input_callbacks_remove_scheme(VALUE self, VALUE scheme_name)
   {
     save_scheme = first_scheme-&gt;next_scheme;
 
-    ruby_xfree(first_scheme-&gt;scheme_name);
-    ruby_xfree(first_scheme);
-
+    ic_scheme_free(first_scheme);
     first_scheme = save_scheme;
     return Qtrue;
   }
@@ -248,9 +249,7 @@ static VALUE input_callbacks_remove_scheme(VALUE self, VALUE scheme_name)
     {
       save_scheme = scheme-&gt;next_scheme-&gt;next_scheme;
 
-      ruby_xfree(scheme-&gt;next_scheme-&gt;scheme_name);
-      ruby_xfree(scheme-&gt;next_scheme);
-
+      ic_scheme_free(scheme-&gt;next_scheme);
       scheme-&gt;next_scheme = save_scheme;
       return Qtrue;
     }
