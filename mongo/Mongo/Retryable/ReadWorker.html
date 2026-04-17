@@ -567,6 +567,8 @@
     
 <p>Retry loop for overload errors with exponential backoff. Each retry sleeps with jittered backoff, respects MAX_RETRIES, and consumes a token from the bucket when adaptive retries are enabled.</p>
 
+<p>Per the client-backpressure spec, backoff is applied if and only if the error triggering the retry is an overload error. Non-overload retryable errors that occur within this loop are retried immediately (without backoff) but still count toward MAX_RETRIES.</p>
+
   </div>
 </div>
 <div class='tags'>
@@ -580,20 +582,21 @@
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/retryable/read_worker.rb#L335-L370'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/retryable/read_worker.rb#L340-L377'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='335' data-end='370'></pre>
+  <pre class='lines_num' data-start='340' data-end='377'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/retryable/read_worker.rb', line 335</span></pre>
+<pre><span class='info file'># File 'lib/mongo/retryable/read_worker.rb', line 340</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_overload_read_retry'>overload_read_retry</span>(<span class='id identifier rubyid_last_error'>last_error</span><span class='comma'>,</span> <span class='id identifier rubyid_session'>session</span><span class='comma'>,</span> <span class='id identifier rubyid_server_selector'>server_selector</span><span class='comma'>,</span> <span class='id identifier rubyid_context'>context</span><span class='comma'>,</span> <span class='id identifier rubyid_failed_server'>failed_server</span><span class='comma'>,</span> <span class='label'>error_count:</span>)
+  <span class='id identifier rubyid_last_was_overload'>last_was_overload</span> <span class='op'>=</span> <span class='kw'>true</span>
   <span class='id identifier rubyid_loop'>loop</span> <span class='kw'>do</span>
-    <span class='id identifier rubyid_delay'>delay</span> <span class='op'>=</span> <span class='id identifier rubyid_retry_policy'>retry_policy</span>.<span class='id identifier rubyid_backoff_delay'>backoff_delay</span>(<span class='id identifier rubyid_error_count'>error_count</span>)
+    <span class='id identifier rubyid_delay'>delay</span> <span class='op'>=</span> <span class='id identifier rubyid_last_was_overload'>last_was_overload</span> <span class='op'>?</span> <span class='id identifier rubyid_retry_policy'>retry_policy</span>.<span class='id identifier rubyid_backoff_delay'>backoff_delay</span>(<span class='id identifier rubyid_error_count'>error_count</span>) <span class='op'>:</span> <span class='int'>0</span>
     <span class='id identifier rubyid_raise'>raise</span> <span class='id identifier rubyid_last_error'>last_error</span> <span class='kw'>unless</span> <span class='id identifier rubyid_retry_policy'>retry_policy</span>.<span class='id identifier rubyid_should_retry_overload?'>should_retry_overload?</span>(<span class='id identifier rubyid_error_count'>error_count</span><span class='comma'>,</span> <span class='id identifier rubyid_delay'>delay</span><span class='comma'>,</span> <span class='label'>context:</span> <span class='id identifier rubyid_context'>context</span>)
 
     <span class='id identifier rubyid_log_retry'>log_retry</span>(<span class='id identifier rubyid_last_error'>last_error</span><span class='comma'>,</span> <span class='label'>message:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Read retry (overload backoff)</span><span class='tstring_end'>&#39;</span></span>)
-    <span class='id identifier rubyid_sleep'>sleep</span>(<span class='id identifier rubyid_delay'>delay</span>)
+    <span class='id identifier rubyid_sleep'>sleep</span>(<span class='id identifier rubyid_delay'>delay</span>) <span class='kw'>if</span> <span class='id identifier rubyid_last_was_overload'>last_was_overload</span>
 
     <span class='kw'>begin</span>
       <span class='id identifier rubyid_server'>server</span> <span class='op'>=</span> <span class='id identifier rubyid_select_server'><a href="../Retryable.html#select_server-instance_method" title="Mongo::Retryable#select_server (method)">select_server</a></span>(
@@ -618,6 +621,7 @@
       <span class='id identifier rubyid_is_overload'>is_overload</span> <span class='op'>=</span> <span class='id identifier rubyid_retryable_overload_error?'>retryable_overload_error?</span>(<span class='id identifier rubyid_e'>e</span>)
       <span class='id identifier rubyid_raise'>raise</span> <span class='id identifier rubyid_e'>e</span> <span class='kw'>unless</span> <span class='id identifier rubyid_is_overload'>is_overload</span> <span class='op'>||</span> <span class='id identifier rubyid_is_retryable_exception?'>is_retryable_exception?</span>(<span class='id identifier rubyid_e'>e</span>) <span class='op'>||</span> <span class='id identifier rubyid_e'>e</span>.<span class='id identifier rubyid_write_retryable?'>write_retryable?</span>
 
+      <span class='id identifier rubyid_last_was_overload'>last_was_overload</span> <span class='op'>=</span> <span class='id identifier rubyid_is_overload'>is_overload</span>
       <span class='id identifier rubyid_failed_server'>failed_server</span> <span class='op'>=</span> <span class='id identifier rubyid_server'>server</span>
       <span class='id identifier rubyid_last_error'>last_error</span> <span class='op'>=</span> <span class='id identifier rubyid_e'>e</span>
     <span class='kw'>end</span>
@@ -1166,11 +1170,11 @@
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/retryable/read_worker.rb#L372-L384'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/retryable/read_worker.rb#L379-L391'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='372' data-end='384'></pre>
+  <pre class='lines_num' data-start='379' data-end='391'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/retryable/read_worker.rb', line 372</span></pre>
+<pre><span class='info file'># File 'lib/mongo/retryable/read_worker.rb', line 379</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_select_server_for_retry'>select_server_for_retry</span>(<span class='id identifier rubyid_original_error'>original_error</span><span class='comma'>,</span> <span class='id identifier rubyid_session'>session</span><span class='comma'>,</span> <span class='id identifier rubyid_server_selector'>server_selector</span><span class='comma'>,</span> <span class='id identifier rubyid_context'>context</span><span class='comma'>,</span> <span class='id identifier rubyid_failed_server'>failed_server</span>)
