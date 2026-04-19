@@ -62,73 +62,52 @@
   </header>
 <div id='content' class='file'>
 <p><strong>DO NOT READ THIS FILE ON GITHUB, GUIDES ARE PUBLISHED ON <a href="https://guides.rubyonrails.org">https://guides.rubyonrails.org</a>.</strong></p>
-
-<h1>The Rails Initialization Process</h1>
-
+<h1 id="The_Rails_Initialization_Process">The Rails Initialization Process</h1>
 <p>This guide explains the internals of the initialization process in <a href="Rails.html" title="Rails (module)"><code>Rails</code></a>.
 It is an extremely in-depth guide and recommended for advanced <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> developers.</p>
-
 <p>After reading this guide, you will know:</p>
-
 <ul>
 <li>How to use <code>bin/rails server</code>.</li>
-<li>The timeline of Rails&#39; initialization sequence.</li>
+<li>The timeline of Rails' initialization sequence.</li>
 <li>Where different files are required by the boot sequence.</li>
 <li>How the <a href="Rails/Server.html" title="Rails::Server (class)"><code>::Rails::Server</code></a> interface is defined and used.</li>
 </ul>
-
-<hr>
-
+<hr />
 <p>This guide goes through every method call that is
 required to boot up the Ruby on <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> stack for a default <a href="Rails.html" title="Rails (module)"><code>Rails</code></a>
 application, explaining each part in detail along the way. For this
 guide, we will be focusing on what happens when you execute <code>bin/rails server</code>
 to boot your app.</p>
-
 <p>NOTE: Paths in this guide are relative to <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> or a <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> application unless otherwise specified.</p>
-
 <p>TIP: If you want to follow along while browsing the <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> <a href="https://github.com/rails/rails">source
 code</a>, we recommend that you use the <code>t</code>
 key binding to open the file finder inside GitHub and find files
 quickly.</p>
-
-<h2>Launch!</h2>
-
-<p>Let&#39;s start to boot and initialize the app. A Rails application is usually
+<h2 id="Launch_">Launch!</h2>
+<p>Let's start to boot and initialize the app. A Rails application is usually
 started by running <code>bin/rails console</code> or <code>bin/rails server</code>.</p>
-
-<h3><code>bin/rails</code></h3>
-
+<h3 id="_bin_rails_"><code>bin/rails</code></h3>
 <p>This file is as follows:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='comment'>#!/usr/bin/env ruby
 </span><span class='const'><a href="#APP_PATH-constant" title="APP_PATH (constant)">APP_PATH</a></span> <span class='op'>=</span> <span class='const'><a href="File.html" title="File (class)">File</a></span>.<span class='id identifier rubyid_expand_path'>expand_path</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>../config/application</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid___dir__'>__dir__</span>)
 <span class='id identifier rubyid_require_relative'>require_relative</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>../config/boot</span><span class='tstring_end'>&quot;</span></span>
 <span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>rails/commands</span><span class='tstring_end'>&quot;</span></span></code></pre>
-
 <p>The <a href="#APP_PATH-constant" title="APP_PATH (constant)">APP_PATH</a> constant will be used later in <code>rails/commands</code>. The <code>config/boot</code> file referenced here is the <code>config/boot.rb</code> file in our application which is responsible for loading Bundler and setting it up.</p>
-
-<h3><code>config/boot.rb</code></h3>
-
+<h3 id="_config_boot_rb_"><code>config/boot.rb</code></h3>
 <p><code>config/boot.rb</code> contains:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='const'>ENV</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>BUNDLE_GEMFILE</span><span class='tstring_end'>&quot;</span></span>] <span class='op'>||=</span> <span class='const'><a href="File.html" title="File (class)">File</a></span>.<span class='id identifier rubyid_expand_path'>expand_path</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>../Gemfile</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid___dir__'>__dir__</span>)
 
 <span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>bundler/setup</span><span class='tstring_end'>&quot;</span></span> <span class='comment'># Set up gems listed in the Gemfile.
 </span><span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>bootsnap/setup</span><span class='tstring_end'>&quot;</span></span> <span class='comment'># Speed up boot time by caching expensive operations.</span></code></pre>
-
-<p>In a standard Rails application, there&#39;s a <code>Gemfile</code> which declares all
+<p>In a standard Rails application, there's a <code>Gemfile</code> which declares all
 dependencies of the application. <code>config/boot.rb</code> sets
 <code>ENV['BUNDLE_GEMFILE']</code> to the location of this file. If the <code>Gemfile</code>
 exists, then <code>bundler/setup</code> is required. The require is used by Bundler to
-configure the load path for your Gemfile&#39;s dependencies.</p>
-
-<h3><code>rails/commands.rb</code></h3>
-
+configure the load path for your Gemfile's dependencies.</p>
+<h3 id="_rails_commands_rb_"><code>rails/commands.rb</code></h3>
 <p>Once <code>config/boot.rb</code> has finished, the next file that is required is
 <code>rails/commands</code>, which helps in expanding aliases. In the current case, the
 <code>ARGV</code> array simply contains <code>server</code> which will be passed over:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>rails/command</span><span class='tstring_end'>&quot;</span></span>
 
 <span class='id identifier rubyid_aliases'>aliases</span> <span class='op'>=</span> {
@@ -145,21 +124,15 @@ configure the load path for your Gemfile&#39;s dependencies.</p>
 <span class='id identifier rubyid_command'>command</span> <span class='op'>=</span> <span class='id identifier rubyid_aliases'>aliases</span>[<span class='id identifier rubyid_command'>command</span>] <span class='op'>||</span> <span class='id identifier rubyid_command'>command</span>
 
 <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span><span class='op'>::</span><span class='const'><a href="Rails/Command.html" title="Rails::Command (module)">Command</a></span>.<span class='id identifier rubyid_invoke'><a href="Rails/Command.html#invoke-class_method" title="Rails::Command.invoke (method)">invoke</a></span> <span class='id identifier rubyid_command'>command</span><span class='comma'>,</span> <span class='const'>ARGV</span></code></pre>
-
 <p>If we had used <code>s</code> rather than <code>server</code>, Rails would have used the <code>aliases</code>
 defined here to find the matching command.</p>
-
-<h3><code>rails/command.rb</code></h3>
-
+<h3 id="_rails_command_rb_"><code>rails/command.rb</code></h3>
 <p>When one types a Rails command, <code>invoke</code> tries to lookup a command for the given
 namespace and executes the command if found.</p>
-
-<p>If Rails doesn&#39;t recognize the command, it hands the reins over to Rake
+<p>If Rails doesn't recognize the command, it hands the reins over to Rake
 to run a task of the same name.</p>
-
 <p>As shown, <a href="Rails/Command.html" title="Rails::Command (module)"><code>::Rails::Command</code></a> displays the help output automatically if the <code>namespace</code>
 is empty.</p>
-
 <pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>
   <span class='kw'>module</span> <span class='const'>Command</span>
     <span class='kw'>class</span> <span class='op'>&lt;&lt;</span> <span class='kw'>self</span>
@@ -188,9 +161,7 @@ is empty.</p>
     <span class='kw'>end</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
 <p>With the <code>server</code> command, Rails will further run the following code:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>
   <span class='kw'>module</span> <span class='const'>Command</span>
     <span class='kw'>class</span> <span class='const'>ServerCommand</span> <span class='op'>&lt;</span> <span class='const'>Base</span> <span class='comment'># :nodoc:
@@ -216,22 +187,16 @@ is empty.</p>
     <span class='kw'>end</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
 <p>This file will change into the Rails root directory (a path two directories up
 from <a href="#APP_PATH-constant" title="APP_PATH (constant)">APP_PATH</a> which points at <code>config/application.rb</code>), but only if the
-<code>config.ru</code> file isn&#39;t found. This then starts up the <a href="Rails/Server.html" title="Rails::Server (class)"><code>::Rails::Server</code></a> class.</p>
-
-<h3><code>actionpack/lib/action_dispatch.rb</code></h3>
-
+<code>config.ru</code> file isn't found. This then starts up the <a href="Rails/Server.html" title="Rails::Server (class)"><code>::Rails::Server</code></a> class.</p>
+<h3 id="_actionpack_lib_action_dispatch_rb_"><code>actionpack/lib/action_dispatch.rb</code></h3>
 <p>Action Dispatch is the routing component of the Rails framework.
 It adds functionality like routing, session, and common middlewares.</p>
-
-<h3><code>rails/commands/server/server_command.rb</code></h3>
-
+<h3 id="_rails_commands_server_server_command_rb_"><code>rails/commands/server/server_command.rb</code></h3>
 <p>The <a href="Rails/Server.html" title="Rails::Server (class)"><code>::Rails::Server</code></a> class is defined in this file by inheriting from
 <code>Rackup::Server</code>. When <a href="Rails/Server.html#new-class_method" title="Rails::Server.new (method)">Rails::Server.new</a> is called, this calls the <code>initialize</code>
 method in <code>rails/commands/server/server_command.rb</code>:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>
   <span class='kw'>class</span> <span class='const'>Server</span> <span class='op'>&lt;</span> <span class='const'>Rackup</span><span class='op'>::</span><span class='const'>Server</span>
     <span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span>(<span class='id identifier rubyid_options'>options</span> <span class='op'>=</span> <span class='kw'>nil</span>)
@@ -241,15 +206,10 @@ method in <code>rails/commands/server/server_command.rb</code>:</p>
     <span class='kw'>end</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
 <p>Firstly, <code>super</code> is called which calls the <code>initialize</code> method on <code>Rackup::Server</code>.</p>
-
-<h3>Rackup: <code>lib/rackup/server.rb</code></h3>
-
+<h3 id="Rackup___lib_rackup_server_rb_">Rackup: <code>lib/rackup/server.rb</code></h3>
 <p><code>Rackup::Server</code> is responsible for providing a common server interface for all Rack-based applications, which Rails is now a part of.</p>
-
 <p>The <code>initialize</code> method in <code>Rackup::Server</code> simply sets several variables:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'>Rackup</span>
   <span class='kw'>class</span> <span class='const'>Server</span>
     <span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span>(<span class='id identifier rubyid_options'>options</span> <span class='op'>=</span> <span class='kw'>nil</span>)
@@ -266,12 +226,9 @@ method in <code>rails/commands/server/server_command.rb</code>:</p>
     <span class='kw'>end</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
 <p>In this case, return value of <code>Rails::Command::ServerCommand#server_options</code> will be assigned to <code>options</code>.
 When lines inside if statement is evaluated, a couple of instance variables will be set.</p>
-
 <p><code>server_options</code> method in <a href="Rails/Command/ServerCommand.html" title="Rails::Command::ServerCommand (class)"><code>::Rails::Command::ServerCommand</code></a> is defined as follows:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>
   <span class='kw'>module</span> <span class='const'>Command</span>
     <span class='kw'>class</span> <span class='const'>ServerCommand</span> <span class='op'>&lt;</span> <span class='const'>Base</span> <span class='comment'># :nodoc:
@@ -297,13 +254,10 @@ When lines inside if statement is evaluated, a couple of instance variables will
     <span class='kw'>end</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
 <p>The value will be assigned to instance variable <code>@options</code>.</p>
-
 <p>After <code>super</code> has finished in <code>Rackup::Server</code>, we jump back to
 <code>rails/commands/server/server_command.rb</code>. At this point, <code>set_environment</code>
 is called within the context of the <a href="Rails/Server.html" title="Rails::Server (class)"><code>::Rails::Server</code></a> object.</p>
-
 <pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>
   <span class='kw'>module</span> <span class='const'>Server</span>
     <span class='kw'>def</span> <span class='id identifier rubyid_set_environment'>set_environment</span>
@@ -311,21 +265,15 @@ is called within the context of the <a href="Rails/Server.html" title="Rails::Se
     <span class='kw'>end</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
 <p>After <code>initialize</code> has finished, we jump back into the server command
 where <a href="#APP_PATH-constant" title="APP_PATH (constant)">APP_PATH</a> (which was set earlier) is required.</p>
-
-<h3><code>config/application</code></h3>
-
+<h3 id="_config_application_"><code>config/application</code></h3>
 <p>When <code>require APP_PATH</code> is executed, <code>config/application.rb</code> is loaded (recall
 that <a href="#APP_PATH-constant" title="APP_PATH (constant)">APP_PATH</a> is defined in <code>bin/rails</code>). This file exists in your application
-and it&#39;s free for you to change based on your needs.</p>
-
-<h3><a href="Rails/Server.html#start-instance_method" title="Rails::Server#start (method)">Rails::Server#start</a></h3>
-
+and it's free for you to change based on your needs.</p>
+<h3 id="_Rails__Server_start_"><a href="Rails/Server.html#start-instance_method" title="Rails::Server#start (method)">Rails::Server#start</a></h3>
 <p>After <code>config/application</code> is loaded, <code>server.start</code> is called. This method is
 defined like this:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>
   <span class='kw'>class</span> <span class='const'>Server</span> <span class='op'>&lt;</span> <span class='op'>::</span><span class='const'>Rackup</span><span class='op'>::</span><span class='const'>Server</span>
     <span class='kw'>def</span> <span class='id identifier rubyid_start'>start</span>(<span class='id identifier rubyid_after_stop_callback'>after_stop_callback</span> <span class='op'>=</span> <span class='kw'>nil</span>)
@@ -364,16 +312,13 @@ defined like this:</p>
       <span class='kw'>end</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
 <p>This method creates a trap for <code>INT</code> signals, so if you <code>CTRL-C</code> the server, it will exit the process.
 As we can see from the code here, it will create the <code>tmp/cache</code>,
 <code>tmp/pids</code>, and <code>tmp/sockets</code> directories. It then enables caching in development
 if <code>bin/rails server</code> is called with <code>--dev-caching</code>. Finally, it calls <code>wrapped_app</code> which is
 responsible for creating the Rack app, before creating and assigning an instance
 of <a href="ActiveSupport/Logger.html" title="ActiveSupport::Logger (class)"><code>::ActiveSupport::Logger</code></a>.</p>
-
 <p>The <code>super</code> method will call <code>Rackup::Server.start</code> which begins its definition as follows:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'>Rackup</span>
   <span class='kw'>class</span> <span class='const'>Server</span>
     <span class='kw'>def</span> <span class='id identifier rubyid_start'>start</span>(<span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span>)
@@ -421,11 +366,9 @@ of <a href="ActiveSupport/Logger.html" title="ActiveSupport::Logger (class)"><co
     <span class='kw'>end</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
 <p>The interesting part for a Rails app is the last line, <code>server.run</code>. Here we encounter the <code>wrapped_app</code> method again, which this time
-we&#39;re going to explore more (even though it was executed before, and
+we're going to explore more (even though it was executed before, and
 thus memoized by now).</p>
-
 <pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'>Rackup</span>
   <span class='kw'>class</span> <span class='const'>Server</span>
     <span class='kw'>def</span> <span class='id identifier rubyid_wrapped_app'>wrapped_app</span>
@@ -433,9 +376,7 @@ thus memoized by now).</p>
     <span class='kw'>end</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
 <p>The <code>app</code> method here is defined like so:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'>Rackup</span>
   <span class='kw'>class</span> <span class='const'>Server</span>
     <span class='kw'>def</span> <span class='id identifier rubyid_app'>app</span>
@@ -458,18 +399,14 @@ thus memoized by now).</p>
       <span class='kw'>end</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
 <p>The <code>options[:config]</code> value defaults to <code>config.ru</code> which contains this:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='comment'># This file is used by Rack-based servers to start the application.
 </span>
 <span class='id identifier rubyid_require_relative'>require_relative</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>config/environment</span><span class='tstring_end'>&quot;</span></span>
 
 <span class='id identifier rubyid_run'>run</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>
 <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_load_server'>load_server</span></code></pre>
-
 <p>The <code>Rack::Builder.parse_file</code> method here takes the content from this <code>config.ru</code> file and parses it using this code:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'><a href="Rack.html" title="Rack (module)">Rack</a></span>
   <span class='kw'>class</span> <span class='const'>Builder</span>
     <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_load_file'>load_file</span>(<span class='id identifier rubyid_path'>path</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_options'>options</span>)
@@ -491,42 +428,25 @@ thus memoized by now).</p>
     <span class='kw'>end</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
 <p>The <code>initialize</code> method of <code>Rack::Builder</code> will take the block here and execute it within an instance of <code>Rack::Builder</code>.
 This is where the majority of the initialization process of Rails happens.
 The <code>require</code> line for <code>config/environment.rb</code> in <code>config.ru</code> is the first to run:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_require_relative'>require_relative</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>config/environment</span><span class='tstring_end'>&quot;</span></span></code></pre>
-
-<h3><code>config/environment.rb</code></h3>
-
+<h3 id="_config_environment_rb_"><code>config/environment.rb</code></h3>
 <p>This file is the common file required by <code>config.ru</code> (<code>bin/rails server</code>) and Passenger. This is where these two ways to run the server meet; everything before this point has been Rack and Rails setup.</p>
-
 <p>This file begins with requiring <code>config/application.rb</code>:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_require_relative'>require_relative</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>application</span><span class='tstring_end'>&quot;</span></span></code></pre>
-
-<h3><code>config/application.rb</code></h3>
-
+<h3 id="_config_application_rb_"><code>config/application.rb</code></h3>
 <p>This file requires <code>config/boot.rb</code>:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_require_relative'>require_relative</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>boot</span><span class='tstring_end'>&quot;</span></span></code></pre>
-
-<p>But only if it hasn&#39;t been required before, which would be the case in <code>bin/rails server</code>
-but <strong>wouldn&#39;t</strong> be the case with Passenger.</p>
-
+<p>But only if it hasn't been required before, which would be the case in <code>bin/rails server</code>
+but <strong>wouldn't</strong> be the case with Passenger.</p>
 <p>Then the fun begins!</p>
-
-<h2>Loading Rails</h2>
-
+<h2 id="Loading_Rails">Loading Rails</h2>
 <p>The next line in <code>config/application.rb</code> is:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>rails/all</span><span class='tstring_end'>&quot;</span></span></code></pre>
-
-<h3><code>railties/lib/rails/all.rb</code></h3>
-
+<h3 id="_railties_lib_rails_all_rb_"><code>railties/lib/rails/all.rb</code></h3>
 <p>This file is responsible for requiring all the individual frameworks of Rails:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>rails</span><span class='tstring_end'>&quot;</span></span>
 
 <span class='qwords'><span class='qwords_beg'>%w(</span><span class='words_sep'>
@@ -546,39 +466,30 @@ but <strong>wouldn&#39;t</strong> be the case with Passenger.</p>
   <span class='kw'>rescue</span> <span class='const'><a href="LoadError.html" title="LoadError (class)">LoadError</a></span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
 <p>This is where all the Rails frameworks are loaded and thus made
-available to the application. We won&#39;t go into detail of what happens
-inside each of those frameworks, but you&#39;re encouraged to try and
+available to the application. We won't go into detail of what happens
+inside each of those frameworks, but you're encouraged to try and
 explore them on your own.</p>
-
 <p>For now, just keep in mind that common functionality like Rails engines,
 I18n and Rails configuration are all being defined here.</p>
-
-<h3>Back to <code>config/environment.rb</code></h3>
-
+<h3 id="Back_to__config_environment_rb_">Back to <code>config/environment.rb</code></h3>
 <p>The rest of <code>config/application.rb</code> defines the configuration for the
 <a href="Rails/Application.html" title="Rails::Application (class)"><code>::Rails::Application</code></a> which will be used once the application is fully
 initialized. When <code>config/application.rb</code> has finished loading Rails and defined
 the application namespace, we go back to <code>config/environment.rb</code>. Here, the
 application is initialized with <code>Rails.application.initialize!</code>, which is
 defined in <code>rails/application.rb</code>.</p>
-
-<h3><code>railties/lib/rails/application.rb</code></h3>
-
+<h3 id="_railties_lib_rails_application_rb_"><code>railties/lib/rails/application.rb</code></h3>
 <p>The <code>initialize!</code> method looks like this:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_initialize!'>initialize!</span>(<span class='id identifier rubyid_group'>group</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_default'>default</span>) <span class='comment'># :nodoc:
 </span>  <span class='id identifier rubyid_raise'>raise</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Application has been already initialized.</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>if</span> <span class='ivar'>@initialized</span>
   <span class='id identifier rubyid_run_initializers'>run_initializers</span>(<span class='id identifier rubyid_group'>group</span><span class='comma'>,</span> <span class='kw'>self</span>)
   <span class='ivar'>@initialized</span> <span class='op'>=</span> <span class='kw'>true</span>
   <span class='kw'>self</span>
 <span class='kw'>end</span></code></pre>
-
 <p>You can only initialize an app once. The Railtie <a href="configuring.html#initializers">initializers</a>
 are run through the <code>run_initializers</code> method which is defined in
 <code>railties/lib/rails/initializable.rb</code>:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_run_initializers'>run_initializers</span>(<span class='id identifier rubyid_group'>group</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_default'>default</span><span class='comma'>,</span> <span class='op'>*</span><span class='id identifier rubyid_args'>args</span>)
   <span class='kw'>return</span> <span class='kw'>if</span> <span class='id identifier rubyid_instance_variable_defined?'>instance_variable_defined?</span>(<span class='symbeg'>:</span><span class='ivar'>@ran</span>)
   <span class='id identifier rubyid_initializers'>initializers</span>.<span class='id identifier rubyid_tsort_each'>tsort_each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_initializer'>initializer</span><span class='op'>|</span>
@@ -586,29 +497,22 @@ are run through the <code>run_initializers</code> method which is defined in
   <span class='kw'>end</span>
   <span class='ivar'>@ran</span> <span class='op'>=</span> <span class='kw'>true</span>
 <span class='kw'>end</span></code></pre>
-
 <p>The <code>run_initializers</code> code itself is tricky. What Rails is doing here is
 traversing all the class ancestors looking for those that respond to an
 <code>initializers</code> method. It then sorts the ancestors by name, and runs them.
 For example, the <code>Engine</code> class will make all the engines available by
 providing an <code>initializers</code> method on them.</p>
-
 <p>The <a href="Rails/Application.html" title="Rails::Application (class)"><code>::Rails::Application</code></a> class, as defined in <code>railties/lib/rails/application.rb</code>
 defines <code>bootstrap</code>, <code>railtie</code>, and <code>finisher</code> initializers. The <code>bootstrap</code> initializers
 prepare the application (like initializing the logger) while the <code>finisher</code>
 initializers (like building the middleware stack) are run last. The <code>railtie</code>
 initializers are the initializers which have been defined on the <a href="Rails/Application.html" title="Rails::Application (class)"><code>::Rails::Application</code></a>
 itself and are run between the <code>bootstrap</code> and <code>finisher</code>.</p>
-
 <p>NOTE: Do not confuse Railtie initializers overall with the <a href="configuring.html#using-initializer-files">load_config_initializers</a>
 initializer instance or its associated config initializers in <code>config/initializers</code>.</p>
-
 <p>After this is done we go back to <code>Rackup::Server</code>.</p>
-
-<h3>Rack: lib/rack/server.rb</h3>
-
+<h3 id="Rack__lib_rack_server_rb">Rack: lib/rack/server.rb</h3>
 <p>Last time we left when the <code>app</code> method was being defined:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'>Rackup</span>
   <span class='kw'>class</span> <span class='const'>Server</span>
     <span class='kw'>def</span> <span class='id identifier rubyid_app'>app</span>
@@ -631,10 +535,8 @@ initializer instance or its associated config initializers in <code>config/initi
       <span class='kw'>end</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
 <p>At this point <code>app</code> is the Rails app itself (a middleware), and what
 happens next is Rack will call all the provided middlewares:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'>Rackup</span>
   <span class='kw'>class</span> <span class='const'>Server</span>
     <span class='id identifier rubyid_private'>private</span>
@@ -649,16 +551,12 @@ happens next is Rack will call all the provided middlewares:</p>
       <span class='kw'>end</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
 <p>Remember, <code>build_app</code> was called (by <code>wrapped_app</code>) in the last line of <code>Rackup::Server#start</code>.
-Here&#39;s how it looked like when we left:</p>
-
+Here's how it looked like when we left:</p>
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_server'>server</span>.<span class='id identifier rubyid_run'>run</span>(<span class='id identifier rubyid_wrapped_app'>wrapped_app</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_options'>options</span><span class='comma'>,</span> <span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span>)</code></pre>
-
 <p>At this point, the implementation of <code>server.run</code> will depend on the
-server you&#39;re using. For example, if you were using Puma, here&#39;s what
+server you're using. For example, if you were using Puma, here's what
 the <code>run</code> method would look like:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'><a href="Rack.html" title="Rack (module)">Rack</a></span>
   <span class='kw'>module</span> <span class='const'>Handler</span>
     <span class='kw'>module</span> <span class='const'>Puma</span>
@@ -683,15 +581,12 @@ the <code>run</code> method would look like:</p>
 </span>    <span class='kw'>end</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
-<p>We won&#39;t dig into the server configuration itself, but this is
+<p>We won't dig into the server configuration itself, but this is
 the last piece of our journey in the Rails initialization process.</p>
-
 <p>This high level overview will help you understand when your code is
 executed and how, and overall become a better Rails developer. If you
 still want to know more, the Rails source code itself is probably the
 best place to go next.</p>
-
 <div id='footer'></div>
 </div> <!-- content  -->
 </div> <!-- y_main   -->

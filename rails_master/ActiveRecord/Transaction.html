@@ -86,58 +86,50 @@
 <div id='overview_ds'>
 <div class='docstring'>
   <div class='discussion'>
-    
-<p><a href="../Class.html" title="Class (class)"><code>::Class</code></a> specifies the interface to interact with the current transaction state.</p>
-
-<p>It can either map to an actual transaction/savepoint, or represent the absence of a transaction.</p>
-
-<h3 id="label-State">State</h3>
-
-<p>We say that a transaction is <em>finalized</em> when it wraps a real transaction that has been either committed or rolled back.</p>
-
+    <p><a href="../Class.html" title="Class (class)"><code>::Class</code></a> specifies the interface to interact with the current transaction state.</p>
+<p>It can either map to an actual transaction/savepoint, or represent the
+absence of a transaction.</p>
+<h3 id="State">State</h3>
+<p>We say that a transaction is <em>finalized</em> when it wraps a real transaction
+that has been either committed or rolled back.</p>
 <p>A transaction is <em>open</em> if it wraps a real transaction that is not finalized.</p>
-
-<p>On the other hand, a transaction is <em>closed</em> when it is not open. That is, when it represents absence of transaction, or it wraps a real but finalized one.</p>
-
-<p>You can check whether a transaction is open or closed with the <a href="#open%3F-instance_method" title="ActiveRecord::Transaction#open? (method)">#open?</a> and <a href="#closed%3F-instance_method" title="ActiveRecord::Transaction#closed? (method)">#closed?</a> predicates:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='kw'>if</span> <span class='const'>Article</span>.<span class='id identifier rubyid_current_transaction'>current_transaction</span>.<span class='id identifier rubyid_open?'><a href="#open%3F-instance_method" title="ActiveRecord::Transaction#open? (method)">open?</a></span>
-  <span class='comment'># We are inside a real and not finalized transaction.
-</span><span class='kw'>end</span></code></pre>
-
+<p>On the other hand, a transaction is <em>closed</em> when it is not open. That is,
+when it represents absence of transaction, or it wraps a real but finalized
+one.</p>
+<p>You can check whether a transaction is open or closed with the <a href="#open%3F-instance_method" title="ActiveRecord::Transaction#open? (method)">#open?</a> and
+<a href="#closed%3F-instance_method" title="ActiveRecord::Transaction#closed? (method)">#closed?</a> predicates:</p>
+<p>if Article.current_transaction.open?</p>
+<h1 id="We_are_inside_a_real_and_not_finalized_transaction_">We are inside a real and not finalized transaction.</h1>
+<p>end</p>
 <p>Closed transactions are <a href="#blank%3F-instance_method" title="ActiveRecord::Transaction#blank? (method)">#blank?</a> too.</p>
-
-<h3 id="label-Callbacks">Callbacks</h3>
-
-<p>After updating the database state, you may sometimes need to perform some extra work, or reflect these changes in a remote system like clearing or updating a cache:</p>
-
+<h3 id="Callbacks">Callbacks</h3>
+<p>After updating the database state, you may sometimes need to perform some extra work, or reflect these
+changes in a remote system like clearing or updating a cache:</p>
 <pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_publish_article'>publish_article</span>(<span class='id identifier rubyid_article'>article</span>)
-  <span class='id identifier rubyid_article'>article</span>.<span class='id identifier rubyid_update!'>update!</span>(<span class='label'>published:</span> <span class='kw'>true</span>)
-  <span class='const'>NotificationService</span>.<span class='id identifier rubyid_article_published'>article_published</span>(<span class='id identifier rubyid_article'>article</span>)
+<span class='id identifier rubyid_article'>article</span>.<span class='id identifier rubyid_update!'>update!</span>(<span class='label'>published:</span> <span class='kw'>true</span>)
+<span class='const'>NotificationService</span>.<span class='id identifier rubyid_article_published'>article_published</span>(<span class='id identifier rubyid_article'>article</span>)
 <span class='kw'>end</span></code></pre>
-
-<p>The above code works but has one important flaw, which is that it no longer works properly if called inside a transaction, as it will interact with the remote system before the changes are persisted:</p>
-
+<p>The above code works but has one important flaw, which is that it no longer works properly if called inside
+a transaction, as it will interact with the remote system before the changes are persisted:</p>
 <pre class="code ruby"><code class="ruby"><span class='const'>Article</span>.<span class='id identifier rubyid_transaction'>transaction</span> <span class='kw'>do</span>
-  <span class='id identifier rubyid_article'>article</span> <span class='op'>=</span> <span class='id identifier rubyid_create_article'>create_article</span>(<span class='id identifier rubyid_article'>article</span>)
-  <span class='id identifier rubyid_publish_article'>publish_article</span>(<span class='id identifier rubyid_article'>article</span>)
+<span class='id identifier rubyid_article'>article</span> <span class='op'>=</span> <span class='id identifier rubyid_create_article'>create_article</span>(<span class='id identifier rubyid_article'>article</span>)
+<span class='id identifier rubyid_publish_article'>publish_article</span>(<span class='id identifier rubyid_article'>article</span>)
 <span class='kw'>end</span></code></pre>
-
-<p>The callbacks offered by <code>Transaction</code> allow to rewriting this method in a way that is compatible with transactions:</p>
-
+<p>The callbacks offered by <code>Transaction</code> allow to rewriting this method in a way that is compatible
+with transactions:</p>
 <pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_publish_article'>publish_article</span>(<span class='id identifier rubyid_article'>article</span>)
-  <span class='id identifier rubyid_article'>article</span>.<span class='id identifier rubyid_update!'>update!</span>(<span class='label'>published:</span> <span class='kw'>true</span>)
-  <span class='const'>Article</span>.<span class='id identifier rubyid_current_transaction'>current_transaction</span>.<span class='id identifier rubyid_after_commit'><a href="#after_commit-instance_method" title="ActiveRecord::Transaction#after_commit (method)">after_commit</a></span> <span class='kw'>do</span>
-    <span class='const'>NotificationService</span>.<span class='id identifier rubyid_article_published'>article_published</span>(<span class='id identifier rubyid_article'>article</span>)
-  <span class='kw'>end</span>
+<span class='id identifier rubyid_article'>article</span>.<span class='id identifier rubyid_update!'>update!</span>(<span class='label'>published:</span> <span class='kw'>true</span>)
+<span class='const'>Article</span>.<span class='id identifier rubyid_current_transaction'>current_transaction</span>.<span class='id identifier rubyid_after_commit'><a href="#after_commit-instance_method" title="ActiveRecord::Transaction#after_commit (method)">after_commit</a></span> <span class='kw'>do</span>
+  <span class='const'>NotificationService</span>.<span class='id identifier rubyid_article_published'>article_published</span>(<span class='id identifier rubyid_article'>article</span>)
+<span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
-<p>In the above example, if <code>publish_article</code> is called inside a transaction, the callback will be invoked after the transaction is successfully committed, and if called outside a transaction, the callback will be invoked immediately.</p>
-
-<h3 id="label-Caveats">Caveats</h3>
-
-<p>When using after_commit callbacks, it is important to note that if the callback raises an error, the transaction won’t be rolled back as it was already committed. Relying solely on these to synchronize state between multiple systems may lead to consistency issues.</p>
-
+<p>In the above example, if <code>publish_article</code> is called inside a transaction, the callback will be invoked
+after the transaction is successfully committed, and if called outside a transaction, the callback will be invoked
+immediately.</p>
+<h3 id="Caveats">Caveats</h3>
+<p>When using after_commit callbacks, it is important to note that if the callback raises an error, the transaction
+won't be rolled back as it was already committed. Relying solely on these to synchronize state between multiple
+systems may lead to consistency issues.</p>
   </div>
 </div>
 </div>
@@ -184,7 +176,7 @@
     </span>
     <span class='note title readonly'>readonly</span>
     <div class='summary_desc'>
-      <div class='inline'><p>Returns true if the transaction doesn’t exist or is finalized.</p></div>
+      <div class='inline'><p>Returns true if the transaction doesn't exist or is finalized.</p></div>
     </div>
   </li>
   <li>
@@ -193,7 +185,7 @@
     </span>
     <span class='note title readonly'>readonly</span>
     <div class='summary_desc'>
-      <div class='inline'><p>Returns true if the transaction exists and isn’t finalized yet.</p></div>
+      <div class='inline'><p>Returns true if the transaction exists and isn't finalized yet.</p></div>
     </div>
   </li>
 </ul>
@@ -268,9 +260,7 @@
   </h3>
 <div class='docstring'>
   <div class='discussion'>
-    
-<p>Alias for <a href="#closed%3F-instance_method" title="ActiveRecord::Transaction#closed? (method)">#closed?</a>.</p>
-
+    <p>Alias for <a href="#closed%3F-instance_method" title="ActiveRecord::Transaction#closed? (method)">#closed?</a>.</p>
   </div>
 </div>
   <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/transaction.rb#L118-L118'>GitHub</a>&#8202;]</span>
@@ -293,9 +283,7 @@
   </h3>
 <div class='docstring'>
   <div class='discussion'>
-    
-<p>Returns true if the transaction doesn’t exist or is finalized.</p>
-
+    <p>Returns true if the transaction doesn't exist or is finalized.</p>
   </div>
 </div>
 <div class='tags'>
@@ -322,9 +310,7 @@
   </h3>
 <div class='docstring'>
   <div class='discussion'>
-    
-<p>Returns true if the transaction exists and isn’t finalized yet.</p>
-
+    <p>Returns true if the transaction exists and isn't finalized yet.</p>
   </div>
 </div>
 <div class='tags'>
@@ -352,15 +338,14 @@
   </h3>
 <div class='docstring'>
   <div class='discussion'>
-    
-<p>Registers a block to be called after the transaction is fully committed.</p>
-
-<p>If there is no currently open transactions, the block is called immediately, unless the transaction is finalized, in which case attempting to register the callback raises <a href="ActiveRecordError.html" title="ActiveRecord::ActiveRecordError (class)"><code>ActiveRecordError</code></a>.</p>
-
-<p>If the transaction has a parent transaction, the callback is transferred to the parent when the current transaction commits, or dropped when the current transaction is rolled back. This operation is repeated until the outermost transaction is reached.</p>
-
+    <p>Registers a block to be called after the transaction is fully committed.</p>
+<p>If there is no currently open transactions, the block is called
+immediately, unless the transaction is finalized, in which case attempting
+to register the callback raises <a href="ActiveRecordError.html" title="ActiveRecord::ActiveRecordError (class)"><code>ActiveRecordError</code></a>.</p>
+<p>If the transaction has a parent transaction, the callback is transferred to
+the parent when the current transaction commits, or dropped when the current transaction
+is rolled back. This operation is repeated until the outermost transaction is reached.</p>
 <p>If the callback raises an error, the transaction remains committed.</p>
-
   </div>
 </div>
   <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/transaction.rb#L85-L91'>GitHub</a>&#8202;]</span>
@@ -388,15 +373,14 @@
   </h3>
 <div class='docstring'>
   <div class='discussion'>
-    
-<p>Registers a block to be called after the transaction is rolled back.</p>
-
-<p>If there is no currently open transactions, the block is not called. But if the transaction is finalized, attempting to register the callback raises <a href="ActiveRecordError.html" title="ActiveRecord::ActiveRecordError (class)"><code>ActiveRecordError</code></a>.</p>
-
-<p>If the transaction is successfully committed but has a parent transaction, the callback is automatically added to the parent transaction.</p>
-
-<p>If the entire chain of nested transactions are all successfully committed, the block is never called.</p>
-
+    <p>Registers a block to be called after the transaction is rolled back.</p>
+<p>If there is no currently open transactions, the block is not called. But
+if the transaction is finalized, attempting to register the callback
+raises <a href="ActiveRecordError.html" title="ActiveRecord::ActiveRecordError (class)"><code>ActiveRecordError</code></a>.</p>
+<p>If the transaction is successfully committed but has a parent
+transaction, the callback is automatically added to the parent transaction.</p>
+<p>If the entire chain of nested transactions are all successfully committed,
+the block is never called.</p>
   </div>
 </div>
   <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/transaction.rb#L104-L106'>GitHub</a>&#8202;]</span>
@@ -420,9 +404,7 @@
   </h3>
 <div class='docstring'>
   <div class='discussion'>
-    
-<p>Returns a UUID for this transaction or <code>nil</code> if no transaction is open.</p>
-
+    <p>Returns a UUID for this transaction or <code>nil</code> if no transaction is open.</p>
   </div>
 </div>
   <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/transaction.rb#L121-L125'>GitHub</a>&#8202;]</span>

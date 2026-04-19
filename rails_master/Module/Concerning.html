@@ -94,106 +94,96 @@
 <div id='overview_ds'>
 <div class='docstring'>
   <div class='discussion'>
-    
-<h3 id="label-Bite-sized+separation+of+concerns">Bite-sized separation of concerns</h3>
-
-<p>We often find ourselves with a medium-sized chunk of behavior that we’d like to extract, but only mix in to a single class.</p>
-
-<p>Extracting a plain old Ruby object to encapsulate it and collaborate or delegate to the original object is often a good choice, but when there’s no additional state to encapsulate or we’re making DSL-style declarations about the parent class, introducing new collaborators can obfuscate rather than simplify.</p>
-
-<p>The typical route is to just dump everything in a monolithic class, perhaps with a comment, as a least-bad alternative. Using modules in separate files means tedious sifting to get a big-picture view.</p>
-
-<h3 id="label-Dissatisfying+ways+to+separate+small+concerns">Dissatisfying ways to separate small concerns</h3>
-
-<h4 id="label-Using+comments-3A">Using comments:</h4>
-
+    <h3 id="Bite_sized_separation_of_concerns">Bite-sized separation of concerns</h3>
+<p>We often find ourselves with a medium-sized chunk of behavior that we'd
+like to extract, but only mix in to a single class.</p>
+<p>Extracting a plain old Ruby object to encapsulate it and collaborate or
+delegate to the original object is often a good choice, but when there's
+no additional state to encapsulate or we're making DSL-style declarations
+about the parent class, introducing new collaborators can obfuscate rather
+than simplify.</p>
+<p>The typical route is to just dump everything in a monolithic class, perhaps
+with a comment, as a least-bad alternative. Using modules in separate files
+means tedious sifting to get a big-picture view.</p>
+<h3 id="Dissatisfying_ways_to_separate_small_concerns">Dissatisfying ways to separate small concerns</h3>
+<h4 id="Using_comments_">Using comments:</h4>
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Todo</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
-  <span class='comment'># Other todo implementation
-</span>  <span class='comment'># ...
+<span class='comment'># Other todo implementation
+</span><span class='comment'># ...
 </span>
-  <span class='comment'>## Event tracking
-</span>  <span class='id identifier rubyid_has_many'>has_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_events'>events</span>
+<span class='comment'>## Event tracking
+</span><span class='id identifier rubyid_has_many'>has_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_events'>events</span>
 
-  <span class='id identifier rubyid_before_create'>before_create</span> <span class='symbeg'>:</span><span class='id identifier rubyid_track_creation'>track_creation</span>
+<span class='id identifier rubyid_before_create'>before_create</span> <span class='symbeg'>:</span><span class='id identifier rubyid_track_creation'>track_creation</span>
+
+<span class='id identifier rubyid_private'>private</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_track_creation'>track_creation</span>
+    <span class='comment'># ...
+</span>  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+<h4 id="With_an_inline_module_">With an inline module:</h4>
+<p>Noisy syntax.</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Todo</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+<span class='comment'># Other todo implementation
+</span><span class='comment'># ...
+</span>
+<span class='kw'>module</span> <span class='const'>EventTracking</span>
+  <span class='id identifier rubyid_extend'>extend</span> <span class='const'><a href="../ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="../ActiveSupport/Concern.html" title="ActiveSupport::Concern (module)">Concern</a></span>
+
+  <span class='id identifier rubyid_included'>included</span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_has_many'>has_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_events'>events</span>
+    <span class='id identifier rubyid_before_create'>before_create</span> <span class='symbeg'>:</span><span class='id identifier rubyid_track_creation'>track_creation</span>
+  <span class='kw'>end</span>
 
   <span class='id identifier rubyid_private'>private</span>
     <span class='kw'>def</span> <span class='id identifier rubyid_track_creation'>track_creation</span>
       <span class='comment'># ...
 </span>    <span class='kw'>end</span>
+<span class='kw'>end</span>
+<span class='id identifier rubyid_include'>include</span> <span class='const'>EventTracking</span>
 <span class='kw'>end</span></code></pre>
-
-<h4 id="label-With+an+inline+module-3A">With an inline module:</h4>
-
-<p>Noisy syntax.</p>
-
+<h4 id="Mix_in_noise_exiled_to_its_own_file_">Mix-in noise exiled to its own file:</h4>
+<p>Once our chunk of behavior starts pushing the scroll-to-understand-it
+boundary, we give in and move it to a separate file. At this size, the
+increased overhead can be a reasonable tradeoff even if it reduces our
+at-a-glance perception of how things work.</p>
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Todo</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
-  <span class='comment'># Other todo implementation
-</span>  <span class='comment'># ...
+<span class='comment'># Other todo implementation
+</span><span class='comment'># ...
 </span>
-  <span class='kw'>module</span> <span class='const'>EventTracking</span>
-    <span class='id identifier rubyid_extend'>extend</span> <span class='const'><a href="../ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="../ActiveSupport/Concern.html" title="ActiveSupport::Concern (module)">Concern</a></span>
-
-    <span class='id identifier rubyid_included'>included</span> <span class='kw'>do</span>
-      <span class='id identifier rubyid_has_many'>has_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_events'>events</span>
-      <span class='id identifier rubyid_before_create'>before_create</span> <span class='symbeg'>:</span><span class='id identifier rubyid_track_creation'>track_creation</span>
-    <span class='kw'>end</span>
-
-    <span class='id identifier rubyid_private'>private</span>
-      <span class='kw'>def</span> <span class='id identifier rubyid_track_creation'>track_creation</span>
-        <span class='comment'># ...
-</span>      <span class='kw'>end</span>
+<span class='id identifier rubyid_include'>include</span> <span class='const'>TodoEventTracking</span>
+<span class='kw'>end</span></code></pre>
+<h3 id="Introducing__Module_concerning_">Introducing <code>Module#concerning</code></h3>
+<p>By quieting the mix-in noise, we arrive at a natural, low-ceremony way to
+separate bite-sized concerns.</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Todo</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+<span class='comment'># Other todo implementation
+</span><span class='comment'># ...
+</span>
+<span class='id identifier rubyid_concerning'><a href="#concerning-instance_method" title="Module::Concerning#concerning (method)">concerning</a></span> <span class='symbeg'>:</span><span class='const'>EventTracking</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_included'>included</span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_has_many'>has_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_events'>events</span>
+    <span class='id identifier rubyid_before_create'>before_create</span> <span class='symbeg'>:</span><span class='id identifier rubyid_track_creation'>track_creation</span>
   <span class='kw'>end</span>
-  <span class='id identifier rubyid_include'>include</span> <span class='const'>EventTracking</span>
-<span class='kw'>end</span></code></pre>
 
-<h4 id="label-Mix-in+noise+exiled+to+its+own+file-3A">Mix-in noise exiled to its own file:</h4>
-
-<p>Once our chunk of behavior starts pushing the scroll-to-understand-it boundary, we give in and move it to a separate file. At this size, the increased overhead can be a reasonable tradeoff even if it reduces our at-a-glance perception of how things work.</p>
-
-<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Todo</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
-  <span class='comment'># Other todo implementation
-</span>  <span class='comment'># ...
-</span>
-  <span class='id identifier rubyid_include'>include</span> <span class='const'>TodoEventTracking</span>
-<span class='kw'>end</span></code></pre>
-
-<h3 id="label-Introducing+-7BModule-23concerning-7D">Introducing <code>Module#concerning</code></h3>
-
-<p>By quieting the mix-in noise, we arrive at a natural, low-ceremony way to separate bite-sized concerns.</p>
-
-<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Todo</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
-  <span class='comment'># Other todo implementation
-</span>  <span class='comment'># ...
-</span>
-  <span class='id identifier rubyid_concerning'><a href="#concerning-instance_method" title="Module::Concerning#concerning (method)">concerning</a></span> <span class='symbeg'>:</span><span class='const'>EventTracking</span> <span class='kw'>do</span>
-    <span class='id identifier rubyid_included'>included</span> <span class='kw'>do</span>
-      <span class='id identifier rubyid_has_many'>has_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_events'>events</span>
-      <span class='id identifier rubyid_before_create'>before_create</span> <span class='symbeg'>:</span><span class='id identifier rubyid_track_creation'>track_creation</span>
-    <span class='kw'>end</span>
-
-    <span class='id identifier rubyid_private'>private</span>
-      <span class='kw'>def</span> <span class='id identifier rubyid_track_creation'>track_creation</span>
-        <span class='comment'># ...
-</span>      <span class='kw'>end</span>
-  <span class='kw'>end</span>
+  <span class='id identifier rubyid_private'>private</span>
+    <span class='kw'>def</span> <span class='id identifier rubyid_track_creation'>track_creation</span>
+      <span class='comment'># ...
+</span>    <span class='kw'>end</span>
+<span class='kw'>end</span>
 <span class='kw'>end</span>
 
 <span class='const'>Todo</span>.<span class='id identifier rubyid_ancestors'>ancestors</span>
 <span class='comment'># =&gt; [Todo, Todo::EventTracking, ApplicationRecord, Object]</span></code></pre>
-
 <p>This small step has some wonderful ripple effects. We can</p>
-<ul><li>
-<p>grok the behavior of our class in one glance,</p>
-</li><li>
-<p>clean up monolithic junk-drawer classes by separating their concerns, and</p>
-</li><li>
-<p>stop leaning on protected/private for crude “this is internal stuff” modularity.</p>
-</li></ul>
-
-<h4 id="label-Prepending+concerning">Prepending concerning</h4>
-
-<p><a href="#concerning-instance_method" title="Module::Concerning#concerning (method)">#concerning</a> supports a <code>prepend: true</code> argument which will <code>prepend</code> the concern instead of using <code>include</code> for it.</p>
-
+<ul>
+<li>grok the behavior of our class in one glance,</li>
+<li>clean up monolithic junk-drawer classes by separating their concerns, and</li>
+<li>stop leaning on protected/private for crude &quot;this is internal stuff&quot; modularity.</li>
+</ul>
+<h4 id="Prepending_concerning">Prepending concerning</h4>
+<p><a href="#concerning-instance_method" title="Module::Concerning#concerning (method)">#concerning</a> supports a <tt>prepend: true</tt> argument which will <code>prepend</code> the
+concern instead of using <code>include</code> for it.</p>
   </div>
 </div>
 </div>
@@ -225,21 +215,16 @@
   </h3>
 <div class='docstring'>
   <div class='discussion'>
-    
-<p>A low-cruft shortcut to define a concern.</p>
-
+    <p>A low-cruft shortcut to define a concern.</p>
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_concern'>concern</span> <span class='symbeg'>:</span><span class='const'>EventTracking</span> <span class='kw'>do</span>
-  <span class='comment'>#...
+<span class='comment'>#...
 </span><span class='kw'>end</span></code></pre>
-
 <p>is equivalent to</p>
-
 <pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'>EventTracking</span>
-  <span class='id identifier rubyid_extend'>extend</span> <span class='const'><a href="../ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="../ActiveSupport/Concern.html" title="ActiveSupport::Concern (module)">Concern</a></span>
+<span class='id identifier rubyid_extend'>extend</span> <span class='const'><a href="../ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="../ActiveSupport/Concern.html" title="ActiveSupport::Concern (module)">Concern</a></span>
 
-  <span class='comment'>#...
+<span class='comment'>#...
 </span><span class='kw'>end</span></code></pre>
-
   </div>
 </div>
   <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activesupport/lib/active_support/core_ext/module/concerning.rb#L132-L137'>GitHub</a>&#8202;]</span>
@@ -266,9 +251,7 @@
   </h3>
 <div class='docstring'>
   <div class='discussion'>
-    
-<p>Define a new concern and mix it in.</p>
-
+    <p>Define a new concern and mix it in.</p>
   </div>
 </div>
   <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activesupport/lib/active_support/core_ext/module/concerning.rb#L114-L117'>GitHub</a>&#8202;]</span>
