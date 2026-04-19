@@ -95,49 +95,38 @@
 <div class='docstring'>
   <div class='discussion'>
     <p>Allows views to be streamed back to the client as they are rendered.</p>
-
 <p>By default, <a href="../Rails.html" title="Rails (module)"><code>::Rails</code></a> renders views by first rendering the template and then the
 layout. The response is sent to the client after the whole template is
 rendered, all queries are made, and the layout is processed.</p>
-
 <p><code>Streaming</code> inverts the rendering flow by rendering the layout first and
 subsequently each part of the layout as they are processed. This allows the
 header of the HTML (which is usually in the layout) to be streamed back to
 client very quickly, enabling JavaScripts and stylesheets to be loaded earlier
 than usual.</p>
-
 <p>Several Rack middlewares may not work and you need to be careful when
 streaming. This is covered in more detail below, see the Streaming@Middlewares
 section.</p>
-
 <p><code>Streaming</code> can be added to a given template easily, all you need to do is to
 pass the <code>:stream</code> option to <code>render</code>.</p>
-
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>PostsController</span>
   <span class='kw'>def</span> <span class='id identifier rubyid_index'>index</span>
     <span class='ivar'>@posts</span> <span class='op'>=</span> <span class='const'>Post</span>.<span class='id identifier rubyid_all'>all</span>
     <span class='id identifier rubyid_render'>render</span> <span class='label'>stream:</span> <span class='kw'>true</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
-<h3>When to use streaming</h3>
-
+<h3 id="When_to_use_streaming">When to use streaming</h3>
 <p><code>Streaming</code> may be considered to be overkill for lightweight actions like <code>new</code>
 or <code>edit</code>. The real benefit of streaming is on expensive actions that, for
 example, do a lot of queries on the database.</p>
-
 <p>In such actions, you want to delay queries execution as much as you can. For
 example, imagine the following <code>dashboard</code> action:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_dashboard'>dashboard</span>
   <span class='ivar'>@posts</span> <span class='op'>=</span> <span class='const'>Post</span>.<span class='id identifier rubyid_all'>all</span>
   <span class='ivar'>@pages</span> <span class='op'>=</span> <span class='const'>Page</span>.<span class='id identifier rubyid_all'>all</span>
   <span class='ivar'>@articles</span> <span class='op'>=</span> <span class='const'>Article</span>.<span class='id identifier rubyid_all'>all</span>
 <span class='kw'>end</span></code></pre>
-
 <p>Most of the queries here are happening in the controller. In order to benefit
 from streaming you would want to rewrite it as:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_dashboard'>dashboard</span>
   <span class='comment'># Allow lazy execution of the queries
 </span>  <span class='ivar'>@posts</span> <span class='op'>=</span> <span class='const'>Post</span>.<span class='id identifier rubyid_all'>all</span>
@@ -145,123 +134,89 @@ from streaming you would want to rewrite it as:</p>
   <span class='ivar'>@articles</span> <span class='op'>=</span> <span class='const'>Article</span>.<span class='id identifier rubyid_all'>all</span>
   <span class='id identifier rubyid_render'>render</span> <span class='label'>stream:</span> <span class='kw'>true</span>
 <span class='kw'>end</span></code></pre>
-
 <p>Notice that <code>:stream</code> only works with templates. <a href="Rendering.html" title="ActionController::Rendering (module)"><code>Rendering</code></a> <code>:json</code> or <code>:xml</code>
-with <code>:stream</code> won&#39;t work.</p>
-
-<h3>Communication between layout and template</h3>
-
+with <code>:stream</code> won't work.</p>
+<h3 id="Communication_between_layout_and_template">Communication between layout and template</h3>
 <p>When streaming, rendering happens top-down instead of inside-out. <a href="../Rails.html" title="Rails (module)"><code>::Rails</code></a> starts
 with the layout, and the template is rendered later, when its <code>yield</code> is
 reached.</p>
-
 <p>This means that, if your application currently relies on instance variables
-set in the template to be used in the layout, they won&#39;t work once you move to
+set in the template to be used in the layout, they won't work once you move to
 streaming. The proper way to communicate between layout and template,
 regardless of whether you use streaming or not, is by using <code>content_for</code>,
 <code>provide</code>, and <code>yield</code>.</p>
-
 <p>Take a simple example where the layout expects the template to tell which
 title to use:</p>
-
 <pre class="code xml"><code class="xml">&lt;html&gt;
   &lt;head&gt;&lt;title&gt;&lt;%= yield :title %&gt;&lt;/title&gt;&lt;/head&gt;
   &lt;body&gt;&lt;%= yield %&gt;&lt;/body&gt;
 &lt;/html&gt;
 </code></pre>
-
 <p>You would use <code>content_for</code> in your template to specify the title:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='op'>&lt;</span><span class='tstring'><span class='tstring_beg'>%=</span><span class='tstring_content'> content_for :title, &quot;Main&quot; %&gt;
 Hello</span></code></pre>
-
 <p>And the final result would be:</p>
-
 <pre class="code xml"><code class="xml">&lt;html&gt;
   &lt;head&gt;&lt;title&gt;Main&lt;/title&gt;&lt;/head&gt;
   &lt;body&gt;Hello&lt;/body&gt;
 &lt;/html&gt;
 </code></pre>
-
 <p>However, if <code>content_for</code> is called several times, the final result would have
 all calls concatenated. For instance, if we have the following template:</p>
-
 <pre class="code xml"><code class="xml">&lt;%= content_for :title, &quot;Main&quot; %&gt;
 Hello
 &lt;%= content_for :title, &quot; page&quot; %&gt;
 </code></pre>
-
 <p>The final result would be:</p>
-
 <pre class="code xml"><code class="xml">&lt;html&gt;
   &lt;head&gt;&lt;title&gt;Main page&lt;/title&gt;&lt;/head&gt;
   &lt;body&gt;Hello&lt;/body&gt;
 &lt;/html&gt;
 </code></pre>
-
 <p>This means that, if you have <code>yield :title</code> in your layout and you want to use
 streaming, you would have to render the whole template (and eventually trigger
 all queries) before streaming the title and all assets, which defeats the
 purpose of streaming. Alternatively, you can use a helper called <code>provide</code>
 that does the same as <code>content_for</code> but tells the layout to stop searching for
 other entries and continue rendering.</p>
-
 <p>For instance, the template above using <code>provide</code> would be:</p>
-
 <pre class="code xml"><code class="xml">&lt;%= provide :title, &quot;Main&quot; %&gt;
 Hello
 &lt;%= content_for :title, &quot; page&quot; %&gt;
 </code></pre>
-
 <p>Resulting in:</p>
-
 <pre class="code xml"><code class="xml">&lt;html&gt;
   &lt;head&gt;&lt;title&gt;Main&lt;/title&gt;&lt;/head&gt;
   &lt;body&gt;Hello&lt;/body&gt;
 &lt;/html&gt;
 </code></pre>
-
 <p>That said, when streaming, you need to properly check your templates and
 choose when to use <code>provide</code> and <code>content_for</code>.</p>
-
 <p>See also <a href="../ActionView/Helpers/CaptureHelper.html" title="ActionView::Helpers::CaptureHelper (module)"><code>::ActionView::Helpers::CaptureHelper</code></a> for more information.</p>
-
-<h3>Headers, cookies, session, and flash</h3>
-
+<h3 id="Headers__cookies__session__and_flash">Headers, cookies, session, and flash</h3>
 <p>When streaming, the HTTP headers are sent to the client right before it
 renders the first line. This means that, modifying headers, cookies, session
 or flash after the template starts rendering will not propagate to the client.</p>
-
-<h3>Middlewares</h3>
-
-<p>Middlewares that need to manipulate the body won&#39;t work with streaming. You
+<h3 id="Middlewares">Middlewares</h3>
+<p>Middlewares that need to manipulate the body won't work with streaming. You
 should disable those middlewares whenever streaming in development or
-production. For instance, <code>Rack::Bug</code> won&#39;t work when streaming as it needs to
+production. For instance, <code>Rack::Bug</code> won't work when streaming as it needs to
 inject contents in the HTML body.</p>
-
-<p>Also <code>Rack::Cache</code> won&#39;t work with streaming as it does not support streaming
+<p>Also <code>Rack::Cache</code> won't work with streaming as it does not support streaming
 bodies yet. Whenever streaming <code>Cache-Control</code> is automatically set to
 &quot;no-cache&quot;.</p>
-
-<h3>Errors</h3>
-
+<h3 id="Errors">Errors</h3>
 <p>When it comes to streaming, exceptions get a bit more complicated. This
 happens because part of the template was already rendered and streamed to the
 client, making it impossible to render a whole exception page.</p>
-
 <p>Currently, when an exception happens in development or production, <a href="../Rails.html" title="Rails (module)"><code>::Rails</code></a> will
 automatically stream to the client:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>&gt;&lt;script&gt;window.location = </span><span class='tstring_end'>&quot;</span></span><span class='op'>/</span><span class='int'>500</span>.<span class='id identifier rubyid_html'>html</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>&lt;/script&gt;&lt;/html&gt;</span></code></pre>
-
 <p>The first two characters (<code>&quot;&gt;</code>) are required in case the exception happens
 while rendering attributes for a given tag. You can check the real cause for
 the exception in your logger.</p>
-
-<h3>Web server support</h3>
-
+<h3 id="Web_server_support">Web server support</h3>
 <p><a href="../Rack.html" title="Rack (module)"><code>::Rack</code></a> 3+ compatible servers all support streaming.</p>
-
   </div>
 </div>
 </div>
@@ -286,9 +241,7 @@ the exception in your logger.</p>
   </h3>
 <div class='docstring'>
   <div class='discussion'>
-    
-<p>Call render_body if we are streaming instead of usual <code>render</code>.</p>
-
+    <p>Call render_body if we are streaming instead of usual <code>render</code>.</p>
   </div>
 </div>
   <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/8-1-stable/actionpack/lib/action_controller/metal/streaming.rb#L172-L181'>GitHub</a>&#8202;]</span>

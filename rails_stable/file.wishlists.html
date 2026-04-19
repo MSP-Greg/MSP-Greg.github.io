@@ -62,62 +62,44 @@
   </header>
 <div id='content' class='file'>
 <p><strong>DO NOT READ THIS FILE ON GITHUB, GUIDES ARE PUBLISHED ON <a href="https://guides.rubyonrails.org">https://guides.rubyonrails.org</a>.</strong></p>
-
-<h1>Wishlists</h1>
-
+<h1 id="Wishlists">Wishlists</h1>
 <p>This guide covers adding Wishlists to the e-commerce application you created in the
 <a href="getting_started.html">Getting Started Guide</a>). We will use the code from the
 <a href="sign_up_and_settings.html">Sign up and Settings Guide</a> as a starting place.</p>
-
 <p>After reading this guide, you will know how to:</p>
-
 <ul>
 <li>Add wishlists</li>
 <li>Use counter caches</li>
 <li>Add friendly URLs</li>
 <li>Filter records</li>
 </ul>
-
-<hr>
-
-<h2>Introduction</h2>
-
+<hr />
+<h2 id="Introduction">Introduction</h2>
 <p>E-commerce stores often have wishlists for sharing products. Customers can use
-wishlists to keep track of products they&#39;d like to buy or share them with
+wishlists to keep track of products they'd like to buy or share them with
 friends and family for gift ideas.</p>
-
-<p>Let&#39;s get started!</p>
-
-<h2>Wishlist Models</h2>
-
+<p>Let's get started!</p>
+<h2 id="Wishlist_Models">Wishlist Models</h2>
 <p>Our e-commerce store has products and users that we already built in the previous
 tutorials. These are the foundations we need to build Wishlists. Each wishlist
 belongs to a user and contains a list of products.</p>
-
-<p>Let&#39;s start by creating the <code>Wishlist</code> model.</p>
-
+<p>Let's start by creating the <code>Wishlist</code> model.</p>
 <pre class="code bash"><code class="bash">$ bin/rails generate model Wishlist user:belongs_to name products_count:integer
 </code></pre>
-
 <p>This model has 3 attributes:</p>
-
 <ul>
 <li><code>user:belongs_to</code> which associates the <code>Wishlist</code> with the <code>User</code> who
 owns it</li>
-<li><code>name</code> which we&#39;ll also use for friendly URLs</li>
+<li><code>name</code> which we'll also use for friendly URLs</li>
 <li><code>products_count</code> for the <a href="https://guides.rubyonrails.org/association_basics.html#counter-cache">counter cache</a> to count how many products
 are on the Wishlist</li>
 </ul>
-
 <p>To associate a <code>Wishlist</code> with multiple <code>Products</code>, we need to add a table to
 join them.</p>
-
 <pre class="code bash"><code class="bash">$ bin/rails generate model WishlistProduct product:belongs_to wishlist:belongs_to
 </code></pre>
-
-<p>We don&#39;t want the same <code>Product</code> to be on a <code>Wishlist</code> multiple times, so let&#39;s
+<p>We don't want the same <code>Product</code> to be on a <code>Wishlist</code> multiple times, so let's
 add an index to the migration that was just created:</p>
-
 <pre class="code ruby#10"><code class="ruby#10">class CreateWishlistProducts &lt; ActiveRecord::Migration[8.0]
   def change
     create_table :wishlist_products do |t|
@@ -131,21 +113,15 @@ add an index to the migration that was just created:</p>
   end
 end
 </code></pre>
-
-<p>Finally, let&#39;s add a counter to the <code>Product</code> model to keep track of how many
+<p>Finally, let's add a counter to the <code>Product</code> model to keep track of how many
 <code>Wishlists</code> the product is on.</p>
-
 <pre class="code bash"><code class="bash">$ bin/rails generate migration AddWishlistsCountToProducts wishlists_count:integer
 </code></pre>
-
-<h3>Default Counter Cache Values</h3>
-
-<p>Before we run these new migrations, let&#39;s set a default value for the counter
+<h3 id="Default_Counter_Cache_Values">Default Counter Cache Values</h3>
+<p>Before we run these new migrations, let's set a default value for the counter
 cache columns so that all existing records start with a count of zero instead of NULL.</p>
-
 <p>Open the <code>db/migrate/&lt;timestamp&gt;_create_wishlists.rb</code> migration and add the
 default option:</p>
-
 <pre class="code ruby#6"><code class="ruby#6">class CreateWishlists &lt; ActiveRecord::Migration[8.0]
   def change
     create_table :wishlists do |t|
@@ -158,29 +134,21 @@ default option:</p>
   end
 end
 </code></pre>
-
 <p>Then open <code>db/migrate/&lt;timestamp&gt;_add_wishlists_count_to_products.rb</code> and add a
 default here too:</p>
-
 <pre class="code ruby#3"><code class="ruby#3">class AddWishlistsCountToProducts &lt; ActiveRecord::Migration[8.0]
   def change
     add_column :products, :wishlists_count, :integer, default: 0
   end
 end
 </code></pre>
-
-<p>Now let&#39;s run the migrations:</p>
-
+<p>Now let's run the migrations:</p>
 <pre class="code bash"><code class="bash">$ bin/rails db:migrate
 </code></pre>
-
-<h3>Associations &amp; Counter Caches</h3>
-
-<p>Now that our database tables are created, let&#39;s update our models in Rails to
+<h3 id="Associations___Counter_Caches">Associations &amp; Counter Caches</h3>
+<p>Now that our database tables are created, let's update our models in Rails to
 include these new associations.</p>
-
 <p>In <code>app/models/user.rb</code>, add the following:</p>
-
 <pre class="code ruby#4"><code class="ruby#4">class User &lt; ApplicationRecord
   has_secure_password
   has_many :sessions, dependent: :destroy
@@ -188,12 +156,9 @@ include these new associations.</p>
 
   # ...
 </code></pre>
-
 <p>We set <code>dependent: :destroy</code> on the <code>wishlists</code> association so when a User is
 deleted, their wishlists are deleted too.</p>
-
 <p>Then in <code>app/models/product.rb</code>, add:</p>
-
 <pre class="code ruby#4-5"><code class="ruby#4-5">class Product &lt; ApplicationRecord
   include Notifications
 
@@ -202,20 +167,16 @@ deleted, their wishlists are deleted too.</p>
   has_one_attached :featured_image
   has_rich_text :description
 </code></pre>
-
 <p>We added two associations to <code>Product</code>. First, we associate the <code>Product</code> model
 with the <code>WishlistProduct</code> join table. Using this join table, our second
 association tells Rails that a <code>Product</code> is a part of many <code>Wishlists</code> through
 the same <code>WishlistProduct</code> join table. From a <code>Product</code> record, we can directly
 access the <code>Wishlists</code> and Rails will know to automatically <code>JOIN</code> the tables in
 SQL queries.</p>
-
 <p>We also set <code>wishlist_products</code> as <code>dependent: :destroy</code>. When a <code>Product</code> is
 destroyed, it will be automatically removed from any Wishlists.</p>
-
-<p>A counter cache stores the number of associated records to avoid running a separate query each time the count is needed. So in <code>app/models/wishlist_product.rb</code>, let&#39;s update both associations to enable counter
+<p>A counter cache stores the number of associated records to avoid running a separate query each time the count is needed. So in <code>app/models/wishlist_product.rb</code>, let's update both associations to enable counter
 caching:</p>
-
 <pre class="code ruby#2-5"><code class="ruby#2-5">class WishlistProduct &lt; ApplicationRecord
   belongs_to :product, counter_cache: :wishlists_count
   belongs_to :wishlist, counter_cache: :products_count
@@ -223,36 +184,27 @@ caching:</p>
   validates :product_id, uniqueness: { scope: :wishlist_id }
 end
 </code></pre>
-
-<p>We&#39;ve specified a column name to update on the associated models. For the
+<p>We've specified a column name to update on the associated models. For the
 <code>Product</code> model, we want to use the <code>wishlists_count</code> column and for <code>Wishlist</code> we
 want to use <code>products_count</code>. These counter caches update anytime a
 <code>WishlistProduct</code> is created or destroyed.</p>
-
 <p>The <code>uniqueness</code> validation also tells Rails to check if a product is already on
 the wishlist. This is paired with the unique index on the wishlist_product table
-so that it&#39;s also validated at the database level.</p>
-
-<p>Finally, let&#39;s update <code>app/models/wishlist.rb</code> with it&#39;s associations:</p>
-
+so that it's also validated at the database level.</p>
+<p>Finally, let's update <code>app/models/wishlist.rb</code> with it's associations:</p>
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Wishlist</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
   <span class='id identifier rubyid_belongs_to'>belongs_to</span> <span class='symbeg'>:</span><span class='id identifier rubyid_user'>user</span>
   <span class='id identifier rubyid_has_many'>has_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_wishlist_products'>wishlist_products</span><span class='comma'>,</span> <span class='label'>dependent:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_destroy'>destroy</span>
   <span class='id identifier rubyid_has_many'>has_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_products'>products</span><span class='comma'>,</span> <span class='label'>through:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_wishlist_products'>wishlist_products</span>
 <span class='kw'>end</span></code></pre>
-
 <p>Just like with <code>Product</code>, <code>wishlist_products</code> uses the <code>dependent: :destroy</code>
 option to automatically remove join table records when a Wishlist is deleted.</p>
-
-<h3>Friendly URLs</h3>
-
+<h3 id="Friendly_URLs">Friendly URLs</h3>
 <p>Wishlists are often shared with friends and family. By default, the ID in the
-URL for a <code>Wishlist</code> is a simple Integer. This means we can&#39;t easily look at the
-URL to determine which <code>Wishlist</code> it&#39;s for.</p>
-
+URL for a <code>Wishlist</code> is a simple Integer. This means we can't easily look at the
+URL to determine which <code>Wishlist</code> it's for.</p>
 <p>Active Record has a <code>to_param</code> class method that can be used for generating more descriptive
-URLs. Let&#39;s try it out in our model:</p>
-
+URLs. Let's try it out in our model:</p>
 <pre class="code ruby#6-8"><code class="ruby#6-8">class Wishlist &lt; ApplicationRecord
   belongs_to :user
   has_many :wishlist_products, dependent: :destroy
@@ -263,31 +215,23 @@ URLs. Let&#39;s try it out in our model:</p>
   end
 end
 </code></pre>
-
 <p>This will create a <code>to_param</code>  instance method that returns a String for the URL param made up of the <code>id</code> and <code>name</code> joined by
 hyphens. <code>name</code> is made URL safe by using
 <a href="https://api.rubyonrails.org/classes/String.html#method-i-squish"><code>squish</code></a> to
 clean up whitespace and
 <a href="https://api.rubyonrails.org/classes/String.html#method-i-parameterize"><code>parameterize</code></a>
 to replace special characters.</p>
-
-<p>Let&#39;s test this in the Rails console:</p>
-
+<p>Let's test this in the Rails console:</p>
 <pre class="code bash"><code class="bash">$ bin/rails console
 </code></pre>
-
 <p>Then create a <code>Wishlist</code> for your <code>User</code> in the database:</p>
-
 <pre class="code irb"><code class="irb">store(dev)&gt; user = User.first
 store(dev)&gt; wishlist = user.wishlists.create!(name: &quot;Example Wishlist&quot;)
 store(dev)&gt; wishlist.to_param
 =&gt; &quot;1-example-wishlist&quot;
 </code></pre>
-
 <p>Perfect!</p>
-
-<p>Now let&#39;s try finding this record using this param:</p>
-
+<p>Now let's try finding this record using this param:</p>
 <pre class="code irb"><code class="irb">store(dev)&gt; wishlist = Wishlist.find(&quot;1-example-wishlist&quot;)
 =&gt; #&lt;Wishlist:0x000000012bb71d68
  id: 1,
@@ -297,24 +241,18 @@ store(dev)&gt; wishlist.to_param
  created_at: &quot;2025-07-22 15:21:29.036470000 +0000&quot;,
  updated_at: &quot;2025-07-22 15:21:29.036470000 +0000&quot;&gt;
 </code></pre>
-
-<p>It worked! But how? Didn&#39;t we have to use Integers to find records?</p>
-
-<p>The way we&#39;re using <code>to_param</code> takes advantage of <a href="https://docs.ruby-lang.org/en/master/String.html#method-i-to_i">how Ruby converts Strings to
-Integers</a>. Let&#39;s convert that param to an integer using <code>to_i</code> in the console:</p>
-
+<p>It worked! But how? Didn't we have to use Integers to find records?</p>
+<p>The way we're using <code>to_param</code> takes advantage of <a href="https://docs.ruby-lang.org/en/master/String.html#method-i-to_i">how Ruby converts Strings to
+Integers</a>. Let's convert that param to an integer using <code>to_i</code> in the console:</p>
 <pre class="code irb"><code class="irb">store(dev)&gt; &quot;1-example-wishlist&quot;.to_i
 =&gt; 1
 </code></pre>
-
-<p>Ruby parses the String until it finds a character that isn&#39;t a valid number. In
+<p>Ruby parses the String until it finds a character that isn't a valid number. In
 this case, it stops at the first hyphen. Then Ruby converts the String of <code>&quot;1&quot;</code>
 into an Integer and returns <code>1</code>. This makes <code>to_param</code> work seamlessly when
 prefixing the ID at the beginning.</p>
-
-<p>Now that we understand how this works, let&#39;s replace our <code>to_param</code> method with
+<p>Now that we understand how this works, let's replace our <code>to_param</code> method with
 a call to the class method shortcut.</p>
-
 <pre class="code ruby#6"><code class="ruby#6">class Wishlist &lt; ApplicationRecord
   belongs_to :user
   has_many :wishlist_products, dependent: :destroy
@@ -323,51 +261,37 @@ a call to the class method shortcut.</p>
   to_param :name
 end
 </code></pre>
-
 <p>The
 <a href="https://edgeapi.rubyonrails.org/classes/ActiveRecord/Integration/ClassMethods.html#method-i-to_param"><code>to_param</code></a>
 class method defines an instance method with the same name. The argument is the
-method name to be called for generating the param. We&#39;re telling it to use the
+method name to be called for generating the param. We're telling it to use the
 <code>name</code> attribute to generate the param.</p>
-
 <p>One additional thing <code>to_param</code> does is truncate values longer than 20
 characters word by word.</p>
-
-<p>Let&#39;s reload our code in the Rails console and test out a long <code>Wishlist</code> name.</p>
-
+<p>Let's reload our code in the Rails console and test out a long <code>Wishlist</code> name.</p>
 <pre class="code irb"><code class="irb">store(dev)&gt; reload!
 store(dev)&gt; Wishlist.last.update(name: &quot;A really, really long wishlist name!&quot;)
 store(dev)&gt; Wishlist.last.to_param
 =&gt; &quot;1-a-really-really-long&quot;
 </code></pre>
-
 <p>You can see that the name was truncated to the closest word to 20 characters.</p>
-
-<p>Alright, close the Rails console and let&#39;s start implementing wishlists in the UI.</p>
-
-<h2>Adding Products To Wishlists</h2>
-
+<p>Alright, close the Rails console and let's start implementing wishlists in the UI.</p>
+<h2 id="Adding_Products_To_Wishlists">Adding Products To Wishlists</h2>
 <p>The first place a user will probably use wishlists is on the <code>Product</code> show page.
-They&#39;ll likely be browsing products and want to save one for later. Let&#39;s begin
+They'll likely be browsing products and want to save one for later. Let's begin
 by building that first.</p>
-
-<h3>Add To Wishlist Form</h3>
-
+<h3 id="Add_To_Wishlist_Form">Add To Wishlist Form</h3>
 <p>Start in <code>config/routes.rb</code> by adding the route for this form to submit to:</p>
-
 <pre class="code ruby#2"><code class="ruby#2">  resources :products do
     resource :wishlist, only: [ :create ], module: :products
     resources :subscribers, only: [ :create ]
   end
 </code></pre>
-
-<p>We&#39;re using a singular resource for this route since we won&#39;t necessarily know
-the Wishlist ID ahead of time. We&#39;re also using <code>module: :products</code> to scope
+<p>We're using a singular resource for this route since we won't necessarily know
+the Wishlist ID ahead of time. We're also using <code>module: :products</code> to scope
 this controller to the <code>Products</code> namespace.</p>
-
 <p>In <code>app/views/products/show.html.erb</code>, add the following to render a new
 wishlist partial:</p>
-
 <pre class="code xml"><code class="xml">&lt;p&gt;&lt;%= link_to &quot;Back&quot;, products_path %&gt;&lt;/p&gt;
 
 &lt;section class=&quot;product&quot;&gt;
@@ -384,9 +308,7 @@ wishlist partial:</p>
   &lt;/section&gt;
 &lt;/section&gt;
 </code></pre>
-
 <p>Then create <code>app/views/products/_wishlist.html.erb</code> with the following:</p>
-
 <pre class="code xml"><code class="xml">&lt;% if authenticated? %&gt;
   &lt;%= form_with url: product_wishlist_path(product) do |form| %&gt;
     &lt;div&gt;
@@ -401,13 +323,10 @@ wishlist partial:</p>
   &lt;%= link_to &quot;Add to wishlist&quot;, sign_up_path %&gt;
 &lt;% end %&gt;
 </code></pre>
-
-<p>If a user is not logged in, they&#39;ll see a link to sign up. Logged in users will
+<p>If a user is not logged in, they'll see a link to sign up. Logged in users will
 see a form to select a wishlist and add the product to it.</p>
-
 <p>Next, create the controller to handle this form in
 <code>app/controllers/products/wishlists_controller.rb</code> with the following:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Products</span><span class='op'>::</span><span class='const'>WishlistsController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
   <span class='id identifier rubyid_before_action'>before_action</span> <span class='symbeg'>:</span><span class='id identifier rubyid_set_product'>set_product</span>
   <span class='id identifier rubyid_before_action'>before_action</span> <span class='symbeg'>:</span><span class='id identifier rubyid_set_wishlist'>set_wishlist</span>
@@ -426,43 +345,30 @@ see a form to select a wishlist and add the product to it.</p>
       <span class='ivar'>@wishlist</span> <span class='op'>=</span> <span class='const'>Current</span>.<span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_wishlists'>wishlists</span>.<span class='id identifier rubyid_find'>find</span>(<span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_wishlist_id'>wishlist_id</span>])
     <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
-<p>Since we&#39;re in a nested resource route, we find the <code>Product</code> using the
+<p>Since we're in a nested resource route, we find the <code>Product</code> using the
 <code>:product_id</code> param.</p>
-
 <p>The <code>create</code> action is also simpler than normal. If a product is already on the
-wishlist, the <code>wishlist_product</code> record will fail to create but we don&#39;t need to
+wishlist, the <code>wishlist_product</code> record will fail to create but we don't need to
 notify the user of this error so we can redirect to the wishlist in either case.</p>
-
 <p>Now, log in as the user we created a wishlist for earlier and try adding a product to the
 wishlist.</p>
-
-<h3>Default Wishlist</h3>
-
+<h3 id="Default_Wishlist">Default Wishlist</h3>
 <p>This works fine since we created a wishlist in the Rails console, but what
-happens when the user doesn&#39;t have any wishlists?</p>
-
+happens when the user doesn't have any wishlists?</p>
 <p>Run the following to delete all wishlists in the database:</p>
-
 <pre class="code bash"><code class="bash">$ bin/rails runner &quot;Wishlist.destroy_all&quot;
 </code></pre>
-
 <p>Try visiting a product and adding it to a wishlist now.</p>
-
 <p>The first problem is the select box will be empty. The form will not submit a
 <code>wishlist_id</code> param to the server and that will cause Active Record to raise an
 error.</p>
-
 <pre class="code bash"><code class="bash">ActiveRecord::RecordNotFound (Couldn&#39;t find Wishlist without an ID):
 
 app/controllers/products/wishlists_controller.rb:16:in &#39;Products::WishlistsController#set_wishlist&#39;
 </code></pre>
-
-<p>In this case, we should automatically create a wishlist if the user doesn&#39;t have
+<p>In this case, we should automatically create a wishlist if the user doesn't have
 any. This has the added bonus of slowly introducing the user to wishlists.</p>
-
 <p>Update <code>set_wishlist</code> in the controller to find or create a wishlist:</p>
-
 <pre class="code ruby#16-20"><code class="ruby#16-20">class Products::WishlistsController &lt; ApplicationController
   before_action :set_product
   before_action :set_wishlist
@@ -486,10 +392,8 @@ any. This has the added bonus of slowly introducing the user to wishlists.</p>
     end
 end
 </code></pre>
-
-<p>To improve our form, let&#39;s hide the select box if the user doesn&#39;t have any
+<p>To improve our form, let's hide the select box if the user doesn't have any
 wishlists. Update <code>app/views/products/_wishlist.html.erb</code> with the following:</p>
-
 <pre class="code xml"><code class="xml">&lt;% if authenticated? %&gt;
   &lt;%= form_with url: product_wishlist_path(product) do |form| %&gt;
     &lt;% if Current.user.wishlists.any? %&gt;
@@ -506,15 +410,10 @@ wishlists. Update <code>app/views/products/_wishlist.html.erb</code> with the fo
   &lt;%= link_to &quot;Add to wishlist&quot;, sign_up_path %&gt;
 &lt;% end %&gt;
 </code></pre>
-
-<h2>Managing Wishlists</h2>
-
+<h2 id="Managing_Wishlists">Managing Wishlists</h2>
 <p>Next, we need to be able to view and manage our wishlists.</p>
-
-<h3>Wishlists Controller</h3>
-
+<h3 id="Wishlists_Controller">Wishlists Controller</h3>
 <p>Start by adding a route for wishlists at the top level:</p>
-
 <pre class="code ruby#9"><code class="ruby#9">Rails.application.routes.draw do
   # ...
   resources :products do
@@ -525,10 +424,8 @@ wishlists. Update <code>app/views/products/_wishlist.html.erb</code> with the fo
 
   resources :wishlists
 </code></pre>
-
 <p>Then we can add the controller at <code>app/controllers/wishlists_controller.rb</code> with
 the following:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>WishlistsController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
   <span class='id identifier rubyid_allow_unauthenticated_access'>allow_unauthenticated_access</span> <span class='label'>only:</span> <span class='qsymbols'><span class='qsymbols_beg'>%i[</span><span class='words_sep'> </span><span class='tstring_content'>show</span><span class='words_sep'> </span><span class='tstring_end'>]</span></span>
   <span class='id identifier rubyid_before_action'>before_action</span> <span class='symbeg'>:</span><span class='id identifier rubyid_set_wishlist'>set_wishlist</span><span class='comma'>,</span> <span class='label'>only:</span> <span class='qsymbols'><span class='qsymbols_beg'>%i[</span><span class='words_sep'> </span><span class='tstring_content'>edit</span><span class='words_sep'> </span><span class='tstring_content'>update</span><span class='words_sep'> </span><span class='tstring_content'>destroy</span><span class='words_sep'> </span><span class='tstring_end'>]</span></span>
@@ -580,46 +477,33 @@ the following:</p>
     <span class='id identifier rubyid_params'>params</span>.<span class='id identifier rubyid_expect'>expect</span>(<span class='label'>wishlist:</span> [ <span class='symbeg'>:</span><span class='id identifier rubyid_name'>name</span> ])
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
 <p>This is a very standard controller with a couple important changes:</p>
-
 <ul>
 <li>Actions are scoped to <code>Current.user.wishlists</code> so only the owner can create,
 update, and delete their own wishlists</li>
 <li><code>show</code> is publicly accessible so wishlists can be shared and viewed by anyone</li>
 </ul>
-
-<h3>Wishlist Views</h3>
-
+<h3 id="Wishlist_Views">Wishlist Views</h3>
 <p>Create the index view at <code>app/views/wishlists/index.html.erb</code>:</p>
-
 <pre class="code xml"><code class="xml">&lt;h1&gt;Your Wishlists&lt;/h1&gt;
 &lt;%= link_to &quot;Create a wishlist&quot;, new_wishlist_path %&gt;
 &lt;%= render @wishlists %&gt;
 </code></pre>
-
-<p>This renders the <code>_wishlist</code> partial so let&#39;s create that at
+<p>This renders the <code>_wishlist</code> partial so let's create that at
 <code>app/views/wishlists/_wishlist.html.erb</code>:</p>
-
 <pre class="code xml"><code class="xml">&lt;div&gt;
   &lt;%= link_to wishlist.name, wishlist %&gt;
 &lt;/div&gt;
 </code></pre>
-
-<p>Next let&#39;s create the <code>new</code> view at <code>app/views/wishlists/new.html.erb</code>:</p>
-
+<p>Next let's create the <code>new</code> view at <code>app/views/wishlists/new.html.erb</code>:</p>
 <pre class="code xml"><code class="xml">&lt;h1&gt;New Wishlist&lt;/h1&gt;
 &lt;%= render &quot;form&quot;, locals: { wishlist: @wishlist } %&gt;
 </code></pre>
-
 <p>And the <code>edit</code> view at <code>app/views/wishlists/edit.html.erb</code>:</p>
-
 <pre class="code xml"><code class="xml">&lt;h1&gt;Edit Wishlist&lt;/h1&gt;
 &lt;%= render &quot;form&quot;, locals: { wishlist: @wishlist } %&gt;
 </code></pre>
-
 <p>Along with the <code>_form</code> partial at <code>app/views/wishlists/_form.html.erb</code>:</p>
-
 <pre class="code xml"><code class="xml">&lt;%= form_with model: @wishlist do |form| %&gt;
   &lt;% if form.object.errors.any? %&gt;
     &lt;div&gt;&lt;%= form.object.errors.full_messages.to_sentence %&gt;&lt;/div&gt;
@@ -636,9 +520,7 @@ update, and delete their own wishlists</li>
   &lt;/div&gt;
 &lt;% end %&gt;
 </code></pre>
-
 <p>Create <code>show</code> next at <code>app/views/wishlists/show.html.erb</code>:</p>
-
 <pre class="code xml"><code class="xml">&lt;h1&gt;&lt;%= @wishlist.name %&gt;&lt;/h1&gt;
 &lt;% if authenticated? &amp;&amp; @wishlist.user == Current.user %&gt;
   &lt;%= link_to &quot;Edit&quot;, edit_wishlist_path(@wishlist) %&gt;
@@ -653,10 +535,8 @@ update, and delete their own wishlists</li>
   &lt;/div&gt;
 &lt;% end %&gt;
 </code></pre>
-
-<p>Lastly, let&#39;s add a link to the navbar in
+<p>Lastly, let's add a link to the navbar in
 <code>app/views/layouts/application.html.erb</code>:</p>
-
 <pre class="code erb#4"><code class="erb#4">    &lt;nav class=&quot;navbar&quot;&gt;
       &lt;%= link_to &quot;Home&quot;, root_path %&gt;
       &lt;% if authenticated? %&gt;
@@ -669,19 +549,13 @@ update, and delete their own wishlists</li>
       &lt;% end %&gt;
     &lt;/nav&gt;
 </code></pre>
-
 <p>Refresh the page and click the &quot;Wishlists&quot; link in the navbar to view and manage your
 wishlists.</p>
-
-<h3>Copy To Clipboard</h3>
-
+<h3 id="Copy_To_Clipboard">Copy To Clipboard</h3>
 <p>To make sharing wishlists easier, we can add a “Copy to Clipboard” button that uses a small amount of JavaScript.</p>
-
 <p>Rails includes Hotwire by default, so we can use its <a href="https://stimulus.hotwired.dev/">Stimulus framework</a>
- to add some lightweight JavaScript to our UI.</p>
-
-<p>First, let&#39;s add a button to <code>app/views/wishlists/show.html.erb</code>:</p>
-
+to add some lightweight JavaScript to our UI.</p>
+<p>First, let's add a button to <code>app/views/wishlists/show.html.erb</code>:</p>
 <pre class="code xml"><code class="xml">&lt;h1&gt;&lt;%= @wishlist.name %&gt;&lt;/h1&gt;
 &lt;% if authenticated? &amp;&amp; @wishlist.user == Current.user %&gt;
   &lt;%= link_to &quot;Edit&quot;, edit_wishlist_path(@wishlist) %&gt;
@@ -690,29 +564,23 @@ wishlists.</p>
 
 &lt;%= tag.button &quot;Copy to clipboard&quot;, data: { controller: :clipboard, action: &quot;clipboard#copy&quot;, clipboard_text_value: wishlist_url(@wishlist) } %&gt;
 </code></pre>
-
-<p>This button has several data attributes that wire up to the JavaScript. We&#39;re
+<p>This button has several data attributes that wire up to the JavaScript. We're
 using the Rails <code>tag</code> helper to make this shorter which outputs the following
 HTML:</p>
-
 <pre class="code xml"><code class="xml">&lt;button data-controller=&quot;clipboard&quot; data-action=&quot;clipboard#copy&quot; data-clipboard-text-value=&quot;/wishlists/1-example-wishlist&quot;&gt;
   Copy to clipboard
 &lt;/button&gt;
 </code></pre>
-
-<p>What do these data attributes do? Let&#39;s break down each one:</p>
-
+<p>What do these data attributes do? Let's break down each one:</p>
 <ul>
 <li><code>data-controller</code> tells Stimulus to connect to <code>clipboard_controller.js</code></li>
 <li><code>data-action</code> tells Stimulus to call the
-<code>clipboard</code> controller&#39;s <code>copy()</code> method when the button is clicked</li>
+<code>clipboard</code> controller's <code>copy()</code> method when the button is clicked</li>
 <li><code>data-clipboard-text-value</code> tells the Stimulus controller it has some data
 called <code>text</code> that it can use</li>
 </ul>
-
 <p>Create the Stimulus controller at
 <code>app/javascript/controllers/clipboard_controller.js</code>:</p>
-
 <pre class="code javascript"><code class="javascript">import { Controller } from &quot;@hotwired/stimulus&quot;
 
 export default class extends Controller {
@@ -723,30 +591,22 @@ export default class extends Controller {
   }
 }
 </code></pre>
-
 <p>This Stimulus controller is short. It does two things:</p>
-
 <ul>
 <li>Registers <code>text</code> as a value so we can access it. This is the URL we want to
 copy to the clipboard.</li>
 <li>The <code>copy</code> function writes the <code>text</code> from the HTML to the clipboard when
 called.</li>
 </ul>
-
-<p>If you&#39;re familiar with JavaScript, you&#39;ll notice we didn&#39;t have to add any event listeners or setup &amp; teardown this
-controller. That&#39;s handled automatically by Stimulus reading the data attributes
+<p>If you're familiar with JavaScript, you'll notice we didn't have to add any event listeners or setup &amp; teardown this
+controller. That's handled automatically by Stimulus reading the data attributes
 in our HTML.</p>
-
 <p>To learn more about Stimulus, check out the
 <a href="https://stimulus.hotwired.dev/">Stimulus</a> website.</p>
-
-<h3>Removing Products</h3>
-
+<h3 id="Removing_Products">Removing Products</h3>
 <p>A user may purchase or lose interest in a product and want to remove it from
-their wishlist. Let&#39;s add that feature next.</p>
-
-<p>First we&#39;ll update the wishlists route to contain a nested resource.</p>
-
+their wishlist. Let's add that feature next.</p>
+<p>First we'll update the wishlists route to contain a nested resource.</p>
 <pre class="code ruby#9-11"><code class="ruby#9-11">Rails.application.routes.draw do
   # ...
   resources :products do
@@ -759,10 +619,8 @@ their wishlist. Let&#39;s add that feature next.</p>
     resources :wishlist_products, only: [ :update, :destroy ], module: :wishlists
   end
 </code></pre>
-
 <p>Then we can update <code>app/views/wishlists/show.html.erb</code> to include a &quot;Remove&quot;
 button:</p>
-
 <pre class="code xml"><code class="xml">&lt;h1&gt;&lt;%= @wishlist.name %&gt;&lt;/h1&gt;
 &lt;% if authenticated? &amp;&amp; @wishlist.user == Current.user %&gt;
   &lt;%= link_to &quot;Edit&quot;, edit_wishlist_path(@wishlist) %&gt;
@@ -781,10 +639,8 @@ button:</p>
   &lt;/div&gt;
 &lt;% end %&gt;
 </code></pre>
-
 <p>Create <code>app/controllers/wishlists/wishlist_products_controller.rb</code> and add the
 following:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Wishlists</span><span class='op'>::</span><span class='const'>WishlistProductsController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
   <span class='id identifier rubyid_before_action'>before_action</span> <span class='symbeg'>:</span><span class='id identifier rubyid_set_wishlist'>set_wishlist</span>
   <span class='id identifier rubyid_before_action'>before_action</span> <span class='symbeg'>:</span><span class='id identifier rubyid_set_wishlist_product'>set_wishlist_product</span>
@@ -804,16 +660,11 @@ following:</p>
     <span class='ivar'>@wishlist_product</span> <span class='op'>=</span> <span class='ivar'>@wishlist</span>.<span class='id identifier rubyid_wishlist_products'>wishlist_products</span>.<span class='id identifier rubyid_find'>find</span>(<span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span>])
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
 <p>You can now remove products from any wishlist. Try it out!</p>
-
-<h3>Moving Products To Another Wishlist</h3>
-
+<h3 id="Moving_Products_To_Another_Wishlist">Moving Products To Another Wishlist</h3>
 <p>With multiple wishlists, users may want to move a product from one list to
 another. For example, they might want to move items into a &quot;Christmas&quot; wishlist.</p>
-
 <p>In <code>app/views/wishlists/show.html.erb</code>, add the following:</p>
-
 <pre class="code xml"><code class="xml">&lt;h1&gt;&lt;%= @wishlist.name %&gt;&lt;/h1&gt;
 &lt;% if authenticated? &amp;&amp; @wishlist.user == Current.user %&gt;
   &lt;%= link_to &quot;Edit&quot;, edit_wishlist_path(@wishlist) %&gt;
@@ -839,14 +690,11 @@ another. For example, they might want to move items into a &quot;Christmas&quot;
   &lt;/div&gt;
 &lt;% end %&gt;
 </code></pre>
-
 <p>This queries for other wishlists and, if present, renders a form to move a
 product to the selected wishlist. If no other wishlists exist, the form will not
 be displayed.</p>
-
-<p>To handle this in the controller, we&#39;ll add the <code>update</code> action to
+<p>To handle this in the controller, we'll add the <code>update</code> action to
 <code>app/controllers/wishlists/wishlist_products_controller.rb</code>:</p>
-
 <pre class="code ruby#5-12"><code class="ruby#5-12">class Wishlists::WishlistProductsController &lt; ApplicationController
   before_action :set_wishlist
   before_action :set_wishlist_product
@@ -862,24 +710,18 @@ be displayed.</p>
 
   # ...
 </code></pre>
-
-<p>This action looks up the new wishlist from the logged in user&#39;s wishlists. It
+<p>This action looks up the new wishlist from the logged in user's wishlists. It
 then tries to update the wishlist ID on <code>@wishlist_product</code>. This could fail if
-the product already exists on the other wishlist so we&#39;ll display an error in
+the product already exists on the other wishlist so we'll display an error in
 that case. If not, we can simply transfer the product to the new wishlist. Since
-we don&#39;t want the user to lose their place, we redirect back to the current
-wishlist they&#39;re viewing in either case.</p>
-
+we don't want the user to lose their place, we redirect back to the current
+wishlist they're viewing in either case.</p>
 <p>Test this out by creating a second wishlist and moving a product back and forth.</p>
-
-<h2>Adding Wishlists To Admin</h2>
-
+<h2 id="Adding_Wishlists_To_Admin">Adding Wishlists To Admin</h2>
 <p>Viewing wishlists in the admin area will be helpful to get an idea of which
 products are popular.</p>
-
-<p>To start, let&#39;s add wishlists to the store namespace routes in
+<p>To start, let's add wishlists to the store namespace routes in
 <code>config/routes.rb</code>:</p>
-
 <pre class="code ruby#5"><code class="ruby#5">  # Admins Only
   namespace :store do
     resources :products
@@ -889,9 +731,7 @@ products are popular.</p>
     root to: redirect(&quot;/store/products&quot;)
   end
 </code></pre>
-
 <p>Create <code>app/controllers/store/wishlists_controller.rb</code> with:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Store</span><span class='op'>::</span><span class='const'>WishlistsController</span> <span class='op'>&lt;</span> <span class='const'>Store</span><span class='op'>::</span><span class='const'>BaseController</span>
   <span class='kw'>def</span> <span class='id identifier rubyid_index'>index</span>
     <span class='ivar'>@wishlists</span> <span class='op'>=</span> <span class='const'>Wishlist</span>.<span class='id identifier rubyid_includes'>includes</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_user'>user</span>)
@@ -901,27 +741,20 @@ products are popular.</p>
     <span class='ivar'>@wishlist</span> <span class='op'>=</span> <span class='const'>Wishlist</span>.<span class='id identifier rubyid_find'>find</span>(<span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span>])
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
-<p>We only need the index and show actions here because as admins, we don&#39;t want to
-mess with user&#39;s wishlists.</p>
-
-<p>Now let&#39;s add the views for these actions.
+<p>We only need the index and show actions here because as admins, we don't want to
+mess with user's wishlists.</p>
+<p>Now let's add the views for these actions.
 Create <code>app/views/store/wishlists/index.html.erb</code> with:</p>
-
 <pre class="code xml"><code class="xml">&lt;h1&gt;Wishlists&lt;/h1&gt;
 &lt;%= render @wishlists %&gt;
 </code></pre>
-
 <p>Then create the wishlist partial in
 <code>app/views/store/wishlists/_wishlist.html.erb</code> with:</p>
-
 <pre class="code xml"><code class="xml">&lt;div&gt;
   &lt;%= link_to wishlist.name, store_wishlist_path(wishlist) %&gt; by &lt;%= link_to wishlist.user.full_name, store_user_path(wishlist.user) %&gt;
 &lt;/div&gt;
 </code></pre>
-
 <p>Then create the show view at <code>app/views/store/wishlists/show.html.erb</code> with:</p>
-
 <pre class="code xml"><code class="xml">&lt;h1&gt;&lt;%= @wishlist.name %&gt;&lt;/h1&gt;
 &lt;p&gt;By &lt;%= link_to @wishlist.user.full_name, store_user_path(@wishlist.user) %&gt;&lt;/p&gt;
 
@@ -933,9 +766,7 @@ Create <code>app/views/store/wishlists/index.html.erb</code> with:</p>
   &lt;/div&gt;
 &lt;% end %&gt;
 </code></pre>
-
 <p>Lastly, add the link to the sidebar layout:</p>
-
 <pre class="code xml"><code class="xml">&lt;%= content_for :content do %&gt;
   &lt;section class=&quot;settings&quot;&gt;
     &lt;nav&gt;
@@ -961,16 +792,11 @@ Create <code>app/views/store/wishlists/index.html.erb</code> with:</p>
 
 &lt;%= render template: &quot;layouts/application&quot; %&gt;
 </code></pre>
-
 <p>Now we can view wishlists in the admin area.</p>
-
-<h3>Filtering Wishlists</h3>
-
-<p>To get a better look at data in the admin area, it&#39;s helpful to have filters. We
+<h3 id="Filtering_Wishlists">Filtering Wishlists</h3>
+<p>To get a better look at data in the admin area, it's helpful to have filters. We
 can filter wishlists by user or by product.</p>
-
 <p>Update <code>app/views/store/wishlists/index.html.erb</code> by adding the following form:</p>
-
 <pre class="code xml"><code class="xml">&lt;h1&gt;&lt;%= pluralize @wishlists.count, &quot;Wishlist&quot; %&gt;&lt;/h1&gt;
 
 &lt;%= form_with url: store_wishlists_path, method: :get do |form| %&gt;
@@ -981,18 +807,15 @@ can filter wishlists by user or by product.</p>
 
 &lt;%= render @wishlists %&gt;
 </code></pre>
-
-<p>We&#39;ve updated the header to show the total number of wishlists, which makes it
+<p>We've updated the header to show the total number of wishlists, which makes it
 easier to see how many results match when a filter is applied. When you submit
 the form, Rails adds your selected filters to the URL as query params. The form
 then reads those values when loading the page to automatically re-select the
 same options in the dropdowns, so your choices stay visible after submitting.
 Since the form submits to the index action, so it can display either all
 wishlists or just the filtered results.</p>
-
 <p>To make this work, we need to apply these filters in our SQL query with
 Active Record. Update the controller to include these filters:</p>
-
 <pre class="code ruby#4-5"><code class="ruby#4-5">class Store::WishlistsController &lt; Store::BaseController
   def index
     @wishlists = Wishlist.includes(:user)
@@ -1005,19 +828,14 @@ Active Record. Update the controller to include these filters:</p>
   end
 end
 </code></pre>
-
-<p>Active Record queries are <em>lazy evaluated</em> which means SQL queries aren&#39;t executed
+<p>Active Record queries are <em>lazy evaluated</em> which means SQL queries aren't executed
 until you ask for the results. This allows our controller to build up the query
 step-by-step and include filters if needed.</p>
-
 <p>Once you have more wishlists in the system, you can use the filters to view
 wishlists by a specific user, product, or a combination of both.</p>
-
-<h3>Refactoring Filters</h3>
-
-<p>Our controller has gotten a bit messy by introducing these filters. Let&#39;s move
+<h3 id="Refactoring_Filters">Refactoring Filters</h3>
+<p>Our controller has gotten a bit messy by introducing these filters. Let's move
 our logic out of the controller by extracting a method on the <code>Wishlist</code> model.</p>
-
 <pre class="code ruby#3"><code class="ruby#3">class Store::WishlistsController &lt; Store::BaseController
   def index
     @wishlists = Wishlist.includes(:user).filter_by(params)
@@ -1028,9 +846,7 @@ our logic out of the controller by extracting a method on the <code>Wishlist</co
   end
 end
 </code></pre>
-
-<p>We&#39;ll implement <code>filter_by</code> in the <code>Wishlist</code> model by defining a class method.</p>
-
+<p>We'll implement <code>filter_by</code> in the <code>Wishlist</code> model by defining a class method.</p>
 <pre class="code ruby#8-13"><code class="ruby#8-13">class Wishlist &lt; ApplicationRecord
   belongs_to :user
   has_many :wishlist_products, dependent: :destroy
@@ -1046,26 +862,19 @@ end
   end
 end
 </code></pre>
-
 <p><code>filter_by</code> is almost the same as what we had in the controller, but we start by
 calling
 <a href="https://api.rubyonrails.org/classes/ActiveRecord/Scoping/Named/ClassMethods.html#method-i-all"><code>all</code></a>
 which returns an <a href="ActiveRecord/Relation.html" title="ActiveRecord::Relation (class)"><code>::ActiveRecord::Relation</code></a> for all the records including any
 conditions we may have already applied. Then we apply the filters and return the
 results.</p>
-
 <p>Refactoring like this means the controller becomes cleaner, while the filtering logic now lives in the model where it belongs, alongside other database-related logic. This follows the <strong>Fat Model, Skinny Controller</strong> principle, a best practice in Rails.</p>
-
-<h2>Adding Subscribers To Admin</h2>
-
-<p>While we&#39;re here, we should also add the ability to view and filter subscribers in the
+<h2 id="Adding_Subscribers_To_Admin">Adding Subscribers To Admin</h2>
+<p>While we're here, we should also add the ability to view and filter subscribers in the
 admin too. This is helpful to know how many people are waiting for a product to
 go back in stock.</p>
-
-<h3>Subscriber Views</h3>
-
-<p>First, we&#39;ll add the subscribers route to the <code>store</code> namespace:</p>
-
+<h3 id="Subscriber_Views">Subscriber Views</h3>
+<p>First, we'll add the subscribers route to the <code>store</code> namespace:</p>
 <pre class="code ruby#6"><code class="ruby#6">  # Admins Only
   namespace :store do
     resources :products
@@ -1076,10 +885,8 @@ go back in stock.</p>
     root to: redirect(&quot;/store/products&quot;)
   end
 </code></pre>
-
-<p>Then, let&#39;s create the controller at
+<p>Then, let's create the controller at
 <code>app/controllers/store/subscribers_controller.rb</code>:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Store</span><span class='op'>::</span><span class='const'>SubscribersController</span> <span class='op'>&lt;</span> <span class='const'>Store</span><span class='op'>::</span><span class='const'>BaseController</span>
   <span class='id identifier rubyid_before_action'>before_action</span> <span class='symbeg'>:</span><span class='id identifier rubyid_set_subscriber'>set_subscriber</span><span class='comma'>,</span> <span class='label'>except:</span> [ <span class='symbeg'>:</span><span class='id identifier rubyid_index'>index</span> ]
 
@@ -1100,15 +907,11 @@ go back in stock.</p>
       <span class='ivar'>@subscriber</span> <span class='op'>=</span> <span class='const'>Subscriber</span>.<span class='id identifier rubyid_find'>find</span>(<span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span>])
     <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
-<p>We&#39;ve only implemented <code>index</code>, <code>show</code>, and <code>destroy</code> actions here. Subscribers
+<p>We've only implemented <code>index</code>, <code>show</code>, and <code>destroy</code> actions here. Subscribers
 will only be created when a user enters their email address. If someone contacts
 support asking to unsubscribe them, we want to be able to remove them easily.</p>
-
 <p>Since this is the admin area, we will want to add filters to subscribers too.</p>
-
-<p>In <code>app/models/subscriber.rb</code>, let&#39;s add the <code>filter_by</code> class method:</p>
-
+<p>In <code>app/models/subscriber.rb</code>, let's add the <code>filter_by</code> class method:</p>
 <pre class="code ruby#5-9"><code class="ruby#5-9">class Subscriber &lt; ApplicationRecord
   belongs_to :product
   generates_token_for :unsubscribe
@@ -1120,10 +923,8 @@ support asking to unsubscribe them, we want to be able to remove them easily.</p
   end
 end
 </code></pre>
-
-<p>Let&#39;s create the index view next at
+<p>Let's create the index view next at
 <code>app/views/store/subscribers/index.html.erb</code>:</p>
-
 <pre class="code xml"><code class="xml">&lt;h1&gt;&lt;%= pluralize @subscribers.count, &quot;Subscriber&quot; %&gt;&lt;/h1&gt;
 
 &lt;%= form_with url: store_subscribers_path, method: :get do |form| %&gt;
@@ -1133,26 +934,20 @@ end
 
 &lt;%= render @subscribers %&gt;
 </code></pre>
-
 <p>Then create <code>app/views/store/subscribers/_subscriber.html.erb</code> for displaying
 each subscriber:</p>
-
 <pre class="code xml"><code class="xml">&lt;div&gt;
   &lt;%= link_to subscriber.email, store_subscriber_path(subscriber) %&gt; subscribed to &lt;%= link_to subscriber.product.name, store_product_path(subscriber.product) %&gt; on &lt;%= l subscriber.created_at, format: :long %&gt;
 &lt;/div&gt;
 </code></pre>
-
 <p>Next, create <code>app/views/store/subscribers/show.html.erb</code> to view an individual
 subscriber:</p>
-
 <pre class="code xml"><code class="xml">&lt;h1&gt;&lt;%= @subscriber.email %&gt;&lt;/h1&gt;
 &lt;p&gt;Subscribed to &lt;%= link_to @subscriber.product.name, store_product_path(@subscriber.product) %&gt; on &lt;%= l @subscriber.created_at, format: :long %&gt;&lt;/p&gt;
 
 &lt;%= button_to &quot;Remove&quot;, store_subscriber_path(@subscriber), method: :delete, data: { turbo_confirm: &quot;Are you sure?&quot; } %&gt;
 </code></pre>
-
 <p>Finally, add the link to the sidebar layout:</p>
-
 <pre class="code xml"><code class="xml">&lt;%= content_for :content do %&gt;
   &lt;section class=&quot;settings&quot;&gt;
     &lt;nav&gt;
@@ -1179,17 +974,12 @@ subscriber:</p>
 
 &lt;%= render template: &quot;layouts/application&quot; %&gt;
 </code></pre>
-
-<p>Now you can view, filter, and remove subscribers in the store&#39;s admin area. Try
+<p>Now you can view, filter, and remove subscribers in the store's admin area. Try
 it out!</p>
-
-<h2>Adding Links To Products</h2>
-
-<p>Now that we&#39;ve added filters, we can add links to the Product show page for
+<h2 id="Adding_Links_To_Products">Adding Links To Products</h2>
+<p>Now that we've added filters, we can add links to the Product show page for
 viewing wishlists and subscribers for a specific product.</p>
-
 <p>Open <code>app/views/store/products/show.html.erb</code> and add the links:</p>
-
 <pre class="code xml"><code class="xml">&lt;p&gt;&lt;%= link_to &quot;Back&quot;, store_products_path %&gt;&lt;/p&gt;
 
 &lt;section class=&quot;product&quot;&gt;
@@ -1212,16 +1002,11 @@ viewing wishlists and subscribers for a specific product.</p>
   &lt;%= link_to pluralize(@product.subscribers.count, &quot;subscriber&quot;), store_subscribers_path(product_id: @product) %&gt;
 &lt;/section&gt;
 </code></pre>
-
-<h2>Testing Wishlists</h2>
-
-<p>Let&#39;s write some tests for the functionality we just built.</p>
-
-<h3>Adding Fixtures</h3>
-
+<h2 id="Testing_Wishlists">Testing Wishlists</h2>
+<p>Let's write some tests for the functionality we just built.</p>
+<h3 id="Adding_Fixtures">Adding Fixtures</h3>
 <p>First, we need to update the fixtures in <code>test/fixtures/wishlist_products.yml</code>
 so they refer to the product fixtures we have defined:</p>
-
 <pre class="code yaml"><code class="yaml">one:
   product: tshirt
   wishlist: one
@@ -1230,10 +1015,8 @@ two:
   product: tshirt
   wishlist: two
 </code></pre>
-
-<p>Let&#39;s also add another <code>Product</code> fixture in <code>test/fixtures/products.yml</code> to test
+<p>Let's also add another <code>Product</code> fixture in <code>test/fixtures/products.yml</code> to test
 with:</p>
-
 <pre class="code yaml#5-7"><code class="yaml#5-7">tshirt:
   name: T-Shirt
   inventory_count: 15
@@ -1242,14 +1025,10 @@ shoes:
   name: shoes
   inventory_count: 0
 </code></pre>
-
-<h3>Testing <code>filter_by</code></h3>
-
-<p>The <code>Wishlist</code> model&#39;s <code>filter_by</code> method is important to ensure it&#39;s filtering
+<h3 id="Testing__filter_by_">Testing <code>filter_by</code></h3>
+<p>The <code>Wishlist</code> model's <code>filter_by</code> method is important to ensure it's filtering
 records correctly.</p>
-
 <p>Open <code>test/models/wishlist_test.rb</code> and add this test to start:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>test_helper</span><span class='tstring_end'>&quot;</span></span>
 
 <span class='kw'>class</span> <span class='const'>WishlistTest</span> <span class='op'>&lt;</span> <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/TestCase.html" title="ActiveSupport::TestCase (class)">TestCase</a></span>
@@ -1257,12 +1036,9 @@ records correctly.</p>
     <span class='id identifier rubyid_assert_equal'>assert_equal</span> <span class='const'>Wishlist</span>.<span class='id identifier rubyid_all'>all</span><span class='comma'>,</span> <span class='const'>Wishlist</span>.<span class='id identifier rubyid_filter_by'>filter_by</span>({})
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
 <p>This test ensures that <code>filter_by</code> returns all records when no filters are
 applied.</p>
-
 <p>Then run the test:</p>
-
 <pre class="code bash"><code class="bash">$ bin/rails test test/models/wishlist_test.rb
 Running 1 tests in a single process (parallelization threshold is 50)
 Run options: --seed 64578
@@ -1274,9 +1050,7 @@ Run options: --seed 64578
 Finished in 0.290295s, 3.4448 runs/s, 3.4448 assertions/s.
 1 runs, 1 assertions, 0 failures, 0 errors, 0 skips
 </code></pre>
-
-<p>Great! Next, we need to test the <code>user_id</code> filter. Let&#39;s add another test:</p>
-
+<p>Great! Next, we need to test the <code>user_id</code> filter. Let's add another test:</p>
 <pre class="code ruby#8-12"><code class="ruby#8-12">require &quot;test_helper&quot;
 
 class WishlistTest &lt; ActiveSupport::TestCase
@@ -1291,12 +1065,9 @@ class WishlistTest &lt; ActiveSupport::TestCase
   end
 end
 </code></pre>
-
 <p>This test runs the query and asserts the wishlist for the user is returned but
 not wishlists for another user.</p>
-
-<p>Let&#39;s run the test file again:</p>
-
+<p>Let's run the test file again:</p>
 <pre class="code bash"><code class="bash">$ bin/rails test test/models/wishlist_test.rb
 Running 2 tests in a single process (parallelization threshold is 50)
 Run options: --seed 48224
@@ -1308,16 +1079,11 @@ Run options: --seed 48224
 Finished in 0.292714s, 6.8326 runs/s, 17.0815 assertions/s.
 2 runs, 5 assertions, 0 failures, 0 errors, 0 skips
 </code></pre>
-
 <p>Perfect! Both tests are passing.</p>
-
-<p>Finally, let&#39;s add a test for wishlists with a specific product.</p>
-
+<p>Finally, let's add a test for wishlists with a specific product.</p>
 <p>For this test, we need to add a unique product to one of our wishlists so it can
 be filtered.</p>
-
 <p>Open <code>test/fixtures/wishlist_products.yml</code> and add the following:</p>
-
 <pre class="code yaml#9-11"><code class="yaml#9-11">one:
   product: tshirt
   wishlist: one
@@ -1330,9 +1096,7 @@ three:
   product: shoes
   wishlist: two
 </code></pre>
-
 <p>Then add the following test to <code>test/models/wishlist_test.rb</code>:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>test_helper</span><span class='tstring_end'>&quot;</span></span>
 
 <span class='kw'>class</span> <span class='const'>WishlistTest</span> <span class='op'>&lt;</span> <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/TestCase.html" title="ActiveSupport::TestCase (class)">TestCase</a></span>
@@ -1352,12 +1116,9 @@ three:
     <span class='id identifier rubyid_assert_not_includes'>assert_not_includes</span> <span class='id identifier rubyid_wishlists'>wishlists</span><span class='comma'>,</span> <span class='id identifier rubyid_wishlists'>wishlists</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_one'>one</span>)
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
 <p>This test filters by a specific product and ensures the correct wishlist is
 returned and wishlists without that product are not.</p>
-
-<p>Let&#39;s run this test file again to ensure they are all passing:</p>
-
+<p>Let's run this test file again to ensure they are all passing:</p>
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_bin'>bin</span><span class='op'>/</span><span class='id identifier rubyid_rails'>rails</span> <span class='id identifier rubyid_test'>test</span> <span class='id identifier rubyid_test'>test</span><span class='op'>/</span><span class='id identifier rubyid_models'>models</span><span class='op'>/</span><span class='id identifier rubyid_wishlist_test'>wishlist_test</span>.<span class='id identifier rubyid_rb'>rb</span>
 <span class='const'>Running</span> <span class='int'>3</span> <span class='id identifier rubyid_tests'>tests</span> <span class='kw'>in</span> <span class='id identifier rubyid_a'>a</span> <span class='id identifier rubyid_single'>single</span> <span class='id identifier rubyid_process'>process</span> (<span class='id identifier rubyid_parallelization'>parallelization</span> <span class='id identifier rubyid_threshold'>threshold</span> <span class='id identifier rubyid_is'>is</span> <span class='int'>50</span>)
 <span class='const'>Run</span> <span class='label'>options:</span> <span class='op'>-</span><span class='op'>-</span><span class='id identifier rubyid_seed'>seed</span> <span class='int'>27430</span>
@@ -1368,14 +1129,10 @@ returned and wishlists without that product are not.</p>
 </span>
 <span class='const'>Finished</span> <span class='kw'>in</span> <span class='float'>0.320054</span><span class='id identifier rubyid_s'>s</span><span class='comma'>,</span> <span class='float'>9.3734</span> <span class='id identifier rubyid_runs'>runs</span><span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>s, 28.1203 assertions</span><span class='regexp_end'>/s</span></span>.
 <span class='int'>3</span> <span class='id identifier rubyid_runs'>runs</span><span class='comma'>,</span> <span class='int'>9</span> <span class='id identifier rubyid_assertions'>assertions</span><span class='comma'>,</span> <span class='int'>0</span> <span class='id identifier rubyid_failures'>failures</span><span class='comma'>,</span> <span class='int'>0</span> <span class='id identifier rubyid_errors'>errors</span><span class='comma'>,</span> <span class='int'>0</span> <span class='id identifier rubyid_skips'>skips</span></code></pre>
-
-<h3>Testing Wishlist CRUD</h3>
-
-<p>Let&#39;s walk through writing some integration tests for wishlists.</p>
-
+<h3 id="Testing_Wishlist_CRUD">Testing Wishlist CRUD</h3>
+<p>Let's walk through writing some integration tests for wishlists.</p>
 <p>Create <code>test/integration/wishlists_test.rb</code> and add a test for creating a
 wishlist.</p>
-
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>test_helper</span><span class='tstring_end'>&quot;</span></span>
 
 <span class='kw'>class</span> <span class='const'>WishlistsTest</span> <span class='op'>&lt;</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/IntegrationTest.html" title="ActionDispatch::IntegrationTest (class)">IntegrationTest</a></span>
@@ -1388,14 +1145,11 @@ wishlist.</p>
     <span class='kw'>end</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
 <p>This test logs in as a user and makes a POST request to create a wishlist. It
-checks the user&#39;s wishlists count before and after to ensure a new record was
+checks the user's wishlists count before and after to ensure a new record was
 created. It also confirms the user is redirected instead of re-rendering the
 form with errors.</p>
-
-<p>Let&#39;s run this test and make sure it passes.</p>
-
+<p>Let's run this test and make sure it passes.</p>
 <pre class="code bash"><code class="bash">$ bin/rails test test/integration/wishlists_test.rb
 Running 1 tests in a single process (parallelization threshold is 50)
 Run options: --seed 40232
@@ -1407,9 +1161,7 @@ Run options: --seed 40232
 Finished in 0.603018s, 1.6583 runs/s, 4.9750 assertions/s.
 1 runs, 3 assertions, 0 failures, 0 errors, 0 skips
 </code></pre>
-
-<p>Next, let&#39;s add a test for deleting a wishlist.</p>
-
+<p>Next, let's add a test for deleting a wishlist.</p>
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_test'>test</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>delete a wishlist</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
   <span class='id identifier rubyid_user'>user</span> <span class='op'>=</span> <span class='id identifier rubyid_users'>users</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_one'>one</span>)
   <span class='id identifier rubyid_sign_in_as'>sign_in_as</span> <span class='id identifier rubyid_user'>user</span>
@@ -1418,13 +1170,10 @@ Finished in 0.603018s, 1.6583 runs/s, 4.9750 assertions/s.
     <span class='id identifier rubyid_assert_redirected_to'>assert_redirected_to</span> <span class='id identifier rubyid_wishlists_path'>wishlists_path</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
 <p>This test is similar to creating wishlists, but it asserts that there is one
 less wishlist after making the DELETE request.</p>
-
 <p>Next, we should test viewing wishlists, starting with a user viewing their own
 wishlist.</p>
-
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_test'>test</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>view a wishlist</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
   <span class='id identifier rubyid_user'>user</span> <span class='op'>=</span> <span class='id identifier rubyid_users'>users</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_one'>one</span>)
   <span class='id identifier rubyid_wishlist'>wishlist</span> <span class='op'>=</span> <span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_wishlists'>wishlists</span>.<span class='id identifier rubyid_first'>first</span>
@@ -1433,9 +1182,7 @@ wishlist.</p>
   <span class='id identifier rubyid_assert_response'>assert_response</span> <span class='symbeg'>:</span><span class='id identifier rubyid_success'>success</span>
   <span class='id identifier rubyid_assert_select'>assert_select</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>h1</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>text:</span> <span class='id identifier rubyid_wishlist'>wishlist</span>.<span class='id identifier rubyid_name'>name</span>
 <span class='kw'>end</span></code></pre>
-
-<p>A user should also be able to view other user&#39;s wishlists, so let&#39;s test that:</p>
-
+<p>A user should also be able to view other user's wishlists, so let's test that:</p>
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_test'>test</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>view a wishlist as another user</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
   <span class='id identifier rubyid_wishlist'>wishlist</span> <span class='op'>=</span> <span class='id identifier rubyid_wishlists'>wishlists</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_two'>two</span>)
   <span class='id identifier rubyid_sign_in_as'>sign_in_as</span> <span class='id identifier rubyid_users'>users</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_one'>one</span>)
@@ -1443,18 +1190,14 @@ wishlist.</p>
   <span class='id identifier rubyid_assert_response'>assert_response</span> <span class='symbeg'>:</span><span class='id identifier rubyid_success'>success</span>
   <span class='id identifier rubyid_assert_select'>assert_select</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>h1</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>text:</span> <span class='id identifier rubyid_wishlist'>wishlist</span>.<span class='id identifier rubyid_name'>name</span>
 <span class='kw'>end</span></code></pre>
-
 <p>And guests should be able to view wishlists too:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_test'>test</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>view a wishlist as a guest</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
   <span class='id identifier rubyid_wishlist'>wishlist</span> <span class='op'>=</span> <span class='id identifier rubyid_wishlists'>wishlists</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_one'>one</span>)
   <span class='id identifier rubyid_get'>get</span> <span class='id identifier rubyid_wishlist_path'>wishlist_path</span>(<span class='id identifier rubyid_wishlist'>wishlist</span>)
   <span class='id identifier rubyid_assert_response'>assert_response</span> <span class='symbeg'>:</span><span class='id identifier rubyid_success'>success</span>
   <span class='id identifier rubyid_assert_select'>assert_select</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>h1</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>text:</span> <span class='id identifier rubyid_wishlist'>wishlist</span>.<span class='id identifier rubyid_name'>name</span>
 <span class='kw'>end</span></code></pre>
-
-<p>Let&#39;s run these tests and make sure they all pass:</p>
-
+<p>Let's run these tests and make sure they all pass:</p>
 <pre class="code bash"><code class="bash">$ bin/rails test test/integration/wishlists_test.rb
 Running 5 tests in a single process (parallelization threshold is 50)
 Run options: --seed 43675
@@ -1466,16 +1209,11 @@ Run options: --seed 43675
 Finished in 0.645956s, 7.7405 runs/s, 13.9328 assertions/s.
 5 runs, 9 assertions, 0 failures, 0 errors, 0 skips
 </code></pre>
-
 <p>Excellent!</p>
-
-<h3>Testing Wishlist Products</h3>
-
-<p>Next, let&#39;s test products in wishlists. The best place to start is probably
+<h3 id="Testing_Wishlist_Products">Testing Wishlist Products</h3>
+<p>Next, let's test products in wishlists. The best place to start is probably
 adding a product to a wishlist.</p>
-
 <p>Add the following test to <code>test/integration/wishlists_test.rb</code>:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_test'>test</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>add product to a specific wishlist</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
   <span class='id identifier rubyid_sign_in_as'>sign_in_as</span> <span class='id identifier rubyid_users'>users</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_one'>one</span>)
   <span class='id identifier rubyid_wishlist'>wishlist</span> <span class='op'>=</span> <span class='id identifier rubyid_wishlists'>wishlists</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_one'>one</span>)
@@ -1484,13 +1222,10 @@ adding a product to a wishlist.</p>
     <span class='id identifier rubyid_assert_redirected_to'>assert_redirected_to</span> <span class='id identifier rubyid_wishlist'>wishlist</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
 <p>This test asserts that a new <code>WishlistProduct</code> record is created when we send a
 POST request that simulates submitting the &quot;Add to wishlist&quot; form with a
 selected wishlist.</p>
-
-<p>Next, let&#39;s test the case where a user has no wishlists.</p>
-
+<p>Next, let's test the case where a user has no wishlists.</p>
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_test'>test</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>add product when no wishlists</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
   <span class='id identifier rubyid_user'>user</span> <span class='op'>=</span> <span class='id identifier rubyid_users'>users</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_one'>one</span>)
   <span class='id identifier rubyid_sign_in_as'>sign_in_as</span> <span class='id identifier rubyid_user'>user</span>
@@ -1501,14 +1236,11 @@ selected wishlist.</p>
     <span class='kw'>end</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
-<p>In this test, we delete all the user&#39;s wishlists to remove any wishlists that
+<p>In this test, we delete all the user's wishlists to remove any wishlists that
 may be present from fixtures. In addition to asserting a new <code>WishlistProduct</code>
 was created, we also make sure a new <code>Wishlist</code> was created this time.</p>
-
-<p>We should also test that we can&#39;t add products to another user&#39;s wishlist. Add
+<p>We should also test that we can't add products to another user's wishlist. Add
 the following test.</p>
-
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_test'>test</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>cannot add product to another user&#39;s wishlist</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
   <span class='id identifier rubyid_sign_in_as'>sign_in_as</span> <span class='id identifier rubyid_users'>users</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_one'>one</span>)
   <span class='id identifier rubyid_assert_no_difference'>assert_no_difference</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>WishlistProduct.count</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
@@ -1516,14 +1248,11 @@ the following test.</p>
     <span class='id identifier rubyid_assert_response'>assert_response</span> <span class='symbeg'>:</span><span class='id identifier rubyid_not_found'>not_found</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
 <p>In this case, we sign in as one user and <code>POST</code> with the ID of a wishlist from
 another user. To ensure this is working correctly, we assert that no new
 <code>WishlistProduct</code> records were created and we also make sure the response was a
 404 Not Found.</p>
-
-<p>Now, let&#39;s test moving products between wishlists.</p>
-
+<p>Now, let's test moving products between wishlists.</p>
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_test'>test</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>move product to another wishlist</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
   <span class='id identifier rubyid_user'>user</span> <span class='op'>=</span> <span class='id identifier rubyid_users'>users</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_one'>one</span>)
   <span class='id identifier rubyid_sign_in_as'>sign_in_as</span> <span class='id identifier rubyid_user'>user</span>
@@ -1533,20 +1262,16 @@ another user. To ensure this is working correctly, we assert that no new
   <span class='id identifier rubyid_patch'>patch</span> <span class='id identifier rubyid_wishlist_wishlist_product_path'>wishlist_wishlist_product_path</span>(<span class='id identifier rubyid_wishlist'>wishlist</span><span class='comma'>,</span> <span class='id identifier rubyid_wishlist_product'>wishlist_product</span>)<span class='comma'>,</span> <span class='label'>params:</span> { <span class='label'>new_wishlist_id:</span> <span class='id identifier rubyid_second_wishlist'>second_wishlist</span>.<span class='id identifier rubyid_id'>id</span> }
   <span class='id identifier rubyid_assert_equal'>assert_equal</span> <span class='id identifier rubyid_second_wishlist'>second_wishlist</span><span class='comma'>,</span> <span class='id identifier rubyid_wishlist_product'>wishlist_product</span>.<span class='id identifier rubyid_reload'>reload</span>.<span class='id identifier rubyid_wishlist'>wishlist</span>
 <span class='kw'>end</span></code></pre>
-
 <p>This test has a bit more setup than the others. It creates a second wishlist to
 move the product to. Since this action updates the <code>wishlist_id</code> column of the
 <code>WishlistProduct</code> record, we save it to a variable and assert that it changes
 after the request completes.</p>
-
 <p>We have to call <code>wishlist_product.reload</code> since the copy of the record in memory
 is unaware of changes that happened during the request. This reloads the record
 from the database so we can see the new values.</p>
-
-<p>Next, let&#39;s test moving a product to a wishlist that already contains the
+<p>Next, let's test moving a product to a wishlist that already contains the
 product. In this case, we should get an error message and the <code>WishlistProduct</code>
 should have no changes.</p>
-
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_test'>test</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>cannot move product to a wishlist that already contains product</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
   <span class='id identifier rubyid_user'>user</span> <span class='op'>=</span> <span class='id identifier rubyid_users'>users</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_one'>one</span>)
   <span class='id identifier rubyid_sign_in_as'>sign_in_as</span> <span class='id identifier rubyid_user'>user</span>
@@ -1558,14 +1283,11 @@ should have no changes.</p>
   <span class='id identifier rubyid_assert_equal'>assert_equal</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>T-Shirt is already on Second.</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_flash'>flash</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_alert'>alert</span>]
   <span class='id identifier rubyid_assert_equal'>assert_equal</span> <span class='id identifier rubyid_wishlist'>wishlist</span><span class='comma'>,</span> <span class='id identifier rubyid_wishlist_product'>wishlist_product</span>.<span class='id identifier rubyid_reload'>reload</span>.<span class='id identifier rubyid_wishlist'>wishlist</span>
 <span class='kw'>end</span></code></pre>
-
 <p>This test uses an assertion against <code>flash[:alert]</code> to check for the error
 message. It also reloads <code>wishlist_product</code> to assert that the wishlist has not
 changed.</p>
-
 <p>Finally, we should add a test to ensure a user cannot move a product to another
-user&#39;s wishlist.</p>
-
+user's wishlist.</p>
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_test'>test</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>cannot move product to another user&#39;s wishlist</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
   <span class='id identifier rubyid_user'>user</span> <span class='op'>=</span> <span class='id identifier rubyid_users'>users</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_one'>one</span>)
   <span class='id identifier rubyid_sign_in_as'>sign_in_as</span> <span class='id identifier rubyid_user'>user</span>
@@ -1575,14 +1297,10 @@ user&#39;s wishlist.</p>
   <span class='id identifier rubyid_assert_response'>assert_response</span> <span class='symbeg'>:</span><span class='id identifier rubyid_not_found'>not_found</span>
   <span class='id identifier rubyid_assert_equal'>assert_equal</span> <span class='id identifier rubyid_wishlist'>wishlist</span><span class='comma'>,</span> <span class='id identifier rubyid_wishlist_product'>wishlist_product</span>.<span class='id identifier rubyid_reload'>reload</span>.<span class='id identifier rubyid_wishlist'>wishlist</span>
 <span class='kw'>end</span></code></pre>
-
 <p>In this case, we assert that the response was a 404 Not Found which shows that
 we safely scoped the <code>new_wishlist_id</code> to the current user.</p>
-
 <p>It also asserts that the wishlist did not change, just like the previous test.</p>
-
-<p>Alright, let&#39;s run this full set of tests to double check they all pass.</p>
-
+<p>Alright, let's run this full set of tests to double check they all pass.</p>
 <pre class="code bash"><code class="bash">$ bin/rails test test/integration/wishlists_test.rb
 Running 11 tests in a single process (parallelization threshold is 50)
 Run options: --seed 65170
@@ -1594,25 +1312,17 @@ Run options: --seed 65170
 Finished in 1.084135s, 10.1463 runs/s, 23.0599 assertions/s.
 11 runs, 25 assertions, 0 failures, 0 errors, 0 skips
 </code></pre>
-
 <p>Fantastic! Our tests are all passing.</p>
-
-<h2>Deploying To Production</h2>
-
+<h2 id="Deploying_To_Production">Deploying To Production</h2>
 <p>Since we previously setup Kamal in the
 <a href="getting_started.html">Getting Started Guide</a>, we just need to push our code
 changes to our Git repository and run:</p>
-
 <pre class="code bash"><code class="bash">$ bin/kamal deploy
 </code></pre>
-
-<h2>What&#39;s Next</h2>
-
+<h2 id="What_s_Next">What's Next</h2>
 <p>Your e-commerce store now has Wishlists and an improved admin area with
 filtering of Wishlists and Subscribers.</p>
-
 <p>Here are a few ideas to build on to this:</p>
-
 <ul>
 <li>Add product reviews</li>
 <li>Write more tests</li>
@@ -1621,9 +1331,7 @@ filtering of Wishlists and Subscribers.</p>
 <li>Improve the design with CSS</li>
 <li>Add payments to buy products</li>
 </ul>
-
 <p><a href="https://rubyonrails.org/docs/tutorials">Return to all tutorials</a></p>
-
 <div id='footer'></div>
 </div> <!-- content  -->
 </div> <!-- y_main   -->

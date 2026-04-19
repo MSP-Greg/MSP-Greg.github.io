@@ -110,8 +110,7 @@
 <div class='docstring'>
   <div class='discussion'>
     <p>Mix this module into your controller, and all actions in that controller will
-be able to stream data to the client as it&#39;s written.</p>
-
+be able to stream data to the client as it's written.</p>
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>MyController</span> <span class='op'>&lt;</span> <span class='const'><a href="../ActionController.html" title="ActionController (module)">ActionController</a></span><span class='op'>::</span><span class='const'><a href="Base.html" title="ActionController::Base (class)">Base</a></span>
   <span class='id identifier rubyid_include'>include</span> <span class='const'><a href="../ActionController.html" title="ActionController (module)">ActionController</a></span><span class='op'>::</span><span class='const'>Live</span>
 
@@ -125,73 +124,57 @@ be able to stream data to the client as it&#39;s written.</p>
     <span class='id identifier rubyid_response'>response</span>.<span class='id identifier rubyid_stream'>stream</span>.<span class='id identifier rubyid_close'>close</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
 <p>There are a few caveats with this module. You <strong>cannot</strong> write headers after
 the response has been committed (Response#committed? will return truthy).
 Calling <code>write</code> or <code>close</code> on the response stream will cause the response
 object to be committed. Make sure all headers are set before calling write or
 close on your stream.</p>
-
-<p>You <strong>must</strong> call close on your stream when you&#39;re finished, otherwise the
+<p>You <strong>must</strong> call close on your stream when you're finished, otherwise the
 socket may be left open forever.</p>
-
 <p>The final caveat is that your actions are executed in a separate thread than
-the main thread. Make sure your actions are thread safe, and this shouldn&#39;t be
-a problem (don&#39;t share state across threads, etc).</p>
-
+the main thread. Make sure your actions are thread safe, and this shouldn't be
+a problem (don't share state across threads, etc).</p>
 <p>Note that <a href="../Rails.html" title="Rails (module)"><code>::Rails</code></a> includes <code>Rack::ETag</code> by default, which will buffer your
 response. As a result, streaming responses may not work properly with <a href="../Rack.html" title="Rack (module)"><code>::Rack</code></a>
 2.2.x, and you may need to implement workarounds in your application. You can
 either set the <code>ETag</code> or <code>Last-Modified</code> response headers or remove
 <code>Rack::ETag</code> from the middleware stack to address this issue.</p>
-
-<p>Here&#39;s an example of how you can set the <code>Last-Modified</code> header if your <a href="../Rack.html" title="Rack (module)"><code>::Rack</code></a>
+<p>Here's an example of how you can set the <code>Last-Modified</code> header if your <a href="../Rack.html" title="Rack (module)"><code>::Rack</code></a>
 version is 2.2.x:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_stream'>stream</span>
   <span class='id identifier rubyid_response'>response</span>.<span class='id identifier rubyid_headers'>headers</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Content-Type</span><span class='tstring_end'>&quot;</span></span>] <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>text/event-stream</span><span class='tstring_end'>&quot;</span></span>
   <span class='id identifier rubyid_response'>response</span>.<span class='id identifier rubyid_headers'>headers</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Last-Modified</span><span class='tstring_end'>&quot;</span></span>] <span class='op'>=</span> <span class='const'><a href="../Time.html" title="Time (class)">Time</a></span>.<span class='id identifier rubyid_now'>now</span>.<span class='id identifier rubyid_httpdate'>httpdate</span> <span class='comment'># Add this line if your Rack version is 2.2.x
 </span>  <span class='comment'>#...
 </span><span class='kw'>end</span></code></pre>
-
-<h3>Streaming and Execution State</h3>
-
+<h3 id="Streaming_and_Execution_State">Streaming and Execution State</h3>
 <p>When streaming, the action is executed in a separate thread. By default, this thread
 shares execution state from the parent thread.</p>
-
 <p>You can configure which execution state keys should be excluded from being shared
 using the <code>config.action_controller.live_streaming_excluded_keys</code> configuration:</p>
-
-<p># config/application.rb
-  config.action_controller.live_streaming_excluded_keys = [:active_record_connected_to_stack]</p>
-
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/application.rb
+</span><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_action_controller'>action_controller</span>.<span class='id identifier rubyid_live_streaming_excluded_keys'><a href="#live_streaming_excluded_keys-class_method" title="ActionController::Live.live_streaming_excluded_keys (method)">live_streaming_excluded_keys</a></span> <span class='op'>=</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_active_record_connected_to_stack'>active_record_connected_to_stack</span>]</code></pre>
 <p>This is useful when using <code>Live</code> inside a <code>connected_to</code> block. For example,
 if the parent request is reading from a replica using <code>connected_to(role: <code>:reading</code>)</code>, you may
 want the streaming thread to use its own connection context instead of inheriting the read-only
 context:</p>
+<pre class="code ruby"><code class="ruby"><span class='comment'># Without configuration, streaming thread inherits read-only connection
+</span><span class='const'><a href="../ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="../ActiveRecord/Base.html" title="ActiveRecord::Base (class)">Base</a></span>.<span class='id identifier rubyid_connected_to'><a href="../ActiveRecord/ConnectionHandling.html#connected_to-instance_method" title="ActiveRecord::ConnectionHandling#connected_to (method)">connected_to</a></span>(<span class='label'>role:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_reading'>reading</span>) <span class='kw'>do</span>
+<span class='ivar'>@posts</span> <span class='op'>=</span> <span class='const'>Post</span>.<span class='id identifier rubyid_all'>all</span>
+<span class='id identifier rubyid_render'>render</span> <span class='label'>stream:</span> <span class='kw'>true</span> <span class='comment'># Streaming thread cannot write to database
+</span><span class='kw'>end</span>
 
-<p># Without configuration, streaming thread inherits read-only connection
-  ActiveRecord::Base.connected_to(role: :reading) do
-    @posts = Post.all
-    render stream: true # Streaming thread cannot write to database
-  end</p>
-
-<p># With configuration, streaming thread gets fresh connection context
-  # config.action_controller.live_streaming_excluded_keys = [:active_record_connected_to_stack]
-  ActiveRecord::Base.connected_to(role: :reading) do
-    @posts = Post.all
-    render stream: true # Streaming thread can write to database if needed
-  end</p>
-
+<span class='comment'># With configuration, streaming thread gets fresh connection context
+</span><span class='comment'># config.action_controller.live_streaming_excluded_keys = [:active_record_connected_to_stack]
+</span><span class='const'><a href="../ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="../ActiveRecord/Base.html" title="ActiveRecord::Base (class)">Base</a></span>.<span class='id identifier rubyid_connected_to'><a href="../ActiveRecord/ConnectionHandling.html#connected_to-instance_method" title="ActiveRecord::ConnectionHandling#connected_to (method)">connected_to</a></span>(<span class='label'>role:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_reading'>reading</span>) <span class='kw'>do</span>
+<span class='ivar'>@posts</span> <span class='op'>=</span> <span class='const'>Post</span>.<span class='id identifier rubyid_all'>all</span>
+<span class='id identifier rubyid_render'>render</span> <span class='label'>stream:</span> <span class='kw'>true</span> <span class='comment'># Streaming thread can write to database if needed
+</span><span class='kw'>end</span></code></pre>
 <p>Common keys you might want to exclude:</p>
-
 <ul>
 <li><code>:active_record_connected_to_stack</code> - Database connection routing and roles</li>
 <li><code>:active_record_prohibit_shard_swapping</code> - Shard swapping restrictions</li>
 </ul>
-
 <p>By default, no keys are excluded to maintain backward compatibility.</p>
-
   </div>
 </div>
 </div>
@@ -291,7 +274,7 @@ context:</p>
       <a href="#send_stream-instance_method" title="#send_stream (instance method)">#<strong>send_stream</strong>(filename:, disposition: &quot;attachment&quot;, type: nil)  </a>
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>Sends a stream to the browser, which is helpful when you’re generating exports or other running data where you don’t want the entire file buffered in memory first.</p></div>
+      <div class='inline'><p>Sends a stream to the browser, which is helpful when you're generating exports or other running data where you don't want the entire file buffered in memory first.</p></div>
     </div>
   </li>
   <li>
@@ -432,11 +415,8 @@ context:</p>
   </div><div></div>
 <div class='docstring'>
   <div class='discussion'>
-    
-<p>Ensure we clean up any thread locals we copied so that the thread can reused.</p>
-
+    <p>Ensure we clean up any thread locals we copied so that the thread can reused.</p>
 <p>See additional method definition at file actionpack/lib/action_controller/test_case.rb line 37.</p>
-
   </div>
 </div>
   <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/8-1-stable/actionpack/lib/action_controller/metal/live.rb#L415-L416'>GitHub</a>&#8202;]</span>
@@ -489,11 +469,11 @@ context:</p>
   </div><div></div>
 <div class='docstring'>
   <div class='discussion'>
-    
-<p>Spawn a new thread to serve up the controller in. This is to get around the fact that <a href="../Rack.html" title="Rack (module)"><code>::Rack</code></a> isn’t based around IOs and we need to use a thread to stream data from the response bodies. Nobody should call this method except in <a href="../Rails.html" title="Rails (module)"><code>::Rails</code></a> internals. Seriously!</p>
-
+    <p>Spawn a new thread to serve up the controller in. This is to get around the
+fact that <a href="../Rack.html" title="Rack (module)"><code>::Rack</code></a> isn't based around IOs and we need to use a thread to stream
+data from the response bodies. Nobody should call this method except in <a href="../Rails.html" title="Rails (module)"><code>::Rails</code></a>
+internals. Seriously!</p>
 <p>See additional method definition at file actionpack/lib/action_controller/test_case.rb line 28.</p>
-
   </div>
 </div>
   <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/8-1-stable/actionpack/lib/action_controller/metal/live.rb#L406-L408'>GitHub</a>&#8202;]</span>
@@ -517,9 +497,8 @@ context:</p>
   </h3>
 <div class='docstring'>
   <div class='discussion'>
-    
-<p>Because of the above, we need to prevent the clearing of thread locals, since no new thread is actually spawned in the test environment.</p>
-
+    <p>Because of the above, we need to prevent the clearing of thread locals, since
+no new thread is actually spawned in the test environment.</p>
   </div>
 </div>
   <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/8-1-stable/actionpack/lib/action_controller/test_case.rb#L34-L34'>GitHub</a>&#8202;]</span>
@@ -541,9 +520,10 @@ context:</p>
   </h3>
 <div class='docstring'>
   <div class='discussion'>
-    
-<p>Disable controller / rendering threads in tests. User tests can access the database on the main thread, so they could open a txn, then the controller thread will open a new connection and try to access data that’s only visible to the main thread’s txn. This is the problem in <code>#23483</code>.</p>
-
+    <p>Disable controller / rendering threads in tests. User tests can access the
+database on the main thread, so they could open a txn, then the controller
+thread will open a new connection and try to access data that's only visible
+to the main thread's txn. This is the problem in <code>#23483</code>.</p>
   </div>
 </div>
   <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/8-1-stable/actionpack/lib/action_controller/test_case.rb#L25-L25'>GitHub</a>&#8202;]</span>
@@ -625,25 +605,21 @@ context:</p>
   </h3>
 <div class='docstring'>
   <div class='discussion'>
-    <p>Sends a stream to the browser, which is helpful when you&#39;re generating exports
-or other running data where you don&#39;t want the entire file buffered in memory
+    <p>Sends a stream to the browser, which is helpful when you're generating exports
+or other running data where you don't want the entire file buffered in memory
 first. Similar to send_data, but where the data is generated live.</p>
-
-<h4>Options:</h4>
-
+<h4 id="Options_">Options:</h4>
 <ul>
-<li>  <code>:filename</code> - suggests a filename for the browser to use.</li>
-<li>  <code>:type</code> - specifies an HTTP content type. You can specify either a string
+<li><code>:filename</code> - suggests a filename for the browser to use.</li>
+<li><code>:type</code> - specifies an HTTP content type. You can specify either a string
 or a symbol for a registered type with <a href="../Mime/Type.html#register-class_method" title="Mime::Type.register (method)">Mime::Type.register</a>, for example
 :json. If omitted, type will be inferred from the file extension specified
 in <code>:filename</code>. If no content type is registered for the extension, the
-default type &#39;application/octet-stream&#39; will be used.</li>
-<li>  <code>:disposition</code> - specifies whether the file will be shown inline or
-downloaded. Valid values are &#39;inline&#39; and &#39;attachment&#39; (default).</li>
+default type 'application/octet-stream' will be used.</li>
+<li><code>:disposition</code> - specifies whether the file will be shown inline or
+downloaded. Valid values are 'inline' and 'attachment' (default).</li>
 </ul>
-
 <p>Example of generating a csv export:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_send_stream'>send_stream</span>(<span class='label'>filename:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>subscribers.csv</span><span class='tstring_end'>&quot;</span></span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_stream'>stream</span><span class='op'>|</span>
   <span class='id identifier rubyid_stream'>stream</span>.<span class='id identifier rubyid_write'>write</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>email_address,updated_at\n</span><span class='tstring_end'>&quot;</span></span>
 
@@ -651,7 +627,6 @@ downloaded. Valid values are &#39;inline&#39; and &#39;attachment&#39; (default)
     <span class='id identifier rubyid_stream'>stream</span>.<span class='id identifier rubyid_write'>write</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_subscriber'>subscriber</span>.<span class='id identifier rubyid_email_address'>email_address</span><span class='embexpr_end'>}</span><span class='tstring_content'>,</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_subscriber'>subscriber</span>.<span class='id identifier rubyid_updated_at'>updated_at</span><span class='embexpr_end'>}</span><span class='tstring_content'>\n</span><span class='tstring_end'>&quot;</span></span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
   </div>
 </div>
   <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/8-1-stable/actionpack/lib/action_controller/metal/live.rb#L384-L399'>GitHub</a>&#8202;]</span>

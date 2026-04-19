@@ -128,165 +128,149 @@
 <div id='overview_ds'>
 <div class='docstring'>
   <div class='discussion'>
-    
-<p>Continuations provide a mechanism for interrupting and resuming jobs. This allows long-running jobs to make progress across application restarts.</p>
-
-<p>Jobs should include the <a href="Continuable.html" title="ActiveJob::Continuable (module)"><code>Continuable</code></a> module to enable continuations. Continuable jobs are automatically retried when interrupted.</p>
-
-<p>Use the <a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">#step</a> method to define the steps in your job. Steps can use an optional cursor to track progress in the step.</p>
-
-<p>Steps are executed as soon as they are encountered. If a job is interrupted, previously completed steps will be skipped. If a step is in progress, it will be resumed with the last recorded cursor.</p>
-
+    <p>Continuations provide a mechanism for interrupting and resuming jobs. This allows
+long-running jobs to make progress across application restarts.</p>
+<p>Jobs should include the <a href="Continuable.html" title="ActiveJob::Continuable (module)"><code>Continuable</code></a> module to enable continuations.
+Continuable jobs are automatically retried when interrupted.</p>
+<p>Use the <a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">#step</a> method to define the steps in your job. Steps can use an optional
+cursor to track progress in the step.</p>
+<p>Steps are executed as soon as they are encountered. If a job is interrupted, previously
+completed steps will be skipped. If a step is in progress, it will be resumed
+with the last recorded cursor.</p>
 <p>Code that is not part of a step will be executed on each job run.</p>
-
-<p>You can pass a block or a method name to the step method. The block will be called with the step object as an argument. Methods can either take no arguments or a single argument for the step object.</p>
-
+<p>You can pass a block or a method name to the step method. The block will be called with
+the step object as an argument. Methods can either take no arguments or a single argument
+for the step object.</p>
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ProcessImportJob</span> <span class='op'>&lt;</span> <span class='const'>ApplicationJob</span>
-  <span class='id identifier rubyid_include'>include</span> <span class='const'><a href="../ActiveJob.html" title="ActiveJob (module)">ActiveJob</a></span><span class='op'>::</span><span class='const'><a href="Continuable.html" title="ActiveJob::Continuable (module)">Continuable</a></span>
+<span class='id identifier rubyid_include'>include</span> <span class='const'><a href="../ActiveJob.html" title="ActiveJob (module)">ActiveJob</a></span><span class='op'>::</span><span class='const'><a href="Continuable.html" title="ActiveJob::Continuable (module)">Continuable</a></span>
 
-  <span class='kw'>def</span> <span class='id identifier rubyid_perform'>perform</span>(<span class='id identifier rubyid_import_id'>import_id</span>)
-    <span class='comment'># This always runs, even if the job is resumed.
-</span>    <span class='ivar'>@import</span> <span class='op'>=</span> <span class='const'>Import</span>.<span class='id identifier rubyid_find'>find</span>(<span class='id identifier rubyid_import_id'>import_id</span>)
+<span class='kw'>def</span> <span class='id identifier rubyid_perform'>perform</span>(<span class='id identifier rubyid_import_id'>import_id</span>)
+  <span class='comment'># This always runs, even if the job is resumed.
+</span>  <span class='ivar'>@import</span> <span class='op'>=</span> <span class='const'>Import</span>.<span class='id identifier rubyid_find'>find</span>(<span class='id identifier rubyid_import_id'>import_id</span>)
 
-    <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span> <span class='symbeg'>:</span><span class='id identifier rubyid_validate'>validate</span> <span class='kw'>do</span>
-      <span class='ivar'>@import</span>.<span class='id identifier rubyid_validate!'>validate!</span>
-    <span class='kw'>end</span>
-
-    <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>(<span class='symbeg'>:</span><span class='id identifier rubyid_process_records'>process_records</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span><span class='op'>|</span>
-      <span class='ivar'>@import</span>.<span class='id identifier rubyid_records'>records</span>.<span class='id identifier rubyid_find_each'>find_each</span>(<span class='label'>start:</span> <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_cursor'>cursor</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_record'>record</span><span class='op'>|</span>
-        <span class='id identifier rubyid_record'>record</span>.<span class='id identifier rubyid_process'>process</span>
-        <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_advance!'>advance!</span> <span class='label'>from:</span> <span class='id identifier rubyid_record'>record</span>.<span class='id identifier rubyid_id'>id</span>
-      <span class='kw'>end</span>
-    <span class='kw'>end</span>
-
-    <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span> <span class='symbeg'>:</span><span class='id identifier rubyid_reprocess_records'>reprocess_records</span>
-    <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span> <span class='symbeg'>:</span><span class='id identifier rubyid_finalize'>finalize</span>
+  <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span> <span class='symbeg'>:</span><span class='id identifier rubyid_validate'>validate</span> <span class='kw'>do</span>
+    <span class='ivar'>@import</span>.<span class='id identifier rubyid_validate!'>validate!</span>
   <span class='kw'>end</span>
 
-  <span class='kw'>def</span> <span class='id identifier rubyid_reprocess_records'>reprocess_records</span>(<span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>)
+  <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>(<span class='symbeg'>:</span><span class='id identifier rubyid_process_records'>process_records</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span><span class='op'>|</span>
     <span class='ivar'>@import</span>.<span class='id identifier rubyid_records'>records</span>.<span class='id identifier rubyid_find_each'>find_each</span>(<span class='label'>start:</span> <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_cursor'>cursor</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_record'>record</span><span class='op'>|</span>
-      <span class='id identifier rubyid_record'>record</span>.<span class='id identifier rubyid_reprocess'>reprocess</span>
+      <span class='id identifier rubyid_record'>record</span>.<span class='id identifier rubyid_process'>process</span>
       <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_advance!'>advance!</span> <span class='label'>from:</span> <span class='id identifier rubyid_record'>record</span>.<span class='id identifier rubyid_id'>id</span>
     <span class='kw'>end</span>
   <span class='kw'>end</span>
 
-  <span class='kw'>def</span> <span class='id identifier rubyid_finalize'>finalize</span>
-    <span class='ivar'>@import</span>.<span class='id identifier rubyid_finalize!'>finalize!</span>
-  <span class='kw'>end</span>
-<span class='kw'>end</span></code></pre>
+  <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span> <span class='symbeg'>:</span><span class='id identifier rubyid_reprocess_records'>reprocess_records</span>
+  <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span> <span class='symbeg'>:</span><span class='id identifier rubyid_finalize'>finalize</span>
+<span class='kw'>end</span>
 
-<h3 id="label-Cursors">Cursors</h3>
-
-<p>Cursors are used to track progress within a step. The cursor can be any object that is serializable as an argument to <code>ActiveJob::Base.serialize</code>. It defaults to <code>nil</code>.</p>
-
-<p>When a step is resumed, the last cursor value is restored. The code in the step is responsible for using the cursor to continue from the right point.</p>
-
-<p><code>set!</code> sets the cursor to a specific value.</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span> <span class='symbeg'>:</span><span class='id identifier rubyid_iterate_items'>iterate_items</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span><span class='op'>|</span>
-  <span class='id identifier rubyid_items'>items</span>[<span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_cursor'>cursor</span><span class='op'>..</span>].<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_item'>item</span><span class='op'>|</span>
-    <span class='id identifier rubyid_process'>process</span>(<span class='id identifier rubyid_item'>item</span>)
-    <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_set!'>set!</span> (<span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_cursor'>cursor</span> <span class='op'>||</span> <span class='int'>0</span>) <span class='op'>+</span> <span class='int'>1</span>
-  <span class='kw'>end</span>
-<span class='kw'>end</span></code></pre>
-
-<p>An starting value for the cursor can be set when defining the step:</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span> <span class='symbeg'>:</span><span class='id identifier rubyid_iterate_items'>iterate_items</span><span class='comma'>,</span> <span class='label'>start:</span> <span class='int'>0</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span><span class='op'>|</span>
-  <span class='id identifier rubyid_items'>items</span>[<span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_cursor'>cursor</span><span class='op'>..</span>].<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_item'>item</span><span class='op'>|</span>
-    <span class='id identifier rubyid_process'>process</span>(<span class='id identifier rubyid_item'>item</span>)
-    <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_set!'>set!</span> <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_cursor'>cursor</span> <span class='op'>+</span> <span class='int'>1</span>
-  <span class='kw'>end</span>
-<span class='kw'>end</span></code></pre>
-
-<p>The cursor can be advanced with <code>advance!</code>. This calls <code>succ</code> on the current cursor value. It raises an <a href="Continuation/UnadvanceableCursorError.html" title="ActiveJob::Continuation::UnadvanceableCursorError (class)"><code>UnadvanceableCursorError</code></a> if the cursor does not implement <code>succ</code>.</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span> <span class='symbeg'>:</span><span class='id identifier rubyid_iterate_items'>iterate_items</span><span class='comma'>,</span> <span class='label'>start:</span> <span class='int'>0</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span><span class='op'>|</span>
-  <span class='id identifier rubyid_items'>items</span>[<span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_cursor'>cursor</span><span class='op'>..</span>].<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_item'>item</span><span class='op'>|</span>
-    <span class='id identifier rubyid_process'>process</span>(<span class='id identifier rubyid_item'>item</span>)
-    <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_advance!'>advance!</span>
-  <span class='kw'>end</span>
-<span class='kw'>end</span></code></pre>
-
-<p>You can optionally pass a <code>from</code> argument to <code>advance!</code>. This is useful when iterating over a collection of records where IDs may not be contiguous.</p>
-
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span> <span class='symbeg'>:</span><span class='id identifier rubyid_process_records'>process_records</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span><span class='op'>|</span>
-  <span class='id identifier rubyid_import'>import</span>.<span class='id identifier rubyid_records'>records</span>.<span class='id identifier rubyid_find_each'>find_each</span>(<span class='label'>start:</span> <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_cursor'>cursor</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_record'>record</span><span class='op'>|</span>
-    <span class='id identifier rubyid_record'>record</span>.<span class='id identifier rubyid_process'>process</span>
+<span class='kw'>def</span> <span class='id identifier rubyid_reprocess_records'>reprocess_records</span>(<span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>)
+  <span class='ivar'>@import</span>.<span class='id identifier rubyid_records'>records</span>.<span class='id identifier rubyid_find_each'>find_each</span>(<span class='label'>start:</span> <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_cursor'>cursor</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_record'>record</span><span class='op'>|</span>
+    <span class='id identifier rubyid_record'>record</span>.<span class='id identifier rubyid_reprocess'>reprocess</span>
     <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_advance!'>advance!</span> <span class='label'>from:</span> <span class='id identifier rubyid_record'>record</span>.<span class='id identifier rubyid_id'>id</span>
   <span class='kw'>end</span>
-<span class='kw'>end</span></code></pre>
+<span class='kw'>end</span>
 
+<span class='kw'>def</span> <span class='id identifier rubyid_finalize'>finalize</span>
+  <span class='ivar'>@import</span>.<span class='id identifier rubyid_finalize!'>finalize!</span>
+<span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+<h3 id="Cursors">Cursors</h3>
+<p>Cursors are used to track progress within a step. The cursor can be any object that is
+serializable as an argument to <code>ActiveJob::Base.serialize</code>. It defaults to <code>nil</code>.</p>
+<p>When a step is resumed, the last cursor value is restored. The code in the step is responsible
+for using the cursor to continue from the right point.</p>
+<p><code>set!</code> sets the cursor to a specific value.</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span> <span class='symbeg'>:</span><span class='id identifier rubyid_iterate_items'>iterate_items</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span><span class='op'>|</span>
+<span class='id identifier rubyid_items'>items</span>[<span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_cursor'>cursor</span><span class='op'>..</span>].<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_item'>item</span><span class='op'>|</span>
+  <span class='id identifier rubyid_process'>process</span>(<span class='id identifier rubyid_item'>item</span>)
+  <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_set!'>set!</span> (<span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_cursor'>cursor</span> <span class='op'>||</span> <span class='int'>0</span>) <span class='op'>+</span> <span class='int'>1</span>
+<span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+<p>An starting value for the cursor can be set when defining the step:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span> <span class='symbeg'>:</span><span class='id identifier rubyid_iterate_items'>iterate_items</span><span class='comma'>,</span> <span class='label'>start:</span> <span class='int'>0</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span><span class='op'>|</span>
+<span class='id identifier rubyid_items'>items</span>[<span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_cursor'>cursor</span><span class='op'>..</span>].<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_item'>item</span><span class='op'>|</span>
+  <span class='id identifier rubyid_process'>process</span>(<span class='id identifier rubyid_item'>item</span>)
+  <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_set!'>set!</span> <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_cursor'>cursor</span> <span class='op'>+</span> <span class='int'>1</span>
+<span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+<p>The cursor can be advanced with <code>advance!</code>. This calls <code>succ</code> on the current cursor value.
+It raises an <a href="Continuation/UnadvanceableCursorError.html" title="ActiveJob::Continuation::UnadvanceableCursorError (class)"><code>UnadvanceableCursorError</code></a> if the cursor does not implement <code>succ</code>.</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span> <span class='symbeg'>:</span><span class='id identifier rubyid_iterate_items'>iterate_items</span><span class='comma'>,</span> <span class='label'>start:</span> <span class='int'>0</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span><span class='op'>|</span>
+<span class='id identifier rubyid_items'>items</span>[<span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_cursor'>cursor</span><span class='op'>..</span>].<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_item'>item</span><span class='op'>|</span>
+  <span class='id identifier rubyid_process'>process</span>(<span class='id identifier rubyid_item'>item</span>)
+  <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_advance!'>advance!</span>
+<span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+<p>You can optionally pass a <code>from</code> argument to <code>advance!</code>. This is useful when iterating
+over a collection of records where IDs may not be contiguous.</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span> <span class='symbeg'>:</span><span class='id identifier rubyid_process_records'>process_records</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span><span class='op'>|</span>
+<span class='id identifier rubyid_import'>import</span>.<span class='id identifier rubyid_records'>records</span>.<span class='id identifier rubyid_find_each'>find_each</span>(<span class='label'>start:</span> <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_cursor'>cursor</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_record'>record</span><span class='op'>|</span>
+  <span class='id identifier rubyid_record'>record</span>.<span class='id identifier rubyid_process'>process</span>
+  <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_advance!'>advance!</span> <span class='label'>from:</span> <span class='id identifier rubyid_record'>record</span>.<span class='id identifier rubyid_id'>id</span>
+<span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
 <p>You can use an array to iterate over nested records:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span> <span class='symbeg'>:</span><span class='id identifier rubyid_process_nested_records'>process_nested_records</span><span class='comma'>,</span> <span class='label'>start:</span> [ <span class='int'>0</span><span class='comma'>,</span> <span class='int'>0</span> ] <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span><span class='op'>|</span>
-  <span class='const'>Account</span>.<span class='id identifier rubyid_find_each'>find_each</span>(<span class='label'>start:</span> <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_cursor'>cursor</span>[<span class='int'>0</span>]) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_account'>account</span><span class='op'>|</span>
-    <span class='id identifier rubyid_account'>account</span>.<span class='id identifier rubyid_records'>records</span>.<span class='id identifier rubyid_find_each'>find_each</span>(<span class='label'>start:</span> <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_cursor'>cursor</span>[<span class='int'>1</span>]) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_record'>record</span><span class='op'>|</span>
-      <span class='id identifier rubyid_record'>record</span>.<span class='id identifier rubyid_process'>process</span>
-      <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_set!'>set!</span> [ <span class='id identifier rubyid_account'>account</span>.<span class='id identifier rubyid_id'>id</span><span class='comma'>,</span> <span class='id identifier rubyid_record'>record</span>.<span class='id identifier rubyid_id'>id</span> <span class='op'>+</span> <span class='int'>1</span> ]
-    <span class='kw'>end</span>
-    <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_set!'>set!</span> [ <span class='id identifier rubyid_account'>account</span>.<span class='id identifier rubyid_id'>id</span> <span class='op'>+</span> <span class='int'>1</span><span class='comma'>,</span> <span class='int'>0</span> ]
+<span class='const'>Account</span>.<span class='id identifier rubyid_find_each'>find_each</span>(<span class='label'>start:</span> <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_cursor'>cursor</span>[<span class='int'>0</span>]) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_account'>account</span><span class='op'>|</span>
+  <span class='id identifier rubyid_account'>account</span>.<span class='id identifier rubyid_records'>records</span>.<span class='id identifier rubyid_find_each'>find_each</span>(<span class='label'>start:</span> <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_cursor'>cursor</span>[<span class='int'>1</span>]) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_record'>record</span><span class='op'>|</span>
+    <span class='id identifier rubyid_record'>record</span>.<span class='id identifier rubyid_process'>process</span>
+    <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_set!'>set!</span> [ <span class='id identifier rubyid_account'>account</span>.<span class='id identifier rubyid_id'>id</span><span class='comma'>,</span> <span class='id identifier rubyid_record'>record</span>.<span class='id identifier rubyid_id'>id</span> <span class='op'>+</span> <span class='int'>1</span> ]
   <span class='kw'>end</span>
+  <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_set!'>set!</span> [ <span class='id identifier rubyid_account'>account</span>.<span class='id identifier rubyid_id'>id</span> <span class='op'>+</span> <span class='int'>1</span><span class='comma'>,</span> <span class='int'>0</span> ]
+<span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
-<p>Setting or advancing the cursor creates a checkpoint. You can also create a checkpoint manually by calling the <code>checkpoint!</code> method on the step. This is useful if you want to allow interruptions, but don’t need to update the cursor.</p>
-
+<p>Setting or advancing the cursor creates a checkpoint. You can also create a checkpoint
+manually by calling the <code>checkpoint!</code> method on the step. This is useful if you want to
+allow interruptions, but don't need to update the cursor.</p>
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span> <span class='symbeg'>:</span><span class='id identifier rubyid_destroy_records'>destroy_records</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span><span class='op'>|</span>
-  <span class='id identifier rubyid_import'>import</span>.<span class='id identifier rubyid_records'>records</span>.<span class='id identifier rubyid_find_each'>find_each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_record'>record</span><span class='op'>|</span>
-    <span class='id identifier rubyid_record'>record</span>.<span class='id identifier rubyid_destroy!'>destroy!</span>
-    <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_checkpoint!'>checkpoint!</span>
-  <span class='kw'>end</span>
+<span class='id identifier rubyid_import'>import</span>.<span class='id identifier rubyid_records'>records</span>.<span class='id identifier rubyid_find_each'>find_each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_record'>record</span><span class='op'>|</span>
+  <span class='id identifier rubyid_record'>record</span>.<span class='id identifier rubyid_destroy!'>destroy!</span>
+  <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span>.<span class='id identifier rubyid_checkpoint!'>checkpoint!</span>
+<span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-
-<h3 id="label-Checkpoints">Checkpoints</h3>
-
-<p>A checkpoint is where a job can be interrupted. At a checkpoint the job will call <code>queue_adapter.stopping?</code>. If it returns true, the job will raise an <a href="Continuation/Interrupt.html" title="ActiveJob::Continuation::Interrupt (class)"><code>Interrupt</code></a> exception.</p>
-
-<p>There is an automatic checkpoint before the start of each step except for the first for each job execution. Within a step one is created when calling <code>set!</code>, <code>advance!</code> or <code>checkpoint!</code>.</p>
-
-<p>Jobs are not automatically interrupted when the queue adapter is marked as stopping - they will continue to run either until the next checkpoint, or when the process is stopped.</p>
-
-<p>This is to allow jobs to be interrupted at a safe point, but it also means that the jobs should checkpoint more frequently than the shutdown timeout to ensure a graceful restart.</p>
-
-<p>When interrupted, the job will automatically retry with the progress serialized in the job data under the <code>continuation</code> key.</p>
-
+<h3 id="Checkpoints">Checkpoints</h3>
+<p>A checkpoint is where a job can be interrupted. At a checkpoint the job will call
+<code>queue_adapter.stopping?</code>. If it returns true, the job will raise an
+<a href="Continuation/Interrupt.html" title="ActiveJob::Continuation::Interrupt (class)"><code>Interrupt</code></a> exception.</p>
+<p>There is an automatic checkpoint before the start of each step except for the first for
+each job execution. Within a step one is created when calling <code>set!</code>, <code>advance!</code> or <code>checkpoint!</code>.</p>
+<p>Jobs are not automatically interrupted when the queue adapter is marked as stopping - they
+will continue to run either until the next checkpoint, or when the process is stopped.</p>
+<p>This is to allow jobs to be interrupted at a safe point, but it also means that the jobs
+should checkpoint more frequently than the shutdown timeout to ensure a graceful restart.</p>
+<p>When interrupted, the job will automatically retry with the progress serialized
+in the job data under the <code>continuation</code> key.</p>
 <p>The serialized progress contains:</p>
-<ul><li>
-<p>a list of the completed steps</p>
-</li><li>
-<p>the current step and its cursor value (if one is in progress)</p>
-</li></ul>
-
-<h3 id="label-Isolated+Steps">Isolated Steps</h3>
-
+<ul>
+<li>a list of the completed steps</li>
+<li>the current step and its cursor value (if one is in progress)</li>
+</ul>
+<h3 id="Isolated_Steps">Isolated Steps</h3>
 <p>Steps run sequentially in a single job execution, unless the job is interrupted.</p>
-
-<p>You can specify that a step should always run in its own execution by passing the <tt>isolated: true</tt> option.</p>
-
-<p>This is useful for long-running steps where it may not be possible to checkpoint within the job grace period - it ensures that progress is serialized back into the job data before the step starts.</p>
-
+<p>You can specify that a step should always run in its own execution by passing the <code>isolated: true</code> option.</p>
+<p>This is useful for long-running steps where it may not be possible to checkpoint within
+the job grace period - it ensures that progress is serialized back into the job data before
+the step starts.</p>
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span> <span class='symbeg'>:</span><span class='id identifier rubyid_quick_step1'>quick_step1</span>
 <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span> <span class='symbeg'>:</span><span class='id identifier rubyid_slow_step'>slow_step</span><span class='comma'>,</span> <span class='label'>isolated:</span> <span class='kw'>true</span>
 <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span> <span class='symbeg'>:</span><span class='id identifier rubyid_quick_step2'>quick_step2</span>
 <span class='id identifier rubyid_step'><a href="#step-instance_method" title="ActiveJob::Continuation#step (method)">step</a></span> <span class='symbeg'>:</span><span class='id identifier rubyid_quick_step3'>quick_step3</span></code></pre>
-
-<h3 id="label-Errors">Errors</h3>
-
-<p>If a job raises an error and is not retried via Active Job, it will be passed back to the underlying queue backend and any progress in this execution will be lost.</p>
-
-<p>To mitigate this, the job will be automatically retried if it raises an error after it has made progress. Making progress is defined as having completed a step or advanced the cursor within the current step.</p>
-
-<h3 id="label-Configuration">Configuration</h3>
-
+<h3 id="Errors">Errors</h3>
+<p>If a job raises an error and is not retried via Active Job, it will be passed back to the underlying
+queue backend and any progress in this execution will be lost.</p>
+<p>To mitigate this, the job will be automatically retried if it raises an error after it has made progress.
+Making progress is defined as having completed a step or advanced the cursor within the current step.</p>
+<h3 id="Configuration">Configuration</h3>
 <p><a href="Continuable.html" title="ActiveJob::Continuable (module)"><code>Continuable</code></a> jobs have several configuration options:</p>
-<ul><li>
-<p><code>:max_resumptions</code> - The maximum number of times a job can be resumed. Defaults to <code>nil</code> which means unlimited resumptions.</p>
-</li><li>
-<p><code>:resume_options</code> - Options to pass to <code>retry_job</code> when resuming the job. Defaults to <code>{ wait: 5.seconds }</code>. See <a href="Exceptions.html#retry_job-instance_method" title="ActiveJob::Exceptions#retry_job (method)">ActiveJob::Exceptions#retry_job</a> for available options.</p>
-</li><li>
-<p><code>:resume_errors_after_advancing</code> - Whether to resume errors after advancing the continuation. Defaults to <code>true</code>.</p>
-</li></ul>
-
+<ul>
+<li><tt>:max_resumptions</tt> - The maximum number of times a job can be resumed. Defaults to <code>nil</code> which means
+unlimited resumptions.</li>
+<li><tt>:resume_options</tt> - Options to pass to <code>retry_job</code> when resuming the job.
+Defaults to <tt>{ wait: 5.seconds }</tt>.
+See <a href="Exceptions.html#retry_job-instance_method" title="ActiveJob::Exceptions#retry_job (method)">ActiveJob::Exceptions#retry_job</a> for available options.</li>
+<li><tt>:resume_errors_after_advancing</tt> - Whether to resume errors after advancing the continuation.
+Defaults to <code>true</code>.</li>
+</ul>
   </div>
 </div>
 </div>
