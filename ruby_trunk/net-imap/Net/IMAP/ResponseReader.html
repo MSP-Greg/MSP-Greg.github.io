@@ -82,7 +82,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.3/lib/net/imap/response_reader.rb#L6'>lib/net/imap/response_reader.rb</a>      </td>
+      <td class='box_rel'><a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.4/lib/net/imap/response_reader.rb#L6'>lib/net/imap/response_reader.rb</a>      </td>
     </tr>
   </tbody>
 </table>
@@ -122,6 +122,9 @@
     </span>
     <span class='note title readonly'>readonly</span>
     <span class='note title private'>private</span>
+    <div class='summary_desc'>
+      <div class='inline'><p>response buffer state.</p></div>
+    </div>
   </li>
   <li>
     <span class='summary_signature ro priv nodoc'>
@@ -143,6 +146,19 @@
     </span>
     <span class='note title readonly'>readonly</span>
     <span class='note title private'>private</span>
+    <div class='summary_desc'>
+      <div class='inline'><p>response buffer state.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature ro priv nodoc'>
+      <a href="#max_response_size-instance_method" title="#max_response_size (instance method)">#<strong>max_response_size</strong>  </a>
+    </span>
+    <span class='note title readonly'>readonly</span>
+    <span class='note title private'>private</span>
+    <div class='summary_desc'>
+      <div class='inline'><p>cached config.</p></div>
+    </div>
   </li>
   <li>
     <span class='summary_signature ro priv nodoc'>
@@ -170,7 +186,13 @@
   </li>
   <li>
     <span class='summary_signature priv nodoc'>
-      <a href="#get_literal_size-instance_method" title="#get_literal_size (instance method)">#<strong>get_literal_size</strong>  </a>
+      <a href="#get_literal_size-instance_method" title="#get_literal_size (instance method)">#<strong>get_literal_size</strong>(buff)  </a>
+    </span>
+    <span class='note title private'>private</span>
+  </li>
+  <li>
+    <span class='summary_signature priv nodoc'>
+      <a href="#guard_response_too_large!-instance_method" title="#guard_response_too_large! (instance method)">#<strong>guard_response_too_large!</strong>  </a>
     </span>
     <span class='note title private'>private</span>
   </li>
@@ -188,18 +210,6 @@
   </li>
   <li>
     <span class='summary_signature priv nodoc'>
-      <a href="#max_response_remaining!-instance_method" title="#max_response_remaining! (instance method)">#<strong>max_response_remaining!</strong>  </a>
-    </span>
-    <span class='note title private'>private</span>
-  </li>
-  <li>
-    <span class='summary_signature priv nodoc'>
-      <a href="#max_response_size-instance_method" title="#max_response_size (instance method)">#<strong>max_response_size</strong>  </a>
-    </span>
-    <span class='note title private'>private</span>
-  </li>
-  <li>
-    <span class='summary_signature priv nodoc'>
       <a href="#min_response_remaining-instance_method" title="#min_response_remaining (instance method)">#<strong>min_response_remaining</strong>  </a>
     </span>
     <span class='note title private'>private</span>
@@ -207,12 +217,6 @@
   <li>
     <span class='summary_signature priv nodoc'>
       <a href="#min_response_size-instance_method" title="#min_response_size (instance method)">#<strong>min_response_size</strong>  </a>
-    </span>
-    <span class='note title private'>private</span>
-  </li>
-  <li>
-    <span class='summary_signature priv nodoc'>
-      <a href="#read_limit-instance_method" title="#read_limit (instance method)">#<strong>read_limit</strong>(limit = nil)  </a>
     </span>
     <span class='note title private'>private</span>
   </li>
@@ -244,15 +248,19 @@
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.3/lib/net/imap/response_reader.rb#L9-L11'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.4/lib/net/imap/response_reader.rb#L9-L15'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='9' data-end='11'></pre>
+  <pre class='lines_num' data-start='9' data-end='15'></pre>
   <div class='lines_code'>
 <pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 9</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_initialize'><a href="DeprecatedClientOptions.html#initialize-instance_method" title="Net::IMAP::DeprecatedClientOptions#initialize (method)">initialize</a></span>(<span class='id identifier rubyid_client'><a href="#client-instance_method" title="Net::IMAP::ResponseReader#client (method)">client</a></span><span class='comma'>,</span> <span class='id identifier rubyid_sock'>sock</span>)
   <span class='ivar'>@client</span><span class='comma'>,</span> <span class='ivar'>@sock</span> <span class='op'>=</span> <span class='id identifier rubyid_client'><a href="#client-instance_method" title="Net::IMAP::ResponseReader#client (method)">client</a></span><span class='comma'>,</span> <span class='id identifier rubyid_sock'>sock</span>
+  <span class='comment'># cached config
+</span>  <span class='ivar'>@max_response_size</span> <span class='op'>=</span> <span class='kw'>nil</span>
+  <span class='comment'># response buffer state
+</span>  <span class='ivar'>@buff</span> <span class='op'>=</span> <span class='ivar'>@literal_size</span> <span class='op'>=</span> <span class='kw'>nil</span>
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -264,11 +272,16 @@
   <h3 class='signature ro priv  nodoc first'>
     #<strong>buff</strong>   <span class="extras">(<span class='readonly'>readonly</span>, <span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.3/lib/net/imap/response_reader.rb#L29-L29'>GitHub</a>&#8202;]</span>
+<div class='docstring'>
+  <div class='discussion'>
+    <p>response buffer state</p>
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.4/lib/net/imap/response_reader.rb#L41-L41'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='29' data-end='29'></pre>
+  <pre class='lines_num' data-start='41' data-end='41'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 29</span></pre>
+<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 41</span></pre>
 <pre class='code ruby'>
 
 <span class='id identifier rubyid_attr_reader'>attr_reader</span> <span class='symbeg'>:</span><span class='id identifier rubyid_buff'>buff</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_literal_size'><a href="#literal_size-instance_method" title="Net::IMAP::ResponseReader#literal_size (method)">literal_size</a></span>
@@ -281,7 +294,7 @@
   <h3 class='signature ro  nodoc'>
     #<strong>client</strong>   <span class="extras">(<span class='readonly'>readonly</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.3/lib/net/imap/response_reader.rb#L7-L7'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.4/lib/net/imap/response_reader.rb#L7-L7'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
   <pre class='lines_num' data-start='7' data-end='7'></pre>
   <div class='lines_code'>
@@ -298,14 +311,14 @@
   <h3 class='signature ro priv  nodoc'>
     #<strong>done?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='readonly'>readonly</span>, <span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.3/lib/net/imap/response_reader.rb#L33-L33'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.4/lib/net/imap/response_reader.rb#L45-L45'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='33' data-end='33'></pre>
+  <pre class='lines_num' data-start='45' data-end='45'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 33</span></pre>
+<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 45</span></pre>
 <pre class='code ruby'>
 
-<span class='kw'>def</span> <span class='id identifier rubyid_done?'>done?</span>               <span class='op'>=</span> <span class='id identifier rubyid_line_done?'><a href="#line_done%3F-instance_method" title="Net::IMAP::ResponseReader#line_done? (method)">line_done?</a></span> <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='id identifier rubyid_get_literal_size'><a href="#get_literal_size-instance_method" title="Net::IMAP::ResponseReader#get_literal_size (method)">get_literal_size</a></span>
+<span class='kw'>def</span> <span class='id identifier rubyid_done?'>done?</span>               <span class='op'>=</span> <span class='id identifier rubyid_line_done?'><a href="#line_done%3F-instance_method" title="Net::IMAP::ResponseReader#line_done? (method)">line_done?</a></span> <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='id identifier rubyid_literal_size'><a href="#literal_size-instance_method" title="Net::IMAP::ResponseReader#literal_size (method)">literal_size</a></span>
 </pre>
   </div>
 </div>
@@ -315,11 +328,11 @@
   <h3 class='signature ro priv  nodoc'>
     #<strong>empty?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='readonly'>readonly</span>, <span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.3/lib/net/imap/response_reader.rb#L32-L32'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.4/lib/net/imap/response_reader.rb#L44-L44'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='32' data-end='32'></pre>
+  <pre class='lines_num' data-start='44' data-end='44'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 32</span></pre>
+<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 44</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_empty?'>empty?</span>              <span class='op'>=</span> <span class='id identifier rubyid_buff'><a href="#buff-instance_method" title="Net::IMAP::ResponseReader#buff (method)">buff</a></span>.<span class='id identifier rubyid_empty?'>empty?</span>
@@ -332,14 +345,41 @@
   <h3 class='signature ro priv  nodoc'>
     #<strong>literal_size</strong>   <span class="extras">(<span class='readonly'>readonly</span>, <span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.3/lib/net/imap/response_reader.rb#L29-L29'>GitHub</a>&#8202;]</span>
+<div class='docstring'>
+  <div class='discussion'>
+    <p>response buffer state</p>
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.4/lib/net/imap/response_reader.rb#L41-L41'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='29' data-end='29'></pre>
+  <pre class='lines_num' data-start='41' data-end='41'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 29</span></pre>
+<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 41</span></pre>
 <pre class='code ruby'>
 
 <span class='id identifier rubyid_attr_reader'>attr_reader</span> <span class='symbeg'>:</span><span class='id identifier rubyid_buff'><a href="#buff-instance_method" title="Net::IMAP::ResponseReader#buff (method)">buff</a></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_literal_size'>literal_size</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="max_response_size-instance_method">
+  <h3 class='signature ro priv  nodoc'>
+    #<strong>max_response_size</strong>   <span class="extras">(<span class='readonly'>readonly</span>, <span class='priv'>private</span>)</span>
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    <p>cached config</p>
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.4/lib/net/imap/response_reader.rb#L38-L38'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='38' data-end='38'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 38</span></pre>
+<pre class='code ruby'>
+
+<span class='id identifier rubyid_attr_reader'>attr_reader</span> <span class='symbeg'>:</span><span class='id identifier rubyid_max_response_size'>max_response_size</span>
 </pre>
   </div>
 </div>
@@ -349,11 +389,11 @@
   <h3 class='signature ro priv  nodoc'>
     #<strong>response_too_large?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='readonly'>readonly</span>, <span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.3/lib/net/imap/response_reader.rb#L57-L57'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.4/lib/net/imap/response_reader.rb#L66-L66'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='57' data-end='57'></pre>
+  <pre class='lines_num' data-start='66' data-end='66'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 57</span></pre>
+<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 66</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_response_too_large?'>response_too_large?</span>    <span class='op'>=</span> <span class='id identifier rubyid_max_response_size'><a href="#max_response_size-instance_method" title="Net::IMAP::ResponseReader#max_response_size (method)">max_response_size</a></span> <span class='op'>&amp;.</span><span class='op'>&lt;</span> <span class='id identifier rubyid_min_response_size'><a href="#min_response_size-instance_method" title="Net::IMAP::ResponseReader#min_response_size (method)">min_response_size</a></span>
@@ -367,11 +407,11 @@
   <h3 class='signature priv  nodoc first'>
     #<strong>bytes_read</strong>   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.3/lib/net/imap/response_reader.rb#L31-L31'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.4/lib/net/imap/response_reader.rb#L43-L43'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='31' data-end='31'></pre>
+  <pre class='lines_num' data-start='43' data-end='43'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 31</span></pre>
+<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 43</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_bytes_read'>bytes_read</span>          <span class='op'>=</span> <span class='id identifier rubyid_buff'><a href="#buff-instance_method" title="Net::IMAP::ResponseReader#buff (method)">buff</a></span>.<span class='id identifier rubyid_bytesize'>bytesize</span>
@@ -382,16 +422,54 @@
 
 <section class='method_details' id="get_literal_size-instance_method">
   <h3 class='signature priv  nodoc'>
-    #<strong>get_literal_size</strong>   <span class="extras">(<span class='priv'>private</span>)</span>
+    #<strong>get_literal_size</strong>(buff)   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.3/lib/net/imap/response_reader.rb#L35-L35'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.4/lib/net/imap/response_reader.rb#L48-L50'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='35' data-end='35'></pre>
+  <pre class='lines_num' data-start='48' data-end='50'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 35</span></pre>
+<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 48</span></pre>
 <pre class='code ruby'>
 
-<span class='kw'>def</span> <span class='id identifier rubyid_get_literal_size'>get_literal_size</span>    <span class='op'>=</span> <span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>\{(\d+)\}\r\n\z</span><span class='regexp_end'>/n</span></span> <span class='op'>=~</span> <span class='id identifier rubyid_buff'><a href="#buff-instance_method" title="Net::IMAP::ResponseReader#buff (method)">buff</a></span> <span class='op'>&amp;&amp;</span> <span class='backref'>$1</span>.<span class='id identifier rubyid_to_i'>to_i</span>
+<span class='kw'>def</span> <span class='id identifier rubyid_get_literal_size'>get_literal_size</span>(<span class='id identifier rubyid_buff'><a href="#buff-instance_method" title="Net::IMAP::ResponseReader#buff (method)">buff</a></span>)
+  <span class='id identifier rubyid_buff'><a href="#buff-instance_method" title="Net::IMAP::ResponseReader#buff (method)">buff</a></span>.<span class='id identifier rubyid_end_with?'>end_with?</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>}\r\n</span><span class='tstring_end'>&quot;</span></span>) <span class='op'>&amp;&amp;</span> <span class='id identifier rubyid_buff'><a href="#buff-instance_method" title="Net::IMAP::ResponseReader#buff (method)">buff</a></span>.<span class='id identifier rubyid_rindex'>rindex</span>(<span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>\{(\d+)\}\r\n\z</span><span class='regexp_end'>/n</span></span>) <span class='op'>&amp;&amp;</span> <span class='backref'>$1</span>.<span class='id identifier rubyid_to_i'>to_i</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="guard_response_too_large!-instance_method">
+  <h3 class='signature priv  nodoc'>
+    #<strong>guard_response_too_large!</strong>   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+  </div>
+</div>
+<div class='tags'>
+  <p class='tag_title'>Raises:</p>
+<ul class='raise'>
+  <li>
+    <span class='type'>(<a href="ResponseTooLargeError.html" title="Net::IMAP::ResponseTooLargeError (class)">ResponseTooLargeError</a>)</span>
+  </li>
+</ul>
+
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.4/lib/net/imap/response_reader.rb#L73-L78'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='73' data-end='78'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 73</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_guard_response_too_large!'>guard_response_too_large!</span>
+  <span class='kw'>return</span> <span class='kw'>unless</span> <span class='id identifier rubyid_response_too_large?'><a href="#response_too_large%3F-instance_method" title="Net::IMAP::ResponseReader#response_too_large? (method)">response_too_large?</a></span>
+  <span class='id identifier rubyid_raise'>raise</span> <span class='const'><a href="ResponseTooLargeError.html" title="Net::IMAP::ResponseTooLargeError (class)">ResponseTooLargeError</a></span>.<span class='id identifier rubyid_new'><a href="ResponseTooLargeError.html#new-class_method" title="Net::IMAP::ResponseTooLargeError.new (method)">new</a></span>(
+    <span class='label'>max_response_size:</span><span class='comma'>,</span> <span class='label'>bytes_read:</span><span class='comma'>,</span> <span class='label'>literal_size:</span><span class='comma'>,</span>
+  )
+<span class='kw'>end</span>
 </pre>
   </div>
 </div>
@@ -409,11 +487,11 @@
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.3/lib/net/imap/response_reader.rb#L34-L34'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.4/lib/net/imap/response_reader.rb#L46-L46'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='34' data-end='34'></pre>
+  <pre class='lines_num' data-start='46' data-end='46'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 34</span></pre>
+<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 46</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_line_done?'>line_done?</span>          <span class='op'>=</span> <span class='id identifier rubyid_buff'><a href="#buff-instance_method" title="Net::IMAP::ResponseReader#buff (method)">buff</a></span>.<span class='id identifier rubyid_end_with?'>end_with?</span>(<span class='const'><a href="../IMAP.html#CRLF-constant" title="Net::IMAP::CRLF (constant)">CRLF</a></span>)
@@ -426,67 +504,14 @@
   <h3 class='signature priv  nodoc'>
     #<strong>max_response_remaining</strong>   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.3/lib/net/imap/response_reader.rb#L56-L56'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.4/lib/net/imap/response_reader.rb#L65-L65'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='56' data-end='56'></pre>
+  <pre class='lines_num' data-start='65' data-end='65'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 56</span></pre>
+<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 65</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_max_response_remaining'>max_response_remaining</span> <span class='op'>=</span> <span class='id identifier rubyid_max_response_size'><a href="#max_response_size-instance_method" title="Net::IMAP::ResponseReader#max_response_size (method)">max_response_size</a></span> <span class='op'>&amp;.</span><span class='op'>-</span> <span class='id identifier rubyid_bytes_read'><a href="#bytes_read-instance_method" title="Net::IMAP::ResponseReader#bytes_read (method)">bytes_read</a></span>
-</pre>
-  </div>
-</div>
-</section>
-
-<section class='method_details' id="max_response_remaining!-instance_method">
-  <h3 class='signature priv  nodoc'>
-    #<strong>max_response_remaining!</strong>   <span class="extras">(<span class='priv'>private</span>)</span>
-  </h3>
-<div class='docstring'>
-  <div class='discussion'>
-    
-  </div>
-</div>
-<div class='tags'>
-  <p class='tag_title'>Raises:</p>
-<ul class='raise'>
-  <li>
-    <span class='type'>(<a href="ResponseTooLargeError.html" title="Net::IMAP::ResponseTooLargeError (class)">ResponseTooLargeError</a>)</span>
-  </li>
-</ul>
-
-</div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.3/lib/net/imap/response_reader.rb#L64-L69'>GitHub</a>&#8202;]</span>
-<div class='source_code h'>
-  <pre class='lines_num' data-start='64' data-end='69'></pre>
-  <div class='lines_code'>
-<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 64</span></pre>
-<pre class='code ruby'>
-
-<span class='kw'>def</span> <span class='id identifier rubyid_max_response_remaining!'>max_response_remaining!</span>
-  <span class='kw'>return</span> <span class='id identifier rubyid_max_response_remaining'><a href="#max_response_remaining-instance_method" title="Net::IMAP::ResponseReader#max_response_remaining (method)">max_response_remaining</a></span> <span class='kw'>unless</span> <span class='id identifier rubyid_response_too_large?'><a href="#response_too_large%3F-instance_method" title="Net::IMAP::ResponseReader#response_too_large? (method)">response_too_large?</a></span>
-  <span class='id identifier rubyid_raise'>raise</span> <span class='const'><a href="ResponseTooLargeError.html" title="Net::IMAP::ResponseTooLargeError (class)">ResponseTooLargeError</a></span>.<span class='id identifier rubyid_new'><a href="ResponseTooLargeError.html#new-class_method" title="Net::IMAP::ResponseTooLargeError.new (method)">new</a></span>(
-    <span class='label'>max_response_size:</span><span class='comma'>,</span> <span class='label'>bytes_read:</span><span class='comma'>,</span> <span class='label'>literal_size:</span><span class='comma'>,</span>
-  )
-<span class='kw'>end</span>
-</pre>
-  </div>
-</div>
-</section>
-
-<section class='method_details' id="max_response_size-instance_method">
-  <h3 class='signature priv  nodoc'>
-    #<strong>max_response_size</strong>   <span class="extras">(<span class='priv'>private</span>)</span>
-  </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.3/lib/net/imap/response_reader.rb#L55-L55'>GitHub</a>&#8202;]</span>
-<div class='source_code h'>
-  <pre class='lines_num' data-start='55' data-end='55'></pre>
-  <div class='lines_code'>
-<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 55</span></pre>
-<pre class='code ruby'>
-
-<span class='kw'>def</span> <span class='id identifier rubyid_max_response_size'>max_response_size</span>      <span class='op'>=</span> <span class='id identifier rubyid_client'><a href="#client-instance_method" title="Net::IMAP::ResponseReader#client (method)">client</a></span>.<span class='id identifier rubyid_max_response_size'>max_response_size</span>
 </pre>
   </div>
 </div>
@@ -496,11 +521,11 @@
   <h3 class='signature priv  nodoc'>
     #<strong>min_response_remaining</strong>   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.3/lib/net/imap/response_reader.rb#L60-L62'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.4/lib/net/imap/response_reader.rb#L69-L71'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='60' data-end='62'></pre>
+  <pre class='lines_num' data-start='69' data-end='71'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 60</span></pre>
+<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 69</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_min_response_remaining'>min_response_remaining</span>
@@ -515,33 +540,14 @@
   <h3 class='signature priv  nodoc'>
     #<strong>min_response_size</strong>   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.3/lib/net/imap/response_reader.rb#L58-L58'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.4/lib/net/imap/response_reader.rb#L67-L67'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='58' data-end='58'></pre>
+  <pre class='lines_num' data-start='67' data-end='67'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 58</span></pre>
+<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 67</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_min_response_size'>min_response_size</span>      <span class='op'>=</span> <span class='id identifier rubyid_bytes_read'><a href="#bytes_read-instance_method" title="Net::IMAP::ResponseReader#bytes_read (method)">bytes_read</a></span> <span class='op'>+</span> <span class='id identifier rubyid_min_response_remaining'><a href="#min_response_remaining-instance_method" title="Net::IMAP::ResponseReader#min_response_remaining (method)">min_response_remaining</a></span>
-</pre>
-  </div>
-</div>
-</section>
-
-<section class='method_details' id="read_limit-instance_method">
-  <h3 class='signature priv  nodoc'>
-    #<strong>read_limit</strong>(limit = nil)   <span class="extras">(<span class='priv'>private</span>)</span>
-  </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.3/lib/net/imap/response_reader.rb#L51-L53'>GitHub</a>&#8202;]</span>
-<div class='source_code h'>
-  <pre class='lines_num' data-start='51' data-end='53'></pre>
-  <div class='lines_code'>
-<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 51</span></pre>
-<pre class='code ruby'>
-
-<span class='kw'>def</span> <span class='id identifier rubyid_read_limit'>read_limit</span>(<span class='id identifier rubyid_limit'>limit</span> <span class='op'>=</span> <span class='kw'>nil</span>)
-  [<span class='id identifier rubyid_limit'>limit</span><span class='comma'>,</span> <span class='id identifier rubyid_max_response_remaining!'><a href="#max_response_remaining!-instance_method" title="Net::IMAP::ResponseReader#max_response_remaining! (method)">max_response_remaining!</a></span>].<span class='id identifier rubyid_compact'>compact</span>.<span class='id identifier rubyid_min'>min</span>
-<span class='kw'>end</span>
 </pre>
   </div>
 </div>
@@ -551,16 +557,17 @@
   <h3 class='signature priv  nodoc'>
     #<strong>read_line</strong>   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.3/lib/net/imap/response_reader.rb#L37-L40'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.4/lib/net/imap/response_reader.rb#L52-L56'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='37' data-end='40'></pre>
+  <pre class='lines_num' data-start='52' data-end='56'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 37</span></pre>
+<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 52</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_read_line'>read_line</span>
-  <span class='id identifier rubyid_buff'><a href="#buff-instance_method" title="Net::IMAP::ResponseReader#buff (method)">buff</a></span> <span class='op'>&lt;&lt;</span> (<span class='ivar'>@sock</span>.<span class='id identifier rubyid_gets'>gets</span>(<span class='const'><a href="../IMAP.html#CRLF-constant" title="Net::IMAP::CRLF (constant)">CRLF</a></span><span class='comma'>,</span> <span class='id identifier rubyid_read_limit'><a href="#read_limit-instance_method" title="Net::IMAP::ResponseReader#read_limit (method)">read_limit</a></span>) <span class='kw'>or</span> <span class='id identifier rubyid_throw'>throw</span> <span class='symbeg'>:</span><span class='id identifier rubyid_eof'>eof</span>)
-  <span class='id identifier rubyid_max_response_remaining!'><a href="#max_response_remaining!-instance_method" title="Net::IMAP::ResponseReader#max_response_remaining! (method)">max_response_remaining!</a></span> <span class='kw'>unless</span> <span class='id identifier rubyid_line_done?'><a href="#line_done%3F-instance_method" title="Net::IMAP::ResponseReader#line_done? (method)">line_done?</a></span>
+  <span class='id identifier rubyid_line'>line</span> <span class='op'>=</span> (<span class='ivar'>@sock</span>.<span class='id identifier rubyid_gets'>gets</span>(<span class='const'><a href="../IMAP.html#CRLF-constant" title="Net::IMAP::CRLF (constant)">CRLF</a></span><span class='comma'>,</span> <span class='id identifier rubyid_max_response_remaining'><a href="#max_response_remaining-instance_method" title="Net::IMAP::ResponseReader#max_response_remaining (method)">max_response_remaining</a></span>) <span class='kw'>or</span> <span class='id identifier rubyid_throw'>throw</span> <span class='symbeg'>:</span><span class='id identifier rubyid_eof'>eof</span>)
+  <span class='ivar'>@literal_size</span> <span class='op'>=</span> <span class='id identifier rubyid_get_literal_size'><a href="#get_literal_size-instance_method" title="Net::IMAP::ResponseReader#get_literal_size (method)">get_literal_size</a></span>(<span class='id identifier rubyid_line'>line</span>)
+  <span class='id identifier rubyid_buff'><a href="#buff-instance_method" title="Net::IMAP::ResponseReader#buff (method)">buff</a></span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_line'>line</span>
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -571,18 +578,16 @@
   <h3 class='signature priv  nodoc'>
     #<strong>read_literal</strong>   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.3/lib/net/imap/response_reader.rb#L42-L49'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.4/lib/net/imap/response_reader.rb#L58-L63'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='42' data-end='49'></pre>
+  <pre class='lines_num' data-start='58' data-end='63'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 42</span></pre>
+<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 58</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_read_literal'>read_literal</span>
-  <span class='comment'># check before allocating memory for literal
-</span>  <span class='id identifier rubyid_max_response_remaining!'><a href="#max_response_remaining!-instance_method" title="Net::IMAP::ResponseReader#max_response_remaining! (method)">max_response_remaining!</a></span>
   <span class='id identifier rubyid_literal'>literal</span> <span class='op'>=</span> <span class='const'>String</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Net::IMAP::ResponseReader.new (method)">new</a></span>(<span class='label'>capacity:</span> <span class='id identifier rubyid_literal_size'><a href="#literal_size-instance_method" title="Net::IMAP::ResponseReader#literal_size (method)">literal_size</a></span>)
-  <span class='id identifier rubyid_buff'><a href="#buff-instance_method" title="Net::IMAP::ResponseReader#buff (method)">buff</a></span> <span class='op'>&lt;&lt;</span> (<span class='ivar'>@sock</span>.<span class='id identifier rubyid_read'>read</span>(<span class='id identifier rubyid_read_limit'><a href="#read_limit-instance_method" title="Net::IMAP::ResponseReader#read_limit (method)">read_limit</a></span>(<span class='id identifier rubyid_literal_size'><a href="#literal_size-instance_method" title="Net::IMAP::ResponseReader#literal_size (method)">literal_size</a></span>)<span class='comma'>,</span> <span class='id identifier rubyid_literal'>literal</span>) <span class='kw'>or</span> <span class='id identifier rubyid_throw'>throw</span> <span class='symbeg'>:</span><span class='id identifier rubyid_eof'>eof</span>)
+  <span class='id identifier rubyid_buff'><a href="#buff-instance_method" title="Net::IMAP::ResponseReader#buff (method)">buff</a></span> <span class='op'>&lt;&lt;</span> (<span class='ivar'>@sock</span>.<span class='id identifier rubyid_read'>read</span>(<span class='id identifier rubyid_literal_size'><a href="#literal_size-instance_method" title="Net::IMAP::ResponseReader#literal_size (method)">literal_size</a></span><span class='comma'>,</span> <span class='id identifier rubyid_literal'>literal</span>) <span class='kw'>or</span> <span class='id identifier rubyid_throw'>throw</span> <span class='symbeg'>:</span><span class='id identifier rubyid_eof'>eof</span>)
 <span class='kw'>ensure</span>
   <span class='ivar'>@literal_size</span> <span class='op'>=</span> <span class='kw'>nil</span>
 <span class='kw'>end</span>
@@ -595,25 +600,29 @@
   <h3 class='signature nodoc'>
     #<strong>read_response_buffer</strong>  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.3/lib/net/imap/response_reader.rb#L13-L25'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/net-imap/blob/v0.6.4/lib/net/imap/response_reader.rb#L17-L33'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='13' data-end='25'></pre>
+  <pre class='lines_num' data-start='17' data-end='33'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 13</span></pre>
+<pre><span class='info file'># File 'lib/net/imap/response_reader.rb', line 17</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_read_response_buffer'>read_response_buffer</span>
+  <span class='ivar'>@max_response_size</span> <span class='op'>=</span> <span class='id identifier rubyid_client'><a href="#client-instance_method" title="Net::IMAP::ResponseReader#client (method)">client</a></span>.<span class='id identifier rubyid_max_response_size'><a href="#max_response_size-instance_method" title="Net::IMAP::ResponseReader#max_response_size (method)">max_response_size</a></span>
   <span class='ivar'>@buff</span> <span class='op'>=</span> <span class='const'>String</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Net::IMAP::ResponseReader.new (method)">new</a></span>
   <span class='id identifier rubyid_catch'>catch</span> <span class='symbeg'>:</span><span class='id identifier rubyid_eof'>eof</span> <span class='kw'>do</span>
     <span class='kw'>while</span> <span class='kw'>true</span>
+      <span class='id identifier rubyid_guard_response_too_large!'><a href="#guard_response_too_large!-instance_method" title="Net::IMAP::ResponseReader#guard_response_too_large! (method)">guard_response_too_large!</a></span>
       <span class='id identifier rubyid_read_line'><a href="#read_line-instance_method" title="Net::IMAP::ResponseReader#read_line (method)">read_line</a></span>
-      <span class='kw'>break</span> <span class='kw'>unless</span> (<span class='ivar'>@literal_size</span> <span class='op'>=</span> <span class='id identifier rubyid_get_literal_size'><a href="#get_literal_size-instance_method" title="Net::IMAP::ResponseReader#get_literal_size (method)">get_literal_size</a></span>)
+      <span class='comment'># check before allocating memory for literal
+</span>      <span class='id identifier rubyid_guard_response_too_large!'><a href="#guard_response_too_large!-instance_method" title="Net::IMAP::ResponseReader#guard_response_too_large! (method)">guard_response_too_large!</a></span>
+      <span class='kw'>break</span> <span class='kw'>unless</span> <span class='id identifier rubyid_literal_size'><a href="#literal_size-instance_method" title="Net::IMAP::ResponseReader#literal_size (method)">literal_size</a></span>
       <span class='id identifier rubyid_read_literal'><a href="#read_literal-instance_method" title="Net::IMAP::ResponseReader#read_literal (method)">read_literal</a></span>
     <span class='kw'>end</span>
   <span class='kw'>end</span>
   <span class='id identifier rubyid_buff'><a href="#buff-instance_method" title="Net::IMAP::ResponseReader#buff (method)">buff</a></span>
 <span class='kw'>ensure</span>
-  <span class='ivar'>@buff</span> <span class='op'>=</span> <span class='kw'>nil</span>
+  <span class='ivar'>@buff</span> <span class='op'>=</span> <span class='ivar'>@literal_size</span> <span class='op'>=</span> <span class='kw'>nil</span>
 <span class='kw'>end</span>
 </pre>
   </div>
