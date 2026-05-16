@@ -234,36 +234,51 @@ all refinements from the same module are active when a refined method
 
 <span class='id identifier rubyid_p'>p</span> [{<span class='int'>1</span><span class='op'>=&gt;</span><span class='int'>2</span>}<span class='comma'>,</span> {<span class='int'>3</span><span class='op'>=&gt;</span><span class='int'>4</span>}].<span class='id identifier rubyid_to_json'>to_json</span> <span class='comment'># prints &quot;[{\&quot;1\&quot;:2},{\&quot;3\&quot;:4}]&quot;</span></code></pre>
 <h2 id="Method_Lookup">Method Lookup</h2>
-<p>When looking up a method for an instance of class <code>C</code> Ruby checks:</p>
+<p>Method lookup in Ruby is based on the ancestor chain. You can see the
+ancestor chain for any object in Ruby by doing:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_object'>object</span>.<span class='id identifier rubyid_singleton_class'>singleton_class</span>.<span class='id identifier rubyid_ancestors'>ancestors</span>
+<span class='comment'># or, if the object does not support a singleton class:
+</span><span class='id identifier rubyid_object'>object</span>.<span class='id identifier rubyid_class'>class</span>.<span class='id identifier rubyid_ancestors'>ancestors</span></code></pre>
+<p>The ancestor chain is constructed as follows:</p>
 <ul>
-<li>The refinements of <code>C</code>, in reverse order of activation</li>
-<li>The prepended modules of <code>C</code></li>
-<li><code>C</code></li>
-<li>The included modules of <code>C</code></li>
+<li>Subclasses are before superclasses in the ancestor chain</li>
+<li>Prepended modules are before the class they prepend in the ancestor
+chain, in reverse order in which they were prepended.</li>
+<li>Included modules are after the class they are included in in the
+ancestor chain, in reverse order in which they were included.</li>
 </ul>
-<p>If no method was found at any point this repeats with the superclass of <code>C</code>.</p>
-<p>Note that methods in a subclass have priority over refinements in a
-superclass.  For example, if the method <code>/</code> is defined in a
+<p>When looking up a method for an object, Ruby goes through each ancestor:</p>
+<ul>
+<li>If the class/module has been refined, Ruby will consider the refinements
+activated at the point the method was called, in reverse order of
+activation.</li>
+<li>Otherwise, Ruby will check the methods of the class/module itself.</li>
+</ul>
+<p>If no method was found at either point this repeats with the next
+ancestor.</p>
+<p>Note that methods in a earlier ancestor have priority over refinements in a
+later ancestor.  For example, if the method <code>/</code> is defined in a
 refinement for Numeric <code>1 / 2</code> invokes the original Integer#/
-because Integer is a subclass of Numeric and is searched before the refinements
-for the superclass Numeric. Since the method <code>/</code> is also present
-in child <code>Integer</code>, the method lookup does not move up to the superclass.</p>
-<p>However, if a method <code>foo</code> is defined on Numeric in a refinement, <code>1.foo</code>
+because Integer is a comes before Numeric in the ancestor chain.  However,
+if a method <code>foo</code> is defined on Numeric in a refinement, <code>1.foo</code>
 invokes that method since <code>foo</code> does not exist on Integer.</p>
 <h2 id="_super_"><code>super</code></h2>
-<p>When <code>super</code> is invoked method lookup checks:</p>
+<p>When <code>super</code> is invoked, method lookup starts:</p>
 <ul>
-<li>The included modules of the current class.  Note that the current class may
-be a refinement.</li>
-<li>If the current class is a refinement, the method lookup proceeds as in the
-Method Lookup section above.</li>
-<li>If the current class has a direct superclass, the method proceeds as in the
-Method Lookup section above using the superclass.</li>
+<li>If the method is in a refinement, at the refined class or module</li>
+<li>Otherwise, at the next ancestor</li>
 </ul>
-<p>Note that <code>super</code> in a method of a refinement invokes the method in the
-refined class even if there is another refinement which has been activated in
-the same context. This is only true for <code>super</code> in a method of a refinement, it
-does not apply to <code>super</code> in a method in a module that is included in a refinement.</p>
+<p>Method lookup then proceeds as described in the Method Lookup section
+above.</p>
+<p>Refinements activated at the call site of a refinement method do not
+affect <code>super</code> inside that method. Only refinements activated at the
+point <code>super</code> was called affect method lookup for that <code>super</code> call.
+You cannot use refinements to insert into the middle of a method
+lookup chain, only to insert at the start of a method lookup chain,
+unless you control the <code>super</code> call sites.</p>
+<p>Note that if you refine a module, the refinement method can call <code>super</code>
+to call the method in the module, but the method in the module cannot
+call <code>super</code> to continue the method lookup process to further ancestors.</p>
 <h2 id="Methods_Introspection">Methods Introspection</h2>
 <p>When using introspection methods such as Kernel#method or Kernel#methods refinements are not honored.</p>
 <p>This behavior may be changed in the future.</p>
