@@ -63,6 +63,56 @@
 <div id='content' class='file'>
 <ul>
 <li>
+<p>On PostgreSQL 18.4+, <code>disable_referential_integrity</code> uses <code>NOT ENFORCED</code>/<code>ENFORCED</code>
+instead of <code>DISABLE TRIGGER ALL</code>/<code>ENABLE TRIGGER ALL</code>, requiring only table ownership
+rather than superuser privileges. Only currently <code>ENFORCED</code> foreign keys are toggled;
+intentionally <code>NOT ENFORCED</code> foreign keys are left unchanged.</p>
+<p>Unlike <code>ENABLE TRIGGER ALL</code>, restoring <code>ENFORCED</code> checks existing rows against the
+constraint, so FK violations raise <a href="ActiveRecord/InvalidForeignKey.html" title="ActiveRecord::InvalidForeignKey (class)"><code>::ActiveRecord::InvalidForeignKey</code></a> rather than
+<code>RuntimeError</code>. The toggle and restore run in a single transaction so a restoration
+failure rolls back the initial <code>NOT ENFORCED</code> toggle too — preventing originally-
+<code>ENFORCED</code> constraints from being left in a <code>NOT ENFORCED</code> state indistinguishable
+from intentional ones.</p>
+<p>Fixtures sharing FK relationships must be passed together to
+<code>FixtureSet.create_fixtures</code> to ensure all referenced rows are present when
+enforcement is restored.</p>
+<p><code>check_all_foreign_keys_valid!</code> skips <code>NOT ENFORCED</code> constraints on PostgreSQL 18.4+,
+as <code>VALIDATE CONSTRAINT</code> cannot be applied to them.</p>
+<p>Unlike <code>SET CONSTRAINTS ALL DEFERRED</code> (the approach attempted in rails/rails#27636
+and reverted), <code>NOT ENFORCED</code> also suppresses referential actions such as
+<code>ON DELETE CASCADE</code>, <code>SET NULL</code>, and <code>SET DEFAULT</code>.</p>
+<p><em>Yasuo Honda</em></p>
+</li>
+<li>
+<p>Add <code>exclusion_constraint_exists?</code> and <code>unique_constraint_exists?</code> helpers</p>
+<p><em>fatkodima</em></p>
+</li>
+<li>
+<p>Add <code>enforced:</code> option to <code>add_foreign_key</code> and <code>change_foreign_key</code> for PostgreSQL 18.4+.</p>
+<p><code>NOT ENFORCED</code> foreign keys are available since PostgreSQL 18.0, but <code>DEFERRABLE</code>
+was lost on them until 18.4 (&quot;Fix loss of deferrability of foreign-key triggers&quot;,
+<a href="https://www.postgresql.org/docs/release/18.4/">https://www.postgresql.org/docs/release/18.4/</a>). Rails therefore requires PostgreSQL
+18.4 or later for this feature.</p>
+<p>When <code>enforced: false</code> is passed to <code>add_foreign_key</code>, the constraint is created as <code>NOT ENFORCED</code>,
+meaning PostgreSQL skips referential integrity checks during DML.
+PostgreSQL marks <code>NOT ENFORCED</code> constraints as <code>NOT VALID</code> internally (and <code>VALIDATE CONSTRAINT</code>
+does not apply to them), so the schema dumper outputs both
+<code>enforced: false</code> and <code>validate: false</code>.</p>
+<p><code>change_foreign_key</code> toggles the enforced status of an existing foreign key. Without
+this method, users would need to issue raw <code>ALTER TABLE ... ALTER CONSTRAINT</code> SQL
+to disable enforcement temporarily (e.g., for bulk DML that loads the referenced
+and referencing tables in arbitrary order) and then re-enable it.</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_add_foreign_key'>add_foreign_key</span> <span class='symbeg'>:</span><span class='id identifier rubyid_articles'>articles</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_authors'>authors</span><span class='comma'>,</span> <span class='label'>enforced:</span> <span class='kw'>false</span>
+<span class='comment'># =&gt; ALTER TABLE &quot;articles&quot; ADD CONSTRAINT ... FOREIGN KEY (&quot;author_id&quot;) REFERENCES &quot;authors&quot; (&quot;id&quot;) NOT ENFORCED
+</span>
+<span class='id identifier rubyid_change_foreign_key'>change_foreign_key</span> <span class='symbeg'>:</span><span class='id identifier rubyid_articles'>articles</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_authors'>authors</span><span class='comma'>,</span> <span class='label'>enforced:</span> <span class='kw'>true</span>
+<span class='comment'># =&gt; ALTER TABLE &quot;articles&quot; ALTER CONSTRAINT &quot;fk_rails_...&quot; ENFORCED
+</span>
+<span class='id identifier rubyid_change_foreign_key'>change_foreign_key</span> <span class='symbeg'>:</span><span class='id identifier rubyid_articles'>articles</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_authors'>authors</span><span class='comma'>,</span> <span class='label'>enforced:</span> <span class='kw'>false</span>
+<span class='comment'># =&gt; ALTER TABLE &quot;articles&quot; ALTER CONSTRAINT &quot;fk_rails_...&quot; NOT ENFORCED</span></code></pre>
+<p><em>Yasuo Honda</em></p>
+</li>
+<li>
 <p>Expose <code>cursor</code>, <code>order</code> and <code>use_ranges</code> attributes for <code>BatchEnumerator</code></p>
 <p><em>fatkodima</em></p>
 </li>
