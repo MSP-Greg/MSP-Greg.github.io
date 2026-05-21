@@ -62,142 +62,93 @@
   </header>
 <div id='content' class='file'>
 <p><strong>DO NOT READ THIS FILE ON GITHUB, GUIDES ARE PUBLISHED ON <a href="https://guides.rubyonrails.org">https://guides.rubyonrails.org</a>.</strong></p>
-<h1 id="Caching_with_Rails__An_Overview">Caching with Rails: An Overview</h1>
-<p>This guide is an introduction to speeding up your <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> application with caching.</p>
+<h1 id="Caching_with__Rails_">Caching with <a href="Rails.html" title="Rails (module)"><code>Rails</code></a></h1>
+<p>This guide is an introduction to speeding up your <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> application with
+caching.</p>
 <p>After reading this guide, you will know:</p>
 <ul>
 <li>What caching is.</li>
 <li>The types of caching strategies.</li>
-<li>How to manage the caching dependencies.</li>
-<li>Solid Cache - a database-backed Active Support cache store.</li>
-<li>Other cache stores.</li>
-<li>Cache keys.</li>
-<li>Conditional GET support.</li>
+<li>How to manage cache dependencies.</li>
+<li>How to configure Solid Cache and other cache stores.</li>
 </ul>
 <hr />
 <h2 id="What_is_Caching_">What is Caching?</h2>
 <p>Caching means storing content generated during the request-response cycle and
-reusing it when responding to similar requests. It's like keeping your favorite
-coffee mug right on your desk instead of in the kitchen cabinet — it’s ready
-when you need it, saving you time and effort.</p>
+reusing it when responding to similar requests. It avoids doing an expensive
+operation more than once - think of it like saving the result of something
+expensive so you can look it up later instead of recomputing it.</p>
 <p>Caching is one of the most effective ways to boost an application's performance.
-It allows websites running on modest infrastructure — a single server with a
-single database — to sustain thousands of concurrent users.</p>
+It allows websites running on modest infrastructure, a single server with a
+single database, to sustain thousands of concurrent users.</p>
 <p><a href="Rails.html" title="Rails (module)"><code>Rails</code></a> provides a set of caching features out of the box which allows you to not
 only cache data, but also to tackle challenges like cache expiration, cache
 dependencies, and cache invalidation.</p>
-<p>This guide will explore Rails' comprehensive caching strategies, from fragment
-caching to SQL caching. With these techniques, your <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> application can serve
-millions of views while keeping response times low and server bills manageable.</p>
+<h2 id="Setup">Setup</h2>
+<p>By default, <a href="https://api.rubyonrails.org/classes/ActionController/Caching.html">Action Controller
+Caching</a> is
+enabled only in the production environment. However, you can play around with
+caching locally by running <code>bin/rails dev:cache</code>, or by setting
+[<code>config.action_controller.perform_caching</code>][] to <code>true</code> in
+<code>config/environments/development.rb</code>.</p>
+<pre class="code bash"><code class="bash">$ bin/rails dev:cache
+Development mode is now being cached.
+$ bin/rails dev:cache
+Development mode is no longer being cached.
+</code></pre>
+<p>NOTE: Changing the value of <code>config.action_controller.perform_caching</code> only
+affects caching provided by Action Controller. It will not impact <a href="#low-level-caching-using-rails-cache">low-level
+caching</a>.</p>
+<p>By default, new Rails applications use
+<a href="#activesupport-cache-memorystore"><code>:memory_store</code></a> as the cache store in
+development. If you want to use Solid Cache in development, set the
+<code>cache_store</code> configuration in <code>config/environments/development.rb</code>:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_cache_store'>cache_store</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_solid_cache_store'>solid_cache_store</span></code></pre>
+<p>and make sure the <code>cache</code> database is configured, created, and migrated:</p>
+<pre class="code yaml"><code class="yaml">development:
+  primary:
+    &lt;&lt;: *default
+    database: storage/development.sqlite3
+  cache:
+    &lt;&lt;: *default
+    database: storage/development_cache.sqlite3
+    migrations_paths: db/cache_migrate
+</code></pre>
+<p>After configuring the database, run <code>bin/rails db:prepare</code> so the cache tables
+are created.</p>
+<p>TIP: To disable caching set <code>cache_store</code> to
+<a href="#activesupport-cache-nullstore"><code>:null_store</code></a></p>
 <h2 id="Types_of_Caching">Types of Caching</h2>
-<p>This is an introduction to some of the common types of caching.</p>
-<p>By default, Action Controller caching is only enabled in your production environment. You can play
-around with caching locally by running <code>bin/rails dev:cache</code>, or by setting
-[<code>config.action_controller.perform_caching</code>][] to <code>true</code> in <code>config/environments/development.rb</code>.</p>
-<p>NOTE: Changing the value of <code>config.action_controller.perform_caching</code> will
-only have an effect on the caching provided by Action Controller.
-For instance, it will not impact low-level caching, that we address
-<a href="#low-level-caching-using-rails-cache">below</a>.</p>
-<h3 id="Fragment_Caching">Fragment Caching</h3>
-<p>Dynamic web applications usually build pages with a variety of components not
-all of which have the same caching characteristics. When different parts of the
-page need to be cached and expired separately you can use Fragment Caching.</p>
-<p>Fragment Caching allows a fragment of view logic to be wrapped in a cache block and served out of the cache store when the next request comes in.</p>
-<p>For example, if you wanted to cache each product on a page, you could use this
-code:</p>
-<pre class="code xml"><code class="xml">&lt;% @products.each do |product| %&gt;
-  &lt;% cache product do %&gt;
-    &lt;%= render product %&gt;
-  &lt;% end %&gt;
-&lt;% end %&gt;
-</code></pre>
-<p>When your application receives its first request to this page, Rails will write
-a new cache entry with a unique key. A key looks something like this:</p>
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_views'>views</span><span class='op'>/</span><span class='id identifier rubyid_products'>products</span><span class='op'>/</span><span class='id identifier rubyid_index'>index</span><span class='symbeg'>:</span><span class='id identifier rubyid_bea67108094918eeba42cd4a6e786901'>bea67108094918eeba42cd4a6e786901</span><span class='op'>/</span><span class='id identifier rubyid_products'>products</span><span class='op'>/</span><span class='int'>1</span></code></pre>
-<p>The string of characters in the middle is a template tree digest. It is a hash
-digest computed based on the contents of the view fragment you are caching. If
-you change the view fragment (e.g., the HTML changes), the digest will change,
-expiring the existing file.</p>
-<p>A cache version, derived from the product record, is stored in the cache entry.
-When the product is touched, the cache version changes, and any cached fragments
-that contain the previous version are ignored.</p>
-<p>TIP: Cache stores like Memcached will automatically delete old cache files.</p>
-<p>If you want to cache a fragment under certain conditions, you can use
-<code>cache_if</code> or <code>cache_unless</code>:</p>
-<pre class="code xml"><code class="xml">&lt;% cache_if admin?, product do %&gt;
-  &lt;%= render product %&gt;
-&lt;% end %&gt;
-</code></pre>
-<h4 id="Collection_Caching">Collection Caching</h4>
-<p>The <code>render</code> helper can also cache individual templates rendered for a collection.
-It can even one up the previous example with <code>each</code> by reading all cache
-templates at once instead of one by one. This is done by passing <code>cached: true</code> when rendering the collection:</p>
-<pre class="code xml"><code class="xml">&lt;%= render partial: &#39;products/product&#39;, collection: @products, cached: true %&gt;
-</code></pre>
-<p>All cached templates from previous renders will be fetched at once with much
-greater speed. Additionally, the templates that haven't yet been cached will be
-written to cache and multi fetched on the next render.</p>
-<p>The cache key can be configured. In the example below, it is prefixed with the
-current locale to ensure that different localizations of the product page
-do not overwrite each other:</p>
-<pre class="code xml"><code class="xml">&lt;%= render partial: &#39;products/product&#39;,
-           collection: @products,
-           cached: -&gt;(product) { [I18n.locale, product] } %&gt;
-</code></pre>
-<h3 id="Russian_Doll_Caching">Russian Doll Caching</h3>
-<p>You may want to nest cached fragments inside other cached fragments. This is
-called Russian doll caching.</p>
-<p>The advantage of Russian doll caching is that if a single product is updated,
-all the other inner fragments can be reused when regenerating the outer
-fragment.</p>
-<p>As explained in the previous section, a cached file will expire if the value of
-<code>updated_at</code> changes for a record on which the cached file directly depends.
-However, this will not expire any cache the fragment is nested within.</p>
-<p>For example, take the following view:</p>
-<pre class="code xml"><code class="xml">&lt;% cache product do %&gt;
-  &lt;%= render product.games %&gt;
-&lt;% end %&gt;
-</code></pre>
-<p>Which in turn renders this view:</p>
-<pre class="code xml"><code class="xml">&lt;% cache game do %&gt;
-  &lt;%= render game %&gt;
-&lt;% end %&gt;
-</code></pre>
-<p>If any attribute of game is changed, the <code>updated_at</code> value will be set to the
-current time, thereby expiring the cache. However, because <code>updated_at</code>
-will not be changed for the product object, that cache will not be expired and
-your app will serve stale data. To fix this, we tie the models together with
-the <code>touch</code> method:</p>
-<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Product</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
-  <span class='id identifier rubyid_has_many'>has_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_games'>games</span>
-<span class='kw'>end</span>
-
-<span class='kw'>class</span> <span class='const'>Game</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
-  <span class='id identifier rubyid_belongs_to'>belongs_to</span> <span class='symbeg'>:</span><span class='id identifier rubyid_product'>product</span><span class='comma'>,</span> <span class='label'>touch:</span> <span class='kw'>true</span>
-<span class='kw'>end</span></code></pre>
-<p>With <code>touch</code> set to <code>true</code>, any action which changes <code>updated_at</code> for a game
-record will also change it for the associated product, thereby expiring the
-cache.</p>
-<h3 id="Shared_Partial_Caching">Shared Partial Caching</h3>
-<p>It is possible to share partials and associated caching between files with different MIME types. For example shared partial caching allows template writers to share a partial between HTML and JavaScript files. When templates are collected in the template resolver file paths they only include the template language extension and not the MIME type. Because of this templates can be used for multiple MIME types. Both HTML and JavaScript requests will respond to the following code:</p>
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_render'>render</span>(<span class='label'>partial:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>hotels/hotel</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>collection:</span> <span class='ivar'>@hotels</span><span class='comma'>,</span> <span class='label'>cached:</span> <span class='kw'>true</span>)</code></pre>
-<p>Will load a file named <code>hotels/hotel.erb</code>.</p>
-<p>Another option is to include the <code>formats</code> attribute to the partial to render.</p>
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_render'>render</span>(<span class='label'>partial:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>hotels/hotel</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>collection:</span> <span class='ivar'>@hotels</span><span class='comma'>,</span> <span class='label'>formats:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_html'>html</span><span class='comma'>,</span> <span class='label'>cached:</span> <span class='kw'>true</span>)</code></pre>
-<p>Will load a file named <code>hotels/hotel.html.erb</code> in any file MIME type, for example you could include this partial in a JavaScript file.</p>
+<p>Rails provides several different caching strategies to suit different needs and
+use cases. Each approach has its own benefits and is useful in different
+scenarios.</p>
 <h3 id="Low_Level_Caching_using__Rails_cache_">Low-Level Caching using <a href="Rails.html#cache-class_method" title="Rails.cache (method)">Rails.cache</a></h3>
-<p>Sometimes you need to cache a particular value or query result instead of caching view fragments. Rails' caching mechanism works great for storing any serializable information.</p>
-<p>An efficient way to implement low-level caching is using the <code>Rails.cache.fetch</code> method. This method handles both <em>reading from</em> and <em>writing to</em> the cache. When called with a single argument, it fetches and returns the cached value for the given key. If a block is passed, the block is executed only on a cache miss. The block's return value is written to the cache under the given cache key and returned. In case of cache hit, the cached value is returned directly without executing the block.</p>
-<p>Consider the following example. An application has a <code>Product</code> model with an instance method that looks up the product's price on a competing website. The data returned by this method would be perfect for low-level caching:</p>
-<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Product</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
-  <span class='kw'>def</span> <span class='id identifier rubyid_competing_price'>competing_price</span>
-    <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_cache'><a href="Rails.html#cache-class_method" title="Rails.cache (method)">cache</a></span>.<span class='id identifier rubyid_fetch'>fetch</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_cache_key_with_version'>cache_key_with_version</span><span class='embexpr_end'>}</span><span class='tstring_content'>/competing_price</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>expires_in:</span> <span class='int'>12</span>.<span class='id identifier rubyid_hours'>hours</span>) <span class='kw'>do</span>
-      <span class='const'>Competitor</span><span class='op'>::</span><span class='const'>API</span>.<span class='id identifier rubyid_find_price'>find_price</span>(<span class='id identifier rubyid_id'>id</span>)
-    <span class='kw'>end</span>
-  <span class='kw'>end</span>
-<span class='kw'>end</span></code></pre>
-<p>NOTE: Notice that in this example we used the <code>cache_key_with_version</code> method, so the resulting cache key will be something like <code>products/233-20140225082222765838000/competing_price</code>. <code>cache_key_with_version</code> generates a string based on the model's class name, <code>id</code>, and <code>updated_at</code> attributes. This is a common convention and has the benefit of invalidating the cache whenever the product is updated. In general, when you use low-level caching, you need to generate a cache key.</p>
-<p>Below are some more examples of how to use low-level caching:</p>
+<p>Rails' low-level caching mechanism, accessed with <a href="Rails.html#cache-class_method" title="Rails.cache (method)">Rails.cache</a>, stores
+serializable values such as API responses, computed values, and expensive query
+results. This lets you cache individual pieces of data without caching an entire
+view.</p>
+<p><code>Rails.cache.fetch</code> handles both <em>reading from</em> and <em>writing to</em> the cache. When
+called with a single argument, it fetches and returns the cached value for the
+given key. If a block is passed, the block is executed only on a cache miss. The
+block's return value is written to the cache under the given cache key and
+returned. In case of cache hit, the cached value is returned directly without
+executing the block.</p>
+<p>For example:</p>
+<pre class="code ruby"><code class="ruby"><span class='comment'># Fetch a value with a block to set a default if it doesn’t exist
+</span><span class='id identifier rubyid_welcome_message'>welcome_message</span> <span class='op'>=</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_cache'><a href="Rails.html#cache-class_method" title="Rails.cache (method)">cache</a></span>.<span class='id identifier rubyid_fetch'>fetch</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>welcome_message</span><span class='tstring_end'>&quot;</span></span>) { <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Welcome to Rails!</span><span class='tstring_end'>&quot;</span></span> }
+<span class='id identifier rubyid_puts'>puts</span> <span class='id identifier rubyid_welcome_message'>welcome_message</span> <span class='comment'># Output: Welcome to Rails!</span></code></pre>
+<p>INFO: A cache hit means Rails found an existing value in the cache and could
+reuse it. A cache miss means the value was not in the cache yet, so Rails had to
+generate it and store it. Cache misses are normal, especially when an entry
+expires, the cache is cleared, or a key is used for the first time.</p>
+<p>For more advanced use cases, <code>Rails.cache.fetch</code> also accepts options such as
+<code>race_condition_ttl</code>, which can help prevent a cache stampede by briefly reusing
+a recently expired entry while one process rebuilds it. The full set of options
+is documented in
+<a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/Store.html"><a href="ActiveSupport/Cache/Store.html" title="ActiveSupport::Cache::Store (class)"><code>::ActiveSupport::Cache::Store</code></a></a>.</p>
+<p>Alternatively, you can specify whether you want to read or write from the cache
+using <code>Rails.cache.read</code> and <code>Rails.cache.write</code>. You can delete a key using
+<code>Rails.cache.delete</code>.</p>
 <pre class="code ruby"><code class="ruby"><span class='comment'># Store a value in the cache
 </span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_cache'><a href="Rails.html#cache-class_method" title="Rails.cache (method)">cache</a></span>.<span class='id identifier rubyid_write'>write</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>greeting</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Hello, world!</span><span class='tstring_end'>&quot;</span></span>)
 
@@ -211,26 +162,334 @@ cache.</p>
 </span>
 <span class='comment'># Delete a value from the cache
 </span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_cache'><a href="Rails.html#cache-class_method" title="Rails.cache (method)">cache</a></span>.<span class='id identifier rubyid_delete'>delete</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>greeting</span><span class='tstring_end'>&quot;</span></span>)</code></pre>
+<p>If you need to remove everything from the current cache store, you can call
+<code>Rails.cache.clear</code>. This is most useful in development or when you explicitly
+want to reset the cache. In production, clearing the entire cache can cause a
+sudden increase in work while entries are rebuilt.</p>
+<p>You can use Hashes and Arrays of values as cache keys.</p>
+<pre class="code ruby"><code class="ruby"><span class='comment'># This is a valid cache key
+</span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_cache'><a href="Rails.html#cache-class_method" title="Rails.cache (method)">cache</a></span>.<span class='id identifier rubyid_read'>read</span>(<span class='label'>site:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>mysite</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>owners:</span> [<span class='id identifier rubyid_owner_1'>owner_1</span><span class='comma'>,</span> <span class='id identifier rubyid_owner_2'>owner_2</span>])</code></pre>
+<p>Cache keys can be any object that responds to <code>cache_key</code> or <code>to_param</code>. If you
+need custom keys, you can implement <code>cache_key</code> on your own classes. Active
+Record models already generate cache keys based on the model name and record ID.</p>
+<p>Consider the following example. An application has a <code>Product</code> model with an
+instance method that looks up the product's price on a competitor's website. The
+data returned by this method would be a good fit for low-level caching:</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Product</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_competing_price'>competing_price</span>
+    <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_cache'><a href="Rails.html#cache-class_method" title="Rails.cache (method)">cache</a></span>.<span class='id identifier rubyid_fetch'>fetch</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_cache_key_with_version'>cache_key_with_version</span><span class='embexpr_end'>}</span><span class='tstring_content'>/competing_price</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>expires_in:</span> <span class='int'>12</span>.<span class='id identifier rubyid_hours'>hours</span>) <span class='kw'>do</span>
+      <span class='const'>Competitor</span><span class='op'>::</span><span class='const'>API</span>.<span class='id identifier rubyid_find_price'>find_price</span>(<span class='id identifier rubyid_id'>id</span>)
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+<p>Notice that in the example above we used the <code>cache_key_with_version</code> method, so
+the resulting cache key will be something like
+<code>products/233-20140225082222765838000/competing_price</code>. <code>cache_key_with_version</code>
+generates a string based on the model's class name, <code>id</code>, and <code>updated_at</code>
+attributes, in the form <code>&lt;model class name&gt;/&lt;resource id&gt;-&lt;resource updated_at&gt;</code>. This is a common convention and has the benefit of invalidating
+the cache whenever the product is updated.</p>
+<p>INFO: The keys you use on <a href="Rails.html#cache-class_method" title="Rails.cache (method)">Rails.cache</a> will not be the same as those actually
+used with the storage engine. They may be modified with a namespace or altered
+to fit technology backend constraints. This means, for instance, that you can't
+save values with <a href="Rails.html#cache-class_method" title="Rails.cache (method)">Rails.cache</a> and then try to pull them out with the
+<a href="https://github.com/petergoldstein/dalli"><code>dalli</code></a> gem. However, you also don't
+need to worry about exceeding the memcached size limit or violating syntax
+rules.</p>
 <h4 id="Avoid_Caching_Instances_of_Active_Record_Objects">Avoid Caching Instances of Active Record Objects</h4>
-<p>Consider this example, which stores a list of Active Record objects representing superusers in the cache:</p>
+<p>You should <strong>avoid</strong> storing a list of Active Record objects in the cache:</p>
 <pre class="code ruby"><code class="ruby"><span class='comment'># super_admins is an expensive SQL query, so don&#39;t run it too often
 </span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_cache'><a href="Rails.html#cache-class_method" title="Rails.cache (method)">cache</a></span>.<span class='id identifier rubyid_fetch'>fetch</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>super_admin_users</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>expires_in:</span> <span class='int'>12</span>.<span class='id identifier rubyid_hours'>hours</span>) <span class='kw'>do</span>
   <span class='const'>User</span>.<span class='id identifier rubyid_super_admins'>super_admins</span>.<span class='id identifier rubyid_to_a'>to_a</span>
 <span class='kw'>end</span></code></pre>
-<p>You should <strong>avoid</strong> this pattern. Why? Because the instance could change. In production, attributes
-on it could differ, or the record could be deleted. And in development, it works unreliably with
-cache stores that reload code when you make changes.</p>
-<p>Instead, cache the ID or some other primitive data type. For example:</p>
-<pre class="code ruby"><code class="ruby"><span class='comment'># super_admins is an expensive SQL query, so don&#39;t run it too often
-</span><span class='id identifier rubyid_ids'>ids</span> <span class='op'>=</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_cache'><a href="Rails.html#cache-class_method" title="Rails.cache (method)">cache</a></span>.<span class='id identifier rubyid_fetch'>fetch</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>super_admin_user_ids</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>expires_in:</span> <span class='int'>12</span>.<span class='id identifier rubyid_hours'>hours</span>) <span class='kw'>do</span>
+<p>In the example above, the instance of the <code>User</code>, representing <code>superusers</code>,
+could change, and the attributes on it could differ, or the record could be
+deleted. In development, this also works unreliably with cache stores that
+reload code when you make changes.</p>
+<p>Instead, cache the ID of the resource or some other primitive data type. For
+example:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_ids'>ids</span> <span class='op'>=</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_cache'><a href="Rails.html#cache-class_method" title="Rails.cache (method)">cache</a></span>.<span class='id identifier rubyid_fetch'>fetch</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>super_admin_user_ids</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>expires_in:</span> <span class='int'>12</span>.<span class='id identifier rubyid_hours'>hours</span>) <span class='kw'>do</span>
   <span class='const'>User</span>.<span class='id identifier rubyid_super_admins'>super_admins</span>.<span class='id identifier rubyid_pluck'>pluck</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span>)
 <span class='kw'>end</span>
 <span class='const'>User</span>.<span class='id identifier rubyid_where'>where</span>(<span class='label'>id:</span> <span class='id identifier rubyid_ids'>ids</span>).<span class='id identifier rubyid_to_a'>to_a</span></code></pre>
+<h3 id="Fragment_Caching">Fragment Caching</h3>
+<p>Dynamic web applications build pages with a variety of components not all of
+which have the same caching characteristics. For example, a static component,
+such as a site logo, will have a longer caching duration compared to other more
+dynamic components. To cache and expire different parts of the page separately
+you can use Fragment Caching.</p>
+<p>Fragment Caching allows a fragment of view logic to be wrapped in a cache block
+and served out of the cache store when the next request comes in.</p>
+<p>For example, if you wanted to cache each product on a page, you could do the
+following:</p>
+<pre class="code xml"><code class="xml">&lt;% @products.each do |product| %&gt;
+  &lt;% cache product do %&gt;
+    &lt;%= render product %&gt;
+  &lt;% end %&gt;
+&lt;% end %&gt;
+</code></pre>
+<p>When your application receives its first request to this page, Rails will write
+a new cache entry with a unique key. The key looks something like this:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_views'>views</span><span class='op'>/</span><span class='id identifier rubyid_products'>products</span><span class='op'>/</span><span class='id identifier rubyid_index'>index</span><span class='symbeg'>:</span><span class='id identifier rubyid_bea67108094918eeba42cd4a6e786901'>bea67108094918eeba42cd4a6e786901</span><span class='op'>/</span><span class='id identifier rubyid_products'>products</span><span class='op'>/</span><span class='int'>1</span></code></pre>
+<p>The string of characters in the middle is a template tree digest. It is a hash
+computed from the contents of the view fragment you are caching. If you change
+that fragment, such as by updating the HTML, the digest changes and Rails will
+treat it as a different cache entry.</p>
+<p>A cache version, derived from the product record, is stored in the cache entry.
+When the product is touched, the cache version changes, and any cached fragments
+that contain the previous version are ignored.</p>
+<p>Separating the cache key from the cache version allows Rails to reuse the cache
+key, instead of creating a new entry every time. No matter how frequently the
+product is touched, Rails writes to the same cache key. This reduces the total
+cache size because outdated cache entries are overwritten with the new entry.</p>
+<p>TIP: Cache stores like <a href="https://memcached.org">Memcached</a> automatically evict
+old cache entries when they need to reclaim space.</p>
+<p>If you want to cache a fragment under certain conditions, you can use <code>cache_if</code>
+or <code>cache_unless</code>:</p>
+<pre class="code xml"><code class="xml">&lt;% cache_if admin?, product do %&gt;
+  &lt;%= render product %&gt;
+&lt;% end %&gt;
+</code></pre>
+<h4 id="Collection_Caching">Collection Caching</h4>
+<p>The <code>render</code> helper can also cache each template in a collection. Instead of
+checking the cache one item at a time in an <code>each</code> loop, Rails can fetch the
+cached entries for the whole collection at once. You enable this by passing
+<code>cached: true</code> when rendering the collection:</p>
+<pre class="code xml"><code class="xml">&lt;%= render partial: &#39;products/product&#39;, collection: @products, cached: true %&gt;
+</code></pre>
+<p>Cached entries from previous renders will be read in a single multi-fetch.
+Templates that are not yet cached will be rendered and written to the cache, so
+they can be fetched the same way on the next render.</p>
+<p>The cache key can be configured. In the example below, it is prefixed with the
+current locale to ensure that different localizations of the product page do not
+overwrite each other:</p>
+<pre class="code xml"><code class="xml">&lt;%= render partial: &#39;products/product&#39;,
+           collection: @products,
+           cached: -&gt;(product) { [I18n.locale, product] } %&gt;
+</code></pre>
+<p>You can also configure <code>cached</code> with an options hash that accepts <code>expires_in</code>
+and <code>key</code>, so you can control the cache key and expiration explicitly.</p>
+<pre class="code xml"><code class="xml">&lt;%= render partial: &#39;products/product&#39;,
+           collection: @products,
+           cached: { expires_in: 1.hour, key: -&gt;(product) { [I18n.locale, product] } } %&gt;
+</code></pre>
+<h4 id="Managing_Dependencies">Managing Dependencies</h4>
+<p>When using fragment caching, you need to define template dependencies so Rails
+can invalidate cached fragments correctly. Rails can infer many common cases,
+but when rendering happens in helpers or through less direct <code>render</code> calls, you
+may need to declare dependencies explicitly.</p>
+<h5 id="Implicit_Dependencies">Implicit Dependencies</h5>
+<p>Rails can infer many template dependencies directly from <code>render</code> calls in the
+template. For example, the
+<a href="https://api.rubyonrails.org/classes/ActionView/Digestor.html"><a href="ActionView/Digestor.html" title="ActionView::Digestor (class)"><code>::ActionView::Digestor</code></a></a>
+can understand calls like these:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_render'>render</span> <span class='label'>partial:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>comments/comment</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>collection:</span> <span class='id identifier rubyid_commentable'>commentable</span>.<span class='id identifier rubyid_comments'>comments</span>
+<span class='id identifier rubyid_render'>render</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>comments/comments</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_render'>render</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>comments/comments</span><span class='tstring_end'>&quot;</span></span>)
+
+<span class='id identifier rubyid_render'>render</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>header</span><span class='tstring_end'>&quot;</span></span> <span class='comment'># translates to render(&quot;comments/header&quot;)
+</span>
+<span class='id identifier rubyid_render'>render</span>(<span class='ivar'>@topic</span>)         <span class='comment'># translates to render(&quot;topics/topic&quot;)
+</span><span class='id identifier rubyid_render'>render</span>(<span class='id identifier rubyid_topics'>topics</span>)         <span class='comment'># translates to render(&quot;topics/topic&quot;)
+</span><span class='id identifier rubyid_render'>render</span>(<span class='id identifier rubyid_message'>message</span>.<span class='id identifier rubyid_topics'>topics</span>) <span class='comment'># translates to render(&quot;topics/topic&quot;)</span></code></pre>
+<p>Some render calls need more information before Rails can infer the template
+dependency. For example, when you pass a custom collection like this:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_render'>render</span> <span class='ivar'>@project</span>.<span class='id identifier rubyid_documents'>documents</span>.<span class='id identifier rubyid_where'>where</span>(<span class='label'>published:</span> <span class='kw'>true</span>)</code></pre>
+<p>You'll need to rewrite it to name the partial and collection explicitly:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_render'>render</span> <span class='label'>partial:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>documents/document</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>collection:</span> <span class='ivar'>@project</span>.<span class='id identifier rubyid_documents'>documents</span>.<span class='id identifier rubyid_where'>where</span>(<span class='label'>published:</span> <span class='kw'>true</span>)</code></pre>
+<h5 id="Explicit_Dependencies">Explicit Dependencies</h5>
+<p>Sometimes Rails cannot see a template dependency on its own. This usually
+happens when the <code>render</code> call is hidden inside a helper method.</p>
+<pre class="code xml"><code class="xml">&lt;%= render_sortable_todolists @project.todolists %&gt;
+</code></pre>
+<p>In that case, declare the dependency explicitly with a special comment:</p>
+<pre class="code xml"><code class="xml">&lt;%# Template Dependency: todolists/todolist %&gt;
+&lt;%= render_sortable_todolists @project.todolists %&gt;
+</code></pre>
+<p>In some cases, such as a <a href="association_basics.html#single-table-inheritance">single table
+inheritance</a> setup, a helper
+may render different partials from the same directory. Instead of listing each
+template individually, you can use a wildcard to match the whole directory:</p>
+<pre class="code xml"><code class="xml">&lt;%# Template Dependency: events/* %&gt;
+&lt;%= render_categorizable_events @person.events %&gt;
+</code></pre>
+<p>There is also a special comment for collection caching when the cache call is
+hidden inside a helper. If the partial template does not start with a clean
+cache call, you can add this comment anywhere in the template:</p>
+<pre class="code xml"><code class="xml">&lt;%# Template Collection: notification %&gt;
+&lt;% my_helper_that_calls_cache(some_arg, notification) do %&gt;
+  &lt;%= notification.name %&gt;
+&lt;% end %&gt;
+</code></pre>
+<h5 id="External_Dependencies">External Dependencies</h5>
+<p>Changes outside the template file can also affect the cached output. For
+example, if a cached block calls a helper method, updating that helper will not
+change the template digest automatically.</p>
+<p>When that happens, update the template in some way so its digest changes too.
+One simple approach is to add or update a comment like this:</p>
+<pre class="code xml"><code class="xml">&lt;%# Helper Dependency Updated: Jul 28, 2015 at 7pm %&gt;
+&lt;%= some_helper_method(person) %&gt;
+</code></pre>
+<h3 id="Russian_Doll_Caching">Russian Doll Caching</h3>
+<p>You may want to nest cached fragments inside other cached fragments. This is
+called Russian doll caching.</p>
+<p>The advantage of Russian doll caching is that if a single product is updated,
+all the other inner fragments can be reused when regenerating the outer
+fragment.</p>
+<p>As explained in the previous section, a cached fragment will become stale if the
+<code>updated_at</code> value changes for a record it directly depends on. However, that
+does not automatically expire any outer fragment that contains it.</p>
+<p>For example, take the following view:</p>
+<pre class="code xml"><code class="xml">&lt;% cache product do %&gt;
+  &lt;%= render product.reviews %&gt;
+&lt;% end %&gt;
+</code></pre>
+<p>Which in turn renders this view:</p>
+<pre class="code xml"><code class="xml">&lt;% cache review do %&gt;
+  &lt;%= render review %&gt;
+&lt;% end %&gt;
+</code></pre>
+<p>If a <code>review</code> changes, its <code>updated_at</code> value changes too, which expires that
+fragment. But the <code>product</code> record's <code>updated_at</code> does not change automatically,
+so the outer fragment can still serve stale data. To fix this, tie the models
+together with the <code>touch</code> method:</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Product</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_has_many'>has_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_reviews'>reviews</span>
+<span class='kw'>end</span>
+
+<span class='kw'>class</span> <span class='const'>Review</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_belongs_to'>belongs_to</span> <span class='symbeg'>:</span><span class='id identifier rubyid_product'>product</span><span class='comma'>,</span> <span class='label'>touch:</span> <span class='kw'>true</span>
+<span class='kw'>end</span></code></pre>
+<p>With <code>touch</code> set to <code>true</code>, any action which changes <code>updated_at</code> for a review
+record will also change it for the associated product, thereby expiring the
+cache.</p>
+<h3 id="Shared_Partial_Caching">Shared Partial Caching</h3>
+<p>You can share partials, and their cached output, across templates with different
+<a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types">MIME
+types</a>.
+For example, the same partial can be reused from both HTML and JavaScript
+templates. When Rails resolves <code>render partial:</code>, it can use a partial without
+an explicit format in more than one response format. Both HTML and JavaScript
+requests can use the following code:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_render'>render</span>(<span class='label'>partial:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>hotels/hotel</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>collection:</span> <span class='ivar'>@hotels</span><span class='comma'>,</span> <span class='label'>cached:</span> <span class='kw'>true</span>)</code></pre>
+<p>This will load a file named <code>hotels/_hotel.html.erb</code>.</p>
+<p>Another option is to specify the <code>formats</code> option explicitly.</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_render'>render</span>(<span class='label'>partial:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>hotels/hotel</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>collection:</span> <span class='ivar'>@hotels</span><span class='comma'>,</span> <span class='label'>formats:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_html'>html</span><span class='comma'>,</span> <span class='label'>cached:</span> <span class='kw'>true</span>)</code></pre>
+<p>This will load <code>hotels/_hotel.html.erb</code> even when it is rendered from a template
+with a different MIME type, such as a JavaScript template.</p>
+<h3 id="Conditional_GETs">Conditional GETs</h3>
+<p>Conditional GETs let a server tell the browser that a response has not changed
+since the last request, so the browser can reuse its cached copy.</p>
+<p>This is useful when a browser or intermediary cache may already have a recent
+copy of a response and you want to avoid sending the full response body again.</p>
+<p>They work with the <code>If-None-Match</code> and <code>If-Modified-Since</code> request headers,
+using an <a href="#strong-vs-weak-etags">ETag</a> and/or a last-modified timestamp to check
+whether the response is still fresh. If the browser's copy matches the server's
+version, the server can return <code>304 Not Modified</code> with no response body.</p>
+<p>It is the server's responsibility to evaluate those headers and decide whether
+to send a full response. Rails makes this straightforward:</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ProductsController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_show'>show</span>
+    <span class='ivar'>@product</span> <span class='op'>=</span> <span class='const'>Product</span>.<span class='id identifier rubyid_find'>find</span>(<span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span>])
+
+    <span class='comment'># If the request is stale according to the given timestamp and etag value
+</span>    <span class='comment'># (i.e. it needs to be processed again) then execute this block
+</span>    <span class='kw'>if</span> <span class='id identifier rubyid_stale?'>stale?</span>(<span class='label'>last_modified:</span> <span class='ivar'>@product</span>.<span class='id identifier rubyid_updated_at'>updated_at</span>.<span class='id identifier rubyid_utc'>utc</span><span class='comma'>,</span> <span class='label'>etag:</span> <span class='ivar'>@product</span>.<span class='id identifier rubyid_cache_key_with_version'>cache_key_with_version</span>)
+      <span class='id identifier rubyid_respond_to'>respond_to</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_wants'>wants</span><span class='op'>|</span>
+        <span class='comment'># ... normal response processing
+</span>      <span class='kw'>end</span>
+    <span class='kw'>end</span>
+
+    <span class='comment'># If the request is fresh (i.e. it&#39;s not modified) then you don&#39;t need to do
+</span>    <span class='comment'># anything. The default render checks for this using the parameters
+</span>    <span class='comment'># used in the previous call to stale? and will automatically send a
+</span>    <span class='comment'># :not_modified. So that&#39;s it, you&#39;re done.
+</span>  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+<p>Instead of an options hash, you can also simply pass in a model. Rails will use
+the <code>updated_at</code> and <code>cache_key_with_version</code> methods for setting
+<code>last_modified</code> and <code>etag</code>:</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ProductsController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_show'>show</span>
+    <span class='ivar'>@product</span> <span class='op'>=</span> <span class='const'>Product</span>.<span class='id identifier rubyid_find'>find</span>(<span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span>])
+
+    <span class='kw'>if</span> <span class='id identifier rubyid_stale?'>stale?</span>(<span class='ivar'>@product</span>)
+      <span class='id identifier rubyid_respond_to'>respond_to</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_wants'>wants</span><span class='op'>|</span>
+        <span class='comment'># ... normal response processing
+</span>      <span class='kw'>end</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+<p>If you don't have any special response processing and are using the default
+rendering mechanism (i.e. you're not using <code>respond_to</code> or calling render
+yourself) then you've got an easy helper in <code>fresh_when</code>:</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ProductsController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
+  <span class='comment'># This will automatically send back a :not_modified if the request is fresh,
+</span>  <span class='comment'># and will render the default template (product.*) if it&#39;s stale.
+</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_show'>show</span>
+    <span class='ivar'>@product</span> <span class='op'>=</span> <span class='const'>Product</span>.<span class='id identifier rubyid_find'>find</span>(<span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span>])
+    <span class='id identifier rubyid_fresh_when'>fresh_when</span> <span class='label'>last_modified:</span> <span class='ivar'>@product</span>.<span class='id identifier rubyid_published_at'>published_at</span>.<span class='id identifier rubyid_utc'>utc</span><span class='comma'>,</span> <span class='label'>etag:</span> <span class='ivar'>@product</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+<p>Instead of an options hash, you can also pass in a model. Rails will use the
+<code>updated_at</code> and <code>cache_key_with_version</code> methods for setting <code>last_modified</code>
+and <code>etag</code>:</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ProductsController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_show'>show</span>
+    <span class='ivar'>@product</span> <span class='op'>=</span> <span class='const'>Product</span>.<span class='id identifier rubyid_find'>find</span>(<span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span>])
+    <span class='id identifier rubyid_fresh_when'>fresh_when</span> <span class='ivar'>@product</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+<p>When both <code>last_modified</code> and <code>etag</code> are set, the behavior depends on
+<code>config.action_dispatch.strict_freshness</code>. If it is <code>true</code>, only the <code>etag</code> is
+considered, as specified by RFC 7232 section 6. If it is <code>false</code>, both headers
+are checked and the response is considered fresh only if they both match.</p>
+<h4 id="Strong_vs__Weak_ETags">Strong vs. Weak ETags</h4>
+<p>An ETag is a token (often a hash) that uniquely represents a particular version
+of a response body. If the server sends an ETag, the browser can later send it
+back to ask &quot;is this still the same?&quot; without fetching the full response.</p>
+<p>Rails generates weak ETags by default. Weak ETags allow semantically equivalent
+responses to share the same ETag even if their response bodies do not match
+byte-for-byte. This can be useful when minor representation differences occur
+that do not change the meaning of the response, such as insignificant whitespace
+or formatting changes.</p>
+<p>Weak ETags have a leading <code>W/</code> to differentiate them from strong ETags.</p>
+<pre class="code ruby"><code class="ruby"><span class='const'>W</span><span class='op'>/</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>618bbc92e2d35ea1945008b42799b0e7</span><span class='tstring_end'>&quot;</span></span> <span class='tlambda'>-&gt;</span> <span class='const'>Weak</span> <span class='const'>ETag</span>
+<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>618bbc92e2d35ea1945008b42799b0e7</span><span class='tstring_end'>&quot;</span></span> <span class='tlambda'>-&gt;</span> <span class='const'>Strong</span> <span class='const'>ETag</span></code></pre>
+<p>Unlike weak ETags, a strong ETag means the response body must match exactly,
+byte for byte. This is useful for <a href="Range.html" title="Range (class)"><code>Range</code></a> requests on large files such as videos
+or PDFs. Some CDNs also require strong ETags. If you need to generate a strong
+ETag, you can do so as follows:</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ProductsController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_show'>show</span>
+    <span class='ivar'>@product</span> <span class='op'>=</span> <span class='const'>Product</span>.<span class='id identifier rubyid_find'>find</span>(<span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span>])
+    <span class='id identifier rubyid_fresh_when'>fresh_when</span> <span class='label'>last_modified:</span> <span class='ivar'>@product</span>.<span class='id identifier rubyid_published_at'>published_at</span>.<span class='id identifier rubyid_utc'>utc</span><span class='comma'>,</span> <span class='label'>strong_etag:</span> <span class='ivar'>@product</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+<p>You can also set the strong ETag directly on the response.</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_response'>response</span>.<span class='id identifier rubyid_strong_etag'>strong_etag</span> <span class='op'>=</span> <span class='id identifier rubyid_response'>response</span>.<span class='id identifier rubyid_body'>body</span> <span class='comment'># =&gt; &quot;618bbc92e2d35ea1945008b42799b0e7&quot;</span></code></pre>
+<p>Sometimes you want to cache a response that effectively never changes, such as a
+static page. In that case, you can use the <code>http_cache_forever</code> helper so
+browsers and proxies cache it for a very long time.</p>
+<p>By default cached responses will be private, cached only on the user's web
+browser. To allow proxies to cache the response, set <code>public: true</code> to indicate
+that they can serve the cached response to all users.</p>
+<p>This helper sets <code>last_modified</code> to <code>Time.new(2011, 1, 1).utc</code> and applies a
+very long <code>Cache-Control</code> lifetime.</p>
+<p>WARNING: Use this method carefully. Browsers and proxies will keep reusing the
+response until it changes at a different URL or the cache is cleared.</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>HomeController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_index'>index</span>
+    <span class='id identifier rubyid_http_cache_forever'>http_cache_forever</span>(<span class='label'>public:</span> <span class='kw'>true</span>) <span class='kw'>do</span>
+      <span class='id identifier rubyid_render'>render</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
 <h3 id="SQL_Caching">SQL Caching</h3>
-<p>Query caching is a Rails feature that caches the result set returned by each
-query. If Rails encounters the same query again for that request, it will use
-the cached result set as opposed to running the query against the database
-again.</p>
+<p>Query caching is an Active Record feature that caches the result set returned by
+each query. If the same query runs again during the same request or execution
+context, Active Record can reuse the stored result instead of asking the
+database again.</p>
 <p>For example:</p>
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ProductsController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
   <span class='kw'>def</span> <span class='id identifier rubyid_index'>index</span>
@@ -243,74 +502,18 @@ again.</p>
 </span>    <span class='ivar'>@products</span> <span class='op'>=</span> <span class='const'>Product</span>.<span class='id identifier rubyid_all'>all</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-<p>The second time the same query is run against the database, it's not actually going to hit the database. The first time the result is returned from the query it is stored in the query cache (in memory) and the second time it's pulled from memory. However, each retrieval still instantiates new instances of the queried objects.</p>
+<p>The second time the same query runs, it does not hit the database. Active Record
+reads the cached result from memory instead. However, each retrieval still
+instantiates new model objects from that cached result.</p>
 <p>NOTE: Query caches are created at the start of an action and destroyed at the
-end of that action and thus persist only for the duration of the action. If
-you'd like to store query results in a more persistent fashion, you can with
-low-level caching.</p>
-<h2 id="Managing_Dependencies">Managing Dependencies</h2>
-<p>In order to correctly invalidate the cache, you need to properly define the
-caching dependencies. Rails is clever enough to handle common cases so you don't
-have to specify anything. However, sometimes, when you're dealing with custom
-helpers for instance, you need to explicitly define them.</p>
-<h3 id="Implicit_Dependencies">Implicit Dependencies</h3>
-<p>Most template dependencies can be derived from calls to <code>render</code> in the template
-itself. Here are some examples of render calls that <a href="https://api.rubyonrails.org/classes/ActionView/Digestor.html"><a href="ActionView/Digestor.html" title="ActionView::Digestor (class)"><code>::ActionView::Digestor</code></a></a> knows
-how to decode:</p>
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_render'>render</span> <span class='label'>partial:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>comments/comment</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>collection:</span> <span class='id identifier rubyid_commentable'>commentable</span>.<span class='id identifier rubyid_comments'>comments</span>
-<span class='id identifier rubyid_render'>render</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>comments/comments</span><span class='tstring_end'>&quot;</span></span>
-<span class='id identifier rubyid_render'>render</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>comments/comments</span><span class='tstring_end'>&quot;</span></span>)
-
-<span class='id identifier rubyid_render'>render</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>header</span><span class='tstring_end'>&quot;</span></span> <span class='comment'># translates to render(&quot;comments/header&quot;)
-</span>
-<span class='id identifier rubyid_render'>render</span>(<span class='ivar'>@topic</span>)         <span class='comment'># translates to render(&quot;topics/topic&quot;)
-</span><span class='id identifier rubyid_render'>render</span>(<span class='id identifier rubyid_topics'>topics</span>)         <span class='comment'># translates to render(&quot;topics/topic&quot;)
-</span><span class='id identifier rubyid_render'>render</span>(<span class='id identifier rubyid_message'>message</span>.<span class='id identifier rubyid_topics'>topics</span>) <span class='comment'># translates to render(&quot;topics/topic&quot;)</span></code></pre>
-<p>On the other hand, some calls need to be changed to make caching work properly.
-For instance, if you're passing a custom collection, you'll need to change:</p>
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_render'>render</span> <span class='ivar'>@project</span>.<span class='id identifier rubyid_documents'>documents</span>.<span class='id identifier rubyid_where'>where</span>(<span class='label'>published:</span> <span class='kw'>true</span>)</code></pre>
-<p>to:</p>
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_render'>render</span> <span class='label'>partial:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>documents/document</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>collection:</span> <span class='ivar'>@project</span>.<span class='id identifier rubyid_documents'>documents</span>.<span class='id identifier rubyid_where'>where</span>(<span class='label'>published:</span> <span class='kw'>true</span>)</code></pre>
-<h3 id="Explicit_Dependencies">Explicit Dependencies</h3>
-<p>Sometimes you'll have template dependencies that can't be derived at all. This
-is typically the case when rendering happens in helpers. Here's an example:</p>
-<pre class="code xml"><code class="xml">&lt;%= render_sortable_todolists @project.todolists %&gt;
-</code></pre>
-<p>You'll need to use a special comment format to call those out:</p>
-<pre class="code xml"><code class="xml">&lt;%# Template Dependency: todolists/todolist %&gt;
-&lt;%= render_sortable_todolists @project.todolists %&gt;
-</code></pre>
-<p>In some cases, like a single table inheritance setup, you might have a bunch of
-explicit dependencies. Instead of writing every template out, you can use a
-wildcard to match any template in a directory:</p>
-<pre class="code xml"><code class="xml">&lt;%# Template Dependency: events/* %&gt;
-&lt;%= render_categorizable_events @person.events %&gt;
-</code></pre>
-<p>As for collection caching, if the partial template doesn't start with a clean
-cache call, you can still benefit from collection caching by adding a special
-comment format anywhere in the template, like:</p>
-<pre class="code xml"><code class="xml">&lt;%# Template Collection: notification %&gt;
-&lt;% my_helper_that_calls_cache(some_arg, notification) do %&gt;
-  &lt;%= notification.name %&gt;
-&lt;% end %&gt;
-</code></pre>
-<h3 id="External_Dependencies">External Dependencies</h3>
-<p>If you use a helper method, for example, inside a cached block and you then update
-that helper, you'll have to bump the cache as well. It doesn't really matter how
-you do it, but the MD5 of the template file must change. One recommendation is to
-simply be explicit in a comment, like:</p>
-<pre class="code xml"><code class="xml">&lt;%# Helper Dependency Updated: Jul 28, 2015 at 7pm %&gt;
-&lt;%= some_helper_method(person) %&gt;
-</code></pre>
-<h2 id="Solid_Cache">Solid Cache</h2>
-<p>Solid Cache is a database-backed Active Support cache store. It leverages the
-speed of modern <a href="https://en.wikipedia.org/wiki/Solid-state_drive">SSDs</a> (Solid
-State Drives) to offer cost-effective caching with larger storage capacity and
-simplified infrastructure. While SSDs are slightly slower than RAM, the
-difference is minimal for most applications. SSDs compensate for this by not
-needing to be invalidated as frequently, since they can store much more data. As
-a result, there are fewer cache misses on average, leading to fast response
-times.</p>
+end of that action, so they persist only for the duration of the request. If
+you'd like to store query results in a more persistent fashion, use low-level
+caching.</p>
+<h2 id="Default_Store__Solid_Cache">Default Store: Solid Cache</h2>
+<p>Solid Cache is a database-backed Active Support cache store. It is the default
+cache store for new Rails applications. Solid Cache is a good fit when you want
+a larger, more durable cache without running a separate cache service such as
+Redis or Memcached.</p>
 <p>Solid Cache uses a FIFO (First In, First Out) caching strategy, where the first
 item added to the cache is the first one to be removed when the cache reaches
 its limit. This approach is simpler but less efficient compared to an LRU (Least
@@ -318,17 +521,16 @@ Recently Used) cache, which removes the least recently accessed items first,
 better optimizing for frequently used data. However, Solid Cache compensates for
 the lower efficiency of FIFO by allowing the cache to live longer, reducing the
 frequency of invalidations.</p>
-<p>Solid Cache is enabled by default from Rails version 8.0 and onward. However, if
-you'd prefer not to utilize it, you can skip Solid Cache:</p>
-<pre class="code bash"><code class="bash">rails new app_name --skip-solid
+<p>New Rails applications generated with Rails 8.0 and later include Solid Cache by
+default. However, if you'd prefer not to use it, you can skip Solid Cache:</p>
+<pre class="code bash"><code class="bash">$ bin/rails new app_name --skip-solid
 </code></pre>
-<p>NOTE: Using the <code>--skip-solid</code> flag skips all parts of the Solid
-Trifecta (Solid Cache, Solid Queue, and Solid Cable). If you still
-want to use some of them, you can install them separately. For
-example, if you want to use Solid Queue and Solid Cable but not
-Solid Cache, you can follow the installation guides for <a href="https://github.com/rails/solid_queue#installation">Solid
-Queue</a> and
-<a href="https://github.com/rails/solid_cable#installation">Solid Cable</a>.</p>
+<p>NOTE: Using the <code>--skip-solid</code> flag skips all parts of the Solid Trifecta (Solid
+Cache, Solid Queue, and Solid Cable). If you still want to use some of them, you
+can install them separately. For example, if you want to use Solid Queue and
+Solid Cable but not Solid Cache, you can follow the installation guides for
+<a href="https://github.com/rails/solid_queue#installation">Solid Queue</a> and <a href="https://github.com/rails/solid_cable#installation">Solid
+Cable</a>.</p>
 <h3 id="Configuring_the_Database">Configuring the Database</h3>
 <p>To use Solid Cache, you can configure the database connection in your
 <code>config/database.yml</code> file. Here's an example configuration for a SQLite
@@ -357,18 +559,16 @@ prefer.</p>
     migrations_paths: db/cache_migrate
 </code></pre>
 <p>If <code>database</code> or <a href="#sharding-the-cache"><code>databases</code></a> is not specified in the
-cache configuration, Solid Cache will use the ActiveRecord::Base connection
-pool. This means that cache reads and writes will be part of any wrapping
-database transaction.</p>
-<p>In production, the cache store is configured to use the Solid Cache store by
-default:</p>
-<pre class="code yaml"><code class="yaml">  # config/environments/production.rb
-  config.cache_store = :solid_cache_store
-</code></pre>
+cache configuration, Solid Cache uses the <a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)"><code>::ActiveRecord::Base</code></a> connection pool.
+That means cache reads and writes participate in any surrounding database
+transaction.</p>
+<p>To use Solid Cache as your cache store, configure the environment accordingly:</p>
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/environments/production.rb
+</span><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_cache_store'>cache_store</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_solid_cache_store'>solid_cache_store</span></code></pre>
 <p>You can <a href="#low-level-caching-using-rails-cache">access the cache by calling
-<a href="Rails.html#cache-class_method" title="Rails.cache (method)">Rails.cache</a></a></p>
+<a href="Rails.html#cache-class_method" title="Rails.cache (method)">Rails.cache</a></a>.</p>
 <h3 id="Customizing_the_Cache_Store">Customizing the Cache Store</h3>
-<p>Solid Cache can be customized through the config/cache.yml file:</p>
+<p>Solid Cache can be customized through <code>config/cache.yml</code>:</p>
 <pre class="code yaml"><code class="yaml">default: &amp;default
   store_options:
     # Cap age of oldest cache entry to fulfill retention policies
@@ -376,7 +576,7 @@ default:</p>
     max_size: &lt;%= 256.megabytes %&gt;
     namespace: &lt;%= Rails.env %&gt;
 </code></pre>
-<p>For the full list of keys for store_options see <a href="https://github.com/rails/solid_cache#cache-configuration">Cache
+<p>For the full list of keys under <code>store_options</code>, see <a href="https://github.com/rails/solid_cache#cache-configuration">Cache
 configuration</a>.</p>
 <p>Here, you can adjust the <code>max_age</code> and <code>max_size</code> options to control the age and
 size of the cache entries.</p>
@@ -392,10 +592,10 @@ a background job instead of a thread, set <code>expiry_method</code> from the <a
 configuration</a> to
 <code>:job</code>.</p>
 <h3 id="Sharding_the_Cache">Sharding the Cache</h3>
-<p>If you need more scalability, Solid Cache supports sharding — splitting the
-cache across multiple databases. This spreads the load, making your cache even
-more powerful. To enable sharding, add multiple cache databases to your
-database.yml:</p>
+<p>If you need more scalability, Solid Cache supports sharding, splitting the cache
+across multiple databases. This spreads the load, making your cache even more
+powerful. To enable sharding, add multiple cache databases to your
+<code>database.yml</code>:</p>
 <pre class="code yaml"><code class="yaml"># config/database.yml
 production:
   cache_shard1:
@@ -422,36 +622,16 @@ production:
 </code></pre>
 <p>You will need to set up your application to use <a href="active_record_encryption.html">Active Record
 Encryption</a>.</p>
-<h3 id="Caching_in_Development">Caching in Development</h3>
-<p>By default, caching is <em>enabled</em> in development mode with
-<a href="#activesupport-cache-memorystore"><code>:memory_store</code></a>. This doesn't apply to
-Action Controller caching, which is disabled by default.</p>
-<p>To enable Action Controller caching Rails provides the <code>bin/rails dev:cache</code>
-command.</p>
-<pre class="code bash"><code class="bash">$ bin/rails dev:cache
-Development mode is now being cached.
-$ bin/rails dev:cache
-Development mode is no longer being cached.
-</code></pre>
-<p>If you want to use Solid Cache in development, set the <code>cache_store</code>
-configuration in <code>config/environments/development.rb</code>:</p>
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_cache_store'>cache_store</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_solid_cache_store'>solid_cache_store</span></code></pre>
-<p>and ensure the <code>cache</code> database is created and migrated:</p>
-<pre class="code bash"><code class="bash">development:
-  &lt;&lt;: *default
-  database: cache
-</code></pre>
-<p>TIP: To disable caching set <code>cache_store</code> to
-<a href="#activesupport-cache-nullstore"><code>:null_store</code></a></p>
 <h2 id="Other_Cache_Stores">Other Cache Stores</h2>
 <p>Rails provides different stores for the cached data (with the exception of SQL
 Caching).</p>
 <h3 id="Configuration">Configuration</h3>
-<p>You can set up a different cache store by setting the
-<code>config.cache_store</code> configuration option. Other parameters can be passed as
-arguments to the cache store's constructor:</p>
+<p>You can set up a different cache store by setting the <code>config.cache_store</code>
+configuration option. Other parameters can be passed as arguments to the cache
+store's constructor:</p>
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_cache_store'>cache_store</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_memory_store'>memory_store</span><span class='comma'>,</span> { <span class='label'>size:</span> <span class='int'>64</span>.<span class='id identifier rubyid_megabytes'>megabytes</span> }</code></pre>
-<p>Alternatively, you can set <code>ActionController::Base.cache_store</code> outside of a configuration block.</p>
+<p>Alternatively, you can set <code>ActionController::Base.cache_store</code> outside a
+configuration block.</p>
 <p>You can access the cache by calling <a href="Rails.html#cache-class_method" title="Rails.cache (method)">Rails.cache</a>.</p>
 <h4 id="Connection_Pool_Options">Connection Pool Options</h4>
 <p><a href="#activesupport-cache-memcachestore"><code>:mem_cache_store</code></a> and
@@ -459,77 +639,105 @@ arguments to the cache store's constructor:</p>
 use connection pooling. This means that if you're using Puma, or another
 threaded server, you can have multiple threads performing queries to the cache
 store at the same time.</p>
-<p>If you want to disable connection pooling, set <code>:pool</code> option to <code>false</code> when configuring the cache store:</p>
+<p>If you want to disable connection pooling, set the <code>:pool</code> option to <code>false</code>
+when configuring the cache store:</p>
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_cache_store'>cache_store</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_mem_cache_store'>mem_cache_store</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>cache.example.com</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> { <span class='label'>pool:</span> <span class='kw'>false</span> }</code></pre>
-<p>You can also override default pool settings by providing individual options to the <code>:pool</code> option:</p>
+<p>You can also override default pool settings by providing individual options to
+the <code>:pool</code> option:</p>
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_cache_store'>cache_store</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_mem_cache_store'>mem_cache_store</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>cache.example.com</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> { <span class='label'>pool:</span> { <span class='label'>size:</span> <span class='int'>32</span><span class='comma'>,</span> <span class='label'>timeout:</span> <span class='int'>1</span> } }</code></pre>
 <ul>
 <li>
-<p><code>:size</code> - This option sets the number of connections per process (defaults to 5).</p>
+<p><code>:size</code> - This option sets the number of connections per process (defaults to
+5).</p>
 </li>
 <li>
-<p><code>:timeout</code> - This option sets the number of seconds to wait for a connection (defaults to 5). If no connection is available within the timeout, a <code>Timeout::Error</code> will be raised.</p>
+<p><code>:timeout</code> - This option sets the number of seconds to wait for a connection
+(defaults to 5). If no connection is available within the timeout, a
+<code>Timeout::Error</code> will be raised.</p>
 </li>
 </ul>
 <h3 id="_ActiveSupport__Cache__Store_"><a href="ActiveSupport/Cache/Store.html" title="ActiveSupport::Cache::Store (class)"><code>::ActiveSupport::Cache::Store</code></a></h3>
-<p><a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/Store.html"><a href="ActiveSupport/Cache/Store.html" title="ActiveSupport::Cache::Store (class)"><code>::ActiveSupport::Cache::Store</code></a></a> provides the foundation for interacting with the cache in Rails. This is an abstract class, and you cannot use it on its own. Instead, you must use a concrete implementation of the class tied to a storage engine. Rails ships with several implementations, documented below.</p>
-<p>The main API methods are <a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/Store.html#method-i-read"><code>read</code></a>, <a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/Store.html#method-i-write"><code>write</code></a>, <a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/Store.html#method-i-delete"><code>delete</code></a>, <a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/Store.html#method-i-exist-3F"><code>exist?</code></a>, and <a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/Store.html#method-i-fetch"><code>fetch</code></a>.</p>
-<p>Options passed to the cache store's constructor will be treated as default options for the appropriate API methods.</p>
+<p><a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/Store.html"><a href="ActiveSupport/Cache/Store.html" title="ActiveSupport::Cache::Store (class)"><code>::ActiveSupport::Cache::Store</code></a></a> provides the foundation for interacting with
+the cache in Rails. This is an abstract class, and you cannot use it on its own.
+Instead, you must use a concrete implementation of the class tied to a storage
+engine. Rails ships with several implementations, documented below.</p>
+<p>The main API methods are <a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/Store.html#method-i-read"><code>read</code></a>,
+<a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/Store.html#method-i-write"><code>write</code></a>,
+<a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/Store.html#method-i-delete"><code>delete</code></a>,
+<a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/Store.html#method-i-exist-3F"><code>exist?</code></a>, and
+<a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/Store.html#method-i-fetch"><code>fetch</code></a>.</p>
+<p>Options passed to the cache store's constructor will be treated as default
+options for the appropriate API methods.</p>
 <h3 id="_ActiveSupport__Cache__MemoryStore_"><a href="ActiveSupport/Cache/MemoryStore.html" title="ActiveSupport::Cache::MemoryStore (class)"><code>::ActiveSupport::Cache::MemoryStore</code></a></h3>
-<p><a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/MemoryStore.html"><a href="ActiveSupport/Cache/MemoryStore.html" title="ActiveSupport::Cache::MemoryStore (class)"><code>::ActiveSupport::Cache::MemoryStore</code></a></a> keeps entries in memory in the same Ruby process. The cache
-store has a bounded size specified by sending the <code>:size</code> option to the
-initializer (default is 32Mb). When the cache exceeds the allotted size, a
-cleanup will occur and the least recently used entries will be removed.</p>
+<p><a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/MemoryStore.html"><a href="ActiveSupport/Cache/MemoryStore.html" title="ActiveSupport::Cache::MemoryStore (class)"><code>::ActiveSupport::Cache::MemoryStore</code></a></a> keeps entries in memory in the same Ruby
+process. The cache store has a bounded size specified by sending the <code>:size</code>
+option to the initializer (default is 32Mb). When the cache exceeds the allotted
+size, a cleanup will occur and the least recently used entries will be removed.</p>
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_cache_store'>cache_store</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_memory_store'>memory_store</span><span class='comma'>,</span> { <span class='label'>size:</span> <span class='int'>64</span>.<span class='id identifier rubyid_megabytes'>megabytes</span> }</code></pre>
-<p>If you're running multiple Ruby on Rails server processes (which is the case
-if you're using Phusion Passenger or puma clustered mode), then your Rails server
-process instances won't be able to share cache data with each other. This cache
-store is not appropriate for large application deployments. However, it can
-work well for small, low traffic sites with only a couple of server processes,
-as well as development and test environments.</p>
-<p>New Rails projects are configured to use this implementation in the development environment by default.</p>
+<p>If you're running multiple Ruby on Rails server processes (which is the case if
+you're using Phusion Passenger or Puma in clustered mode), then your Rails
+server process instances won't be able to share cache data with each other. This
+cache store is not appropriate for large application deployments. However, it
+can work well for small, low traffic sites with only a couple of server
+processes, as well as development and test environments.</p>
+<p>New Rails applications use this cache store in development by default.</p>
 <p>NOTE: Since processes will not share cache data when using <code>:memory_store</code>,
-it will not be possible to manually read, write, or expire the cache via the Rails console.</p>
+changes made in a Rails console affect only that console process, not any
+running server processes.</p>
 <h3 id="_ActiveSupport__Cache__FileStore_"><a href="ActiveSupport/Cache/FileStore.html" title="ActiveSupport::Cache::FileStore (class)"><code>::ActiveSupport::Cache::FileStore</code></a></h3>
-<p><a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/FileStore.html"><a href="ActiveSupport/Cache/FileStore.html" title="ActiveSupport::Cache::FileStore (class)"><code>::ActiveSupport::Cache::FileStore</code></a></a> uses the file system to store entries. The path to the directory where the store files will be stored must be specified when initializing the cache.</p>
+<p><a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/FileStore.html"><a href="ActiveSupport/Cache/FileStore.html" title="ActiveSupport::Cache::FileStore (class)"><code>::ActiveSupport::Cache::FileStore</code></a></a> uses the file system to store entries. You
+must specify the path to the directory where the cache files will be stored when
+initializing the cache.</p>
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_cache_store'>cache_store</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_file_store'>file_store</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>/path/to/cache/directory</span><span class='tstring_end'>&quot;</span></span></code></pre>
 <p>With this cache store, multiple server processes on the same host can share a
 cache. This cache store is appropriate for low to medium traffic sites that are
 served off one or two hosts. Server processes running on different hosts could
 share a cache by using a shared file system, but that setup is not recommended.</p>
-<p>As the cache will grow until the disk is full, it is recommended to
-periodically clear out old entries.</p>
+<p>As the cache will grow until the disk is full, it is recommended to periodically
+clear out old entries.</p>
 <h3 id="_ActiveSupport__Cache__MemCacheStore_"><a href="ActiveSupport/Cache/MemCacheStore.html" title="ActiveSupport::Cache::MemCacheStore (class)"><code>::ActiveSupport::Cache::MemCacheStore</code></a></h3>
-<p><a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/MemCacheStore.html"><a href="ActiveSupport/Cache/MemCacheStore.html" title="ActiveSupport::Cache::MemCacheStore (class)"><code>::ActiveSupport::Cache::MemCacheStore</code></a></a> uses Danga's <code>memcached</code> server to provide a centralized cache for your application. Rails uses the bundled <code>dalli</code> gem by default. This is currently the most popular cache store for production websites. It can be used to provide a single, shared cache cluster with very high performance and redundancy.</p>
-<p>When initializing the cache, you should specify the addresses for all memcached servers in your cluster, or ensure the <code>MEMCACHE_SERVERS</code> environment variable has been set appropriately.</p>
+<p><a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/MemCacheStore.html"><a href="ActiveSupport/Cache/MemCacheStore.html" title="ActiveSupport::Cache::MemCacheStore (class)"><code>::ActiveSupport::Cache::MemCacheStore</code></a></a> uses [<code>memcached</code>][] to provide a
+centralized cache for your application. Rails uses the bundled <code>dalli</code> gem by
+default. It can provide a single shared cache cluster with high performance and
+redundancy.</p>
+<p>When initializing the cache, you should specify the addresses for all memcached
+servers in your cluster, or ensure the <code>MEMCACHE_SERVERS</code> environment variable
+has been set appropriately.</p>
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_cache_store'>cache_store</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_mem_cache_store'>mem_cache_store</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>cache-1.example.com</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>cache-2.example.com</span><span class='tstring_end'>&quot;</span></span></code></pre>
-<p>If neither are specified, it will assume memcached is running on localhost on the default port (<code>127.0.0.1:11211</code>), but this is not an ideal setup for larger sites.</p>
+<p>If neither are specified, it will assume memcached is running on localhost on
+the default port (<code>127.0.0.1:11211</code>), but this is not an ideal setup for larger
+sites.</p>
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_cache_store'>cache_store</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_mem_cache_store'>mem_cache_store</span> <span class='comment'># Will fallback to $MEMCACHE_SERVERS, then 127.0.0.1:11211</span></code></pre>
-<p>See the <a href="https://www.rubydoc.info/gems/dalli/Dalli/Client#initialize-instance_method"><code>Dalli::Client</code> documentation</a> for supported address types.</p>
-<p>The <a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/MemCacheStore.html#method-i-write"><code>write</code></a> (and <code>fetch</code>) method on this cache accepts additional options that take advantage of features specific to memcached.</p>
+<p>See the <a href="https://www.rubydoc.info/gems/dalli/Dalli/Client#initialize-instance_method"><code>Dalli::Client</code>
+documentation</a>
+for supported address types.</p>
+<p>The <a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/MemCacheStore.html#method-i-write"><code>write</code></a> (and <code>fetch</code>) method on
+this cache accepts additional options that take advantage of features specific
+to memcached.</p>
 <h3 id="_ActiveSupport__Cache__RedisCacheStore_"><a href="ActiveSupport/Cache/RedisCacheStore.html" title="ActiveSupport::Cache::RedisCacheStore (class)"><code>::ActiveSupport::Cache::RedisCacheStore</code></a></h3>
-<p><a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/RedisCacheStore.html"><a href="ActiveSupport/Cache/RedisCacheStore.html" title="ActiveSupport::Cache::RedisCacheStore (class)"><code>::ActiveSupport::Cache::RedisCacheStore</code></a></a> takes advantage of Redis support for automatic eviction
-when it reaches max memory, allowing it to behave much like a Memcached cache server.</p>
-<p>Deployment note: Redis doesn't expire keys by default, so take care to use a
-dedicated Redis cache server. Don't fill up your persistent-Redis server with
-volatile cache data! Read the
-<a href="https://redis.io/topics/lru-cache">Redis cache server setup guide</a> in detail.</p>
-<p>For a cache-only Redis server, set <code>maxmemory-policy</code> to one of the variants of allkeys.
-Redis 4+ supports least-frequently-used eviction (<code>allkeys-lfu</code>), an excellent
-default choice. Redis 3 and earlier should use least-recently-used eviction (<code>allkeys-lru</code>).</p>
-<p>Set cache read and write timeouts relatively low. Regenerating a cached value
-is often faster than waiting more than a second to retrieve it. Both read and
-write timeouts default to 1 second, but may be set lower if your network is
+<p><a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/RedisCacheStore.html"><a href="ActiveSupport/Cache/RedisCacheStore.html" title="ActiveSupport::Cache::RedisCacheStore (class)"><code>::ActiveSupport::Cache::RedisCacheStore</code></a></a> takes advantage of <a href="https://redis.io/">Redis</a> support
+for automatic eviction when it reaches max memory, allowing it to behave much
+like a Memcached cache server.</p>
+<p>NOTE: Redis does not expire keys by default, so you should use a dedicated Redis
+cache server and avoid filling your persistent Redis instance with volatile
+cache data. See the <a href="https://redis.io/topics/lru-cache">Redis cache server setup
+guide</a> for more details.</p>
+<p>For a cache-only Redis server, set <code>maxmemory-policy</code> to one of the variants of
+allkeys. Least-frequently-used eviction (<code>allkeys-lfu</code>) is a good default
+choice.</p>
+<p>Set cache read and write timeouts relatively low. Regenerating a cached value is
+often faster than waiting more than a second to retrieve it. Both read and write
+timeouts default to 1 second, but may be set lower if your network is
 consistently low-latency.</p>
 <p>By default, the cache store will attempt to reconnect to Redis once if the
 connection fails during a request.</p>
 <p>Cache reads and writes never raise exceptions; they just return <code>nil</code> instead,
 behaving as if there was nothing in the cache. To gauge whether your cache is
-hitting exceptions, you may provide an <code>error_handler</code> to report to an
-exception gathering service. It must accept three keyword arguments: <code>method</code>,
-the cache store method that was originally called; <code>returning</code>, the value that
-was returned to the user, typically <code>nil</code>; and <code>exception</code>, the exception that
-was rescued.</p>
+hitting exceptions, you may provide an <code>error_handler</code> to report to an exception
+gathering service. It must accept three keyword arguments: <code>method</code>, the cache
+store method that was originally called; <code>returning</code>, the value that was
+returned to the user, typically <code>nil</code>; and <code>exception</code>, the exception that was
+rescued.</p>
 <p>To get started, add the redis gem to your Gemfile:</p>
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_gem'>gem</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>redis</span><span class='tstring_end'>&quot;</span></span></code></pre>
 <p>Finally, add the configuration in the relevant <code>config/environments/*.rb</code> file:</p>
@@ -550,113 +758,57 @@ was rescued.</p>
   }
 }</code></pre>
 <h3 id="_ActiveSupport__Cache__NullStore_"><a href="ActiveSupport/Cache/NullStore.html" title="ActiveSupport::Cache::NullStore (class)"><code>::ActiveSupport::Cache::NullStore</code></a></h3>
-<p><a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/NullStore.html"><a href="ActiveSupport/Cache/NullStore.html" title="ActiveSupport::Cache::NullStore (class)"><code>::ActiveSupport::Cache::NullStore</code></a></a> is scoped to each web request, and clears stored values at the end of a request. It is meant for use in development and test environments. It can be very useful when you have code that interacts directly with <a href="Rails.html#cache-class_method" title="Rails.cache (method)">Rails.cache</a> but caching interferes with seeing the results of code changes.</p>
+<p><a href="https://api.rubyonrails.org/classes/ActiveSupport/Cache/NullStore.html"><a href="ActiveSupport/Cache/NullStore.html" title="ActiveSupport::Cache::NullStore (class)"><code>::ActiveSupport::Cache::NullStore</code></a></a> does not persist cached values across
+requests. It is meant for use in development and test environments. It can be
+very useful when you have code that interacts directly with <a href="Rails.html#cache-class_method" title="Rails.cache (method)">Rails.cache</a> but
+caching interferes with seeing the results of code changes.</p>
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_cache_store'>cache_store</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_null_store'>null_store</span></code></pre>
 <h3 id="Custom_Cache_Stores">Custom Cache Stores</h3>
 <p>You can create your own custom cache store by simply extending
-<a href="ActiveSupport/Cache/Store.html" title="ActiveSupport::Cache::Store (class)"><code>::ActiveSupport::Cache::Store</code></a> and implementing the appropriate methods. This way,
-you can swap in any number of caching technologies into your Rails application.</p>
-<p>To use a custom cache store, simply set the cache store to a new instance of your
-custom class.</p>
+<a href="ActiveSupport/Cache/Store.html" title="ActiveSupport::Cache::Store (class)"><code>::ActiveSupport::Cache::Store</code></a> and implementing the appropriate methods. This
+way, you can swap in any number of caching technologies into your Rails
+application.</p>
+<p>To use a custom cache store, simply set the cache store to a new instance of
+your custom class.</p>
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_cache_store'>cache_store</span> <span class='op'>=</span> <span class='const'>MyCacheStore</span>.<span class='id identifier rubyid_new'>new</span></code></pre>
-<h2 id="Cache_Keys">Cache Keys</h2>
-<p>The keys used in a cache can be any object that responds to either <code>cache_key</code> or
-<code>to_param</code>. You can implement the <code>cache_key</code> method on your classes if you need
-to generate custom keys. Active Record will generate keys based on the class name
-and record id.</p>
-<p>You can use Hashes and Arrays of values as cache keys.</p>
-<pre class="code ruby"><code class="ruby"><span class='comment'># This is a valid cache key
-</span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_cache'><a href="Rails.html#cache-class_method" title="Rails.cache (method)">cache</a></span>.<span class='id identifier rubyid_read'>read</span>(<span class='label'>site:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>mysite</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>owners:</span> [<span class='id identifier rubyid_owner_1'>owner_1</span><span class='comma'>,</span> <span class='id identifier rubyid_owner_2'>owner_2</span>])</code></pre>
-<p>The keys you use on <a href="Rails.html#cache-class_method" title="Rails.cache (method)">Rails.cache</a> will not be the same as those actually used with
-the storage engine. They may be modified with a namespace or altered to fit
-technology backend constraints. This means, for instance, that you can't save
-values with <a href="Rails.html#cache-class_method" title="Rails.cache (method)">Rails.cache</a> and then try to pull them out with the <code>dalli</code> gem.
-However, you also don't need to worry about exceeding the memcached size limit or
-violating syntax rules.</p>
-<h2 id="Conditional_GET_Support">Conditional GET Support</h2>
-<p>Conditional GETs are a feature of the HTTP specification that provide a way for web servers to tell browsers that the response to a GET request hasn't changed since the last request and can be safely pulled from the browser cache.</p>
-<p>They work by using the <code>HTTP_IF_NONE_MATCH</code> and <code>HTTP_IF_MODIFIED_SINCE</code> headers to pass back and forth both a unique content identifier and the timestamp of when the content was last changed. If the browser makes a request where the content identifier (ETag) or last modified since timestamp matches the server's version then the server only needs to send back an empty response with a not modified status.</p>
-<p>It is the server's (i.e. our) responsibility to look for a last modified timestamp and the if-none-match header and determine whether or not to send back the full response. With conditional-get support in Rails this is a pretty easy task:</p>
-<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ProductsController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
-  <span class='kw'>def</span> <span class='id identifier rubyid_show'>show</span>
-    <span class='ivar'>@product</span> <span class='op'>=</span> <span class='const'>Product</span>.<span class='id identifier rubyid_find'>find</span>(<span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span>])
-
-    <span class='comment'># If the request is stale according to the given timestamp and etag value
-</span>    <span class='comment'># (i.e. it needs to be processed again) then execute this block
-</span>    <span class='kw'>if</span> <span class='id identifier rubyid_stale?'>stale?</span>(<span class='label'>last_modified:</span> <span class='ivar'>@product</span>.<span class='id identifier rubyid_updated_at'>updated_at</span>.<span class='id identifier rubyid_utc'>utc</span><span class='comma'>,</span> <span class='label'>etag:</span> <span class='ivar'>@product</span>.<span class='id identifier rubyid_cache_key_with_version'>cache_key_with_version</span>)
-      <span class='id identifier rubyid_respond_to'>respond_to</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_wants'>wants</span><span class='op'>|</span>
-        <span class='comment'># ... normal response processing
-</span>      <span class='kw'>end</span>
-    <span class='kw'>end</span>
-
-    <span class='comment'># If the request is fresh (i.e. it&#39;s not modified) then you don&#39;t need to do
-</span>    <span class='comment'># anything. The default render checks for this using the parameters
-</span>    <span class='comment'># used in the previous call to stale? and will automatically send a
-</span>    <span class='comment'># :not_modified. So that&#39;s it, you&#39;re done.
-</span>  <span class='kw'>end</span>
-<span class='kw'>end</span></code></pre>
-<p>Instead of an options hash, you can also simply pass in a model. Rails will use the <code>updated_at</code> and <code>cache_key_with_version</code> methods for setting <code>last_modified</code> and <code>etag</code>:</p>
-<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ProductsController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
-  <span class='kw'>def</span> <span class='id identifier rubyid_show'>show</span>
-    <span class='ivar'>@product</span> <span class='op'>=</span> <span class='const'>Product</span>.<span class='id identifier rubyid_find'>find</span>(<span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span>])
-
-    <span class='kw'>if</span> <span class='id identifier rubyid_stale?'>stale?</span>(<span class='ivar'>@product</span>)
-      <span class='id identifier rubyid_respond_to'>respond_to</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_wants'>wants</span><span class='op'>|</span>
-        <span class='comment'># ... normal response processing
-</span>      <span class='kw'>end</span>
+<h2 id="Advanced_Caching_Patterns">Advanced Caching Patterns</h2>
+<h3 id="Caching_in_Background_Jobs_and_Other_Non_Request_Contexts">Caching in Background Jobs and Other Non-Request Contexts</h3>
+<p>Caching is not limited to controller actions. You can also use <a href="Rails.html#cache-class_method" title="Rails.cache (method)">Rails.cache</a> in
+background jobs, service objects, scripts, and other application code.</p>
+<p>Low-level caching works the same way in these contexts as it does in a request:</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ReportJob</span> <span class='op'>&lt;</span> <span class='const'>ApplicationJob</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_perform'>perform</span>(<span class='id identifier rubyid_account'>account</span>)
+    <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_cache'><a href="Rails.html#cache-class_method" title="Rails.cache (method)">cache</a></span>.<span class='id identifier rubyid_fetch'>fetch</span>([<span class='id identifier rubyid_account'>account</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>daily-report</span><span class='tstring_end'>&quot;</span></span>]<span class='comma'>,</span> <span class='label'>expires_in:</span> <span class='int'>1</span>.<span class='id identifier rubyid_hour'>hour</span>) <span class='kw'>do</span>
+      <span class='id identifier rubyid_account'>account</span>.<span class='id identifier rubyid_generate_daily_report'>generate_daily_report</span>
     <span class='kw'>end</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
-<p>If you don't have any special response processing and are using the default rendering mechanism (i.e. you're not using <code>respond_to</code> or calling render yourself) then you've got an easy helper in <code>fresh_when</code>:</p>
-<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ProductsController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
-  <span class='comment'># This will automatically send back a :not_modified if the request is fresh,
-</span>  <span class='comment'># and will render the default template (product.*) if it&#39;s stale.
-</span>
-  <span class='kw'>def</span> <span class='id identifier rubyid_show'>show</span>
-    <span class='ivar'>@product</span> <span class='op'>=</span> <span class='const'>Product</span>.<span class='id identifier rubyid_find'>find</span>(<span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span>])
-    <span class='id identifier rubyid_fresh_when'>fresh_when</span> <span class='label'>last_modified:</span> <span class='ivar'>@product</span>.<span class='id identifier rubyid_published_at'>published_at</span>.<span class='id identifier rubyid_utc'>utc</span><span class='comma'>,</span> <span class='label'>etag:</span> <span class='ivar'>@product</span>
-  <span class='kw'>end</span>
+<p>Some caching behavior, however, depends on being inside a Rails execution
+context. Features such as the Active Record query cache and other per-execution
+state are set up automatically for normal Rails-managed requests and jobs.</p>
+<p>If you run application code yourself from a custom thread or long-running
+script, wrap it with <code>Rails.application.executor.wrap</code> so Rails can manage that
+state correctly:</p>
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_executor'>executor</span>.<span class='id identifier rubyid_wrap'>wrap</span> <span class='kw'>do</span>
+  <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_cache'><a href="Rails.html#cache-class_method" title="Rails.cache (method)">cache</a></span>.<span class='id identifier rubyid_fetch'>fetch</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>stats</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>expires_in:</span> <span class='int'>5</span>.<span class='id identifier rubyid_minutes'>minutes</span>) { <span class='id identifier rubyid_expensive_calculation'>expensive_calculation</span> }
 <span class='kw'>end</span></code></pre>
-<p>When both <code>last_modified</code> and <code>etag</code> are set, behavior varies depending on the value of <code>config.action_dispatch.strict_freshness</code>.
-If set to <code>true</code>, only the <code>etag</code> is considered as specified by RFC 7232 section 6.
-If set to <code>false</code>, both are considered and the cache is considered fresh if both conditions are satisfied, as was the historical Rails behavior.</p>
-<p>Sometimes we want to cache response, for example a static page, that never gets
-expired. To achieve this, we can use <code>http_cache_forever</code> helper and by doing
-so browser and proxies will cache it indefinitely.</p>
-<p>By default cached responses will be private, cached only on the user's web
-browser. To allow proxies to cache the response, set <code>public: true</code> to indicate
-that they can serve the cached response to all users.</p>
-<p>Using this helper, <code>last_modified</code> header is set to <code>Time.new(2011, 1, 1).utc</code>
-and <code>expires</code> header is set to a 100 years.</p>
-<p>WARNING: Use this method carefully as browser/proxy won't be able to invalidate
-the cached response unless browser cache is forcefully cleared.</p>
-<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>HomeController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
-  <span class='kw'>def</span> <span class='id identifier rubyid_index'>index</span>
-    <span class='id identifier rubyid_http_cache_forever'>http_cache_forever</span>(<span class='label'>public:</span> <span class='kw'>true</span>) <span class='kw'>do</span>
-      <span class='id identifier rubyid_render'>render</span>
-    <span class='kw'>end</span>
-  <span class='kw'>end</span>
+<p>For more on the Executor and non-request code execution, see <a href="threading_and_code_execution.html">Threading and Code
+Execution in Rails</a>.</p>
+<h3 id="Local_Cache">Local Cache</h3>
+<p>Some cache stores support a local cache layer. This keeps recently read values
+in memory for the duration of a request or block, so repeated reads for the same
+key can be served without going back to the underlying cache store.</p>
+<p>This is especially useful with remote cache stores such as Redis or Memcached,
+where avoiding repeated network round trips can improve performance.</p>
+<p>In a normal Rails request, the local cache is managed for you by middleware. You
+can also use it manually around a block:</p>
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_cache'><a href="Rails.html#cache-class_method" title="Rails.cache (method)">cache</a></span>.<span class='id identifier rubyid_with_local_cache'>with_local_cache</span> <span class='kw'>do</span>
+  <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_cache'><a href="Rails.html#cache-class_method" title="Rails.cache (method)">cache</a></span>.<span class='id identifier rubyid_read'>read</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>hot-key</span><span class='tstring_end'>&quot;</span></span>)
+  <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_cache'><a href="Rails.html#cache-class_method" title="Rails.cache (method)">cache</a></span>.<span class='id identifier rubyid_read'>read</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>hot-key</span><span class='tstring_end'>&quot;</span></span>)
 <span class='kw'>end</span></code></pre>
-<h3 id="Strong_v_s_Weak_ETags">Strong v/s Weak ETags</h3>
-<p>Rails generates weak ETags by default. Weak ETags allow semantically equivalent
-responses to have the same ETags, even if their bodies do not match exactly.
-This is useful when we don't want the page to be regenerated for minor changes in
-response body.</p>
-<p>Weak ETags have a leading <code>W/</code> to differentiate them from strong ETags.</p>
-<pre class="code ruby"><code class="ruby"><span class='const'>W</span><span class='op'>/</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>618bbc92e2d35ea1945008b42799b0e7</span><span class='tstring_end'>&quot;</span></span> <span class='id identifier rubyid_→'>→</span> <span class='const'>Weak</span> <span class='const'>ETag</span>
-<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>618bbc92e2d35ea1945008b42799b0e7</span><span class='tstring_end'>&quot;</span></span> <span class='id identifier rubyid_→'>→</span> <span class='const'>Strong</span> <span class='const'>ETag</span></code></pre>
-<p>Unlike weak ETag, strong ETag implies that response should be exactly the same
-and byte by byte identical. Useful when doing Range requests within a
-large video or PDF file. Some CDNs support only strong ETags, like Akamai.
-If you absolutely need to generate a strong ETag, it can be done as follows.</p>
-<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ProductsController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
-  <span class='kw'>def</span> <span class='id identifier rubyid_show'>show</span>
-    <span class='ivar'>@product</span> <span class='op'>=</span> <span class='const'>Product</span>.<span class='id identifier rubyid_find'>find</span>(<span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span>])
-    <span class='id identifier rubyid_fresh_when'>fresh_when</span> <span class='label'>last_modified:</span> <span class='ivar'>@product</span>.<span class='id identifier rubyid_published_at'>published_at</span>.<span class='id identifier rubyid_utc'>utc</span><span class='comma'>,</span> <span class='label'>strong_etag:</span> <span class='ivar'>@product</span>
-  <span class='kw'>end</span>
-<span class='kw'>end</span></code></pre>
-<p>You can also set the strong ETag directly on the response.</p>
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_response'>response</span>.<span class='id identifier rubyid_strong_etag'>strong_etag</span> <span class='op'>=</span> <span class='id identifier rubyid_response'>response</span>.<span class='id identifier rubyid_body'>body</span> <span class='comment'># =&gt; &quot;618bbc92e2d35ea1945008b42799b0e7&quot;</span></code></pre>
+<p>The local cache is temporary and scoped to the current execution. It does not
+replace your main cache store, and values written there are not shared across
+requests, jobs, or processes.</p>
 <div id='footer'></div>
 </div> <!-- content  -->
 </div> <!-- y_main   -->
