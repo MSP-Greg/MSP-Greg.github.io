@@ -88,7 +88,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/rails/rails/blob/main/activesupport/lib/active_support/concurrency/share_lock.rb#L10'>activesupport/lib/active_support/concurrency/share_lock.rb</a>      </td>
+      <td class='box_rel'><a class='repo' href='https://github.com/rails/rails/blob/main/activesupport/lib/active_support/concurrency/share_lock.rb#L11'>activesupport/lib/active_support/concurrency/share_lock.rb</a>      </td>
     </tr>
   </tbody>
 </table>
@@ -184,6 +184,12 @@
   </li>
   <li>
     <span class='summary_signature priv'>
+      <a href="#current_owner-instance_method" title="#current_owner (instance method)">#<strong>current_owner</strong>  </a>
+    </span>
+    <span class='note title private'>private</span>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
       <a href="#eligible_waiters%3F-instance_method" title="#eligible_waiters? (instance method)">#<strong>eligible_waiters?</strong>(compatible)  &#x21d2; Boolean </a>
     </span>
     <span class='note title private'>private</span>
@@ -200,7 +206,7 @@
     </span>
     <span class='nodoc note title'>Internal use only</span>
     <div class='summary_desc'>
-      <div class='inline'><p>We track Thread objects, instead of just using counters, because we need exclusive locks to be reentrant, and we need to be able to upgrade share locks to exclusive.</p></div>
+      <div class='inline'><p>We track execution-context objects (Threads or Fibers, depending on <a href="../IsolatedExecutionState.html#isolation_level-class_method" title="ActiveSupport::IsolatedExecutionState.isolation_level (method)">IsolatedExecutionState.isolation_level</a>), instead of just using counters, because we need exclusive locks to be reentrant, and we need to be able to upgrade share locks to exclusive.</p></div>
     </div>
   </li>
 </ul>
@@ -219,11 +225,11 @@
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activesupport/lib/active_support/concurrency/share_lock.rb#L49-L59'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activesupport/lib/active_support/concurrency/share_lock.rb#L51-L61'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='49' data-end='59'></pre>
+  <pre class='lines_num' data-start='51' data-end='61'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activesupport/lib/active_support/concurrency/share_lock.rb', line 49</span></pre>
+<pre><span class='info file'># File 'activesupport/lib/active_support/concurrency/share_lock.rb', line 51</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span>
@@ -234,7 +240,7 @@
   <span class='ivar'>@sharing</span> <span class='op'>=</span> <span class='const'><a href="../../Hash.html" title="Hash (class)">Hash</a></span>.<span class='id identifier rubyid_new'>new</span>(<span class='int'>0</span>)
   <span class='ivar'>@waiting</span> <span class='op'>=</span> {}
   <span class='ivar'>@sleeping</span> <span class='op'>=</span> {}
-  <span class='ivar'>@exclusive_thread</span> <span class='op'>=</span> <span class='kw'>nil</span>
+  <span class='ivar'>@exclusive_owner</span> <span class='op'>=</span> <span class='kw'>nil</span>
   <span class='ivar'>@exclusive_depth</span> <span class='op'>=</span> <span class='int'>0</span>
 <span class='kw'>end</span>
 </pre>
@@ -255,16 +261,16 @@
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activesupport/lib/active_support/concurrency/share_lock.rb#L203-L206'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activesupport/lib/active_support/concurrency/share_lock.rb#L212-L215'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='203' data-end='206'></pre>
+  <pre class='lines_num' data-start='212' data-end='215'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activesupport/lib/active_support/concurrency/share_lock.rb', line 203</span></pre>
+<pre><span class='info file'># File 'activesupport/lib/active_support/concurrency/share_lock.rb', line 212</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_busy_for_exclusive?'>busy_for_exclusive?</span>(<span class='id identifier rubyid_purpose'>purpose</span>)
   <span class='id identifier rubyid_busy_for_sharing?'><a href="#busy_for_sharing%3F-instance_method" title="ActiveSupport::Concurrency::ShareLock#busy_for_sharing? (method)">busy_for_sharing?</a></span>(<span class='id identifier rubyid_purpose'>purpose</span>) <span class='op'>||</span>
-    <span class='ivar'>@sharing</span>.<span class='id identifier rubyid_size'>size</span> <span class='op'>&gt;</span> (<span class='ivar'>@sharing</span>[<span class='const'>Thread</span>.<span class='id identifier rubyid_current'>current</span>] <span class='op'>&gt;</span> <span class='int'>0</span> <span class='op'>?</span> <span class='int'>1</span> <span class='op'>:</span> <span class='int'>0</span>)
+    <span class='ivar'>@sharing</span>.<span class='id identifier rubyid_size'>size</span> <span class='op'>&gt;</span> (<span class='ivar'>@sharing</span>[<span class='id identifier rubyid_current_owner'><a href="#current_owner-instance_method" title="ActiveSupport::Concurrency::ShareLock#current_owner (method)">current_owner</a></span>] <span class='op'>&gt;</span> <span class='int'>0</span> <span class='op'>?</span> <span class='int'>1</span> <span class='op'>:</span> <span class='int'>0</span>)
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -283,16 +289,36 @@
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activesupport/lib/active_support/concurrency/share_lock.rb#L208-L211'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activesupport/lib/active_support/concurrency/share_lock.rb#L217-L221'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='208' data-end='211'></pre>
+  <pre class='lines_num' data-start='217' data-end='221'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activesupport/lib/active_support/concurrency/share_lock.rb', line 208</span></pre>
+<pre><span class='info file'># File 'activesupport/lib/active_support/concurrency/share_lock.rb', line 217</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_busy_for_sharing?'>busy_for_sharing?</span>(<span class='id identifier rubyid_purpose'>purpose</span>)
-  (<span class='ivar'>@exclusive_thread</span> <span class='op'>&amp;&amp;</span> <span class='ivar'>@exclusive_thread</span> <span class='op'>!=</span> <span class='const'>Thread</span>.<span class='id identifier rubyid_current'>current</span>) <span class='op'>||</span>
-    <span class='ivar'>@waiting</span>.<span class='id identifier rubyid_any?'>any?</span> { <span class='op'>|</span><span class='id identifier rubyid_t'>t</span><span class='comma'>,</span> (<span class='id identifier rubyid__'>_</span><span class='comma'>,</span> <span class='id identifier rubyid_c'>c</span>)<span class='op'>|</span> <span class='id identifier rubyid_t'>t</span> <span class='op'>!=</span> <span class='const'>Thread</span>.<span class='id identifier rubyid_current'>current</span> <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='id identifier rubyid_c'>c</span>.<span class='id identifier rubyid_include?'>include?</span>(<span class='id identifier rubyid_purpose'>purpose</span>) }
+  <span class='id identifier rubyid_owner'>owner</span> <span class='op'>=</span> <span class='id identifier rubyid_current_owner'><a href="#current_owner-instance_method" title="ActiveSupport::Concurrency::ShareLock#current_owner (method)">current_owner</a></span>
+  (<span class='ivar'>@exclusive_owner</span> <span class='op'>&amp;&amp;</span> <span class='ivar'>@exclusive_owner</span> <span class='op'>!=</span> <span class='id identifier rubyid_owner'>owner</span>) <span class='op'>||</span>
+    <span class='ivar'>@waiting</span>.<span class='id identifier rubyid_any?'>any?</span> { <span class='op'>|</span><span class='id identifier rubyid_o'>o</span><span class='comma'>,</span> (<span class='id identifier rubyid__'>_</span><span class='comma'>,</span> <span class='id identifier rubyid_c'>c</span>)<span class='op'>|</span> <span class='id identifier rubyid_o'>o</span> <span class='op'>!=</span> <span class='id identifier rubyid_owner'>owner</span> <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='id identifier rubyid_c'>c</span>.<span class='id identifier rubyid_include?'>include?</span>(<span class='id identifier rubyid_purpose'>purpose</span>) }
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="current_owner-instance_method">
+  <h3 class='signature priv'>
+    #<strong>current_owner</strong>   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activesupport/lib/active_support/concurrency/share_lock.rb#L207-L209'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='207' data-end='209'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activesupport/lib/active_support/concurrency/share_lock.rb', line 207</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_current_owner'>current_owner</span>
+  <span class='const'><a href="../../ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="../IsolatedExecutionState.html" title="ActiveSupport::IsolatedExecutionState (module)">IsolatedExecutionState</a></span>.<span class='id identifier rubyid_context'><a href="../IsolatedExecutionState.html#context-class_method" title="ActiveSupport::IsolatedExecutionState.context (method)">context</a></span>
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -311,15 +337,15 @@
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activesupport/lib/active_support/concurrency/share_lock.rb#L213-L215'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activesupport/lib/active_support/concurrency/share_lock.rb#L223-L225'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='213' data-end='215'></pre>
+  <pre class='lines_num' data-start='223' data-end='225'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activesupport/lib/active_support/concurrency/share_lock.rb', line 213</span></pre>
+<pre><span class='info file'># File 'activesupport/lib/active_support/concurrency/share_lock.rb', line 223</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_eligible_waiters?'>eligible_waiters?</span>(<span class='id identifier rubyid_compatible'>compatible</span>)
-  <span class='ivar'>@waiting</span>.<span class='id identifier rubyid_any?'>any?</span> { <span class='op'>|</span><span class='id identifier rubyid_t'>t</span><span class='comma'>,</span> (<span class='id identifier rubyid_p'>p</span><span class='comma'>,</span> <span class='id identifier rubyid__'>_</span>)<span class='op'>|</span> <span class='id identifier rubyid_compatible'>compatible</span>.<span class='id identifier rubyid_include?'>include?</span>(<span class='id identifier rubyid_p'>p</span>) <span class='op'>&amp;&amp;</span> <span class='ivar'>@waiting</span>.<span class='id identifier rubyid_all?'>all?</span> { <span class='op'>|</span><span class='id identifier rubyid_t2'>t2</span><span class='comma'>,</span> (<span class='id identifier rubyid__'>_</span><span class='comma'>,</span> <span class='id identifier rubyid_c2'>c2</span>)<span class='op'>|</span> <span class='id identifier rubyid_t'>t</span> <span class='op'>==</span> <span class='id identifier rubyid_t2'>t2</span> <span class='op'>||</span> <span class='id identifier rubyid_c2'>c2</span>.<span class='id identifier rubyid_include?'>include?</span>(<span class='id identifier rubyid_p'>p</span>) } }
+  <span class='ivar'>@waiting</span>.<span class='id identifier rubyid_any?'>any?</span> { <span class='op'>|</span><span class='id identifier rubyid_o'>o</span><span class='comma'>,</span> (<span class='id identifier rubyid_p'>p</span><span class='comma'>,</span> <span class='id identifier rubyid__'>_</span>)<span class='op'>|</span> <span class='id identifier rubyid_compatible'>compatible</span>.<span class='id identifier rubyid_include?'>include?</span>(<span class='id identifier rubyid_p'>p</span>) <span class='op'>&amp;&amp;</span> <span class='ivar'>@waiting</span>.<span class='id identifier rubyid_all?'>all?</span> { <span class='op'>|</span><span class='id identifier rubyid_o2'>o2</span><span class='comma'>,</span> (<span class='id identifier rubyid__'>_</span><span class='comma'>,</span> <span class='id identifier rubyid_c2'>c2</span>)<span class='op'>|</span> <span class='id identifier rubyid_o'>o</span> <span class='op'>==</span> <span class='id identifier rubyid_o2'>o2</span> <span class='op'>||</span> <span class='id identifier rubyid_c2'>c2</span>.<span class='id identifier rubyid_include?'>include?</span>(<span class='id identifier rubyid_p'>p</span>) } }
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -339,11 +365,11 @@ the block.</p>
 <p>See <a href="#start_exclusive-instance_method" title="ActiveSupport::Concurrency::ShareLock#start_exclusive (method)">#start_exclusive</a> for other options.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activesupport/lib/active_support/concurrency/share_lock.rb#L147-L155'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activesupport/lib/active_support/concurrency/share_lock.rb#L151-L159'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='147' data-end='155'></pre>
+  <pre class='lines_num' data-start='151' data-end='159'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activesupport/lib/active_support/concurrency/share_lock.rb', line 147</span></pre>
+<pre><span class='info file'># File 'activesupport/lib/active_support/concurrency/share_lock.rb', line 151</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_exclusive'>exclusive</span>(<span class='label'>purpose:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>compatible:</span> []<span class='comma'>,</span> <span class='label'>after_compatible:</span> []<span class='comma'>,</span> <span class='label'>no_wait:</span> <span class='kw'>false</span>)
@@ -369,36 +395,37 @@ the block.</p>
   </div><div></div>
 <div class='docstring'>
   <div class='discussion'>
-    <p>We track Thread objects, instead of just using counters, because
-we need exclusive locks to be reentrant, and we need to be able
-to upgrade share locks to exclusive.</p>
+    <p>We track execution-context objects (Threads or Fibers, depending on
+<a href="../IsolatedExecutionState.html#isolation_level-class_method" title="ActiveSupport::IsolatedExecutionState.isolation_level (method)">IsolatedExecutionState.isolation_level</a>), instead of
+just using counters, because we need exclusive locks to be reentrant,
+and we need to be able to upgrade share locks to exclusive.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activesupport/lib/active_support/concurrency/share_lock.rb#L17-L47'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activesupport/lib/active_support/concurrency/share_lock.rb#L19-L49'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='17' data-end='47'></pre>
+  <pre class='lines_num' data-start='19' data-end='49'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activesupport/lib/active_support/concurrency/share_lock.rb', line 17</span></pre>
+<pre><span class='info file'># File 'activesupport/lib/active_support/concurrency/share_lock.rb', line 19</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_raw_state'>raw_state</span> <span class='comment'># :nodoc:
 </span>  <span class='id identifier rubyid_synchronize'>synchronize</span> <span class='kw'>do</span>
-    <span class='id identifier rubyid_threads'>threads</span> <span class='op'>=</span> <span class='ivar'>@sleeping</span>.<span class='id identifier rubyid_keys'>keys</span> <span class='op'>|</span> <span class='ivar'>@sharing</span>.<span class='id identifier rubyid_keys'>keys</span> <span class='op'>|</span> <span class='ivar'>@waiting</span>.<span class='id identifier rubyid_keys'>keys</span>
-    <span class='id identifier rubyid_threads'>threads</span> <span class='op'>|=</span> [<span class='ivar'>@exclusive_thread</span>] <span class='kw'>if</span> <span class='ivar'>@exclusive_thread</span>
+    <span class='id identifier rubyid_owners'>owners</span> <span class='op'>=</span> <span class='ivar'>@sleeping</span>.<span class='id identifier rubyid_keys'>keys</span> <span class='op'>|</span> <span class='ivar'>@sharing</span>.<span class='id identifier rubyid_keys'>keys</span> <span class='op'>|</span> <span class='ivar'>@waiting</span>.<span class='id identifier rubyid_keys'>keys</span>
+    <span class='id identifier rubyid_owners'>owners</span> <span class='op'>|=</span> [<span class='ivar'>@exclusive_owner</span>] <span class='kw'>if</span> <span class='ivar'>@exclusive_owner</span>
 
     <span class='id identifier rubyid_data'>data</span> <span class='op'>=</span> {}
 
-    <span class='id identifier rubyid_threads'>threads</span>.<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_thread'>thread</span><span class='op'>|</span>
-      <span class='id identifier rubyid_purpose'>purpose</span><span class='comma'>,</span> <span class='id identifier rubyid_compatible'>compatible</span> <span class='op'>=</span> <span class='ivar'>@waiting</span>[<span class='id identifier rubyid_thread'>thread</span>]
+    <span class='id identifier rubyid_owners'>owners</span>.<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_owner'>owner</span><span class='op'>|</span>
+      <span class='id identifier rubyid_purpose'>purpose</span><span class='comma'>,</span> <span class='id identifier rubyid_compatible'>compatible</span> <span class='op'>=</span> <span class='ivar'>@waiting</span>[<span class='id identifier rubyid_owner'>owner</span>]
 
-      <span class='id identifier rubyid_data'>data</span>[<span class='id identifier rubyid_thread'>thread</span>] <span class='op'>=</span> {
-        <span class='label'>thread:</span> <span class='id identifier rubyid_thread'>thread</span><span class='comma'>,</span>
-        <span class='label'>sharing:</span> <span class='ivar'>@sharing</span>[<span class='id identifier rubyid_thread'>thread</span>]<span class='comma'>,</span>
-        <span class='label'>exclusive:</span> <span class='ivar'>@exclusive_thread</span> <span class='op'>==</span> <span class='id identifier rubyid_thread'>thread</span><span class='comma'>,</span>
+      <span class='id identifier rubyid_data'>data</span>[<span class='id identifier rubyid_owner'>owner</span>] <span class='op'>=</span> {
+        <span class='label'>owner:</span> <span class='id identifier rubyid_owner'>owner</span><span class='comma'>,</span>
+        <span class='label'>sharing:</span> <span class='ivar'>@sharing</span>[<span class='id identifier rubyid_owner'>owner</span>]<span class='comma'>,</span>
+        <span class='label'>exclusive:</span> <span class='ivar'>@exclusive_owner</span> <span class='op'>==</span> <span class='id identifier rubyid_owner'>owner</span><span class='comma'>,</span>
         <span class='label'>purpose:</span> <span class='id identifier rubyid_purpose'>purpose</span><span class='comma'>,</span>
         <span class='label'>compatible:</span> <span class='id identifier rubyid_compatible'>compatible</span><span class='comma'>,</span>
-        <span class='label'>waiting:</span> <span class='op'>!</span><span class='op'>!</span><span class='ivar'>@waiting</span>[<span class='id identifier rubyid_thread'>thread</span>]<span class='comma'>,</span>
-        <span class='label'>sleeper:</span> <span class='ivar'>@sleeping</span>[<span class='id identifier rubyid_thread'>thread</span>]<span class='comma'>,</span>
+        <span class='label'>waiting:</span> <span class='op'>!</span><span class='op'>!</span><span class='ivar'>@waiting</span>[<span class='id identifier rubyid_owner'>owner</span>]<span class='comma'>,</span>
+        <span class='label'>sleeper:</span> <span class='ivar'>@sleeping</span>[<span class='id identifier rubyid_owner'>owner</span>]<span class='comma'>,</span>
       }
     <span class='kw'>end</span>
 
@@ -426,11 +453,11 @@ to upgrade share locks to exclusive.</p>
     <p>Execute the supplied block while holding the Share lock.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activesupport/lib/active_support/concurrency/share_lock.rb#L158-L165'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activesupport/lib/active_support/concurrency/share_lock.rb#L162-L169'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='158' data-end='165'></pre>
+  <pre class='lines_num' data-start='162' data-end='169'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activesupport/lib/active_support/concurrency/share_lock.rb', line 158</span></pre>
+<pre><span class='info file'># File 'activesupport/lib/active_support/concurrency/share_lock.rb', line 162</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_sharing'>sharing</span>
@@ -455,27 +482,27 @@ to upgrade share locks to exclusive.</p>
     <p>Returns false if <code>no_wait</code> is set and the lock is not
 immediately available. Otherwise, returns true after the lock
 has been acquired.</p>
-<p><code>purpose</code> and <code>compatible</code> work together; while this thread is
+<p><code>purpose</code> and <code>compatible</code> work together; while this owner is
 waiting for the exclusive lock, it will yield its share (if any)
 to any other attempt whose <code>purpose</code> appears in this attempt's
 <code>compatible</code> list. This allows a &quot;loose&quot; upgrade, which, being
 less strict, prevents some classes of deadlocks.</p>
-<p>For many resources, loose upgrades are sufficient: if a thread
+<p>For many resources, loose upgrades are sufficient: if an owner
 is awaiting a lock, it is not running any other code. With
 <code>purpose</code> matching, it is possible to yield only to other
-threads whose activity will not interfere.</p>
+owners whose activity will not interfere.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activesupport/lib/active_support/concurrency/share_lock.rb#L75-L91'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activesupport/lib/active_support/concurrency/share_lock.rb#L77-L93'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='75' data-end='91'></pre>
+  <pre class='lines_num' data-start='77' data-end='93'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activesupport/lib/active_support/concurrency/share_lock.rb', line 75</span></pre>
+<pre><span class='info file'># File 'activesupport/lib/active_support/concurrency/share_lock.rb', line 77</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_start_exclusive'>start_exclusive</span>(<span class='label'>purpose:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>compatible:</span> []<span class='comma'>,</span> <span class='label'>no_wait:</span> <span class='kw'>false</span>)
   <span class='id identifier rubyid_synchronize'>synchronize</span> <span class='kw'>do</span>
-    <span class='kw'>unless</span> <span class='ivar'>@exclusive_thread</span> <span class='op'>==</span> <span class='const'>Thread</span>.<span class='id identifier rubyid_current'>current</span>
+    <span class='kw'>unless</span> <span class='ivar'>@exclusive_owner</span> <span class='op'>==</span> <span class='id identifier rubyid_current_owner'><a href="#current_owner-instance_method" title="ActiveSupport::Concurrency::ShareLock#current_owner (method)">current_owner</a></span>
       <span class='kw'>if</span> <span class='id identifier rubyid_busy_for_exclusive?'><a href="#busy_for_exclusive%3F-instance_method" title="ActiveSupport::Concurrency::ShareLock#busy_for_exclusive? (method)">busy_for_exclusive?</a></span>(<span class='id identifier rubyid_purpose'>purpose</span>)
         <span class='kw'>return</span> <span class='kw'>false</span> <span class='kw'>if</span> <span class='id identifier rubyid_no_wait'>no_wait</span>
 
@@ -483,7 +510,7 @@ threads whose activity will not interfere.</p>
           <span class='id identifier rubyid_wait_for'><a href="#wait_for-instance_method" title="ActiveSupport::Concurrency::ShareLock#wait_for (method)">wait_for</a></span>(<span class='symbeg'>:</span><span class='id identifier rubyid_start_exclusive'>start_exclusive</span>) { <span class='id identifier rubyid_busy_for_exclusive?'><a href="#busy_for_exclusive%3F-instance_method" title="ActiveSupport::Concurrency::ShareLock#busy_for_exclusive? (method)">busy_for_exclusive?</a></span>(<span class='id identifier rubyid_purpose'>purpose</span>) }
         <span class='kw'>end</span>
       <span class='kw'>end</span>
-      <span class='ivar'>@exclusive_thread</span> <span class='op'>=</span> <span class='const'>Thread</span>.<span class='id identifier rubyid_current'>current</span>
+      <span class='ivar'>@exclusive_owner</span> <span class='op'>=</span> <span class='id identifier rubyid_current_owner'><a href="#current_owner-instance_method" title="ActiveSupport::Concurrency::ShareLock#current_owner (method)">current_owner</a></span>
     <span class='kw'>end</span>
     <span class='ivar'>@exclusive_depth</span> <span class='op'>+=</span> <span class='int'>1</span>
 
@@ -499,27 +526,28 @@ threads whose activity will not interfere.</p>
   <h3 class='signature '>
     #<strong>start_sharing</strong>  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activesupport/lib/active_support/concurrency/share_lock.rb#L113-L128'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activesupport/lib/active_support/concurrency/share_lock.rb#L115-L131'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='113' data-end='128'></pre>
+  <pre class='lines_num' data-start='115' data-end='131'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activesupport/lib/active_support/concurrency/share_lock.rb', line 113</span></pre>
+<pre><span class='info file'># File 'activesupport/lib/active_support/concurrency/share_lock.rb', line 115</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_start_sharing'>start_sharing</span>
   <span class='id identifier rubyid_synchronize'>synchronize</span> <span class='kw'>do</span>
-    <span class='kw'>if</span> <span class='ivar'>@sharing</span>[<span class='const'>Thread</span>.<span class='id identifier rubyid_current'>current</span>] <span class='op'>&gt;</span> <span class='int'>0</span> <span class='op'>||</span> <span class='ivar'>@exclusive_thread</span> <span class='op'>==</span> <span class='const'>Thread</span>.<span class='id identifier rubyid_current'>current</span>
+    <span class='id identifier rubyid_owner'>owner</span> <span class='op'>=</span> <span class='id identifier rubyid_current_owner'><a href="#current_owner-instance_method" title="ActiveSupport::Concurrency::ShareLock#current_owner (method)">current_owner</a></span>
+    <span class='kw'>if</span> <span class='ivar'>@sharing</span>[<span class='id identifier rubyid_owner'>owner</span>] <span class='op'>&gt;</span> <span class='int'>0</span> <span class='op'>||</span> <span class='ivar'>@exclusive_owner</span> <span class='op'>==</span> <span class='id identifier rubyid_owner'>owner</span>
       <span class='comment'># We already hold a lock; nothing to wait for
-</span>    <span class='kw'>elsif</span> <span class='ivar'>@waiting</span>[<span class='const'>Thread</span>.<span class='id identifier rubyid_current'>current</span>]
+</span>    <span class='kw'>elsif</span> <span class='ivar'>@waiting</span>[<span class='id identifier rubyid_owner'>owner</span>]
       <span class='comment'># We&#39;re nested inside a yield_shares call: we&#39;ll resume as
 </span>      <span class='comment'># soon as there isn&#39;t an exclusive lock in our way
-</span>      <span class='id identifier rubyid_wait_for'><a href="#wait_for-instance_method" title="ActiveSupport::Concurrency::ShareLock#wait_for (method)">wait_for</a></span>(<span class='symbeg'>:</span><span class='id identifier rubyid_start_sharing'>start_sharing</span>) { <span class='ivar'>@exclusive_thread</span> }
+</span>      <span class='id identifier rubyid_wait_for'><a href="#wait_for-instance_method" title="ActiveSupport::Concurrency::ShareLock#wait_for (method)">wait_for</a></span>(<span class='symbeg'>:</span><span class='id identifier rubyid_start_sharing'>start_sharing</span>) { <span class='ivar'>@exclusive_owner</span> }
     <span class='kw'>else</span>
       <span class='comment'># This is an initial / outermost share call: any outstanding
 </span>      <span class='comment'># requests for an exclusive lock get to go first
 </span>      <span class='id identifier rubyid_wait_for'><a href="#wait_for-instance_method" title="ActiveSupport::Concurrency::ShareLock#wait_for (method)">wait_for</a></span>(<span class='symbeg'>:</span><span class='id identifier rubyid_start_sharing'>start_sharing</span>) { <span class='id identifier rubyid_busy_for_sharing?'><a href="#busy_for_sharing%3F-instance_method" title="ActiveSupport::Concurrency::ShareLock#busy_for_sharing? (method)">busy_for_sharing?</a></span>(<span class='kw'>false</span>) }
     <span class='kw'>end</span>
-    <span class='ivar'>@sharing</span>[<span class='const'>Thread</span>.<span class='id identifier rubyid_current'>current</span>] <span class='op'>+=</span> <span class='int'>1</span>
+    <span class='ivar'>@sharing</span>[<span class='id identifier rubyid_owner'>owner</span>] <span class='op'>+=</span> <span class='int'>1</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span>
 </pre>
@@ -533,28 +561,28 @@ threads whose activity will not interfere.</p>
   </h3>
 <div class='docstring'>
   <div class='discussion'>
-    <p>Relinquish the exclusive lock. Must only be called by the thread
+    <p>Relinquish the exclusive lock. Must only be called by the owner
 that called start_exclusive (and currently holds the lock).</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activesupport/lib/active_support/concurrency/share_lock.rb#L95-L111'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activesupport/lib/active_support/concurrency/share_lock.rb#L97-L113'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='95' data-end='111'></pre>
+  <pre class='lines_num' data-start='97' data-end='113'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activesupport/lib/active_support/concurrency/share_lock.rb', line 95</span></pre>
+<pre><span class='info file'># File 'activesupport/lib/active_support/concurrency/share_lock.rb', line 97</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_stop_exclusive'>stop_exclusive</span>(<span class='label'>compatible:</span> [])
   <span class='id identifier rubyid_synchronize'>synchronize</span> <span class='kw'>do</span>
-    <span class='id identifier rubyid_raise'>raise</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>invalid unlock</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>if</span> <span class='ivar'>@exclusive_thread</span> <span class='op'>!=</span> <span class='const'>Thread</span>.<span class='id identifier rubyid_current'>current</span>
+    <span class='id identifier rubyid_raise'>raise</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>invalid unlock</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>if</span> <span class='ivar'>@exclusive_owner</span> <span class='op'>!=</span> <span class='id identifier rubyid_current_owner'><a href="#current_owner-instance_method" title="ActiveSupport::Concurrency::ShareLock#current_owner (method)">current_owner</a></span>
 
     <span class='ivar'>@exclusive_depth</span> <span class='op'>-=</span> <span class='int'>1</span>
     <span class='kw'>if</span> <span class='ivar'>@exclusive_depth</span> <span class='op'>==</span> <span class='int'>0</span>
-      <span class='ivar'>@exclusive_thread</span> <span class='op'>=</span> <span class='kw'>nil</span>
+      <span class='ivar'>@exclusive_owner</span> <span class='op'>=</span> <span class='kw'>nil</span>
 
       <span class='kw'>if</span> <span class='id identifier rubyid_eligible_waiters?'><a href="#eligible_waiters%3F-instance_method" title="ActiveSupport::Concurrency::ShareLock#eligible_waiters? (method)">eligible_waiters?</a></span>(<span class='id identifier rubyid_compatible'>compatible</span>)
         <span class='id identifier rubyid_yield_shares'><a href="#yield_shares-instance_method" title="ActiveSupport::Concurrency::ShareLock#yield_shares (method)">yield_shares</a></span>(<span class='label'>compatible:</span> <span class='id identifier rubyid_compatible'>compatible</span><span class='comma'>,</span> <span class='label'>block_share:</span> <span class='kw'>true</span>) <span class='kw'>do</span>
-          <span class='id identifier rubyid_wait_for'><a href="#wait_for-instance_method" title="ActiveSupport::Concurrency::ShareLock#wait_for (method)">wait_for</a></span>(<span class='symbeg'>:</span><span class='id identifier rubyid_stop_exclusive'>stop_exclusive</span>) { <span class='ivar'>@exclusive_thread</span> <span class='op'>||</span> <span class='id identifier rubyid_eligible_waiters?'><a href="#eligible_waiters%3F-instance_method" title="ActiveSupport::Concurrency::ShareLock#eligible_waiters? (method)">eligible_waiters?</a></span>(<span class='id identifier rubyid_compatible'>compatible</span>) }
+          <span class='id identifier rubyid_wait_for'><a href="#wait_for-instance_method" title="ActiveSupport::Concurrency::ShareLock#wait_for (method)">wait_for</a></span>(<span class='symbeg'>:</span><span class='id identifier rubyid_stop_exclusive'>stop_exclusive</span>) { <span class='ivar'>@exclusive_owner</span> <span class='op'>||</span> <span class='id identifier rubyid_eligible_waiters?'><a href="#eligible_waiters%3F-instance_method" title="ActiveSupport::Concurrency::ShareLock#eligible_waiters? (method)">eligible_waiters?</a></span>(<span class='id identifier rubyid_compatible'>compatible</span>) }
         <span class='kw'>end</span>
       <span class='kw'>end</span>
       <span class='ivar'>@cv</span>.<span class='id identifier rubyid_broadcast'>broadcast</span>
@@ -570,19 +598,20 @@ that called start_exclusive (and currently holds the lock).</p>
   <h3 class='signature '>
     #<strong>stop_sharing</strong>  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activesupport/lib/active_support/concurrency/share_lock.rb#L130-L139'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activesupport/lib/active_support/concurrency/share_lock.rb#L133-L143'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='130' data-end='139'></pre>
+  <pre class='lines_num' data-start='133' data-end='143'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activesupport/lib/active_support/concurrency/share_lock.rb', line 130</span></pre>
+<pre><span class='info file'># File 'activesupport/lib/active_support/concurrency/share_lock.rb', line 133</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_stop_sharing'>stop_sharing</span>
   <span class='id identifier rubyid_synchronize'>synchronize</span> <span class='kw'>do</span>
-    <span class='kw'>if</span> <span class='ivar'>@sharing</span>[<span class='const'>Thread</span>.<span class='id identifier rubyid_current'>current</span>] <span class='op'>&gt;</span> <span class='int'>1</span>
-      <span class='ivar'>@sharing</span>[<span class='const'>Thread</span>.<span class='id identifier rubyid_current'>current</span>] <span class='op'>-=</span> <span class='int'>1</span>
+    <span class='id identifier rubyid_owner'>owner</span> <span class='op'>=</span> <span class='id identifier rubyid_current_owner'><a href="#current_owner-instance_method" title="ActiveSupport::Concurrency::ShareLock#current_owner (method)">current_owner</a></span>
+    <span class='kw'>if</span> <span class='ivar'>@sharing</span>[<span class='id identifier rubyid_owner'>owner</span>] <span class='op'>&gt;</span> <span class='int'>1</span>
+      <span class='ivar'>@sharing</span>[<span class='id identifier rubyid_owner'>owner</span>] <span class='op'>-=</span> <span class='int'>1</span>
     <span class='kw'>else</span>
-      <span class='ivar'>@sharing</span>.<span class='id identifier rubyid_delete'>delete</span> <span class='const'>Thread</span>.<span class='id identifier rubyid_current'>current</span>
+      <span class='ivar'>@sharing</span>.<span class='id identifier rubyid_delete'>delete</span> <span class='id identifier rubyid_owner'>owner</span>
       <span class='ivar'>@cv</span>.<span class='id identifier rubyid_broadcast'>broadcast</span>
     <span class='kw'>end</span>
   <span class='kw'>end</span>
@@ -596,18 +625,19 @@ that called start_exclusive (and currently holds the lock).</p>
   <h3 class='signature priv'>
     #<strong>wait_for</strong>(method, &amp;block)   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activesupport/lib/active_support/concurrency/share_lock.rb#L217-L222'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activesupport/lib/active_support/concurrency/share_lock.rb#L227-L233'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='217' data-end='222'></pre>
+  <pre class='lines_num' data-start='227' data-end='233'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activesupport/lib/active_support/concurrency/share_lock.rb', line 217</span></pre>
+<pre><span class='info file'># File 'activesupport/lib/active_support/concurrency/share_lock.rb', line 227</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_wait_for'>wait_for</span>(<span class='id identifier rubyid_method'>method</span><span class='comma'>,</span> <span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span>)
-  <span class='ivar'>@sleeping</span>[<span class='const'>Thread</span>.<span class='id identifier rubyid_current'>current</span>] <span class='op'>=</span> <span class='id identifier rubyid_method'>method</span>
+  <span class='id identifier rubyid_owner'>owner</span> <span class='op'>=</span> <span class='id identifier rubyid_current_owner'><a href="#current_owner-instance_method" title="ActiveSupport::Concurrency::ShareLock#current_owner (method)">current_owner</a></span>
+  <span class='ivar'>@sleeping</span>[<span class='id identifier rubyid_owner'>owner</span>] <span class='op'>=</span> <span class='id identifier rubyid_method'>method</span>
   <span class='ivar'>@cv</span>.<span class='id identifier rubyid_wait_while'>wait_while</span>(<span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span>)
 <span class='kw'>ensure</span>
-  <span class='ivar'>@sleeping</span>.<span class='id identifier rubyid_delete'>delete</span> <span class='const'>Thread</span>.<span class='id identifier rubyid_current'>current</span>
+  <span class='ivar'>@sleeping</span>.<span class='id identifier rubyid_delete'>delete</span> <span class='id identifier rubyid_owner'>owner</span>
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -625,23 +655,24 @@ supplied block, allowing any <code>compatible</code> exclusive lock request
 to proceed.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activesupport/lib/active_support/concurrency/share_lock.rb#L170-L199'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activesupport/lib/active_support/concurrency/share_lock.rb#L174-L204'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='170' data-end='199'></pre>
+  <pre class='lines_num' data-start='174' data-end='204'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activesupport/lib/active_support/concurrency/share_lock.rb', line 170</span></pre>
+<pre><span class='info file'># File 'activesupport/lib/active_support/concurrency/share_lock.rb', line 174</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_yield_shares'>yield_shares</span>(<span class='label'>purpose:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>compatible:</span> []<span class='comma'>,</span> <span class='label'>block_share:</span> <span class='kw'>false</span>)
   <span class='id identifier rubyid_loose_shares'>loose_shares</span> <span class='op'>=</span> <span class='id identifier rubyid_previous_wait'>previous_wait</span> <span class='op'>=</span> <span class='kw'>nil</span>
+  <span class='id identifier rubyid_owner'>owner</span> <span class='op'>=</span> <span class='id identifier rubyid_current_owner'><a href="#current_owner-instance_method" title="ActiveSupport::Concurrency::ShareLock#current_owner (method)">current_owner</a></span>
   <span class='id identifier rubyid_synchronize'>synchronize</span> <span class='kw'>do</span>
-    <span class='kw'>if</span> <span class='id identifier rubyid_loose_shares'>loose_shares</span> <span class='op'>=</span> <span class='ivar'>@sharing</span>.<span class='id identifier rubyid_delete'>delete</span>(<span class='const'>Thread</span>.<span class='id identifier rubyid_current'>current</span>)
-      <span class='kw'>if</span> <span class='id identifier rubyid_previous_wait'>previous_wait</span> <span class='op'>=</span> <span class='ivar'>@waiting</span>[<span class='const'>Thread</span>.<span class='id identifier rubyid_current'>current</span>]
+    <span class='kw'>if</span> <span class='id identifier rubyid_loose_shares'>loose_shares</span> <span class='op'>=</span> <span class='ivar'>@sharing</span>.<span class='id identifier rubyid_delete'>delete</span>(<span class='id identifier rubyid_owner'>owner</span>)
+      <span class='kw'>if</span> <span class='id identifier rubyid_previous_wait'>previous_wait</span> <span class='op'>=</span> <span class='ivar'>@waiting</span>[<span class='id identifier rubyid_owner'>owner</span>]
         <span class='id identifier rubyid_purpose'>purpose</span> <span class='op'>=</span> <span class='kw'>nil</span> <span class='kw'>unless</span> <span class='id identifier rubyid_purpose'>purpose</span> <span class='op'>==</span> <span class='id identifier rubyid_previous_wait'>previous_wait</span>[<span class='int'>0</span>]
         <span class='id identifier rubyid_compatible'>compatible</span> <span class='op'>&amp;=</span> <span class='id identifier rubyid_previous_wait'>previous_wait</span>[<span class='int'>1</span>]
       <span class='kw'>end</span>
       <span class='id identifier rubyid_compatible'>compatible</span> <span class='op'>|=</span> [<span class='kw'>false</span>] <span class='kw'>unless</span> <span class='id identifier rubyid_block_share'>block_share</span>
-      <span class='ivar'>@waiting</span>[<span class='const'>Thread</span>.<span class='id identifier rubyid_current'>current</span>] <span class='op'>=</span> [<span class='id identifier rubyid_purpose'>purpose</span><span class='comma'>,</span> <span class='id identifier rubyid_compatible'>compatible</span>]
+      <span class='ivar'>@waiting</span>[<span class='id identifier rubyid_owner'>owner</span>] <span class='op'>=</span> [<span class='id identifier rubyid_purpose'>purpose</span><span class='comma'>,</span> <span class='id identifier rubyid_compatible'>compatible</span>]
     <span class='kw'>end</span>
 
     <span class='ivar'>@cv</span>.<span class='id identifier rubyid_broadcast'>broadcast</span>
@@ -651,14 +682,14 @@ to proceed.</p>
     <span class='kw'>yield</span>
   <span class='kw'>ensure</span>
     <span class='id identifier rubyid_synchronize'>synchronize</span> <span class='kw'>do</span>
-      <span class='id identifier rubyid_wait_for'><a href="#wait_for-instance_method" title="ActiveSupport::Concurrency::ShareLock#wait_for (method)">wait_for</a></span>(<span class='symbeg'>:</span><span class='id identifier rubyid_yield_shares'>yield_shares</span>) { <span class='ivar'>@exclusive_thread</span> <span class='op'>&amp;&amp;</span> <span class='ivar'>@exclusive_thread</span> <span class='op'>!=</span> <span class='const'>Thread</span>.<span class='id identifier rubyid_current'>current</span> }
+      <span class='id identifier rubyid_wait_for'><a href="#wait_for-instance_method" title="ActiveSupport::Concurrency::ShareLock#wait_for (method)">wait_for</a></span>(<span class='symbeg'>:</span><span class='id identifier rubyid_yield_shares'>yield_shares</span>) { <span class='ivar'>@exclusive_owner</span> <span class='op'>&amp;&amp;</span> <span class='ivar'>@exclusive_owner</span> <span class='op'>!=</span> <span class='id identifier rubyid_owner'>owner</span> }
 
       <span class='kw'>if</span> <span class='id identifier rubyid_previous_wait'>previous_wait</span>
-        <span class='ivar'>@waiting</span>[<span class='const'>Thread</span>.<span class='id identifier rubyid_current'>current</span>] <span class='op'>=</span> <span class='id identifier rubyid_previous_wait'>previous_wait</span>
+        <span class='ivar'>@waiting</span>[<span class='id identifier rubyid_owner'>owner</span>] <span class='op'>=</span> <span class='id identifier rubyid_previous_wait'>previous_wait</span>
       <span class='kw'>else</span>
-        <span class='ivar'>@waiting</span>.<span class='id identifier rubyid_delete'>delete</span> <span class='const'>Thread</span>.<span class='id identifier rubyid_current'>current</span>
+        <span class='ivar'>@waiting</span>.<span class='id identifier rubyid_delete'>delete</span> <span class='id identifier rubyid_owner'>owner</span>
       <span class='kw'>end</span>
-      <span class='ivar'>@sharing</span>[<span class='const'>Thread</span>.<span class='id identifier rubyid_current'>current</span>] <span class='op'>=</span> <span class='id identifier rubyid_loose_shares'>loose_shares</span> <span class='kw'>if</span> <span class='id identifier rubyid_loose_shares'>loose_shares</span>
+      <span class='ivar'>@sharing</span>[<span class='id identifier rubyid_owner'>owner</span>] <span class='op'>=</span> <span class='id identifier rubyid_loose_shares'>loose_shares</span> <span class='kw'>if</span> <span class='id identifier rubyid_loose_shares'>loose_shares</span>
     <span class='kw'>end</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span>

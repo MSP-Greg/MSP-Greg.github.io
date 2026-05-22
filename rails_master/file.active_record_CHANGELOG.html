@@ -63,6 +63,48 @@
 <div id='content' class='file'>
 <ul>
 <li>
+<p>Fix Active Record Pool Reaper thread leak after <code>Parallelization#shutdown</code>.</p>
+<p>After parallelized test runs, the parent process leaked the Active Record Pool
+Reaper thread, holding open connection pools and file descriptors for up to
+<code>reaping_frequency</code> seconds (or indefinitely if never reaped).</p>
+<p>Three fixes: <code>Parallelization#shutdown</code> now calls <code>run_cleanup_hooks</code>;
+Active Record registers a cleanup hook that discards all connection pools; and
+<code>ConnectionPool#discard!</code> now calls <code>Reaper.discard_pool</code>, which immediately
+kills and joins the reaper thread when no pools remain at that frequency.</p>
+<p><em>Ruy Rocha</em></p>
+</li>
+<li>
+<p>Reset <code>lock_version</code> after a nested savepoint rollback.</p>
+<p>When a record was saved inside a <code>transaction(requires_new: true)</code> block
+that later rolled back, the in-memory <code>lock_version</code> was left at the
+incremented value while the database row was reverted by the savepoint.
+Saving the same instance again raised <a href="ActiveRecord/StaleObjectError.html" title="ActiveRecord::StaleObjectError (class)"><code>::ActiveRecord::StaleObjectError</code></a>
+because the WHERE clause used the bumped value that no longer existed in
+the database.</p>
+<p>Restore the locking column from the snapshot on savepoint rollback in
+addition to the outermost transaction rollback handled in #57363.</p>
+<p><em>Kenta Ishizaki</em></p>
+</li>
+<li>
+<p>Fix duplicate <code>WHERE</code> conditions in <code>create_or_find_by</code>.</p>
+<p>When <code>create_or_find_by</code> catches a <code>RecordNotUnique</code> error and retries the query, it now uses <code>rewhere</code> and <code>take!</code> to prevent duplicating existing scope conditions.</p>
+<p><em>Yavor Dashev</em></p>
+</li>
+<li>
+<p>Allow to pass array values to <code>in_order_of</code></p>
+<p>Passing arrays allows to group records and order those groups with another query:</p>
+<pre class="code ruby"><code class="ruby"><span class='const'>Posts</span>
+  .<span class='id identifier rubyid_in_order_of'>in_order_of</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_state'>state</span><span class='comma'>,</span> [[<span class='symbeg'>:</span><span class='id identifier rubyid_published'>published</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_canceled'>canceled</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_archived'>archived</span>])
+  .<span class='id identifier rubyid_order'>order</span>(<span class='label'>created_at:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_desc'>desc</span>)
+<span class='comment'># =&gt;
+</span><span class='comment'># SELECT &quot;posts&quot;.* FROM &quot;posts&quot; WHERE &quot;posts&quot;.&quot;state&quot; IN (1, 2, 3)
+</span><span class='comment'># ORDER BY CASE
+</span><span class='comment'>#   WHEN &quot;posts&quot;.&quot;state&quot; IN (1, 2) THEN 1
+</span><span class='comment'>#   WHEN &quot;posts&quot;.&quot;state&quot; = 3 THEN 2
+</span><span class='comment'>#  END ASC, &quot;posts&quot;.&quot;created_at&quot; DESC</span></code></pre>
+<p><em>Markus Doits</em></p>
+</li>
+<li>
 <p>On PostgreSQL 18.4+, <code>disable_referential_integrity</code> uses <code>NOT ENFORCED</code>/<code>ENFORCED</code>
 instead of <code>DISABLE TRIGGER ALL</code>/<code>ENABLE TRIGGER ALL</code>, requiring only table ownership
 rather than superuser privileges. Only currently <code>ENFORCED</code> foreign keys are toggled;
