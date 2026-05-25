@@ -88,11 +88,199 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2 o'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L156'>lib/rubygems/version.rb</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/requirement.rb#L293'>lib/rubygems/requirement.rb</a></span>
+      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L174'>lib/rubygems/version.rb</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/requirement.rb#L293'>lib/rubygems/requirement.rb</a></span>
       </td>
     </tr>
   </tbody>
 </table>
+</div>
+<h2 id='h2_overview'>Overview</h2>
+<div id='overview_ds'>
+<div class='docstring'>
+  <div class='discussion'>
+    <p>The Version class processes string versions into comparable
+values. A version string should normally be a series of numbers
+separated by periods. Each part (digits separated by periods) is
+considered its own number, and these are used for sorting. So for
+instance, 3.10 sorts higher than 3.2 because ten is greater than
+two.</p>
+<p>If any part contains letters (currently only a-z are supported) then
+that version is considered prerelease. Versions with a prerelease
+part in the Nth part sort less than versions with N-1
+parts. Prerelease parts are sorted alphabetically using the normal
+Ruby string sorting rules. If a prerelease part contains both
+letters and numbers, it will be broken into multiple parts to
+provide expected sort behavior (1.0.a10 becomes 1.0.a.10, and is
+greater than 1.0.a9).</p>
+<p>Prereleases sort between real releases (newest to oldest):</p>
+<ol>
+<li>1.0</li>
+<li>1.0.b1</li>
+<li>1.0.a.2</li>
+<li>0.9</li>
+</ol>
+<p>If you want to specify a version restriction that includes both prereleases
+and regular releases of 1.x or later versions:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_s'>s</span>.<span class='id identifier rubyid_add_dependency'>add_dependency</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>example</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>&gt;= 1.0.0.a</span><span class='tstring_end'>&#39;</span></span></code></pre>
+<h3 id="How_Software_Changes">How Software Changes</h3>
+<p>Libraries generally change in 3 ways:</p>
+<ol>
+<li>
+<p>The change is an implementation detail, bug fix, security fix, or
+optimization, and has no behavioral effect on the software using it.</p>
+</li>
+<li>
+<p>The change adds new features, and software using those new features is
+not compatible with previous versions of the library, but software using
+previous versions of the library is compatible with the change.</p>
+</li>
+<li>
+<p>The change modifies the public interface of some part of the library in
+such a way that software that uses that part of the library must be
+modified to work.</p>
+</li>
+</ol>
+<h3 id="RubyGems_Rational_Versioning__the_recommended_approach_">RubyGems Rational Versioning (the recommended approach)</h3>
+<ul>
+<li>
+<p>Versions shall be represented by three non-negative integers, separated
+by periods (e.g. 3.1.4).  The first integer is the &quot;major&quot; version
+number, the second integer is the &quot;minor&quot; version number, and the third
+integer is the &quot;patch&quot; version number.</p>
+</li>
+<li>
+<p>A category 1 change (implementation detail, bug fix, or security fix)
+will increment the patch number.</p>
+</li>
+<li>
+<p>A category 2 change (backwards compatible) will increment the minor
+version number and reset the patch number.</p>
+</li>
+<li>
+<p>A category 3 change (incompatible) will increment the major version number
+and reset the minor and patch numbers.</p>
+</li>
+<li>
+<p>Any &quot;public&quot; release of a gem should have a different version.</p>
+</li>
+</ul>
+<h3 id="Optimistic_Vs__Pessimistic_Dependency_Versioning">Optimistic Vs. Pessimistic Dependency Versioning</h3>
+<p>Users expect to be able to specify a version constraint that gives them
+a reasonable expectation that new versions of a library will work with
+their software if the version constraint is true, and not work with their
+software if the version constraint is false.  In other words, the perfect
+system will accept all compatible versions of the library and reject all
+incompatible versions. Unfortunately, there is no perfect system, as you
+cannot predict the future. You can never know whether a future version of
+a library will contain which type of change.</p>
+<p>There are two common outlooks on dependency versioning:</p>
+<ol>
+<li>
+<p>Optimistic. This does not set an upper bound on a dependency. It is
+possible that a future version of a dependency will break the software,
+and in that case, the dependency version will need to be updated and
+changes will need to be made.</p>
+</li>
+<li>
+<p>Pessimistic. This assumes all major version changes of a dependency will
+break the software, and that patch or minor changes of a dependency will
+not break the software. If there is a major version of a dependency
+released, the dependency version must be updated in order to use it, even
+if no code changes are actually needed.</p>
+</li>
+</ol>
+<p>In general, optimistic versioning is superior to pessimistic versioning.
+Pessimistic versioning is often wrong in both directions. Dependencies can
+release patch or minor versions that contain incompatibilities. One
+common reason is that a security fix may require a backwards-incompatible API
+change. In this case, even though pessimistic versioning was used, it
+didn't even save effort, as you still need to make code changes and adjust
+dependency versions. Similarly, for all but the smallest dependencies, just
+because the dependency made a backwards incompatible change to one interface
+doesn't mean the dependency made a backwards incompatible change to an
+interface that the software is using. It is a common problem that a
+dependency will release a new major version and the software does not require
+any changes in order to use it. In this case, being pessimistic results in
+additional work for no benefit.</p>
+<p>When a library uses pessimistic versioning of dependencies, it causes
+significant problems if that library is not diligent about updating
+dependency versions and any library is depending on that library.
+For example:</p>
+<ul>
+<li>
+<p>Library A is currently on release 1.2.3.</p>
+</li>
+<li>
+<p>Library B is at version 2.3.4 and has a pessimistic dependency on
+library A, using ~&gt; 1.0 (&gt;= 1.0, &lt; 2).</p>
+</li>
+<li>
+<p>Library C is at version 3.4.5 and has an optimistic dependency on
+library A, using &gt;= 1.0.</p>
+</li>
+<li>
+<p>Library D has optimistic dependencies on both libraries B and C.</p>
+</li>
+<li>
+<p>Library A releases a new major version, 2.0.0, with new features, which
+is mostly backwards compatible, but does contain some backwards
+incompatible changes.</p>
+</li>
+<li>
+<p>Library B would work with A 2.0.0, but cannot use it due to pessimistic
+versioning.</p>
+</li>
+<li>
+<p>Library C wants to use the new features in the major release of library
+A to implement its own new features, so it does so, bumps the
+dependency version of A to &gt;= 2.0, and releases version 3.5.0.</p>
+</li>
+<li>
+<p>Library D cannot upgrade to the new version of library C, because it
+depends on library B, which has a pessimistic dependency on library A.</p>
+</li>
+<li>
+<p>Library C releases a security fix patch version 3.5.1 to fix a
+vulnerability present in all previous versions.</p>
+</li>
+<li>
+<p>Library D is now in a terrible situation. It cannot upgrade to library
+C 3.5.1, as that requires library A &gt; 2.0, because it depends on library
+B, which requires library A &gt; 1.0, &lt; 2, even though library B would work
+fine with library A 2.0.0.</p>
+</li>
+</ul>
+<p>This type of situation brought on by pessimistic versioning is unfortunately
+both common and serious in practice.</p>
+<p>This is not to say that optimistic versioning never causes a problem.
+However, with optimistic versioning, if there is a problem, it can be solved
+with the addition of a single dependency. For example, continuing the
+previous example:</p>
+<ul>
+<li>
+<p>Library A releases a new major version, 3.0.0, which makes backwards
+incompatible changes that break library C.</p>
+</li>
+<li>
+<p>Until library C releases an updated version with new changes, library
+D only needs to set a specific dependency on library A for &gt; 2.0, &lt; 3,
+until library C is updated to work with the new version of library A.</p>
+</li>
+</ul>
+<p>Both optimistic versioning and pessimistic versioning have problems in
+certain cases. However, it's significantly easier to fix optimistic
+versioning problems than to fix pessimistic versioning problems.</p>
+<p>That is not to say that pessimistic versioning is never appropriate. If the
+dependency is a library that adds a single method, where any change resulting
+in a major version bump would probably break a library using it, then using
+pessimistic versioning may be warranted. Additionally, if a dependency has
+already announced or committed backwards incompatible changes that would
+break a library's use of it, then having that library use a pessimistic
+version constraint would likely be warranted. However, outside of
+specific situations, you should avoid using pessimistic versioning, as the
+costs typically exceed the benefits.</p>
+  </div>
+</div>
 </div>
 <h2 id='t2_cnst' class='h2_sum'>Constant Summary</h2>
 <div>
@@ -101,13 +289,13 @@
     <span id='ANCHORED_VERSION_PATTERN-constant' class='summary_signature nodoc'>ANCHORED_VERSION_PATTERN =</span>
     <span class='nodoc note title'>Internal use only</span>
     <br/>
-    <a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L160-L160'># File 'lib/rubygems/version.rb', line 160</a>    <pre class='code ruby'><span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>\A\s*(</span><span class='embexpr_beg'>#{</span><span class='const'><a href="#VERSION_PATTERN-constant" title="Gem::Version::VERSION_PATTERN (constant)">VERSION_PATTERN</a></span><span class='embexpr_end'>}</span><span class='tstring_content'>)?\s*\z</span><span class='regexp_end'>/</span></span></pre>
+    <a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L178-L178'># File 'lib/rubygems/version.rb', line 178</a>    <pre class='code ruby'><span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>\A\s*(</span><span class='embexpr_beg'>#{</span><span class='const'><a href="#VERSION_PATTERN-constant" title="Gem::Version::VERSION_PATTERN (constant)">VERSION_PATTERN</a></span><span class='embexpr_end'>}</span><span class='tstring_content'>)?\s*\z</span><span class='regexp_end'>/</span></span></pre>
   </li>
   <li>
     <span id='RADIX_OPT-constant' class='summary_signature nodoc'>RADIX_OPT =</span>
     <span class='nodoc note title'>Internal use only</span>
     <br/>
-    <a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L161-L161'># File 'lib/rubygems/version.rb', line 161</a>    <pre class='code ruby'>[<span class='int'>9_500</span><span class='comma'>,</span> <span class='int'>3_500</span><span class='comma'>,</span> <span class='int'>260_000</span><span class='comma'>,</span> <span class='int'>22_227</span><span class='comma'>,</span> <span class='int'>24</span>].<span class='id identifier rubyid_freeze'><a href="#freeze-instance_method" title="Gem::Version#freeze (method)">freeze</a></span></pre>
+    <a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L179-L179'># File 'lib/rubygems/version.rb', line 179</a>    <pre class='code ruby'>[<span class='int'>9_500</span><span class='comma'>,</span> <span class='int'>3_500</span><span class='comma'>,</span> <span class='int'>260_000</span><span class='comma'>,</span> <span class='int'>22_227</span><span class='comma'>,</span> <span class='int'>24</span>].<span class='id identifier rubyid_freeze'><a href="#freeze-instance_method" title="Gem::Version#freeze (method)">freeze</a></span></pre>
   </li>
   <li>
     <span id='Requirement-constant' class='summary_signature nodoc'>Requirement =</span>
@@ -124,7 +312,7 @@ gemspecs.</p>
     <span id='VERSION_PATTERN-constant' class='summary_signature nodoc'>VERSION_PATTERN =</span>
     <span class='nodoc note title'>Internal use only</span>
     <br/>
-    <a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L159-L159'># File 'lib/rubygems/version.rb', line 159</a>    <pre class='code ruby'><span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>[0-9](?&gt;\.[0-9a-zA-Z])*(-[0-9A-Za-z-](\.[0-9A-Za-z-])*)?</span><span class='tstring_end'>&#39;</span></span></pre>
+    <a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L177-L177'># File 'lib/rubygems/version.rb', line 177</a>    <pre class='code ruby'><span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>[0-9](?&gt;\.[0-9a-zA-Z])*(-[0-9A-Za-z-](\.[0-9A-Za-z-])*)?</span><span class='tstring_end'>&#39;</span></span></pre>
   </li>
 </ul>
 </div>
@@ -358,11 +546,11 @@ gemspecs.</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L198-L202'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L216-L220'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='198' data-end='202'></pre>
+  <pre class='lines_num' data-start='216' data-end='220'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/version.rb', line 198</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/version.rb', line 216</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_new'>new</span>(<span class='id identifier rubyid_version'><a href="#version-instance_method" title="Gem::Version#version (method)">version</a></span>) <span class='comment'># :nodoc:
@@ -388,11 +576,11 @@ series of digits or ASCII letters separated by dots.</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L208-L227'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L226-L245'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='208' data-end='227'></pre>
+  <pre class='lines_num' data-start='226' data-end='245'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/version.rb', line 208</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/version.rb', line 226</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span>(<span class='id identifier rubyid_version'><a href="#version-instance_method" title="Gem::Version#version (method)">version</a></span>)
@@ -433,11 +621,11 @@ series of digits or ASCII letters separated by dots.</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L175-L177'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L193-L195'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='175' data-end='177'></pre>
+  <pre class='lines_num' data-start='193' data-end='195'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/version.rb', line 175</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/version.rb', line 193</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_correct?'>correct?</span>(<span class='id identifier rubyid_version'><a href="#version-instance_method" title="Gem::Version#version (method)">version</a></span>)
@@ -460,11 +648,11 @@ or a String. Intended to simplify client code.</p>
 </span><span class='id identifier rubyid_ver2'>ver2</span> <span class='op'>=</span> <span class='const'>Version</span>.<span class='id identifier rubyid_create'>create</span>(<span class='id identifier rubyid_ver1'>ver1</span>)       <span class='comment'># -&gt; (ver1)</span></code></pre>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L186-L192'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L204-L210'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='186' data-end='192'></pre>
+  <pre class='lines_num' data-start='204' data-end='210'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/version.rb', line 186</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/version.rb', line 204</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_create'>create</span>(<span class='id identifier rubyid_input'>input</span>)
@@ -492,11 +680,11 @@ or a String. Intended to simplify client code.</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L298-L303'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L316-L321'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='298' data-end='303'></pre>
+  <pre class='lines_num' data-start='316' data-end='321'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/version.rb', line 298</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/version.rb', line 316</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_prerelease?'>prerelease?</span>
@@ -517,11 +705,11 @@ or a String. Intended to simplify client code.</p>
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L424-L424'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L442-L442'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='424' data-end='424'></pre>
+  <pre class='lines_num' data-start='442' data-end='442'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/version.rb', line 424</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/version.rb', line 442</span></pre>
 <pre class='code ruby'>
 
 <span class='id identifier rubyid_attr_reader'>attr_reader</span> <span class='symbeg'>:</span><span class='id identifier rubyid_sort_key'>sort_key</span> <span class='comment'># :nodoc:</span>
@@ -543,11 +731,11 @@ one. <code>other</code> must be an instance of <code>Version</code>, comparing w
 other types may raise an exception.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L348-L401'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L366-L419'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='348' data-end='401'></pre>
+  <pre class='lines_num' data-start='366' data-end='419'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/version.rb', line 348</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/version.rb', line 366</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='op'>&lt;=&gt;</span>(<span class='id identifier rubyid_other'>other</span>)
@@ -613,11 +801,11 @@ other types may raise an exception.</p>
   <h3 class='signature prot'>
     #<strong>_segments</strong>   <span class="extras">(<span class='prot'>protected</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L442-L447'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L460-L465'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='442' data-end='447'></pre>
+  <pre class='lines_num' data-start='460' data-end='465'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/version.rb', line 442</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/version.rb', line 460</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid__segments'>_segments</span>
@@ -640,11 +828,11 @@ other types may raise an exception.</p>
     <p>A recommended version for use with a &gt;= <a href="#Requirement-constant" title="Gem::Version::Requirement (constant)">Requirement</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L330-L340'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L348-L358'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='330' data-end='340'></pre>
+  <pre class='lines_num' data-start='348' data-end='358'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/version.rb', line 330</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/version.rb', line 348</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_approximate_recommendation'>approximate_recommendation</span>
@@ -674,11 +862,11 @@ number is one greater (e.g., 5.3.1 =&gt; 5.4).</p>
 <p>Pre-release (alpha) parts, e.g, 5.3.1.b.2 =&gt; 5.4, are ignored.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L235-L244'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L253-L262'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='235' data-end='244'></pre>
+  <pre class='lines_num' data-start='253' data-end='262'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/version.rb', line 235</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/version.rb', line 253</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_bump'>bump</span>
@@ -705,11 +893,11 @@ number is one greater (e.g., 5.3.1 =&gt; 5.4).</p>
     <p>remove trailing zeros segments before first letter or at the end of the version</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L404-L413'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L422-L431'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='404' data-end='413'></pre>
+  <pre class='lines_num' data-start='422' data-end='431'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/version.rb', line 404</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/version.rb', line 422</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_canonical_segments'>canonical_segments</span>
@@ -731,11 +919,11 @@ number is one greater (e.g., 5.3.1 =&gt; 5.4).</p>
   <h3 class='signature prot'>
     #<strong>compute_sort_key</strong>   <span class="extras">(<span class='prot'>protected</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L426-L440'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L444-L458'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='426' data-end='440'></pre>
+  <pre class='lines_num' data-start='444' data-end='458'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/version.rb', line 426</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/version.rb', line 444</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_compute_sort_key'>compute_sort_key</span>
@@ -765,11 +953,11 @@ number is one greater (e.g., 5.3.1 =&gt; 5.4).</p>
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L291-L293'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L309-L311'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='291' data-end='293'></pre>
+  <pre class='lines_num' data-start='309' data-end='311'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/version.rb', line 291</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/version.rb', line 309</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_encode_with'>encode_with</span>(<span class='id identifier rubyid_coder'>coder</span>) <span class='comment'># :nodoc:
@@ -793,11 +981,11 @@ same precision. <code>Version</code> &quot;1.0&quot; is not the same as version 
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L250-L252'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L268-L270'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='250' data-end='252'></pre>
+  <pre class='lines_num' data-start='268' data-end='270'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/version.rb', line 250</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/version.rb', line 268</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_eql?'>eql?</span>(<span class='id identifier rubyid_other'>other</span>)
@@ -812,11 +1000,11 @@ same precision. <code>Version</code> &quot;1.0&quot; is not the same as version 
   <h3 class='signature '>
     #<strong>freeze</strong>  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L415-L420'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L433-L438'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='415' data-end='420'></pre>
+  <pre class='lines_num' data-start='433' data-end='438'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/version.rb', line 415</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/version.rb', line 433</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_freeze'>freeze</span>
@@ -837,11 +1025,11 @@ same precision. <code>Version</code> &quot;1.0&quot; is not the same as version 
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L254-L256'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L272-L274'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='254' data-end='256'></pre>
+  <pre class='lines_num' data-start='272' data-end='274'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/version.rb', line 254</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/version.rb', line 272</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_hash'>hash</span> <span class='comment'># :nodoc:
@@ -859,11 +1047,11 @@ same precision. <code>Version</code> &quot;1.0&quot; is not the same as version 
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L258-L260'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L276-L278'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='258' data-end='260'></pre>
+  <pre class='lines_num' data-start='276' data-end='278'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/version.rb', line 258</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/version.rb', line 276</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_init_with'>init_with</span>(<span class='id identifier rubyid_coder'>coder</span>) <span class='comment'># :nodoc:
@@ -881,11 +1069,11 @@ same precision. <code>Version</code> &quot;1.0&quot; is not the same as version 
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L262-L264'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L280-L282'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='262' data-end='264'></pre>
+  <pre class='lines_num' data-start='280' data-end='282'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/version.rb', line 262</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/version.rb', line 280</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_inspect'>inspect</span> <span class='comment'># :nodoc:
@@ -906,11 +1094,11 @@ same precision. <code>Version</code> &quot;1.0&quot; is not the same as version 
 string for backwards (RubyGems 1.3.5 and earlier) compatibility.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L270-L272'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L288-L290'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='270' data-end='272'></pre>
+  <pre class='lines_num' data-start='288' data-end='290'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/version.rb', line 270</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/version.rb', line 288</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_marshal_dump'>marshal_dump</span>
@@ -940,11 +1128,11 @@ string for backwards (RubyGems 1.3.5 and earlier) compatibility.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L278-L283'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L296-L301'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='278' data-end='283'></pre>
+  <pre class='lines_num' data-start='296' data-end='301'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/version.rb', line 278</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/version.rb', line 296</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_marshal_load'>marshal_load</span>(<span class='id identifier rubyid_array'>array</span>)
@@ -962,11 +1150,11 @@ string for backwards (RubyGems 1.3.5 and earlier) compatibility.</p>
   <h3 class='signature prot'>
     #<strong>partition_segments</strong>(ver)   <span class="extras">(<span class='prot'>protected</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L449-L453'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L467-L471'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='449' data-end='453'></pre>
+  <pre class='lines_num' data-start='467' data-end='471'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/version.rb', line 449</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/version.rb', line 467</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_partition_segments'>partition_segments</span>(<span class='id identifier rubyid_ver'>ver</span>)
@@ -986,11 +1174,11 @@ string for backwards (RubyGems 1.3.5 and earlier) compatibility.</p>
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L305-L307'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L323-L325'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='305' data-end='307'></pre>
+  <pre class='lines_num' data-start='323' data-end='325'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/version.rb', line 305</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/version.rb', line 323</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_pretty_print'>pretty_print</span>(<span class='id identifier rubyid_q'>q</span>) <span class='comment'># :nodoc:
@@ -1011,11 +1199,11 @@ string for backwards (RubyGems 1.3.5 and earlier) compatibility.</p>
 Non-prerelease versions return themselves.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L313-L321'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L331-L339'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='313' data-end='321'></pre>
+  <pre class='lines_num' data-start='331' data-end='339'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/version.rb', line 313</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/version.rb', line 331</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_release'>release</span>
@@ -1039,11 +1227,11 @@ Non-prerelease versions return themselves.</p>
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L323-L325'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L341-L343'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='323' data-end='325'></pre>
+  <pre class='lines_num' data-start='341' data-end='343'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/version.rb', line 323</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/version.rb', line 341</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_segments'>segments</span> <span class='comment'># :nodoc:
@@ -1063,11 +1251,11 @@ Non-prerelease versions return themselves.</p>
     <p>Alias for <a href="#version-instance_method" title="Gem::Version#version (method)">#version</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L170-L170'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L188-L188'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='170' data-end='170'></pre>
+  <pre class='lines_num' data-start='188' data-end='188'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/version.rb', line 170</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/version.rb', line 188</span></pre>
 <pre class='code ruby'>
 
 <span class='id identifier rubyid_alias_method'>alias_method</span> <span class='symbeg'>:</span><span class='id identifier rubyid_to_s'>to_s</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_version'><a href="#version-instance_method" title="Gem::Version#version (method)">version</a></span>
@@ -1086,11 +1274,11 @@ Non-prerelease versions return themselves.</p>
     <p>A string representation of this <code>Version</code>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L166-L168'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L184-L186'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='166' data-end='168'></pre>
+  <pre class='lines_num' data-start='184' data-end='186'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/version.rb', line 166</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/version.rb', line 184</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_version'>version</span>
@@ -1108,11 +1296,11 @@ Non-prerelease versions return themselves.</p>
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L285-L289'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/version.rb#L303-L307'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='285' data-end='289'></pre>
+  <pre class='lines_num' data-start='303' data-end='307'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/version.rb', line 285</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/version.rb', line 303</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_yaml_initialize'>yaml_initialize</span>(<span class='id identifier rubyid_tag'>tag</span><span class='comma'>,</span> <span class='id identifier rubyid_map'>map</span>) <span class='comment'># :nodoc:
