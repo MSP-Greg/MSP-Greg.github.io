@@ -2080,6 +2080,127 @@ the exception is raised you have to call the job's <code>perform</code> method d
 <span class='kw'>end</span></code></pre>
 <p>This method is not recommended in general, as it circumvents some parts of the
 framework, such as argument serialization.</p>
+<h2 id="Testing_Active_Storage">Testing Active Storage</h2>
+<p>There is a [<code>file_fixture_upload</code>][] helper method to test uploading a file in an integration or controller test, for example:</p>
+<pre class="code ruby#5"><code class="ruby#5">class SignupController &lt; ActionDispatch::IntegrationTest
+  test &quot;user can sign up&quot; do
+    post signup_path, params: {
+      email: &quot;me@example.com&quot;,
+      profile_photo: file_fixture_upload(&quot;my-photo.png&quot;, &quot;image/png&quot;)
+    }
+
+    user = User.order(:created_at).last
+    assert user.profile_photo.attached?
+  end
+end
+</code></pre>
+<h3 id="Discarding_Files_Created_During_Tests">Discarding Files Created During Tests</h3>
+<p>In general, database transactions are rolled back to clean up test data. While
+entries in the Active Storage related tables are removed, files attached during
+tests are not automatically deleted. Here is how to manually clean up orphaned
+files from integration tests and system tests.</p>
+<h4 id="Integration_Tests">Integration Tests</h4>
+<p>To clean up files uploaded during Integration Tests, you use a <code>teardown</code> callback.</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/IntegrationTest.html" title="ActionDispatch::IntegrationTest (class)">IntegrationTest</a></span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_after_teardown'>after_teardown</span>
+    <span class='kw'>super</span>
+    <span class='const'>FileUtils</span>.<span class='id identifier rubyid_rm_rf'>rm_rf</span>(<span class='const'><a href="ActiveStorage.html" title="ActiveStorage (module)">ActiveStorage</a></span><span class='op'>::</span><span class='const'>Blob</span>.<span class='id identifier rubyid_service'>service</span>.<span class='id identifier rubyid_root'>root</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+<p>If you're using <a href="testing.html#parallel-testing">parallel tests</a> and the Disk service, you can configure
+each process to use its own folder for Active Storage. This way, the <code>teardown</code>
+callback will only delete files from the relevant process' tests.</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/IntegrationTest.html" title="ActionDispatch::IntegrationTest (class)">IntegrationTest</a></span>
+  <span class='id identifier rubyid_parallelize_setup'>parallelize_setup</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_i'>i</span><span class='op'>|</span>
+    <span class='const'><a href="ActiveStorage.html" title="ActiveStorage (module)">ActiveStorage</a></span><span class='op'>::</span><span class='const'>Blob</span>.<span class='id identifier rubyid_service'>service</span>.<span class='id identifier rubyid_root'>root</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='const'><a href="ActiveStorage.html" title="ActiveStorage (module)">ActiveStorage</a></span><span class='op'>::</span><span class='const'>Blob</span>.<span class='id identifier rubyid_service'>service</span>.<span class='id identifier rubyid_root'>root</span><span class='embexpr_end'>}</span><span class='tstring_content'>-</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_i'>i</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+<p>If your tests verify the deletion of a model with attachments and you're
+using Active Job, you will need to set your test environment to use the inline
+queue adapter so the purge job is executed immediately rather at an unknown time
+in the future.</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_active_job'>active_job</span>.<span class='id identifier rubyid_queue_adapter'>queue_adapter</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_inline'>inline</span></code></pre>
+<h4 id="System_Tests">System Tests</h4>
+<p>In order to clear these files, you use a <code>after_teardown</code> callback. Doing it
+there ensures that all connections created during the test are complete and you
+won't receive an error from Active Storage saying it can't find a file.</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ApplicationSystemTestCase</span> <span class='op'>&lt;</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/SystemTestCase.html" title="ActionDispatch::SystemTestCase (class)">SystemTestCase</a></span>
+  <span class='comment'># ...
+</span>  <span class='kw'>def</span> <span class='id identifier rubyid_after_teardown'>after_teardown</span>
+    <span class='kw'>super</span>
+    <span class='const'>FileUtils</span>.<span class='id identifier rubyid_rm_rf'>rm_rf</span>(<span class='const'><a href="ActiveStorage.html" title="ActiveStorage (module)">ActiveStorage</a></span><span class='op'>::</span><span class='const'>Blob</span>.<span class='id identifier rubyid_service'>service</span>.<span class='id identifier rubyid_root'>root</span>)
+  <span class='kw'>end</span>
+  <span class='comment'># ...
+</span><span class='kw'>end</span></code></pre>
+<h3 id="Adding_Attachments_to_Fixtures">Adding Attachments to Fixtures</h3>
+<p>You can add attachments to your existing <a href="testing.html#fixtures">fixtures</a>. First, you'll want to create a separate storage service:</p>
+<pre class="code yml"><code class="yml"># config/storage.yml
+
+test_fixtures:
+  service: Disk
+  root: &lt;%= Rails.root.join(&quot;tmp/storage_fixtures&quot;) %&gt;
+</code></pre>
+<p>This tells Active Storage where to &quot;upload&quot; fixture files to, so it should be a
+temporary directory. By making it a different directory to your regular <code>test</code>
+service, you can separate fixture files from files uploaded during a test.</p>
+<p>Next, create fixture files for the Active Storage classes:</p>
+<pre class="code yml"><code class="yml"># test/fixtures/active_storage/attachments.yml
+user_one_profile_photo:
+  name: user_one
+  record: user_one (User)
+  blob: user_one_profile_photo_blob
+</code></pre>
+<pre class="code yml"><code class="yml"># test/fixtures/active_storage/blobs.yml
+user_one_profile_photo_blob: &lt;%= ActiveStorage::FixtureSet.blob filename: &quot;user_one.png&quot;, service_name: &quot;test_fixtures&quot; %&gt;
+</code></pre>
+<p>Then put a file in your fixtures directory (the default path is
+<code>test/fixtures/files</code>) with the corresponding filename. See the
+<a href="https://api.rubyonrails.org/classes/ActiveStorage/FixtureSet.html"><a href="ActiveStorage/FixtureSet.html" title="ActiveStorage::FixtureSet (class)"><code>::ActiveStorage::FixtureSet</code></a></a> docs for more information.</p>
+<p>Once everything is set up, you'll be able to access attachments in your tests:</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>UserTest</span> <span class='op'>&lt;</span> <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/TestCase.html" title="ActiveSupport::TestCase (class)">TestCase</a></span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_test_profile_photo'>test_profile_photo</span>
+    <span class='id identifier rubyid_profile_photo'>profile_photo</span> <span class='op'>=</span> <span class='id identifier rubyid_users'>users</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_user_one'>user_one</span>).<span class='id identifier rubyid_profile_photo'>profile_photo</span>
+
+    <span class='id identifier rubyid_assert'>assert</span> <span class='id identifier rubyid_profile_photo'>profile_photo</span>.<span class='id identifier rubyid_attached?'>attached?</span>
+    <span class='id identifier rubyid_assert_not_nil'>assert_not_nil</span> <span class='id identifier rubyid_profile_photo'>profile_photo</span>.<span class='id identifier rubyid_download'>download</span>
+    <span class='id identifier rubyid_assert_equal'>assert_equal</span> <span class='int'>1000</span><span class='comma'>,</span> <span class='id identifier rubyid_profile_photo'>profile_photo</span>.<span class='id identifier rubyid_byte_size'>byte_size</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+<h4 id="Cleaning_up_Fixtures">Cleaning up Fixtures</h4>
+<p>While files uploaded in tests are cleaned up <a href="#discarding-files-created-during-tests">at the end of each
+test</a>, you only need to clean up fixture
+files once: when all your tests complete.</p>
+<p>If you're using parallel tests, call <code>parallelize_teardown</code>:</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/TestCase.html" title="ActiveSupport::TestCase (class)">TestCase</a></span>
+  <span class='comment'># ...
+</span>  <span class='id identifier rubyid_parallelize_teardown'>parallelize_teardown</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_i'>i</span><span class='op'>|</span>
+    <span class='const'>FileUtils</span>.<span class='id identifier rubyid_rm_rf'>rm_rf</span>(<span class='const'><a href="ActiveStorage.html" title="ActiveStorage (module)">ActiveStorage</a></span><span class='op'>::</span><span class='const'>Blob</span>.<span class='id identifier rubyid_services'>services</span>.<span class='id identifier rubyid_fetch'>fetch</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_test_fixtures'>test_fixtures</span>).<span class='id identifier rubyid_root'>root</span>)
+  <span class='kw'>end</span>
+  <span class='comment'># ...
+</span><span class='kw'>end</span></code></pre>
+<p>If you're not running parallel tests, use <code>Minitest.after_run</code> or the equivalent
+for your test framework (e.g. <code>after(:suite)</code> for RSpec):</p>
+<pre class="code ruby"><code class="ruby"><span class='comment'># test_helper.rb
+</span><span class='const'><a href="Minitest.html" title="Minitest (module)">Minitest</a></span>.<span class='id identifier rubyid_after_run'>after_run</span> <span class='kw'>do</span>
+  <span class='const'>FileUtils</span>.<span class='id identifier rubyid_rm_rf'>rm_rf</span>(<span class='const'><a href="ActiveStorage.html" title="ActiveStorage (module)">ActiveStorage</a></span><span class='op'>::</span><span class='const'>Blob</span>.<span class='id identifier rubyid_services'>services</span>.<span class='id identifier rubyid_fetch'>fetch</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_test_fixtures'>test_fixtures</span>).<span class='id identifier rubyid_root'>root</span>)
+<span class='kw'>end</span></code></pre>
+<h3 id="Configuring_services">Configuring services</h3>
+<p>You can use the <code>config/storage/test.yml</code> file to configure services to be used
+in test environment. This is useful when the <code>service</code> option is used:</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>User</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_has_one_attached'>has_one_attached</span> <span class='symbeg'>:</span><span class='id identifier rubyid_avatar'>avatar</span><span class='comma'>,</span> <span class='label'>service:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_s3'>s3</span>
+<span class='kw'>end</span></code></pre>
+<p>Without configuring a test <code>s3</code> service in <code>config/storage/test.yml</code>, the <code>s3</code> service configured in <code>config/storage.yml</code> is used - even when running tests.</p>
+<p>The default configuration would be used and files would be uploaded to the service provider configured in <code>config/storage.yml</code>.</p>
+<p>In this case, you can add <code>config/storage/test.yml</code> and use Disk service for a service named <code>s3</code> to prevent sending requests to S3.</p>
+<pre class="code yaml"><code class="yaml">test:
+  service: Disk
+  root: &lt;%= Rails.root.join(&quot;tmp/storage&quot;) %&gt;
+
+s3:
+  service: Disk
+  root: &lt;%= Rails.root.join(&quot;tmp/storage&quot;) %&gt;
+</code></pre>
 <h2 id="Testing_Action_Cable">Testing Action Cable</h2>
 <p>Since Action Cable is used at different levels inside your application, you'll
 need to test both the channels, connection classes themselves, and that other
