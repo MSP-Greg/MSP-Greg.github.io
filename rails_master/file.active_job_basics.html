@@ -71,6 +71,7 @@ and executing background jobs.</p>
 <li>How to configure and use Solid Queue.</li>
 <li>How to run jobs in the background.</li>
 <li>How to send emails from your application asynchronously.</li>
+<li>How to write jobs that pause and resume progress during deploys.</li>
 </ul>
 <hr />
 <h2 id="What_is_Active_Job_">What is Active Job?</h2>
@@ -600,6 +601,37 @@ step that uses a cursor, the job resumes from the last recorded position. This
 makes it easier to build long-running or multi-phase jobs that can safely pause
 and resume without losing progress.
 For more details, see <a href="https://api.rubyonrails.org/classes/ActiveJob/Continuation.html">ActiveJob::Continuation</a>.</p>
+<h3 id="Job_Attributes">Job Attributes</h3>
+<p>Active Job attributes let jobs declare typed state using the
+[<code>Active Model Attributes API</code>][]. Attribute values are serialized when the job
+is interrupted or retried, and restored when the job resumes. This is
+especially useful where one step may compute a value needed by a later step.
+<a href="ActiveJob/Continuable.html" title="ActiveJob::Continuable (module)"><code>::ActiveJob::Continuable</code></a> includes <a href="https://api.rubyonrails.org/classes/ActiveJob/Attributes.html"><a href="ActiveJob/Attributes.html" title="ActiveJob::Attributes (module)"><code>::ActiveJob::Attributes</code></a></a>, so continuable
+jobs can declare attributes directly:</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>SubmitEnrollmentJob</span> <span class='op'>&lt;</span> <span class='const'>ApplicationJob</span>
+  <span class='id identifier rubyid_include'>include</span> <span class='const'><a href="ActiveJob.html" title="ActiveJob (module)">ActiveJob</a></span><span class='op'>::</span><span class='const'><a href="ActiveJob/Continuable.html" title="ActiveJob::Continuable (module)">Continuable</a></span>
+
+  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbeg'>:</span><span class='id identifier rubyid_payment_token'>payment_token</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_string'>string</span>
+  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbeg'>:</span><span class='id identifier rubyid_billing_profile_id'>billing_profile_id</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_integer'>integer</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_perform'>perform</span>(<span class='id identifier rubyid_enrollment'>enrollment</span>)
+    <span class='id identifier rubyid_step'>step</span> <span class='symbeg'>:</span><span class='id identifier rubyid_tokenize_payment_instrument'>tokenize_payment_instrument</span> <span class='kw'>do</span>
+      <span class='kw'>self</span>.<span class='id identifier rubyid_payment_token'>payment_token</span> <span class='op'>=</span> <span class='const'>PaymentGateway</span>.<span class='id identifier rubyid_tokenize'>tokenize</span>(<span class='id identifier rubyid_enrollment'>enrollment</span>.<span class='id identifier rubyid_user'>user</span>.<span class='id identifier rubyid_payment_instrument'>payment_instrument</span>)
+    <span class='kw'>end</span>
+
+    <span class='id identifier rubyid_step'>step</span> <span class='symbeg'>:</span><span class='id identifier rubyid_create_billing_profile'>create_billing_profile</span> <span class='kw'>do</span>
+      <span class='kw'>self</span>.<span class='id identifier rubyid_billing_profile_id'>billing_profile_id</span> <span class='op'>=</span> <span class='const'>BillingProfileApi</span>.<span class='id identifier rubyid_create'>create</span>(<span class='label'>customer_id:</span> <span class='id identifier rubyid_enrollment'>enrollment</span>.<span class='id identifier rubyid_user_id'>user_id</span>)
+    <span class='kw'>end</span>
+
+    <span class='id identifier rubyid_step'>step</span> <span class='symbeg'>:</span><span class='id identifier rubyid_submit_enrollment'>submit_enrollment</span> <span class='kw'>do</span>
+      <span class='id identifier rubyid_submission_id'>submission_id</span> <span class='op'>=</span> <span class='const'>EnrollmentApi</span>.<span class='id identifier rubyid_submit'>submit</span>(<span class='id identifier rubyid_enrollment'>enrollment</span><span class='comma'>,</span> <span class='id identifier rubyid_payment_token'>payment_token</span><span class='comma'>,</span> <span class='id identifier rubyid_billing_profile_id'>billing_profile_id</span>)
+      <span class='id identifier rubyid_enrollment'>enrollment</span>.<span class='id identifier rubyid_update!'>update!</span>(<span class='label'>status:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>processing</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>submission_id:</span> <span class='id identifier rubyid_submission_id'>submission_id</span>)
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+<p>Attribute values must be serializable as
+<a href="#supported-types-for-arguments">Active Job arguments</a>. For more details, see
+<a href="https://api.rubyonrails.org/classes/ActiveJob/Attributes.html"><a href="ActiveJob/Attributes.html" title="ActiveJob::Attributes (module)"><code>::ActiveJob::Attributes</code></a></a>.</p>
 <h2 id="Callbacks">Callbacks</h2>
 <p>Active Job provides hooks to trigger logic during the life cycle of a job. Like
 other callbacks in Rails, you can implement the callbacks as ordinary methods
