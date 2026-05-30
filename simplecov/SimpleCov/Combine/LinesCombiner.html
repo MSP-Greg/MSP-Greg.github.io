@@ -94,6 +94,9 @@
       <a href="#combine-class_method" title=".combine (class method)">.<strong>combine</strong>(coverage_a, coverage_b)  </a>
     </span>
     <span class='mod_func note title'>mod_func</span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Build a fresh array sized to the longer input.</p></div>
+    </div>
   </li>
   <li>
     <span class='summary_signature mf'>
@@ -101,7 +104,7 @@
     </span>
     <span class='mod_func note title'>mod_func</span>
     <div class='summary_desc'>
-      <div class='inline'><p>Return depends on coverage in a specific line.</p></div>
+      <div class='inline'><p>Two runs of the same source file should agree on which lines are coverage-relevant (<code>nil</code> for comments / whitespace, <code>0</code>+ for executable).</p></div>
     </div>
   </li>
 </ul>
@@ -111,21 +114,25 @@
   <h3 class='signature private first'>
     .<strong>combine</strong>(coverage_a, coverage_b)   <span class="extras">(<span class='mod_func'>mod_func</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/colszowka/simplecov/blob/main/lib/simplecov/combine/lines_combiner.rb#L12-L20'>GitHub</a>&#8202;]</span>
+<div class='docstring'>
+  <div class='discussion'>
+    <p>Build a fresh array sized to the longer input. The previous
+implementation mutated whichever input was longer in place,
+which could surprise callers holding a reference to that array
+(e.g. the parsed <code>coverage</code> key of a resultset hash being
+passed into a second merge).</p>
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/colszowka/simplecov/blob/main/lib/simplecov/combine/lines_combiner.rb#L17-L20'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='12' data-end='20'></pre>
+  <pre class='lines_num' data-start='17' data-end='20'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/simplecov/combine/lines_combiner.rb', line 12</span></pre>
+<pre><span class='info file'># File 'lib/simplecov/combine/lines_combiner.rb', line 17</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_combine'>combine</span>(<span class='id identifier rubyid_coverage_a'>coverage_a</span><span class='comma'>,</span> <span class='id identifier rubyid_coverage_b'>coverage_b</span>)
-  <span class='id identifier rubyid_acc'>acc</span> <span class='op'>=</span> <span class='id identifier rubyid_coverage_a'>coverage_a</span>.<span class='id identifier rubyid_size'>size</span> <span class='op'>&gt;</span> <span class='id identifier rubyid_coverage_b'>coverage_b</span>.<span class='id identifier rubyid_size'>size</span> <span class='op'>?</span> <span class='id identifier rubyid_coverage_a'>coverage_a</span> <span class='op'>:</span> <span class='id identifier rubyid_coverage_b'>coverage_b</span>
-
-  <span class='id identifier rubyid_acc'>acc</span>.<span class='id identifier rubyid_size'>size</span>.<span class='id identifier rubyid_times'>times</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_index'>index</span><span class='op'>|</span>
-    <span class='id identifier rubyid_acc'>acc</span>[<span class='id identifier rubyid_index'>index</span>] <span class='op'>=</span> <span class='id identifier rubyid_merge_line_coverage'><a href="#merge_line_coverage-class_method" title="SimpleCov::Combine::LinesCombiner.merge_line_coverage (method)">merge_line_coverage</a></span>(<span class='id identifier rubyid_coverage_a'>coverage_a</span>[<span class='id identifier rubyid_index'>index</span>]<span class='comma'>,</span> <span class='id identifier rubyid_coverage_b'>coverage_b</span>[<span class='id identifier rubyid_index'>index</span>])
-  <span class='kw'>end</span>
-
-  <span class='id identifier rubyid_acc'>acc</span>
+  <span class='id identifier rubyid_size'>size</span> <span class='op'>=</span> [<span class='id identifier rubyid_coverage_a'>coverage_a</span>.<span class='id identifier rubyid_size'>size</span><span class='comma'>,</span> <span class='id identifier rubyid_coverage_b'>coverage_b</span>.<span class='id identifier rubyid_size'>size</span>].<span class='id identifier rubyid_max'>max</span>
+  <span class='const'>Array</span>.<span class='id identifier rubyid_new'>new</span>(<span class='id identifier rubyid_size'>size</span>) { <span class='op'>|</span><span class='id identifier rubyid_i'>i</span><span class='op'>|</span> <span class='id identifier rubyid_merge_line_coverage'><a href="#merge_line_coverage-class_method" title="SimpleCov::Combine::LinesCombiner.merge_line_coverage (method)">merge_line_coverage</a></span>(<span class='id identifier rubyid_coverage_a'>coverage_a</span>[<span class='id identifier rubyid_i'>i</span>]<span class='comma'>,</span> <span class='id identifier rubyid_coverage_b'>coverage_b</span>[<span class='id identifier rubyid_i'>i</span>]) }
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -138,11 +145,16 @@
   </h3>
 <div class='docstring'>
   <div class='discussion'>
-    <p>Return depends on coverage in a specific line</p>
+    <p>Two runs of the same source file should agree on which lines
+are coverage-relevant (<code>nil</code> for comments / whitespace, <code>0</code>+
+for executable). When they don't, treat &quot;relevant on either
+side&quot; as relevant rather than masking a real <code>0</code> as <code>nil</code>,
+which would silently drop an uncovered line from the
+denominator and inflate the percentage.</p>
 <p>Logic:</p>
-<p>=&gt; nil + 0 = nil
-=&gt; nil + nil = nil
-=&gt; int + int = int</p>
+<p>=&gt; nil + nil = nil
+=&gt; nil + int = int (preserves a relevant-but-uncovered 0)
+=&gt; int + int = int (sum)</p>
   </div>
 </div>
 <div class='tags'>
@@ -159,21 +171,17 @@
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/colszowka/simplecov/blob/main/lib/simplecov/combine/lines_combiner.rb#L34-L42'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/colszowka/simplecov/blob/main/lib/simplecov/combine/lines_combiner.rb#L38-L42'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='34' data-end='42'></pre>
+  <pre class='lines_num' data-start='38' data-end='42'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/simplecov/combine/lines_combiner.rb', line 34</span></pre>
+<pre><span class='info file'># File 'lib/simplecov/combine/lines_combiner.rb', line 38</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_merge_line_coverage'>merge_line_coverage</span>(<span class='id identifier rubyid_first_val'>first_val</span><span class='comma'>,</span> <span class='id identifier rubyid_second_val'>second_val</span>)
-  <span class='id identifier rubyid_sum'>sum</span> <span class='op'>=</span> <span class='id identifier rubyid_first_val'>first_val</span>.<span class='id identifier rubyid_to_i'>to_i</span> <span class='op'>+</span> <span class='id identifier rubyid_second_val'>second_val</span>.<span class='id identifier rubyid_to_i'>to_i</span>
+  <span class='kw'>return</span> <span class='kw'>nil</span> <span class='kw'>if</span> <span class='id identifier rubyid_first_val'>first_val</span>.<span class='id identifier rubyid_nil?'>nil?</span> <span class='op'>&amp;&amp;</span> <span class='id identifier rubyid_second_val'>second_val</span>.<span class='id identifier rubyid_nil?'>nil?</span>
 
-  <span class='kw'>if</span> <span class='id identifier rubyid_sum'>sum</span>.<span class='id identifier rubyid_zero?'>zero?</span> <span class='op'>&amp;&amp;</span> (<span class='id identifier rubyid_first_val'>first_val</span>.<span class='id identifier rubyid_nil?'>nil?</span> <span class='op'>||</span> <span class='id identifier rubyid_second_val'>second_val</span>.<span class='id identifier rubyid_nil?'>nil?</span>)
-    <span class='kw'>nil</span>
-  <span class='kw'>else</span>
-    <span class='id identifier rubyid_sum'>sum</span>
-  <span class='kw'>end</span>
+  <span class='id identifier rubyid_first_val'>first_val</span>.<span class='id identifier rubyid_to_i'>to_i</span> <span class='op'>+</span> <span class='id identifier rubyid_second_val'>second_val</span>.<span class='id identifier rubyid_to_i'>to_i</span>
 <span class='kw'>end</span>
 </pre>
   </div>
