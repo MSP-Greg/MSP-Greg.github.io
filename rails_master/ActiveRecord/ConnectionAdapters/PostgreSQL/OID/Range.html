@@ -117,9 +117,30 @@
 <div>
 <ul class='constants summary full nodoc'>
   <li>
+    <span id='BOUNDS-constant' class='summary_signature nodoc'>BOUNDS =</span>
+    <div class='docstring'>
+  <div class='discussion'>
+    <p>Matches the comma-separated lower and upper bounds of a range's
+textual representation when a bound is double-quoted. A quoted
+bound can itself contain a comma, so a naive split on the first
+comma would corrupt such values. Within a double-quoted bound,
+literal &quot; and \ are escaped (as &quot;&quot; / &quot; and \ respectively), so
+those escapes are skipped while scanning for the separating comma.</p>
+<p>An unquoted bound never contains a comma or a double-quote
+(PostgreSQL quotes the whole bound when it would), so the
+alternation matches an unquoted run with [^,&quot;] rather than [^,].
+Excluding &quot; keeps the two alternatives mutually exclusive, which
+removes any ambiguity over how a &quot;-prefixed bound is consumed. The
+/m flag lets the captured upper bound (and quoted bounds) span
+newlines.</p>
+  </div>
+</div>
+    <a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/connection_adapters/postgresql/oid/range.rb#L93-L93'># File 'activerecord/lib/active_record/connection_adapters/postgresql/oid/range.rb', line 93</a>    <pre class='code ruby'><span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>\A((?:&quot;(?:[^&quot;\\]|&quot;&quot;|\\.)*&quot;|[^,&quot;])*),(.*)\z</span><span class='regexp_end'>/m</span></span></pre>
+  </li>
+  <li>
     <span id='INFINITE_FLOAT_RANGE-constant' class='summary_signature nodoc'>INFINITE_FLOAT_RANGE =</span>
     <br/>
-    <a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/connection_adapters/postgresql/oid/range.rb#L79-L79'># File 'activerecord/lib/active_record/connection_adapters/postgresql/oid/range.rb', line 79</a>    <pre class='code ruby'>(<span class='op'>-</span><span class='op'>::</span><span class='const'><a href="../../../../Float.html" title="Float (class)">Float</a></span><span class='op'>::</span><span class='const'>INFINITY</span>)<span class='op'>..</span>(<span class='op'>::</span><span class='const'><a href="../../../../Float.html" title="Float (class)">Float</a></span><span class='op'>::</span><span class='const'>INFINITY</span>)</pre>
+    <a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/connection_adapters/postgresql/oid/range.rb#L106-L106'># File 'activerecord/lib/active_record/connection_adapters/postgresql/oid/range.rb', line 106</a>    <pre class='code ruby'>(<span class='op'>-</span><span class='op'>::</span><span class='const'><a href="../../../../Float.html" title="Float (class)">Float</a></span><span class='op'>::</span><span class='const'>INFINITY</span>)<span class='op'>..</span>(<span class='op'>::</span><span class='const'><a href="../../../../Float.html" title="Float (class)">Float</a></span><span class='op'>::</span><span class='const'>INFINITY</span>)</pre>
   </li>
 </ul>
 </div>
@@ -247,6 +268,12 @@
   <li>
     <span class='summary_signature priv nodoc'>
       <a href="#sanitize_bounds-instance_method" title="#sanitize_bounds (instance method)">#<strong>sanitize_bounds</strong>(from, to)  </a>
+    </span>
+    <span class='note title private'>private</span>
+  </li>
+  <li>
+    <span class='summary_signature priv nodoc'>
+      <a href="#split_bounds-instance_method" title="#split_bounds (instance method)">#<strong>split_bounds</strong>(value)  </a>
     </span>
     <span class='note title private'>private</span>
   </li>
@@ -499,7 +526,7 @@
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_extract_bounds'>extract_bounds</span>(<span class='id identifier rubyid_value'>value</span>)
-  <span class='id identifier rubyid_from'>from</span><span class='comma'>,</span> <span class='id identifier rubyid_to'>to</span> <span class='op'>=</span> <span class='id identifier rubyid_value'>value</span>[<span class='int'>1</span><span class='op'>..</span><span class='op'>-</span><span class='int'>2</span>].<span class='id identifier rubyid_split'>split</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>,</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='int'>2</span>)
+  <span class='id identifier rubyid_from'>from</span><span class='comma'>,</span> <span class='id identifier rubyid_to'>to</span> <span class='op'>=</span> <span class='id identifier rubyid_split_bounds'><a href="#split_bounds-instance_method" title="ActiveRecord::ConnectionAdapters::PostgreSQL::OID::Range#split_bounds (method)">split_bounds</a></span>(<span class='id identifier rubyid_value'>value</span>[<span class='int'>1</span><span class='op'>..</span><span class='op'>-</span><span class='int'>2</span>])
   {
     <span class='label'>from:</span>          (<span class='id identifier rubyid_from'>from</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_end'>&quot;</span></span> <span class='op'>||</span> <span class='id identifier rubyid_from'>from</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>-infinity</span><span class='tstring_end'>&quot;</span></span>) <span class='op'>?</span> <span class='id identifier rubyid_infinity'><a href="#infinity-instance_method" title="ActiveRecord::ConnectionAdapters::PostgreSQL::OID::Range#infinity (method)">infinity</a></span>(<span class='label'>negative:</span> <span class='kw'>true</span>) <span class='op'>:</span> <span class='id identifier rubyid_unquote'><a href="#unquote-instance_method" title="ActiveRecord::ConnectionAdapters::PostgreSQL::OID::Range#unquote (method)">unquote</a></span>(<span class='id identifier rubyid_from'>from</span>)<span class='comma'>,</span>
     <span class='label'>to:</span>            (<span class='id identifier rubyid_to'>to</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_end'>&quot;</span></span> <span class='op'>||</span> <span class='id identifier rubyid_to'>to</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>infinity</span><span class='tstring_end'>&quot;</span></span>) <span class='op'>?</span> <span class='id identifier rubyid_infinity'><a href="#infinity-instance_method" title="ActiveRecord::ConnectionAdapters::PostgreSQL::OID::Range#infinity (method)">infinity</a></span> <span class='op'>:</span> <span class='id identifier rubyid_unquote'><a href="#unquote-instance_method" title="ActiveRecord::ConnectionAdapters::PostgreSQL::OID::Range#unquote (method)">unquote</a></span>(<span class='id identifier rubyid_to'>to</span>)<span class='comma'>,</span>
@@ -543,11 +570,11 @@
   <h3 class='signature priv  nodoc'>
     #<strong>infinity</strong>(negative: false)   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/connection_adapters/postgresql/oid/range.rb#L107-L115'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/connection_adapters/postgresql/oid/range.rb#L134-L142'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='107' data-end='115'></pre>
+  <pre class='lines_num' data-start='134' data-end='142'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/postgresql/oid/range.rb', line 107</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/postgresql/oid/range.rb', line 134</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_infinity'>infinity</span>(<span class='label'>negative:</span> <span class='kw'>false</span>)
@@ -576,11 +603,11 @@
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/connection_adapters/postgresql/oid/range.rb#L117-L119'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/connection_adapters/postgresql/oid/range.rb#L144-L146'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='117' data-end='119'></pre>
+  <pre class='lines_num' data-start='144' data-end='146'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/postgresql/oid/range.rb', line 117</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/postgresql/oid/range.rb', line 144</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_infinity?'>infinity?</span>(<span class='id identifier rubyid_value'>value</span>)
@@ -616,11 +643,11 @@
   <h3 class='signature priv  nodoc'>
     #<strong>sanitize_bounds</strong>(from, to)   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/connection_adapters/postgresql/oid/range.rb#L81-L86'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/connection_adapters/postgresql/oid/range.rb#L108-L113'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='81' data-end='86'></pre>
+  <pre class='lines_num' data-start='108' data-end='113'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/postgresql/oid/range.rb', line 81</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/postgresql/oid/range.rb', line 108</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_sanitize_bounds'>sanitize_bounds</span>(<span class='id identifier rubyid_from'>from</span><span class='comma'>,</span> <span class='id identifier rubyid_to'>to</span>)
@@ -653,6 +680,32 @@
   <span class='kw'>else</span>
     <span class='kw'>super</span>
   <span class='kw'>end</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="split_bounds-instance_method">
+  <h3 class='signature priv  nodoc'>
+    #<strong>split_bounds</strong>(value)   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/connection_adapters/postgresql/oid/range.rb#L95-L104'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='95' data-end='104'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/postgresql/oid/range.rb', line 95</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_split_bounds'>split_bounds</span>(<span class='id identifier rubyid_value'>value</span>)
+  <span class='comment'># Fast path: an unquoted representation (every built-in range
+</span>  <span class='comment'># type -- int/num/date/timestamp) has no embedded comma, so a
+</span>  <span class='comment'># plain split is correct and avoids the regexp. Only quoted
+</span>  <span class='comment'># bounds (custom text/varchar/money/... ranges) need the
+</span>  <span class='comment'># comma-skipping scan.
+</span>  <span class='kw'>return</span> <span class='id identifier rubyid_value'>value</span>.<span class='id identifier rubyid_split'>split</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>,</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='int'>2</span>) <span class='kw'>unless</span> <span class='id identifier rubyid_value'>value</span>.<span class='id identifier rubyid_include?'>include?</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>&quot;</span><span class='tstring_end'>&#39;</span></span>)
+
+  (<span class='id identifier rubyid_match'>match</span> <span class='op'>=</span> <span class='const'><a href="#BOUNDS-constant" title="ActiveRecord::ConnectionAdapters::PostgreSQL::OID::Range::BOUNDS (constant)">BOUNDS</a></span>.<span class='id identifier rubyid_match'>match</span>(<span class='id identifier rubyid_value'>value</span>)) <span class='op'>?</span> [<span class='id identifier rubyid_match'>match</span>[<span class='int'>1</span>]<span class='comma'>,</span> <span class='id identifier rubyid_match'>match</span>[<span class='int'>2</span>]] <span class='op'>:</span> [<span class='id identifier rubyid_value'>value</span><span class='comma'>,</span> <span class='kw'>nil</span>]
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -734,15 +787,15 @@ See:</p>
 </ul>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/connection_adapters/postgresql/oid/range.rb#L96-L105'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/connection_adapters/postgresql/oid/range.rb#L123-L132'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='96' data-end='105'></pre>
+  <pre class='lines_num' data-start='123' data-end='132'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/postgresql/oid/range.rb', line 96</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/postgresql/oid/range.rb', line 123</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_unquote'>unquote</span>(<span class='id identifier rubyid_value'>value</span>)
-  <span class='kw'>if</span> <span class='id identifier rubyid_value'>value</span>.<span class='id identifier rubyid_start_with?'>start_with?</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>&quot;</span><span class='tstring_end'>&#39;</span></span>) <span class='op'>&amp;&amp;</span> <span class='id identifier rubyid_value'>value</span>.<span class='id identifier rubyid_end_with?'>end_with?</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>&quot;</span><span class='tstring_end'>&#39;</span></span>)
+  <span class='kw'>if</span> <span class='id identifier rubyid_value'>value</span> <span class='op'>&amp;&amp;</span> <span class='id identifier rubyid_value'>value</span>.<span class='id identifier rubyid_start_with?'>start_with?</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>&quot;</span><span class='tstring_end'>&#39;</span></span>) <span class='op'>&amp;&amp;</span> <span class='id identifier rubyid_value'>value</span>.<span class='id identifier rubyid_end_with?'>end_with?</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>&quot;</span><span class='tstring_end'>&#39;</span></span>)
     <span class='id identifier rubyid_unquoted_value'>unquoted_value</span> <span class='op'>=</span> <span class='id identifier rubyid_value'>value</span>[<span class='int'>1</span><span class='op'>..</span><span class='op'>-</span><span class='int'>2</span>]
     <span class='id identifier rubyid_unquoted_value'>unquoted_value</span>.<span class='id identifier rubyid_gsub!'>gsub!</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>&quot;&quot;</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>&quot;</span><span class='tstring_end'>&#39;</span></span>)
     <span class='id identifier rubyid_unquoted_value'>unquoted_value</span>.<span class='id identifier rubyid_gsub!'>gsub!</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>\\\\</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>\\</span><span class='tstring_end'>&quot;</span></span>)
