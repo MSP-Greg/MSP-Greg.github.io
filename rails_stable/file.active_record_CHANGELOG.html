@@ -63,6 +63,50 @@
 <div id='content' class='file'>
 <ul>
 <li>
+<p>Fix <code>has_many</code>/<code>has_one :through</code> associations with <code>disable_joins: true</code>
+silently returning an empty result when the source points to a composite
+primary key model.</p>
+<p><em>Kenta Ishizaki</em></p>
+</li>
+<li>
+<p>Fix collection association <code>ids=</code> writers (e.g. <code>author.book_ids=</code>) raising
+<a href="ActiveRecord/RecordNotFound.html" title="ActiveRecord::RecordNotFound (class)"><code>::ActiveRecord::RecordNotFound</code></a> for existing records when a composite primary
+key model is assigned string ids (the shape ids take from request params).</p>
+<p>Each id component is now cast against its own column type, instead of casting
+the whole tuple against an array of column names, which <code>type_for_attribute</code>
+can't resolve to a real type (so the cast was a no-op and the string ids
+never matched the loaded records).</p>
+<p><em>Kenta Ishizaki</em></p>
+</li>
+<li>
+<p>Fix <code>find</code> with multiple composite primary key ids passed as strings
+silently returning <code>[]</code>.</p>
+<p><code>Model.find([[&quot;1&quot;, &quot;10&quot;], [&quot;1&quot;, &quot;20&quot;]])</code> (the shape ids take when they come
+from request parameters) returned an empty array instead of the records and
+without raising <code>RecordNotFound</code>. The ids were cast against the array of key
+column names as a whole — which is a no-op — so the string tuples never
+compared equal to the records' integer ids when ordering the result. Each
+component is now cast against its own column type, matching the documented
+coercion already performed for single-column keys.</p>
+<p><em>Kenta Ishizaki</em></p>
+</li>
+<li>
+<p>Fix PostgreSQL <code>daterange</code> / <code>tsrange</code> / <code>tstzrange</code> schema dump producing
+invalid Ruby.</p>
+<p>The schema dumper used to render range defaults via <code>Range#inspect</code>, which
+falls back to <a href="Date.html#inspect-instance_method" title="Date#inspect (method)">Date#inspect</a> / <code>Time#inspect</code> for the bounds. The resulting
+<code>schema.rb</code> literal (for example <code>default: Mon, 01 Jan 2024..Wed, 01 Jan 2025</code>)
+raised a <code>SyntaxError</code> on <code>db:schema:load</code>. The bounds are now rendered via
+the subtype's <code>type_cast_for_schema</code>, so date and timestamp range defaults
+round-trip through <code>schema.rb</code> like any other column.</p>
+<p><em>Kenta Ishizaki</em></p>
+</li>
+<li>
+<p>Fix deadlock when pool-less connection materializes while fetching database
+server version.</p>
+<p><em>Hartley McGuire</em></p>
+</li>
+<li>
 <p>Fix PostgreSQL range columns corrupting bounds that contain a comma.</p>
 <p><code>PostgreSQL::OID::Range#extract_bounds</code> split a range's textual
 representation on the first comma, but PostgreSQL double-quotes any bound
