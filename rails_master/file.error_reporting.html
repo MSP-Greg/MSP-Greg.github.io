@@ -68,6 +68,7 @@
 <ul>
 <li>How to use Rails' error reporter to capture and report errors.</li>
 <li>How to create custom subscribers for your error-reporting service.</li>
+<li>How to add shared error context with middleware.</li>
 </ul>
 <hr />
 <h2 id="Error_Reporting">Error Reporting</h2>
@@ -235,6 +236,29 @@ For example:</p>
 <span class='comment'># The reported context will be: {:a=&gt;1, :b=&gt;2}
 </span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_error'><a href="Rails.html#error-class_method" title="Rails.error (method)">error</a></span>.<span class='id identifier rubyid_handle'>handle</span>(<span class='label'>context:</span> { <span class='label'>b:</span> <span class='int'>3</span> }) { <span class='id identifier rubyid_raise'>raise</span> }
 <span class='comment'># The reported context will be: {:a=&gt;1, :b=&gt;3}</span></code></pre>
+<h3 id="Setting_Context_with_Error_Context_Middleware">Setting Context with Error Context Middleware</h3>
+<p>The error reporter has its own middleware stack for modifying the error context before sending it to subscribers.
+Use this to make changes to the error context that can be seen by all error subscribers, instead of replicating
+common functionality inside subscribers.</p>
+<p>For example, suppose you run several error subscribers (one for your APM, one for a logging service) and you
+want every reported error to carry the current request ID and tenant. Without middleware, you would have to add
+that lookup to each subscriber. With a context middleware, you enrich the context once and every subscriber
+receives it. This is also how a gem can add common context to error messages without requiring the host app to
+modify its error subscribers. The concerns of &quot;set error context&quot; and &quot;send data to error tracker&quot; should be
+separated between middleware and subscribers.</p>
+<p>Context middleware receives the same parameters as <code>Rails.error.report</code>. The middleware stack returns the hash
+after running all middleware - each middleware can mutate the context hash and should return the new context hash.</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>MyErrorContextMiddleware</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_call'>call</span>(<span class='id identifier rubyid_error'>error</span><span class='comma'>,</span> <span class='label'>context:</span><span class='comma'>,</span> <span class='label'>handled:</span><span class='comma'>,</span> <span class='label'>severity:</span><span class='comma'>,</span> <span class='label'>source:</span>)
+    <span class='id identifier rubyid_context'>context</span>.<span class='id identifier rubyid_merge'>merge</span>({ <span class='label'>foo:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_bar'>bar</span> })
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+
+<span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_error'><a href="Rails.html#error-class_method" title="Rails.error (method)">error</a></span>.<span class='id identifier rubyid_add_middleware'>add_middleware</span>(<span class='const'>MyErrorContextMiddleware</span>.<span class='id identifier rubyid_new'>new</span>) <span class='comment'># Append the middleware to the error context stack
+</span>
+<span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_error'><a href="Rails.html#error-class_method" title="Rails.error (method)">error</a></span>.<span class='id identifier rubyid_report'>report</span>(<span class='id identifier rubyid_error'>error</span><span class='comma'>,</span> <span class='label'>context:</span> { <span class='label'>bar:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_baz'>baz</span> }) <span class='comment'># Report an error with some context
+</span><span class='comment'># The reported context will include { bar: :baz, foo: :bar }</span></code></pre>
+<p>Context middleware runs after global context set by <code>Rails.error.set_context</code> is applied to the context hash.</p>
 <h3 id="Filtering_by_Error_Classes">Filtering by Error Classes</h3>
 <p>With <code>Rails.error.handle</code> and <code>Rails.error.record</code>, you can also choose to only
 report errors of certain classes. For example:</p>
