@@ -102,6 +102,60 @@ protocol-aware reshaping once RESP3 is supported at this layer.</p>
   </div>
 </div>
 </div>
+<h2 id='t2_cnst' class='h2_sum'>Constant Summary</h2>
+<div>
+<ul class='constants summary full'>
+  <li>
+    <span id='NumincrbyNormalize-constant' class='summary_signature'>NumincrbyNormalize =</span>
+    <div class='docstring'>
+  <div class='discussion'>
+    <p>Normalize a JSON.NUMINCRBY reply to a protocol-independent value: an array of numbers for
+a JSONPath, a single number for a legacy path. Under RESP2 the result arrives as a
+JSON-encoded string (&quot;[3,4]&quot; / &quot;7&quot;); under RESP3 it arrives as native numbers (an array,
+even for a legacy path). Both shapes map to the same value.</p>
+<p>A legacy path can also match multiple values (e.g. &quot;..a&quot;). RESP2 collapses those to the
+last changed scalar (&quot;7&quot;), while RESP3 returns the full match array with nil for every
+non-numeric match ([nil, 4, 7, nil]). To stay RESP2-compatible we take the last non-nil
+element of that array, not its first.</p>
+  </div>
+</div>
+    <a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L26-L37'># File 'lib/redis/commands/modules/json.rb', line 26</a>    <pre class='code ruby'><span class='id identifier rubyid_lambda'>lambda</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_reply'>reply</span><span class='comma'>,</span> <span class='id identifier rubyid_jsonpath'>jsonpath</span><span class='op'>|</span>
+  <span class='kw'>return</span> <span class='kw'>nil</span> <span class='kw'>if</span> <span class='id identifier rubyid_reply'>reply</span>.<span class='id identifier rubyid_nil?'>nil?</span>
+
+  <span class='id identifier rubyid_reply'>reply</span> <span class='op'>=</span> <span class='op'>::</span><span class='const'>JSON</span>.<span class='id identifier rubyid_parse'>parse</span>(<span class='id identifier rubyid_reply'>reply</span>) <span class='kw'>if</span> <span class='id identifier rubyid_reply'>reply</span>.<span class='id identifier rubyid_is_a?'>is_a?</span>(<span class='const'>String</span>) <span class='comment'># RESP2 string form
+</span>  <span class='kw'>if</span> <span class='id identifier rubyid_jsonpath'>jsonpath</span>
+    <span class='const'>Array</span>(<span class='id identifier rubyid_reply'>reply</span>)
+  <span class='kw'>elsif</span> <span class='id identifier rubyid_reply'>reply</span>.<span class='id identifier rubyid_is_a?'>is_a?</span>(<span class='const'>Array</span>)
+    <span class='id identifier rubyid_reply'>reply</span>.<span class='id identifier rubyid_compact'>compact</span>.<span class='id identifier rubyid_last'>last</span> <span class='comment'># RESP3 wraps even a legacy reply in an array; RESP2 keeps the last changed scalar
+</span>  <span class='kw'>else</span>
+    <span class='id identifier rubyid_reply'>reply</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></pre>
+  </li>
+  <li>
+    <span id='TypeNormalize-constant' class='summary_signature'>TypeNormalize =</span>
+    <div class='docstring'>
+  <div class='discussion'>
+    <p>Normalize a JSON.TYPE reply to a protocol-independent value: an array of type strings for
+a JSONPath, a single type string for a legacy path. RESP2 returns [&quot;integer&quot;] / &quot;integer&quot;;
+RESP3 nests one level further as [[&quot;integer&quot;]] / [&quot;integer&quot;]. Both map to the same value.</p>
+  </div>
+</div>
+    <a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L42-L52'># File 'lib/redis/commands/modules/json.rb', line 42</a>    <pre class='code ruby'><span class='id identifier rubyid_lambda'>lambda</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_reply'>reply</span><span class='comma'>,</span> <span class='id identifier rubyid_jsonpath'>jsonpath</span><span class='op'>|</span>
+  <span class='kw'>return</span> <span class='kw'>nil</span> <span class='kw'>if</span> <span class='id identifier rubyid_reply'>reply</span>.<span class='id identifier rubyid_nil?'>nil?</span>
+
+  <span class='kw'>if</span> <span class='id identifier rubyid_jsonpath'>jsonpath</span>
+    <span class='id identifier rubyid_reply'>reply</span>.<span class='id identifier rubyid_flatten'>flatten</span> <span class='comment'># RESP2 [&quot;integer&quot;] stays flat; RESP3 [[&quot;integer&quot;]] collapses
+</span>  <span class='kw'>elsif</span> <span class='id identifier rubyid_reply'>reply</span>.<span class='id identifier rubyid_is_a?'>is_a?</span>(<span class='const'>Array</span>)
+    <span class='id identifier rubyid_reply'>reply</span>.<span class='id identifier rubyid_first'>first</span> <span class='comment'># RESP3 legacy [&quot;integer&quot;] -&gt; &quot;integer&quot;
+</span>  <span class='kw'>else</span>
+    <span class='id identifier rubyid_reply'>reply</span> <span class='comment'># RESP2 legacy &quot;integer&quot;
+</span>  <span class='kw'>end</span>
+<span class='kw'>end</span></pre>
+  </li>
+</ul>
+</div>
+
 <h2 class='h2_sum' id='instance_method_summary'>Instance Method Summary</h2>
 <div class='div_sum'>
 <ul class='summary full'>
@@ -163,6 +217,14 @@ protocol-aware reshaping once RESP3 is supported at this layer.</p>
   </li>
   <li>
     <span class='summary_signature '>
+      <a href="#json_debug_memory-instance_method" title="#json_debug_memory (instance method)">#<strong>json_debug_memory</strong>(key, path = nil)  &#x21d2; Array&lt;Integer&gt;, Integer </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Report the size in bytes of the JSON value(s) at <code>path</code> (the JSON.DEBUG MEMORY subcommand).</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
       <a href="#json_del-instance_method" title="#json_del (instance method)">#<strong>json_del</strong>(key, path = nil)  &#x21d2; Integer </a>
     </span>
     <div class='summary_desc'>
@@ -211,10 +273,75 @@ protocol-aware reshaping once RESP3 is supported at this layer.</p>
   </li>
   <li>
     <span class='summary_signature '>
+      <a href="#json_numincrby-instance_method" title="#json_numincrby (instance method)">#<strong>json_numincrby</strong>(key, path, number)  &#x21d2; Array&lt;Numeric&gt;, ... </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Increment the numeric value(s) at <code>path</code> in the document stored under <code>key</code> by <code>number</code>.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#json_objkeys-instance_method" title="#json_objkeys (instance method)">#<strong>json_objkeys</strong>(key, path = nil)  &#x21d2; Array </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Return the key names of the JSON object(s) at <code>path</code>.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#json_objlen-instance_method" title="#json_objlen (instance method)">#<strong>json_objlen</strong>(key, path = nil)  &#x21d2; Array&lt;Integer&gt;, ... </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Return the number of keys in the JSON object(s) at <code>path</code>.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
       <a href="#json_set-instance_method" title="#json_set (instance method)">#<strong>json_set</strong>(key, path, value, nx: false, xx: false, raw: false)  &#x21d2; Boolean, String </a>
     </span>
     <div class='summary_desc'>
       <div class='inline'><p>Set the JSON value at <code>path</code> in the document stored under <code>key</code>.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#json_strappend-instance_method" title="#json_strappend (instance method)">#<strong>json_strappend</strong>(key, path, value, raw: false)  &#x21d2; Array&lt;Integer&gt;, ... </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Append <code>value</code> to the JSON string(s) at <code>path</code> in the document stored under <code>key</code>.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#json_strlen-instance_method" title="#json_strlen (instance method)">#<strong>json_strlen</strong>(key, path = nil)  &#x21d2; Array&lt;Integer&gt;, ... </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Return the length of the JSON string(s) at <code>path</code>.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#json_toggle-instance_method" title="#json_toggle (instance method)">#<strong>json_toggle</strong>(key, path)  &#x21d2; Array, ... </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Toggle the boolean value(s) at <code>path</code> in the document stored under <code>key</code>.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#json_type-instance_method" title="#json_type (instance method)">#<strong>json_type</strong>(key, path = nil)  &#x21d2; Array&lt;String&gt;, ... </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Return the type name of the value(s) at <code>path</code> (e.g. &quot;integer&quot;, &quot;string&quot;, &quot;object&quot;).</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
+      <a href="#json_path%3F-instance_method" title="#json_path? (instance method)">#<strong>json_path?</strong>(path)  &#x21d2; Boolean </a>
+    </span>
+    <span class='note title private'>private</span>
+    <div class='summary_desc'>
+      <div class='inline'><p>RedisJSON distinguishes JSONPath expressions (which start with &quot;$&quot;) from legacy paths.</p></div>
     </div>
   </li>
 </ul>
@@ -269,11 +396,11 @@ a single Integer for a legacy path (nil for a match that is not an array)</p></d
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L225-L228'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L262-L265'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='225' data-end='228'></pre>
+  <pre class='lines_num' data-start='262' data-end='265'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 225</span></pre>
+<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 262</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_json_arrappend'>json_arrappend</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_path'>path</span><span class='comma'>,</span> <span class='op'>*</span><span class='id identifier rubyid_values'>values</span><span class='comma'>,</span> <span class='label'>raw:</span> <span class='kw'>false</span>)
@@ -342,11 +469,11 @@ optional <code>start</code> (inclusive) and <code>stop</code> (exclusive) bound 
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L244-L252'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L281-L289'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='244' data-end='252'></pre>
+  <pre class='lines_num' data-start='281' data-end='289'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 244</span></pre>
+<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 281</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_json_arrindex'>json_arrindex</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_path'>path</span><span class='comma'>,</span> <span class='id identifier rubyid_value'>value</span><span class='comma'>,</span> <span class='label'>start:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>stop:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>raw:</span> <span class='kw'>false</span>)
@@ -417,11 +544,11 @@ send already-encoded JSON strings through untouched.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L270-L273'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L307-L310'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='270' data-end='273'></pre>
+  <pre class='lines_num' data-start='307' data-end='310'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 270</span></pre>
+<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 307</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_json_arrinsert'>json_arrinsert</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_path'>path</span><span class='comma'>,</span> <span class='id identifier rubyid_index'>index</span><span class='comma'>,</span> <span class='op'>*</span><span class='id identifier rubyid_values'>values</span><span class='comma'>,</span> <span class='label'>raw:</span> <span class='kw'>false</span>)
@@ -471,11 +598,11 @@ array, or when the key/path does not exist</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L285-L289'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L322-L326'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='285' data-end='289'></pre>
+  <pre class='lines_num' data-start='322' data-end='326'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 285</span></pre>
+<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 322</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_json_arrlen'>json_arrlen</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_path'>path</span> <span class='op'>=</span> <span class='kw'>nil</span>)
@@ -547,11 +674,11 @@ for a legacy path, nil for an empty array or a non-array match</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L308-L326'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L345-L363'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='308' data-end='326'></pre>
+  <pre class='lines_num' data-start='345' data-end='363'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 308</span></pre>
+<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 345</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_json_arrpop'>json_arrpop</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_path'>path</span> <span class='op'>=</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='id identifier rubyid_index'>index</span> <span class='op'>=</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>raw:</span> <span class='kw'>false</span>)
@@ -625,11 +752,11 @@ for a legacy path, nil for an empty array or a non-array match</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L340-L342'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L377-L379'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='340' data-end='342'></pre>
+  <pre class='lines_num' data-start='377' data-end='379'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 340</span></pre>
+<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 377</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_json_arrtrim'>json_arrtrim</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_path'>path</span><span class='comma'>,</span> <span class='id identifier rubyid_start'>start</span><span class='comma'>,</span> <span class='id identifier rubyid_stop'>stop</span>)
@@ -679,15 +806,71 @@ omitted it defaults to the root.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L181-L185'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L218-L222'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='181' data-end='185'></pre>
+  <pre class='lines_num' data-start='218' data-end='222'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 181</span></pre>
+<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 218</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_json_clear'>json_clear</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_path'>path</span> <span class='op'>=</span> <span class='kw'>nil</span>)
   <span class='id identifier rubyid_args'>args</span> <span class='op'>=</span> [<span class='symbeg'>:&quot;</span><span class='tstring_content'>JSON.CLEAR</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_key'>key</span>]
+  <span class='id identifier rubyid_args'>args</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_path'>path</span> <span class='kw'>if</span> <span class='id identifier rubyid_path'>path</span>
+  <span class='id identifier rubyid_send_command'><a href="../../Redis.html#send_command-instance_method" title="Redis#send_command (method)">send_command</a></span>(<span class='id identifier rubyid_args'>args</span>)
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="json_debug_memory-instance_method">
+  <h3 class='signature '>
+    #<strong>json_debug_memory</strong>(key, path = nil)  &#x21d2; <code>Array</code>&lt;<code>Integer</code>&gt;, <code>Integer</code> 
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    <p>Report the size in bytes of the JSON value(s) at <code>path</code> (the JSON.DEBUG MEMORY
+subcommand). When <code>path</code> is omitted it defaults to the root.</p>
+  </div>
+</div>
+<div class='tags'>
+    <div class='examples'>
+    <p class='tag_title'>Examples:</p>
+      <pre class='example code ruby'><code><span class='id identifier rubyid_redis'>redis</span>.<span class='id identifier rubyid_json_debug_memory'>json_debug_memory</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>doc</span><span class='tstring_end'>&quot;</span></span>)
+  <span class='comment'># =&gt; 264</span></code></pre>
+  </div>
+<p class='tag_title'>Parameters:</p>
+<ul class='param'>
+  <li>
+    <span class='name'>key</span>
+    <span class='type'>(<code>String</code>)</span>
+  </li>
+  <li>
+    <span class='name'>path</span>
+    <span class='type'>(<code>String</code>)</span>
+    <em class='default'>(defaults to: <tt>nil</tt>)</em>
+&mdash;    <div class='inline'><p>an optional JSONPath (defaults to the root)</p></div>
+  </li>
+</ul>
+<p class='tag_title'>Returns:</p>
+<ul class='return'>
+  <li>
+    <span class='type'>(<code>Array</code>&lt;<code>Integer</code>&gt;, <code>Integer</code>)</span>
+&mdash;    <div class='inline'><p>the size(s) in bytes: an Array for a JSONPath, a single
+integer for a legacy path or when no path is given (0 for a missing key)</p></div>
+  </li>
+</ul>
+
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L515-L519'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='515' data-end='519'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 515</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_json_debug_memory'>json_debug_memory</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_path'>path</span> <span class='op'>=</span> <span class='kw'>nil</span>)
+  <span class='id identifier rubyid_args'>args</span> <span class='op'>=</span> [<span class='symbeg'>:&quot;</span><span class='tstring_content'>JSON.DEBUG</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>MEMORY</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_key'>key</span>]
   <span class='id identifier rubyid_args'>args</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_path'>path</span> <span class='kw'>if</span> <span class='id identifier rubyid_path'>path</span>
   <span class='id identifier rubyid_send_command'><a href="../../Redis.html#send_command-instance_method" title="Redis#send_command (method)">send_command</a></span>(<span class='id identifier rubyid_args'>args</span>)
 <span class='kw'>end</span>
@@ -734,11 +917,11 @@ it defaults to the root, so deleting the root removes the whole key.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L149-L153'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L186-L190'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='149' data-end='153'></pre>
+  <pre class='lines_num' data-start='186' data-end='190'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 149</span></pre>
+<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 186</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_json_del'>json_del</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_path'>path</span> <span class='op'>=</span> <span class='kw'>nil</span>)
@@ -788,11 +971,11 @@ it defaults to the root, so deleting the root removes the whole key.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L164-L168'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L201-L205'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='164' data-end='168'></pre>
+  <pre class='lines_num' data-start='201' data-end='205'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 164</span></pre>
+<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 201</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_json_forget'>json_forget</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_path'>path</span> <span class='op'>=</span> <span class='kw'>nil</span>)
@@ -853,11 +1036,11 @@ is true), or nil if the key does not exist</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L79-L87'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L116-L124'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='79' data-end='87'></pre>
+  <pre class='lines_num' data-start='116' data-end='124'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 79</span></pre>
+<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 116</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_json_get'>json_get</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='op'>*</span><span class='id identifier rubyid_paths'>paths</span><span class='comma'>,</span> <span class='label'>raw:</span> <span class='kw'>false</span>)
@@ -926,11 +1109,11 @@ send an already-encoded JSON string through untouched.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L205-L208'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L242-L245'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='205' data-end='208'></pre>
+  <pre class='lines_num' data-start='242' data-end='245'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 205</span></pre>
+<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 242</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_json_merge'>json_merge</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_path'>path</span><span class='comma'>,</span> <span class='id identifier rubyid_value'>value</span><span class='comma'>,</span> <span class='label'>raw:</span> <span class='kw'>false</span>)
@@ -986,11 +1169,11 @@ when the key or path does not exist). Pass <code>raw: true</code> to get the unp
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L128-L137'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L165-L174'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='128' data-end='137'></pre>
+  <pre class='lines_num' data-start='165' data-end='174'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 128</span></pre>
+<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 165</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_json_mget'>json_mget</span>(<span class='op'>*</span><span class='id identifier rubyid_keys'>keys</span><span class='comma'>,</span> <span class='id identifier rubyid_path'>path</span><span class='comma'>,</span> <span class='label'>raw:</span> <span class='kw'>false</span>)
@@ -1056,11 +1239,11 @@ send already-encoded JSON strings through untouched.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L104-L113'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L141-L150'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='104' data-end='113'></pre>
+  <pre class='lines_num' data-start='141' data-end='150'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 104</span></pre>
+<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 141</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_json_mset'>json_mset</span>(<span class='op'>*</span><span class='id identifier rubyid_args'>args</span><span class='comma'>,</span> <span class='label'>raw:</span> <span class='kw'>false</span>)
@@ -1072,6 +1255,206 @@ send already-encoded JSON strings through untouched.</p>
     <span class='id identifier rubyid_command'>command</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_key'>key</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_path'>path</span> <span class='op'>&lt;&lt;</span> (<span class='id identifier rubyid_raw'>raw</span> <span class='op'>?</span> <span class='id identifier rubyid_value'>value</span> <span class='op'>:</span> <span class='op'>::</span><span class='const'>JSON</span>.<span class='id identifier rubyid_generate'>generate</span>(<span class='id identifier rubyid_value'>value</span>))
   <span class='kw'>end</span>
   <span class='id identifier rubyid_send_command'><a href="../../Redis.html#send_command-instance_method" title="Redis#send_command (method)">send_command</a></span>(<span class='id identifier rubyid_command'>command</span>)
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="json_numincrby-instance_method">
+  <h3 class='signature '>
+    #<strong>json_numincrby</strong>(key, path, number)  &#x21d2; <code>Array</code>&lt;<code>Numeric</code>&gt;, ... 
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    <p>Increment the numeric value(s) at <code>path</code> in the document stored under <code>key</code> by <code>number</code>.</p>
+  </div>
+</div>
+<div class='tags'>
+    <div class='examples'>
+    <p class='tag_title'>Examples:</p>
+      <pre class='example code ruby'><code><span class='id identifier rubyid_redis'>redis</span>.<span class='id identifier rubyid_json_numincrby'>json_numincrby</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>doc</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>$.a</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='int'>2</span>)
+  <span class='comment'># =&gt; [3]</span></code></pre>
+  </div>
+<p class='tag_title'>Parameters:</p>
+<ul class='param'>
+  <li>
+    <span class='name'>key</span>
+    <span class='type'>(<code>String</code>)</span>
+  </li>
+  <li>
+    <span class='name'>path</span>
+    <span class='type'>(<code>String</code>)</span>
+&mdash;    <div class='inline'><p>a JSONPath to the numeric value(s)</p></div>
+  </li>
+  <li>
+    <span class='name'>number</span>
+    <span class='type'>(<code>Numeric</code>)</span>
+&mdash;    <div class='inline'><p>the amount to add</p></div>
+  </li>
+</ul>
+<p class='tag_title'>Returns:</p>
+<ul class='return'>
+  <li>
+    <span class='type'>(<code>Array</code>&lt;<code>Numeric</code>&gt;, <code>Numeric</code>, <code>nil</code>)</span>
+&mdash;    <div class='inline'><p>the new value(s): an Array for a JSONPath, a single
+number for a legacy path; nil (or nil element) for a non-numeric match</p></div>
+  </li>
+</ul>
+
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L392-L397'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='392' data-end='397'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 392</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_json_numincrby'>json_numincrby</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_path'>path</span><span class='comma'>,</span> <span class='id identifier rubyid_number'>number</span>)
+  <span class='id identifier rubyid_jsonpath'>jsonpath</span> <span class='op'>=</span> <span class='id identifier rubyid_json_path?'><a href="#json_path%3F-instance_method" title="Redis::Commands::Json#json_path? (method)">json_path?</a></span>(<span class='id identifier rubyid_path'>path</span>)
+  <span class='id identifier rubyid_send_command'><a href="../../Redis.html#send_command-instance_method" title="Redis#send_command (method)">send_command</a></span>([<span class='symbeg'>:&quot;</span><span class='tstring_content'>JSON.NUMINCRBY</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_path'>path</span><span class='comma'>,</span> <span class='id identifier rubyid_number'>number</span>]) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_reply'>reply</span><span class='op'>|</span>
+    <span class='const'><a href="#NumincrbyNormalize-constant" title="Redis::Commands::Json::NumincrbyNormalize (constant)">NumincrbyNormalize</a></span>.<span class='id identifier rubyid_call'><a href="../Commands.html#call-instance_method" title="Redis::Commands#call (method)">call</a></span>(<span class='id identifier rubyid_reply'>reply</span><span class='comma'>,</span> <span class='id identifier rubyid_jsonpath'>jsonpath</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="json_objkeys-instance_method">
+  <h3 class='signature '>
+    #<strong>json_objkeys</strong>(key, path = nil)  &#x21d2; <code>Array</code> 
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    <p>Return the key names of the JSON object(s) at <code>path</code>. When <code>path</code> is omitted it defaults
+to the root.</p>
+  </div>
+</div>
+<div class='tags'>
+    <div class='examples'>
+    <p class='tag_title'>Examples:</p>
+      <pre class='example code ruby'><code><span class='id identifier rubyid_redis'>redis</span>.<span class='id identifier rubyid_json_objkeys'>json_objkeys</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>doc</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>$.nested</span><span class='tstring_end'>&quot;</span></span>)
+  <span class='comment'># =&gt; [[&quot;b&quot;, &quot;c&quot;]]</span></code></pre>
+  </div>
+<p class='tag_title'>Parameters:</p>
+<ul class='param'>
+  <li>
+    <span class='name'>key</span>
+    <span class='type'>(<code>String</code>)</span>
+  </li>
+  <li>
+    <span class='name'>path</span>
+    <span class='type'>(<code>String</code>)</span>
+    <em class='default'>(defaults to: <tt>nil</tt>)</em>
+&mdash;    <div class='inline'><p>an optional JSONPath (defaults to the root)</p></div>
+  </li>
+</ul>
+<p class='tag_title'>Returns:</p>
+<ul class='return'>
+  <li>
+    <span class='type'>(<code>Array</code>)</span>
+&mdash;    <div class='inline'><p>an array of key-name arrays (JSONPath) or a single array of key names
+(legacy path); nil for a non-object match</p></div>
+  </li>
+</ul>
+
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L430-L434'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='430' data-end='434'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 430</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_json_objkeys'>json_objkeys</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_path'>path</span> <span class='op'>=</span> <span class='kw'>nil</span>)
+  <span class='id identifier rubyid_args'>args</span> <span class='op'>=</span> [<span class='symbeg'>:&quot;</span><span class='tstring_content'>JSON.OBJKEYS</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_key'>key</span>]
+  <span class='id identifier rubyid_args'>args</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_path'>path</span> <span class='kw'>if</span> <span class='id identifier rubyid_path'>path</span>
+  <span class='id identifier rubyid_send_command'><a href="../../Redis.html#send_command-instance_method" title="Redis#send_command (method)">send_command</a></span>(<span class='id identifier rubyid_args'>args</span>)
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="json_objlen-instance_method">
+  <h3 class='signature '>
+    #<strong>json_objlen</strong>(key, path = nil)  &#x21d2; <code>Array</code>&lt;<code>Integer</code>&gt;, ... 
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    <p>Return the number of keys in the JSON object(s) at <code>path</code>. When <code>path</code> is omitted it
+defaults to the root.</p>
+  </div>
+</div>
+<div class='tags'>
+    <div class='examples'>
+    <p class='tag_title'>Examples:</p>
+      <pre class='example code ruby'><code><span class='id identifier rubyid_redis'>redis</span>.<span class='id identifier rubyid_json_objlen'>json_objlen</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>doc</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>$.nested</span><span class='tstring_end'>&quot;</span></span>)
+  <span class='comment'># =&gt; [2]</span></code></pre>
+  </div>
+<p class='tag_title'>Parameters:</p>
+<ul class='param'>
+  <li>
+    <span class='name'>key</span>
+    <span class='type'>(<code>String</code>)</span>
+  </li>
+  <li>
+    <span class='name'>path</span>
+    <span class='type'>(<code>String</code>)</span>
+    <em class='default'>(defaults to: <tt>nil</tt>)</em>
+&mdash;    <div class='inline'><p>an optional JSONPath (defaults to the root)</p></div>
+  </li>
+</ul>
+<p class='tag_title'>Returns:</p>
+<ul class='return'>
+  <li>
+    <span class='type'>(<code>Array</code>&lt;<code>Integer</code>&gt;, <code>Integer</code>, <code>nil</code>)</span>
+&mdash;    <div class='inline'><p>the key count(s): an Array for a JSONPath, a single
+integer for a legacy path; nil for a non-object match</p></div>
+  </li>
+</ul>
+
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L447-L451'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='447' data-end='451'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 447</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_json_objlen'>json_objlen</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_path'>path</span> <span class='op'>=</span> <span class='kw'>nil</span>)
+  <span class='id identifier rubyid_args'>args</span> <span class='op'>=</span> [<span class='symbeg'>:&quot;</span><span class='tstring_content'>JSON.OBJLEN</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_key'>key</span>]
+  <span class='id identifier rubyid_args'>args</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_path'>path</span> <span class='kw'>if</span> <span class='id identifier rubyid_path'>path</span>
+  <span class='id identifier rubyid_send_command'><a href="../../Redis.html#send_command-instance_method" title="Redis#send_command (method)">send_command</a></span>(<span class='id identifier rubyid_args'>args</span>)
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="json_path?-instance_method">
+  <h3 class='signature priv'>
+    #<strong>json_path?</strong>(path)  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    <p>RedisJSON distinguishes JSONPath expressions (which start with &quot;$&quot;) from legacy paths.
+JSONPath queries return an array of matches; legacy paths return a single value.</p>
+  </div>
+</div>
+<div class='tags'>
+  
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L525-L527'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='525' data-end='527'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 525</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_json_path?'>json_path?</span>(<span class='id identifier rubyid_path'>path</span>)
+  <span class='id identifier rubyid_path'>path</span>.<span class='id identifier rubyid_to_s'>to_s</span>.<span class='id identifier rubyid_start_with?'>start_with?</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>$</span><span class='tstring_end'>&quot;</span></span>)
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -1152,11 +1535,11 @@ when the condition was not met; otherwise the raw <code>"OK"</code> reply</p></d
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L45-L58'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L82-L95'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='45' data-end='58'></pre>
+  <pre class='lines_num' data-start='82' data-end='95'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 45</span></pre>
+<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 82</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_json_set'>json_set</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_path'>path</span><span class='comma'>,</span> <span class='id identifier rubyid_value'>value</span><span class='comma'>,</span> <span class='label'>nx:</span> <span class='kw'>false</span><span class='comma'>,</span> <span class='label'>xx:</span> <span class='kw'>false</span><span class='comma'>,</span> <span class='label'>raw:</span> <span class='kw'>false</span>)
@@ -1171,6 +1554,238 @@ when the condition was not met; otherwise the raw <code>"OK"</code> reply</p></d
     <span class='id identifier rubyid_send_command'><a href="../../Redis.html#send_command-instance_method" title="Redis#send_command (method)">send_command</a></span>(<span class='id identifier rubyid_args'>args</span><span class='comma'>,</span> <span class='op'>&amp;</span><span class='const'><a href="../Commands.html#BoolifySet-constant" title="Redis::Commands::BoolifySet (constant)">BoolifySet</a></span>)
   <span class='kw'>else</span>
     <span class='id identifier rubyid_send_command'><a href="../../Redis.html#send_command-instance_method" title="Redis#send_command (method)">send_command</a></span>(<span class='id identifier rubyid_args'>args</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="json_strappend-instance_method">
+  <h3 class='signature '>
+    #<strong>json_strappend</strong>(key, path, value, raw: false)  &#x21d2; <code>Array</code>&lt;<code>Integer</code>&gt;, ... 
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    <p>Append <code>value</code> to the JSON string(s) at <code>path</code> in the document stored under <code>key</code>.</p>
+<p>By default <code>value</code> is a Ruby string serialized with JSON.generate; pass <code>raw: true</code> to
+send an already-encoded JSON string through untouched.</p>
+  </div>
+</div>
+<div class='tags'>
+    <div class='examples'>
+    <p class='tag_title'>Examples:</p>
+      <pre class='example code ruby'><code><span class='id identifier rubyid_redis'>redis</span>.<span class='id identifier rubyid_json_strappend'>json_strappend</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>doc</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>$.a</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>bar</span><span class='tstring_end'>&quot;</span></span>)
+  <span class='comment'># =&gt; [6]</span></code></pre>
+  </div>
+<p class='tag_title'>Parameters:</p>
+<ul class='param'>
+  <li>
+    <span class='name'>key</span>
+    <span class='type'>(<code>String</code>)</span>
+  </li>
+  <li>
+    <span class='name'>path</span>
+    <span class='type'>(<code>String</code>)</span>
+&mdash;    <div class='inline'><p>a JSONPath to the target string(s)</p></div>
+  </li>
+  <li>
+    <span class='name'>value</span>
+    <span class='type'>(<code>String</code>)</span>
+&mdash;    <div class='inline'><p>the string to append</p></div>
+  </li>
+  <li>
+    <span class='name'>raw</span>
+    <span class='type'>(<code>Boolean</code>)</span>
+&mdash;    <div class='inline'><p>treat <code>value</code> as an already-encoded JSON string and send it as-is</p></div>
+  </li>
+</ul>
+<p class='tag_title'>Returns:</p>
+<ul class='return'>
+  <li>
+    <span class='type'>(<code>Array</code>&lt;<code>Integer</code>&gt;, <code>Integer</code>, <code>nil</code>)</span>
+&mdash;    <div class='inline'><p>the new string length(s): an Array for a JSONPath, a
+single integer for a legacy path; nil for a non-string match</p></div>
+  </li>
+</ul>
+
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L485-L488'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='485' data-end='488'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 485</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_json_strappend'>json_strappend</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_path'>path</span><span class='comma'>,</span> <span class='id identifier rubyid_value'>value</span><span class='comma'>,</span> <span class='label'>raw:</span> <span class='kw'>false</span>)
+  <span class='id identifier rubyid_value'>value</span> <span class='op'>=</span> <span class='op'>::</span><span class='const'>JSON</span>.<span class='id identifier rubyid_generate'>generate</span>(<span class='id identifier rubyid_value'>value</span>) <span class='kw'>unless</span> <span class='id identifier rubyid_raw'>raw</span>
+  <span class='id identifier rubyid_send_command'><a href="../../Redis.html#send_command-instance_method" title="Redis#send_command (method)">send_command</a></span>([<span class='symbeg'>:&quot;</span><span class='tstring_content'>JSON.STRAPPEND</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_path'>path</span><span class='comma'>,</span> <span class='id identifier rubyid_value'>value</span>])
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="json_strlen-instance_method">
+  <h3 class='signature '>
+    #<strong>json_strlen</strong>(key, path = nil)  &#x21d2; <code>Array</code>&lt;<code>Integer</code>&gt;, ... 
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    <p>Return the length of the JSON string(s) at <code>path</code>. When <code>path</code> is omitted it defaults to
+the root.</p>
+  </div>
+</div>
+<div class='tags'>
+    <div class='examples'>
+    <p class='tag_title'>Examples:</p>
+      <pre class='example code ruby'><code><span class='id identifier rubyid_redis'>redis</span>.<span class='id identifier rubyid_json_strlen'>json_strlen</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>doc</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>$.a</span><span class='tstring_end'>&quot;</span></span>)
+  <span class='comment'># =&gt; [3]</span></code></pre>
+  </div>
+<p class='tag_title'>Parameters:</p>
+<ul class='param'>
+  <li>
+    <span class='name'>key</span>
+    <span class='type'>(<code>String</code>)</span>
+  </li>
+  <li>
+    <span class='name'>path</span>
+    <span class='type'>(<code>String</code>)</span>
+    <em class='default'>(defaults to: <tt>nil</tt>)</em>
+&mdash;    <div class='inline'><p>an optional JSONPath (defaults to the root)</p></div>
+  </li>
+</ul>
+<p class='tag_title'>Returns:</p>
+<ul class='return'>
+  <li>
+    <span class='type'>(<code>Array</code>&lt;<code>Integer</code>&gt;, <code>Integer</code>, <code>nil</code>)</span>
+&mdash;    <div class='inline'><p>the string length(s): an Array for a JSONPath, a
+single integer for a legacy path; nil for a non-string match</p></div>
+  </li>
+</ul>
+
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L464-L468'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='464' data-end='468'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 464</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_json_strlen'>json_strlen</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_path'>path</span> <span class='op'>=</span> <span class='kw'>nil</span>)
+  <span class='id identifier rubyid_args'>args</span> <span class='op'>=</span> [<span class='symbeg'>:&quot;</span><span class='tstring_content'>JSON.STRLEN</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_key'>key</span>]
+  <span class='id identifier rubyid_args'>args</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_path'>path</span> <span class='kw'>if</span> <span class='id identifier rubyid_path'>path</span>
+  <span class='id identifier rubyid_send_command'><a href="../../Redis.html#send_command-instance_method" title="Redis#send_command (method)">send_command</a></span>(<span class='id identifier rubyid_args'>args</span>)
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="json_toggle-instance_method">
+  <h3 class='signature '>
+    #<strong>json_toggle</strong>(key, path)  &#x21d2; <code>Array</code>, ... 
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    <p>Toggle the boolean value(s) at <code>path</code> in the document stored under <code>key</code>.</p>
+  </div>
+</div>
+<div class='tags'>
+    <div class='examples'>
+    <p class='tag_title'>Examples:</p>
+      <pre class='example code ruby'><code><span class='id identifier rubyid_redis'>redis</span>.<span class='id identifier rubyid_json_toggle'>json_toggle</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>doc</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>$.flag</span><span class='tstring_end'>&quot;</span></span>)
+  <span class='comment'># =&gt; [0]</span></code></pre>
+  </div>
+<p class='tag_title'>Parameters:</p>
+<ul class='param'>
+  <li>
+    <span class='name'>key</span>
+    <span class='type'>(<code>String</code>)</span>
+  </li>
+  <li>
+    <span class='name'>path</span>
+    <span class='type'>(<code>String</code>)</span>
+&mdash;    <div class='inline'><p>a JSONPath to the target boolean(s)</p></div>
+  </li>
+</ul>
+<p class='tag_title'>Returns:</p>
+<ul class='return'>
+  <li>
+    <span class='type'>(<code>Array</code>, <code>Object</code>, <code>nil</code>)</span>
+&mdash;    <div class='inline'><p><code>1+/+0</code> for the new true/false value(s): an Array for a
+JSONPath, a single value for a legacy path; nil for a non-boolean match</p></div>
+  </li>
+</ul>
+
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L500-L502'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='500' data-end='502'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 500</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_json_toggle'>json_toggle</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_path'>path</span>)
+  <span class='id identifier rubyid_send_command'><a href="../../Redis.html#send_command-instance_method" title="Redis#send_command (method)">send_command</a></span>([<span class='symbeg'>:&quot;</span><span class='tstring_content'>JSON.TOGGLE</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_path'>path</span>])
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="json_type-instance_method">
+  <h3 class='signature '>
+    #<strong>json_type</strong>(key, path = nil)  &#x21d2; <code>Array</code>&lt;<code>String</code>&gt;, ... 
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    <p>Return the type name of the value(s) at <code>path</code> (e.g. &quot;integer&quot;, &quot;string&quot;, &quot;object&quot;). When
+<code>path</code> is omitted it defaults to the root.</p>
+  </div>
+</div>
+<div class='tags'>
+    <div class='examples'>
+    <p class='tag_title'>Examples:</p>
+      <pre class='example code ruby'><code><span class='id identifier rubyid_redis'>redis</span>.<span class='id identifier rubyid_json_type'>json_type</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>doc</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>$.a</span><span class='tstring_end'>&quot;</span></span>)
+  <span class='comment'># =&gt; [&quot;integer&quot;]</span></code></pre>
+  </div>
+<p class='tag_title'>Parameters:</p>
+<ul class='param'>
+  <li>
+    <span class='name'>key</span>
+    <span class='type'>(<code>String</code>)</span>
+  </li>
+  <li>
+    <span class='name'>path</span>
+    <span class='type'>(<code>String</code>)</span>
+    <em class='default'>(defaults to: <tt>nil</tt>)</em>
+&mdash;    <div class='inline'><p>an optional JSONPath (defaults to the root)</p></div>
+  </li>
+</ul>
+<p class='tag_title'>Returns:</p>
+<ul class='return'>
+  <li>
+    <span class='type'>(<code>Array</code>&lt;<code>String</code>&gt;, <code>String</code>, <code>nil</code>)</span>
+&mdash;    <div class='inline'><p>the type name(s): an Array for a JSONPath, a single
+string for a legacy path</p></div>
+  </li>
+</ul>
+
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/commands/modules/json.rb#L410-L417'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='410' data-end='417'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/redis/commands/modules/json.rb', line 410</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_json_type'>json_type</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_path'>path</span> <span class='op'>=</span> <span class='kw'>nil</span>)
+  <span class='id identifier rubyid_jsonpath'>jsonpath</span> <span class='op'>=</span> <span class='id identifier rubyid_json_path?'><a href="#json_path%3F-instance_method" title="Redis::Commands::Json#json_path? (method)">json_path?</a></span>(<span class='id identifier rubyid_path'>path</span>)
+  <span class='id identifier rubyid_args'>args</span> <span class='op'>=</span> [<span class='symbeg'>:&quot;</span><span class='tstring_content'>JSON.TYPE</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_key'>key</span>]
+  <span class='id identifier rubyid_args'>args</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_path'>path</span> <span class='kw'>if</span> <span class='id identifier rubyid_path'>path</span>
+  <span class='id identifier rubyid_send_command'><a href="../../Redis.html#send_command-instance_method" title="Redis#send_command (method)">send_command</a></span>(<span class='id identifier rubyid_args'>args</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_reply'>reply</span><span class='op'>|</span>
+    <span class='const'><a href="#TypeNormalize-constant" title="Redis::Commands::Json::TypeNormalize (constant)">TypeNormalize</a></span>.<span class='id identifier rubyid_call'><a href="../Commands.html#call-instance_method" title="Redis::Commands#call (method)">call</a></span>(<span class='id identifier rubyid_reply'>reply</span><span class='comma'>,</span> <span class='id identifier rubyid_jsonpath'>jsonpath</span>)
   <span class='kw'>end</span>
 <span class='kw'>end</span>
 </pre>
