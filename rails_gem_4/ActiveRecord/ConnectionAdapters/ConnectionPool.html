@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen'       content='yes'>
+<meta name='apple-mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>Class: ActiveRecord::ConnectionAdapters::ConnectionPool &mdash; Rails 4.2.11.3</title>
+
+<link rel='stylesheet'  type='text/css' href='../../../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../../../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../../../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../../../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../../../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "ActiveRecord::ConnectionAdapters::ConnectionPool",
+    relpath = '../../';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../../../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../../../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='../../'>Rails 4.2.11.3</a> &raquo; 
+      <a href='../../_index.html#alpha_C'>Index (C)</a> &raquo; 
+        <a href="../../ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a> &raquo; 
+        <a href="../ConnectionAdapters.html" title="ActiveRecord::ConnectionAdapters (module)">ConnectionAdapters</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>ConnectionPool&nbsp;&#x25B2;</a></span>
+    </div>
+
+    <a id='list_href' href="../../class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='class'>
+<h1>Class: ActiveRecord::ConnectionAdapters::ConnectionPool</h1>
+<div id='t2_rel_sf_div'>
+<table id='t2_rel_sf' class='y_box'>
+  <thead>
+    <tr><td id='t2_relations' colspan='2'>Relationships & Source Files</td></tr>
+  </thead>
+  <tbody>
+    <tr><td class='box_h' colspan='2'>Namespace Children</td></tr>
+    <tr><td colspan='2'>
+      <div class='box_1'>Classes:</div>
+      <div class='box_11'>
+          <a href="ConnectionPool/Queue.html" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Queue (class)">Queue</a>,
+        <a href="ConnectionPool/Reaper.html" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper (class)">Reaper</a>      </div>
+    </td></tr>
+    <tr><td class='box_h' colspan='2'>Super Chains via Extension / Inclusion / Inheritance</td></tr>
+    <tr>
+      <td colspan='2'>
+        <div class='box_2'>Instance Chain:</div>
+        <div class='box_22'>
+          self,
+          MonitorMixin
+        </div>
+      </td>
+    </tr>
+    <tr>
+      <td id='t2_inherits' class='box_2'>Inherits:</td>
+      <td class='box_rel'>
+        <span class='inheritName'><a href="../../Object.html" title="Object (class)">Object</a></span>
+      </td>
+    </tr>
+    <tr class='single'>
+      <td id='t2_defined_in' class='box_2'>Defined in:</td>
+      <td class='box_rel'><a class='repo' href='https://github.com/rails/rails/blob/v4.2.11.3/activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb#L67'>activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb</a>      </td>
+    </tr>
+  </tbody>
+</table>
+</div>
+<h2 id='h2_overview'>Overview</h2>
+<div id='overview_ds'>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Connection pool base class for managing Active Record database connections.</p>
+
+<h3 id="label-Introduction">Introduction</h3>
+
+<p>A connection pool synchronizes thread access to a limited number of database connections. The basic idea is that each thread checks out a database connection from the pool, uses that connection, and checks the connection back in. <code>ConnectionPool</code> is completely thread-safe, and will ensure that a connection cannot be used by two threads at the same time, as long as ConnectionPool&#39;s contract is correctly followed. It will also handle cases in which there are more threads than connections: if all connections have been checked out, and a thread tries to checkout a connection anyway, then <code>ConnectionPool</code> will wait until some other thread has checked in a connection.</p>
+
+<h3 id="label-Obtaining+-28checking+out-29+a+connection">Obtaining (checking out) a connection</h3>
+
+<p>Connections can be obtained and used from a connection pool in several ways:</p>
+<ol><li>
+<p>Simply use <code>ActiveRecord::Base.connection</code> as with Active Record 2.1 and earlier (pre-connection-pooling). Eventually, when you&#39;re done with the connection(s) and wish it to be returned to the pool, you call ActiveRecord::Base.clear_active_connections!. This will be the default behavior for Active Record when used in conjunction with Action Pack&#39;s request handling cycle.</p>
+</li><li>
+<p>Manually check out a connection from the pool with ActiveRecord::Base.connection_pool.checkout. You are responsible for returning this connection to the pool when finished by calling ActiveRecord::Base.connection_pool.checkin(connection).</p>
+</li><li>
+<p>Use <code>ActiveRecord::Base.connection_pool</code>.with_connection(&amp;block), which obtains a connection, yields it as the sole argument to the block, and returns it to the pool after the block completes.</p>
+</li></ol>
+
+<p>Connections in the pool are actually <a href="AbstractAdapter.html" title="ActiveRecord::ConnectionAdapters::AbstractAdapter (class)">AbstractAdapter</a> objects (or objects compatible with AbstractAdapter&#39;s interface).</p>
+
+<h3 id="label-Options">Options</h3>
+
+<p>There are several connection-pooling-related options that you can add to your database connection configuration:</p>
+<ul><li>
+<p><code>pool</code>: number indicating size of connection pool (default 5)</p>
+</li><li>
+<p><a href="#checkout_timeout-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#checkout_timeout (method)">#checkout_timeout</a>: number of seconds to block and wait for a connection before giving up and raising a timeout error (default 5 seconds).</p>
+</li><li>
+<p><code>reaping_frequency</code>: frequency in seconds to periodically run the Reaper, which attempts to find and recover connections from dead threads, which can occur if a programmer forgets to close a connection at the end of a thread or a thread dies unexpectedly. Regardless of this setting, the Reaper will be invoked before every blocking wait. (Default nil, which means don&#39;t schedule the Reaper).</p>
+</li></ul>
+
+  </div>
+</div>
+</div>
+<h2 class='h2_sum' id='class_method_summary'>Class Method Summary</h2>
+<div class='div_sum'>
+<ul class='summary full'>
+  <li>
+    <span class='summary_signature '>
+      <a href="#new-class_method" title=".new (class method)">.<strong>new</strong>(spec)  &#x21d2; ConnectionPool </a>
+    </span>
+    <span class='note title constructor'>constructor</span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Creates a new <code>ConnectionPool</code> object.</p></div>
+    </div>
+  </li>
+</ul>
+</div>  <!-- class_method_summary -->
+
+<h2 class='h2_sum' id='instance_attribute_summary'>Instance Attribute Summary</h2>
+<div class='div_sum'>
+<ul class='summary full'>
+  <li>
+    <span class='summary_signature ro'>
+      <a href="#active_connection%3F-instance_method" title="#active_connection? (instance method)">#<strong>active_connection?</strong>  &#x21d2; Boolean </a>
+    </span>
+    <span class='note title readonly'>readonly</span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Is there an open connection that is being used for the current thread?</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature rw'>
+      <a href="#automatic_reconnect-instance_method" title="#automatic_reconnect (instance method)">#<strong>automatic_reconnect</strong>  </a>
+    </span>
+    <span class='note title rw'>rw</span>
+  </li>
+  <li>
+    <span class='summary_signature rw'>
+      <a href="#checkout_timeout-instance_method" title="#checkout_timeout (instance method)">#<strong>checkout_timeout</strong>  </a>
+    </span>
+    <span class='note title rw'>rw</span>
+  </li>
+  <li>
+    <span class='summary_signature ro'>
+      <a href="#connected%3F-instance_method" title="#connected? (instance method)">#<strong>connected?</strong>  &#x21d2; Boolean </a>
+    </span>
+    <span class='note title readonly'>readonly</span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Returns true if a connection has already been opened.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature ro'>
+      <a href="#connections-instance_method" title="#connections (instance method)">#<strong>connections</strong>  </a>
+    </span>
+    <span class='note title readonly'>readonly</span>
+  </li>
+  <li>
+    <span class='summary_signature ro'>
+      <a href="#reaper-instance_method" title="#reaper (instance method)">#<strong>reaper</strong>  </a>
+    </span>
+    <span class='note title readonly'>readonly</span>
+  </li>
+  <li>
+    <span class='summary_signature ro'>
+      <a href="#size-instance_method" title="#size (instance method)">#<strong>size</strong>  </a>
+    </span>
+    <span class='note title readonly'>readonly</span>
+  </li>
+  <li>
+    <span class='summary_signature ro'>
+      <a href="#spec-instance_method" title="#spec (instance method)">#<strong>spec</strong>  </a>
+    </span>
+    <span class='note title readonly'>readonly</span>
+  </li>
+</ul>
+</div>  <!-- instance_attribute_summary -->
+
+<h2 class='h2_sum' id='instance_method_summary'>Instance Method Summary</h2>
+<div class='div_sum'>
+<ul class='summary full'>
+  <li>
+    <span class='summary_signature '>
+      <a href="#checkin-instance_method" title="#checkin (instance method)">#<strong>checkin</strong>(conn)  </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Check-in a database connection back into the pool, indicating that you no longer need this connection.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#checkout-instance_method" title="#checkout (instance method)">#<strong>checkout</strong>  </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Check-out a database connection from the pool, indicating that you want to use it.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#clear_reloadable_connections!-instance_method" title="#clear_reloadable_connections! (instance method)">#<strong>clear_reloadable_connections!</strong>  </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Clears the cache which maps classes.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#connection-instance_method" title="#connection (instance method)">#<strong>connection</strong>  </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Retrieve the connection associated with the current thread, or call <a href="#checkout-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#checkout (method)">#checkout</a> to obtain one if necessary.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#disconnect!-instance_method" title="#disconnect! (instance method)">#<strong>disconnect!</strong>  </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Disconnects all connections in the pool, and clears the pool.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#reap-instance_method" title="#reap (instance method)">#<strong>reap</strong>  </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Recover lost connections for the pool.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#release_connection-instance_method" title="#release_connection (instance method)">#<strong>release_connection</strong>(with_id = current_connection_id)  </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Signal that the thread is finished with the current connection.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#remove-instance_method" title="#remove (instance method)">#<strong>remove</strong>(conn)  </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Remove a connection from the connection pool.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#with_connection-instance_method" title="#with_connection (instance method)">#<strong>with_connection</strong>  </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><p>If a connection already exists yield it to the block.</p></div>
+    </div>
+  </li>
+</ul>
+</div>  <!-- instance_method_summary -->
+<h2 id='Constructor_Details' class='y_details'>Constructor Details</h2>
+
+  <section class='method_details first' id="new-class_method">
+  <h3 class='signature  first'>
+    .<strong>new</strong>(spec)  &#x21d2; <code>ConnectionPool</code> 
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Creates a new <code>ConnectionPool</code> object. <a href="#spec-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#spec (method)">#spec</a> is a <a href="ConnectionSpecification.html" title="ActiveRecord::ConnectionAdapters::ConnectionSpecification (class)">ConnectionSpecification</a> object which describes database connection information (e.g. adapter, host name, username, password, etc), as well as the maximum size for this <code>ConnectionPool</code>.</p>
+
+<p>The default <code>ConnectionPool</code> maximum size is 5.</p>
+
+  </div>
+</div>
+<div class='tags'>
+  
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/v4.2.11.3/activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb#L233-L252'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='233' data-end='252'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb', line 233</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span>(<span class='id identifier rubyid_spec'><a href="#spec-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#spec (method)">spec</a></span>)
+  <span class='kw'>super</span>()
+
+  <span class='ivar'>@spec</span> <span class='op'>=</span> <span class='id identifier rubyid_spec'><a href="#spec-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#spec (method)">spec</a></span>
+
+  <span class='ivar'>@checkout_timeout</span> <span class='op'>=</span> (<span class='id identifier rubyid_spec'><a href="#spec-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#spec (method)">spec</a></span>.<span class='id identifier rubyid_config'>config</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_checkout_timeout'><a href="#checkout_timeout-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#checkout_timeout (method)">checkout_timeout</a></span>] <span class='op'>&amp;&amp;</span> <span class='id identifier rubyid_spec'><a href="#spec-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#spec (method)">spec</a></span>.<span class='id identifier rubyid_config'>config</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_checkout_timeout'><a href="#checkout_timeout-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#checkout_timeout (method)">checkout_timeout</a></span>].<span class='id identifier rubyid_to_f'>to_f</span>) <span class='op'>||</span> <span class='int'>5</span>
+  <span class='ivar'>@reaper</span> <span class='op'>=</span> <span class='const'><a href="ConnectionPool/Reaper.html" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper (class)">Reaper</a></span>.<span class='id identifier rubyid_new'><a href="ConnectionPool/Reaper.html#new-class_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Reaper.new (method)">new</a></span>(<span class='kw'>self</span><span class='comma'>,</span> (<span class='id identifier rubyid_spec'><a href="#spec-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#spec (method)">spec</a></span>.<span class='id identifier rubyid_config'>config</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_reaping_frequency'>reaping_frequency</span>] <span class='op'>&amp;&amp;</span> <span class='id identifier rubyid_spec'><a href="#spec-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#spec (method)">spec</a></span>.<span class='id identifier rubyid_config'>config</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_reaping_frequency'>reaping_frequency</span>].<span class='id identifier rubyid_to_f'>to_f</span>))
+  <span class='ivar'>@reaper</span>.<span class='id identifier rubyid_run'>run</span>
+
+  <span class='comment'># default max pool size to 5
+</span>  <span class='ivar'>@size</span> <span class='op'>=</span> (<span class='id identifier rubyid_spec'><a href="#spec-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#spec (method)">spec</a></span>.<span class='id identifier rubyid_config'>config</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_pool'>pool</span>] <span class='op'>&amp;&amp;</span> <span class='id identifier rubyid_spec'><a href="#spec-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#spec (method)">spec</a></span>.<span class='id identifier rubyid_config'>config</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_pool'>pool</span>].<span class='id identifier rubyid_to_i'>to_i</span>) <span class='op'>||</span> <span class='int'>5</span>
+
+  <span class='comment'># The cache of reserved connections mapped to threads
+</span>  <span class='ivar'>@reserved_connections</span> <span class='op'>=</span> <span class='const'>ThreadSafe</span><span class='op'>::</span><span class='const'>Cache</span>.<span class='id identifier rubyid_new'>new</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_initial_capacity'>initial_capacity</span> <span class='op'>=&gt;</span> <span class='ivar'>@size</span>)
+
+  <span class='ivar'>@connections</span>         <span class='op'>=</span> []
+  <span class='ivar'>@automatic_reconnect</span> <span class='op'>=</span> <span class='kw'>true</span>
+
+  <span class='ivar'>@available</span> <span class='op'>=</span> <span class='const'><a href="ConnectionPool/Queue.html" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Queue (class)">Queue</a></span>.<span class='id identifier rubyid_new'><a href="ConnectionPool/Queue.html#new-class_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool::Queue.new (method)">new</a></span> <span class='kw'>self</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<h2 class='y_details'>Instance Attribute Details</h2>
+<section class='method_details first' id="active_connection?-instance_method">
+  <h3 class='signature ro first'>
+    #<strong>active_connection?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='readonly'>readonly</span>)</span>
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Is there an open connection that is being used for the current thread?</p>
+
+  </div>
+</div>
+<div class='tags'>
+  
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/v4.2.11.3/activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb#L268-L274'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='268' data-end='274'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb', line 268</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_active_connection?'>active_connection?</span>
+  <span class='id identifier rubyid_synchronize'>synchronize</span> <span class='kw'>do</span>
+    <span class='ivar'>@reserved_connections</span>.<span class='id identifier rubyid_fetch'>fetch</span>(<span class='id identifier rubyid_current_connection_id'>current_connection_id</span>) {
+      <span class='kw'>return</span> <span class='kw'>false</span>
+    }.<span class='id identifier rubyid_in_use?'>in_use?</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="automatic_reconnect-instance_method">
+  <h3 class='signature rw'>
+    #<strong>automatic_reconnect</strong>   <span class="extras">(<span class='rw'>rw</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/v4.2.11.3/activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb#L224-L224'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='224' data-end='224'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb', line 224</span></pre>
+<pre class='code ruby'>
+
+<span class='id identifier rubyid_attr_accessor'>attr_accessor</span> <span class='symbeg'>:</span><span class='id identifier rubyid_automatic_reconnect'>automatic_reconnect</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_checkout_timeout'><a href="#checkout_timeout-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#checkout_timeout (method)">checkout_timeout</a></span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="checkout_timeout-instance_method">
+  <h3 class='signature rw'>
+    #<strong>checkout_timeout</strong>   <span class="extras">(<span class='rw'>rw</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/v4.2.11.3/activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb#L224-L224'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='224' data-end='224'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb', line 224</span></pre>
+<pre class='code ruby'>
+
+<span class='id identifier rubyid_attr_accessor'>attr_accessor</span> <span class='symbeg'>:</span><span class='id identifier rubyid_automatic_reconnect'><a href="#automatic_reconnect-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#automatic_reconnect (method)">automatic_reconnect</a></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_checkout_timeout'>checkout_timeout</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="connected?-instance_method">
+  <h3 class='signature ro'>
+    #<strong>connected?</strong>  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='readonly'>readonly</span>)</span>
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Returns true if a connection has already been opened.</p>
+
+  </div>
+</div>
+<div class='tags'>
+  
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/v4.2.11.3/activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb#L298-L300'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='298' data-end='300'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb', line 298</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_connected?'>connected?</span>
+  <span class='id identifier rubyid_synchronize'>synchronize</span> { <span class='ivar'>@connections</span>.<span class='id identifier rubyid_any?'>any?</span> }
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="connections-instance_method">
+  <h3 class='signature ro'>
+    #<strong>connections</strong>   <span class="extras">(<span class='readonly'>readonly</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/v4.2.11.3/activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb#L225-L225'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='225' data-end='225'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb', line 225</span></pre>
+<pre class='code ruby'>
+
+<span class='id identifier rubyid_attr_reader'>attr_reader</span> <span class='symbeg'>:</span><span class='id identifier rubyid_spec'><a href="#spec-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#spec (method)">spec</a></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_connections'>connections</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_size'><a href="#size-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#size (method)">size</a></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_reaper'><a href="#reaper-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#reaper (method)">reaper</a></span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="reaper-instance_method">
+  <h3 class='signature ro'>
+    #<strong>reaper</strong>   <span class="extras">(<span class='readonly'>readonly</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/v4.2.11.3/activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb#L225-L225'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='225' data-end='225'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb', line 225</span></pre>
+<pre class='code ruby'>
+
+<span class='id identifier rubyid_attr_reader'>attr_reader</span> <span class='symbeg'>:</span><span class='id identifier rubyid_spec'><a href="#spec-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#spec (method)">spec</a></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_connections'><a href="#connections-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#connections (method)">connections</a></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_size'><a href="#size-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#size (method)">size</a></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_reaper'>reaper</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="size-instance_method">
+  <h3 class='signature ro'>
+    #<strong>size</strong>   <span class="extras">(<span class='readonly'>readonly</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/v4.2.11.3/activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb#L225-L225'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='225' data-end='225'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb', line 225</span></pre>
+<pre class='code ruby'>
+
+<span class='id identifier rubyid_attr_reader'>attr_reader</span> <span class='symbeg'>:</span><span class='id identifier rubyid_spec'><a href="#spec-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#spec (method)">spec</a></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_connections'><a href="#connections-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#connections (method)">connections</a></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_size'>size</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_reaper'><a href="#reaper-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#reaper (method)">reaper</a></span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="spec-instance_method">
+  <h3 class='signature ro'>
+    #<strong>spec</strong>   <span class="extras">(<span class='readonly'>readonly</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/v4.2.11.3/activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb#L225-L225'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='225' data-end='225'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb', line 225</span></pre>
+<pre class='code ruby'>
+
+<span class='id identifier rubyid_attr_reader'>attr_reader</span> <span class='symbeg'>:</span><span class='id identifier rubyid_spec'>spec</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_connections'><a href="#connections-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#connections (method)">connections</a></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_size'><a href="#size-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#size (method)">size</a></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_reaper'><a href="#reaper-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#reaper (method)">reaper</a></span>
+</pre>
+  </div>
+</div>
+</section>
+
+<h2 class='y_details'>Instance Method Details</h2>
+<section class='method_details first' id="checkin-instance_method">
+  <h3 class='signature  first'>
+    #<strong>checkin</strong>(conn)  
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Check-in a database connection back into the pool, indicating that you no longer need this connection.</p>
+
+<p><code>conn</code>: an <a href="AbstractAdapter.html" title="ActiveRecord::ConnectionAdapters::AbstractAdapter (class)">AbstractAdapter</a> object, which was obtained by earlier by calling <a href="#checkout-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#checkout (method)">#checkout</a> on this pool.</p>
+
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/v4.2.11.3/activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb#L360-L372'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='360' data-end='372'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb', line 360</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_checkin'>checkin</span>(<span class='id identifier rubyid_conn'>conn</span>)
+  <span class='id identifier rubyid_synchronize'>synchronize</span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_owner'>owner</span> <span class='op'>=</span> <span class='id identifier rubyid_conn'>conn</span>.<span class='id identifier rubyid_owner'>owner</span>
+
+    <span class='id identifier rubyid_conn'>conn</span>.<span class='id identifier rubyid__run_checkin_callbacks'>_run_checkin_callbacks</span> <span class='kw'>do</span>
+      <span class='id identifier rubyid_conn'>conn</span>.<span class='id identifier rubyid_expire'>expire</span>
+    <span class='kw'>end</span>
+
+    <span class='id identifier rubyid_release'>release</span> <span class='id identifier rubyid_conn'>conn</span><span class='comma'>,</span> <span class='id identifier rubyid_owner'>owner</span>
+
+    <span class='ivar'>@available</span>.<span class='id identifier rubyid_add'>add</span> <span class='id identifier rubyid_conn'>conn</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="checkout-instance_method">
+  <h3 class='signature '>
+    #<strong>checkout</strong>  
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Check-out a database connection from the pool, indicating that you want to use it. You should call <a href="#checkin-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#checkin (method)">#checkin</a> when you no longer need this.</p>
+
+<p>This is done by either returning and leasing existing connection, or by creating a new connection and leasing it.</p>
+
+<p>If all connections are leased and the pool is at capacity (meaning the number of currently leased connections is greater than or equal to the size limit set), an <a href="../ConnectionTimeoutError.html" title="ActiveRecord::ConnectionTimeoutError (class)">::ActiveRecord::ConnectionTimeoutError</a> exception will be raised.</p>
+
+<p>Returns: an <a href="AbstractAdapter.html" title="ActiveRecord::ConnectionAdapters::AbstractAdapter (class)">AbstractAdapter</a> object.</p>
+
+<p>Raises:</p>
+<ul><li>
+<p>ConnectionTimeoutError: no connection can be obtained from the pool.</p>
+</li></ul>
+
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/v4.2.11.3/activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb#L347-L353'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='347' data-end='353'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb', line 347</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_checkout'>checkout</span>
+  <span class='id identifier rubyid_synchronize'>synchronize</span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_conn'>conn</span> <span class='op'>=</span> <span class='id identifier rubyid_acquire_connection'>acquire_connection</span>
+    <span class='id identifier rubyid_conn'>conn</span>.<span class='id identifier rubyid_lease'>lease</span>
+    <span class='id identifier rubyid_checkout_and_verify'>checkout_and_verify</span>(<span class='id identifier rubyid_conn'>conn</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="clear_reloadable_connections!-instance_method">
+  <h3 class='signature '>
+    #<strong>clear_reloadable_connections!</strong>  
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Clears the cache which maps classes.</p>
+
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/v4.2.11.3/activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb#L316-L331'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='316' data-end='331'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb', line 316</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_clear_reloadable_connections!'>clear_reloadable_connections!</span>
+  <span class='id identifier rubyid_synchronize'>synchronize</span> <span class='kw'>do</span>
+    <span class='ivar'>@reserved_connections</span>.<span class='id identifier rubyid_clear'>clear</span>
+    <span class='ivar'>@connections</span>.<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_conn'>conn</span><span class='op'>|</span>
+      <span class='id identifier rubyid_checkin'><a href="#checkin-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#checkin (method)">checkin</a></span> <span class='id identifier rubyid_conn'>conn</span>
+      <span class='id identifier rubyid_conn'>conn</span>.<span class='id identifier rubyid_disconnect!'><a href="#disconnect!-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#disconnect! (method)">disconnect!</a></span> <span class='kw'>if</span> <span class='id identifier rubyid_conn'>conn</span>.<span class='id identifier rubyid_requires_reloading?'>requires_reloading?</span>
+    <span class='kw'>end</span>
+    <span class='ivar'>@connections</span>.<span class='id identifier rubyid_delete_if'>delete_if</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_conn'>conn</span><span class='op'>|</span>
+      <span class='id identifier rubyid_conn'>conn</span>.<span class='id identifier rubyid_requires_reloading?'>requires_reloading?</span>
+    <span class='kw'>end</span>
+    <span class='ivar'>@available</span>.<span class='id identifier rubyid_clear'>clear</span>
+    <span class='ivar'>@connections</span>.<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_conn'>conn</span><span class='op'>|</span>
+      <span class='ivar'>@available</span>.<span class='id identifier rubyid_add'>add</span> <span class='id identifier rubyid_conn'>conn</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="connection-instance_method">
+  <h3 class='signature '>
+    #<strong>connection</strong>  
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Retrieve the connection associated with the current thread, or call <a href="#checkout-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#checkout (method)">#checkout</a> to obtain one if necessary.</p>
+
+<p><code>#connection</code> can be called any number of times; the connection is held in a hash keyed by the thread id.</p>
+
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/v4.2.11.3/activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb#L259-L265'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='259' data-end='265'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb', line 259</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_connection'>connection</span>
+  <span class='comment'># this is correctly done double-checked locking
+</span>  <span class='comment'># (ThreadSafe::Cache&#39;s lookups have volatile semantics)
+</span>  <span class='ivar'>@reserved_connections</span>[<span class='id identifier rubyid_current_connection_id'>current_connection_id</span>] <span class='op'>||</span> <span class='id identifier rubyid_synchronize'>synchronize</span> <span class='kw'>do</span>
+    <span class='ivar'>@reserved_connections</span>[<span class='id identifier rubyid_current_connection_id'>current_connection_id</span>] <span class='op'>||=</span> <span class='id identifier rubyid_checkout'><a href="#checkout-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#checkout (method)">checkout</a></span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="disconnect!-instance_method">
+  <h3 class='signature '>
+    #<strong>disconnect!</strong>  
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Disconnects all connections in the pool, and clears the pool.</p>
+
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/v4.2.11.3/activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb#L303-L313'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='303' data-end='313'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb', line 303</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_disconnect!'>disconnect!</span>
+  <span class='id identifier rubyid_synchronize'>synchronize</span> <span class='kw'>do</span>
+    <span class='ivar'>@reserved_connections</span>.<span class='id identifier rubyid_clear'>clear</span>
+    <span class='ivar'>@connections</span>.<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_conn'>conn</span><span class='op'>|</span>
+      <span class='id identifier rubyid_checkin'><a href="#checkin-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#checkin (method)">checkin</a></span> <span class='id identifier rubyid_conn'>conn</span>
+      <span class='id identifier rubyid_conn'>conn</span>.<span class='id identifier rubyid_disconnect!'>disconnect!</span>
+    <span class='kw'>end</span>
+    <span class='ivar'>@connections</span> <span class='op'>=</span> []
+    <span class='ivar'>@available</span>.<span class='id identifier rubyid_clear'>clear</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="reap-instance_method">
+  <h3 class='signature '>
+    #<strong>reap</strong>  
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Recover lost connections for the pool.  A lost connection can occur if a programmer forgets to checkin a connection at the end of a thread or a thread dies unexpectedly.</p>
+
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/v4.2.11.3/activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb#L390-L407'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='390' data-end='407'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb', line 390</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_reap'>reap</span>
+  <span class='id identifier rubyid_stale_connections'>stale_connections</span> <span class='op'>=</span> <span class='id identifier rubyid_synchronize'>synchronize</span> <span class='kw'>do</span>
+    <span class='ivar'>@connections</span>.<span class='id identifier rubyid_select'>select</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_conn'>conn</span><span class='op'>|</span>
+      <span class='id identifier rubyid_conn'>conn</span>.<span class='id identifier rubyid_in_use?'>in_use?</span> <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='id identifier rubyid_conn'>conn</span>.<span class='id identifier rubyid_owner'>owner</span>.<span class='id identifier rubyid_alive?'>alive?</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+
+  <span class='id identifier rubyid_stale_connections'>stale_connections</span>.<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_conn'>conn</span><span class='op'>|</span>
+    <span class='id identifier rubyid_synchronize'>synchronize</span> <span class='kw'>do</span>
+      <span class='kw'>if</span> <span class='id identifier rubyid_conn'>conn</span>.<span class='id identifier rubyid_active?'>active?</span>
+        <span class='id identifier rubyid_conn'>conn</span>.<span class='id identifier rubyid_reset!'>reset!</span>
+        <span class='id identifier rubyid_checkin'><a href="#checkin-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#checkin (method)">checkin</a></span> <span class='id identifier rubyid_conn'>conn</span>
+      <span class='kw'>else</span>
+        <span class='id identifier rubyid_remove'><a href="#remove-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#remove (method)">remove</a></span> <span class='id identifier rubyid_conn'>conn</span>
+      <span class='kw'>end</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="release_connection-instance_method">
+  <h3 class='signature '>
+    #<strong>release_connection</strong>(with_id = current_connection_id)  
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Signal that the thread is finished with the current connection. <code>#release_connection</code> releases the connection-thread association and returns the connection to the pool.</p>
+
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/v4.2.11.3/activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb#L279-L284'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='279' data-end='284'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb', line 279</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_release_connection'>release_connection</span>(<span class='id identifier rubyid_with_id'>with_id</span> <span class='op'>=</span> <span class='id identifier rubyid_current_connection_id'>current_connection_id</span>)
+  <span class='id identifier rubyid_synchronize'>synchronize</span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_conn'>conn</span> <span class='op'>=</span> <span class='ivar'>@reserved_connections</span>.<span class='id identifier rubyid_delete'>delete</span>(<span class='id identifier rubyid_with_id'>with_id</span>)
+    <span class='id identifier rubyid_checkin'><a href="#checkin-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#checkin (method)">checkin</a></span> <span class='id identifier rubyid_conn'>conn</span> <span class='kw'>if</span> <span class='id identifier rubyid_conn'>conn</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="remove-instance_method">
+  <h3 class='signature '>
+    #<strong>remove</strong>(conn)  
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>Remove a connection from the connection pool.  The connection will remain open and active but will no longer be managed by this pool.</p>
+
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/v4.2.11.3/activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb#L376-L385'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='376' data-end='385'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb', line 376</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_remove'>remove</span>(<span class='id identifier rubyid_conn'>conn</span>)
+  <span class='id identifier rubyid_synchronize'>synchronize</span> <span class='kw'>do</span>
+    <span class='ivar'>@connections</span>.<span class='id identifier rubyid_delete'>delete</span> <span class='id identifier rubyid_conn'>conn</span>
+    <span class='ivar'>@available</span>.<span class='id identifier rubyid_delete'>delete</span> <span class='id identifier rubyid_conn'>conn</span>
+
+    <span class='id identifier rubyid_release'>release</span> <span class='id identifier rubyid_conn'>conn</span><span class='comma'>,</span> <span class='id identifier rubyid_conn'>conn</span>.<span class='id identifier rubyid_owner'>owner</span>
+
+    <span class='ivar'>@available</span>.<span class='id identifier rubyid_add'>add</span> <span class='id identifier rubyid_checkout_new_connection'>checkout_new_connection</span> <span class='kw'>if</span> <span class='ivar'>@available</span>.<span class='id identifier rubyid_any_waiting?'>any_waiting?</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="with_connection-instance_method">
+  <h3 class='signature '>
+    #<strong>with_connection</strong>  
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+<p>If a connection already exists yield it to the block. If no connection exists checkout a connection, yield it to the block, and checkin the connection when finished.</p>
+
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/v4.2.11.3/activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb#L289-L295'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='289' data-end='295'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/abstract/connection_pool.rb', line 289</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_with_connection'>with_connection</span>
+  <span class='id identifier rubyid_connection_id'>connection_id</span> <span class='op'>=</span> <span class='id identifier rubyid_current_connection_id'>current_connection_id</span>
+  <span class='id identifier rubyid_fresh_connection'>fresh_connection</span> <span class='op'>=</span> <span class='kw'>true</span> <span class='kw'>unless</span> <span class='id identifier rubyid_active_connection?'><a href="#active_connection%3F-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#active_connection? (method)">active_connection?</a></span>
+  <span class='kw'>yield</span> <span class='id identifier rubyid_connection'><a href="#connection-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#connection (method)">connection</a></span>
+<span class='kw'>ensure</span>
+  <span class='id identifier rubyid_release_connection'><a href="#release_connection-instance_method" title="ActiveRecord::ConnectionAdapters::ConnectionPool#release_connection (method)">release_connection</a></span>(<span class='id identifier rubyid_connection_id'>connection_id</span>) <span class='kw'>if</span> <span class='id identifier rubyid_fresh_connection'>fresh_connection</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>

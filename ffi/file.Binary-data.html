@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen' content='yes'>
+<meta name='mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Binary-data &mdash; FFI master</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "Binary-data",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>FFI master</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Binary-data&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<p>Consider the following Ruby code:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_string1'>string1</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Hello world</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_string2'>string2</span> <span class='op'>=</span> <span class='const'>File</span>.<span class='id identifier rubyid_read'>read</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>data.txt</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>r</span><span class='tstring_end'>&quot;</span></span>)
+<span class='id identifier rubyid_string3'>string3</span> <span class='op'>=</span> <span class='const'>File</span>.<span class='id identifier rubyid_read'>read</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>image.jpg</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>rb</span><span class='tstring_end'>&quot;</span></span>)</code></pre>
+
+<p>All three string variable are of class String, yet the data stored in <code>string3</code>
+is binary image data rather than text data.</p>
+
+<p>Check it for yourself using the <code>String#encoding</code> method. <code>string1</code> uses the
+<code>__ENCODING__</code> of the source file, which is most likely <code>Encoding::UTF_8</code>.
+<code>string2</code> uses the <code>Encoding::default_external</code> encoding, which is most likely
+<code>Encoding::UTF_8</code> as well. But <code>string3</code> uses <code>Encoding::ASCII_8BIT</code> (a.k.a.
+Encoding::BINARY).</p>
+
+<p>At the Ruby level we not not care about this because Ruby abstracts that all
+away. However, when using FFI, how to pass this data to and from C libraries
+suddenly becomes very important.</p>
+
+<h2>Passing binary data</h2>
+
+<p>If a Ruby string contains binary data, then you cannot use the following:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_example_function'>example_function</span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_string'>string</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_int'>int</span></code></pre>
+
+<p>The reason being that FFI converts a Ruby string into a C style
+(null-terminated) string. This will cause trouble if your binary data contains
+a null byte (and chances are that it will).</p>
+
+<p>When dealing with binary data, most C code will use memory buffers. The
+following example shows how a file would be read into memory for use in a
+<code>convert()</code> function in a C program:</p>
+
+<pre class="code c"><code class="c">  char                *inputName = &quot;cat.jpg&quot;;
+  FILE                *inputFile = 0;
+  unsigned char       *picBuf = 0;
+  unsigned int        picBufSize = 0;
+  int                 result = 0;
+
+  // Open the file handle for reading binary
+  inputFile = fopen(inputName, &quot;rb&quot;)
+
+  // Get the filesize
+  fseek(inputFile, 0, SEEK_END);
+  picBufSize = ftell(inputFile);
+
+  // Return to the beginning of the file and set the buffer size
+  fseek(inputFile, 0, SEEK_SET);
+  picBuf = malloc(picBufSize * sizeof(unsigned char));
+
+  // Read the data and close the file
+  fread(picBuf, 1, picBufSize, inputFile)
+  fclose(inputFile);
+
+  // Now do something with the picBuf
+  // The signature for this function is int convert(void *picBuf, unsigned int picBufSize);
+  result = convert(picBuf, picBufSize)
+
+  // ...
+
+  free(picBuf);
+</code></pre>
+
+<p>If we want to use the <code>convert()</code> function from FFI, then we will need to pass
+in the binary data directly. To do this, we need to do the following:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'>ExampleLib</span>
+  <span class='id identifier rubyid_extend'>extend</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/Library.html" title="FFI::Library (module)">Library</a></span>
+  <span class='id identifier rubyid_ffi_lib'>ffi_lib</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>example_lib.so</span><span class='tstring_end'>&quot;</span></span> 
+
+  <span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_convert'>convert</span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_uint'>uint</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_int'>int</span>
+<span class='kw'>end</span></code></pre>
+
+<p>As you can see, we&#39;ve attached the function <code>convert()</code> with a <code>:pointer</code> argument.</p>
+
+<p>Now we need to pass in a pointer to the beginning of the memory and the size of
+the allocation. We can do this as follows:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'>ExampleLib</span>
+  <span class='id identifier rubyid_extend'>extend</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/Library.html" title="FFI::Library (module)">Library</a></span>
+  <span class='id identifier rubyid_ffi_lib'>ffi_lib</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>example_lib.so</span><span class='tstring_end'>&quot;</span></span> 
+
+  <span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_convert'>convert</span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_uint'>uint</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_int'>int</span>
+
+  <span class='comment'># Convert an image
+</span>  <span class='comment'>#
+</span>  <span class='comment'># data contains the binary data to be converted.
+</span>  <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_convert_image'>convert_image</span>(<span class='id identifier rubyid_data'>data</span>)
+    <span class='id identifier rubyid_memBuf'>memBuf</span> <span class='op'>=</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/MemoryPointer.html" title="FFI::MemoryPointer (class)">MemoryPointer</a></span>.<span class='id identifier rubyid_new'><a href="FFI/MemoryPointer.html#new-class_method" title="FFI::MemoryPointer.new (method)">new</a></span>(<span class='symbeg'>:</span><span class='id identifier rubyid_char'>char</span><span class='comma'>,</span> <span class='id identifier rubyid_data'>data</span>.<span class='id identifier rubyid_bytesize'>bytesize</span>) <span class='comment'># Allocate memory sized to the data
+</span>    <span class='id identifier rubyid_memBuf'>memBuf</span>.<span class='id identifier rubyid_put_bytes'>put_bytes</span>(<span class='int'>0</span><span class='comma'>,</span> <span class='id identifier rubyid_data'>data</span>)                             <span class='comment'># Insert the data
+</span>    <span class='id identifier rubyid_convert'>convert</span>(<span class='id identifier rubyid_memBuf'>memBuf</span><span class='comma'>,</span> <span class='id identifier rubyid_data'>data</span>.<span class='id identifier rubyid_size'>size</span>)                            <span class='comment'># Call the C function
+</span>  <span class='kw'>end</span>
+<span class='kw'>end</span>
+
+<span class='id identifier rubyid_data'>data</span> <span class='op'>=</span> <span class='const'>File</span>.<span class='id identifier rubyid_read'>read</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>cat.jpg</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>rb</span><span class='tstring_end'>&quot;</span></span>)
+<span class='const'>ExampleLib</span>.<span class='id identifier rubyid_convert_image'>convert_image</span>(<span class='id identifier rubyid_data'>data</span>)</code></pre>
+
+<p>Note that, because this is binary data (possibly containing null bytes),
+<code>MemoryPointer#put_bytes</code> must be used instead of <code>MemoryPointer#put_string</code>.</p>
+
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>

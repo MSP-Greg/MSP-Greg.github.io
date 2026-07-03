@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen' content='yes'>
+<meta name='mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Rails On Rack &mdash; Rails main</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "rails_on_rack",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>Rails main</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Rails On Rack&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<p><strong>DO NOT READ THIS FILE ON GITHUB, GUIDES ARE PUBLISHED ON <a href="https://guides.rubyonrails.org">https://guides.rubyonrails.org</a>.</strong></p>
+<h1 id="Rails_on_Rack_"><a href="Rails.html" title="Rails (module)"><code>Rails</code></a> on <a href="Rack.html" title="Rack (module)"><code>Rack</code></a></h1>
+<p>This guide covers Rails' integration with <a href='https://en.wikipedia.org/wiki/Rack_(web_server_interface'>Rack</a>). After reading this guide, you will know:</p>
+<ul>
+<li>What Rack is and why <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> uses it.</li>
+<li>How Rails uses <a href="Rack.html" title="Rack (module)"><code>Rack</code></a> middleware to build an application stack.</li>
+<li>Action Pack's internal middleware stack.</li>
+<li>How to configure and change the middleware stack.</li>
+<li>The underlying <a href="Rack.html" title="Rack (module)"><code>Rack</code></a> API exposed by <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> controllers.</li>
+</ul>
+<hr />
+<h2 id="Introduction_to_Rack_">Introduction to <a href="Rack.html" title="Rack (module)"><code>Rack</code></a></h2>
+<p><a href="Rack.html" title="Rack (module)"><code>Rack</code></a> provides a modular interface for developing web applications in Ruby. By wrapping HTTP requests and responses using a conventional structure, it unifies the API for web servers, web frameworks, and software in between (known as middleware) into a single method call.</p>
+<p>This allows <a href="Rack.html" title="Rack (module)"><code>Rack</code></a> compliant web servers like <a href='https://socketry.github.io/falcon/'>Puma](<a href="https://puma.io">https://puma.io</a>) or [Falcon</a> to be interchangeably used with any <a href="Rack.html" title="Rack (module)"><code>Rack</code></a> based web framework such as <a href="Rails.html" title="Rails (module)"><code>Rails</code></a>.</p>
+<p>Before diving into how <a href="Rails.html" title="Rails (module)"><code>Rails</code></a> integrates with <a href="Rack.html" title="Rack (module)"><code>Rack</code></a>, let's look at <a href="Rack.html" title="Rack (module)"><code>Rack</code></a> itself.</p>
+<h3 id="A_Basic_Rack_Application">A Basic Rack Application</h3>
+<p>A Rack app is an object which implements a <code>call</code> method. It is passed an <a href='https://github.com/rack/rack/blob/main/SPEC.rdoc#the-request-environment'><code>env</code>&lt;/a&gt; hash, known as the <a href="Rack.html" title="Rack (module)"><code>Rack</code></a> environment.</p>
+<p>Here's an example of a barebones <a href="Rack.html" title="Rack (module)"><code>Rack</code></a> app:</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>App</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_call'>call</span>(<span class='id identifier rubyid_env'>env</span>)
+    [<span class='int'>200</span><span class='comma'>,</span> { <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>content-type</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>text/plain</span><span class='tstring_end'>&quot;</span></span> }<span class='comma'>,</span> [<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Hello World</span><span class='tstring_end'>&quot;</span></span>]]
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+
+<span class='id identifier rubyid_run'>run</span> <span class='const'>App</span>.<span class='id identifier rubyid_new'>new</span></code></pre>
+<p>When an HTTP request is made, the Rack-compliant web server parses it to create the <code>env</code> hash, and calls the application with <code>env</code>. The <code>call</code> method must return an array with exactly three elements, representing the HTTP response:</p>
+<ol>
+<li>The HTTP response code (<code>200</code> in the above example).</li>
+<li>A hash containing any HTTP response headers we wish to send.</li>
+<li>An enumerable object that yields strings, representing the response body.</li>
+</ol>
+<p>Rack applications are generally run using the web server's command line program, with the entry point for the application being stored in a <code>config.ru</code> file:</p>
+<pre class="code bash"><code class="bash">$ cat &gt; config.ru &lt;&lt; APP
+rack_app = lambda do |env|
+  [200, { &quot;content-type&quot; =&gt; &quot;text/plain&quot; }, [&quot;Hello World&quot;]]
+end
+run rack_app
+APP
+$ gem install puma
+$ puma
+</code></pre>
+<p>Your app should be available at <a href="http://localhost:9292">http://localhost:9292</a>.</p>
+<pre class="code bash"><code class="bash">$ curl localhost:9292
+Hello World
+</code></pre>
+<h3 id="Rack_Middleware">Rack Middleware</h3>
+<p>Rack applications can be wrapped using <em>middleware</em> which may operate upon a request before it reaches the main application, and again after the application has returned a response to the request. Middleware is usually used for tasks like logging, caching, authentication, and measuring performance.</p>
+<p>A Rack middleware must have a <code>new</code> method that accepts the Rack app and any arguments used to configure the middleware. The <code>new</code> method must return a Rack application that responds to <code>call</code>. Typically, Rack middleware are classes, and each instance of the middleware wraps access to the related application:</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>MyMiddleware</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span>(<span class='id identifier rubyid_app'>app</span>)
+    <span class='ivar'>@app</span> <span class='op'>=</span> <span class='id identifier rubyid_app'>app</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_call'>call</span>(<span class='id identifier rubyid_env'>env</span>)
+    <span class='comment'># Operations before the request hits the main application
+</span>    <span class='comment'># -------------------------------------------------------
+</span>
+    <span class='comment'># Propagate the request down the middleware stack
+</span>    <span class='id identifier rubyid_status'>status</span><span class='comma'>,</span> <span class='id identifier rubyid_headers'>headers</span><span class='comma'>,</span> <span class='id identifier rubyid_body'>body</span> <span class='op'>=</span> <span class='ivar'>@app</span>.<span class='id identifier rubyid_call'>call</span>(<span class='id identifier rubyid_env'>env</span>)
+
+    <span class='comment'># ---------------------------------------
+</span>    <span class='comment'># Operations after the request comes back
+</span>
+    <span class='comment'># Propagate the response up the middleware stack
+</span>    [<span class='id identifier rubyid_status'>status</span><span class='comma'>,</span> <span class='id identifier rubyid_headers'>headers</span><span class='comma'>,</span> <span class='id identifier rubyid_body'>body</span>]
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+<p>Middleware can short-circuit the stack by skipping <code>@app.call</code> completely and returning a response by itself. This means the request never hits the main application or the remaining middleware in the stack. A middleware to authenticate a request might use this technique.</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>AuthenticateRequest</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span>(<span class='id identifier rubyid_app'>app</span>)
+    <span class='ivar'>@app</span> <span class='op'>=</span> <span class='id identifier rubyid_app'>app</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_call'>call</span>(<span class='id identifier rubyid_env'>env</span>)
+    <span class='kw'>if</span> <span class='id identifier rubyid_authenticated?'>authenticated?</span>(<span class='id identifier rubyid_env'>env</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>HTTP_AUTHORIZATION</span><span class='tstring_end'>&quot;</span></span>])
+      <span class='ivar'>@app</span>.<span class='id identifier rubyid_call'>call</span>(<span class='id identifier rubyid_env'>env</span>)
+    <span class='kw'>else</span>
+      [<span class='int'>401</span><span class='comma'>,</span> { <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>content-type</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>text/plain</span><span class='tstring_end'>&quot;</span></span> }<span class='comma'>,</span> [<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Authentication failed</span><span class='tstring_end'>&quot;</span></span>]]
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_authenticated?'>authenticated?</span>(<span class='id identifier rubyid_token'>token</span>)
+    <span class='comment'># ...
+</span>  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+<p>Middleware is added to a Rack app with <code>use</code>:</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>AuthenticateRequest</span>
+  <span class='comment'># ...
+</span><span class='kw'>end</span>
+
+<span class='kw'>class</span> <span class='const'>App</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_call'>call</span>(<span class='id identifier rubyid_env'>env</span>)
+    [<span class='int'>200</span><span class='comma'>,</span> { <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>content-type</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>text/plain</span><span class='tstring_end'>&quot;</span></span> }<span class='comma'>,</span> [<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Hello World</span><span class='tstring_end'>&quot;</span></span>]]
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+
+<span class='id identifier rubyid_use'>use</span> <span class='const'>AuthenticateRequest</span>
+<span class='id identifier rubyid_run'>run</span> <span class='const'>App</span>.<span class='id identifier rubyid_new'>new</span></code></pre>
+<p>This DSL to construct Rack applications is provided by <a href='https://rack.github.io/rack/'><code>Rack::Builder</code>][]. For further information about Rack, consult the <a href='https://rack.github.io/rack/main/SPEC_rdoc.html'>Rack specification</a> and [Rack Website</a>.</p>
+<h2 id="Rails_on_Rack">Rails on Rack</h2>
+<h3 id="The_Primary_Rack_Object">The Primary Rack Object</h3>
+<p><a href="Rails.html#application-class_method" title="Rails.application (method)">Rails.application</a> is the <em>primary Rack application object</em> of a Rails
+application. A Rack compliant web server should use the <a href="Rails.html#application-class_method" title="Rails.application (method)">Rails.application</a> object to serve a Rails application.</p>
+<h3 id="Starting_the_Rails_Server">Starting the Rails Server</h3>
+<p>Rails subclasses <code>Rackup::Server</code> to create <a href="Rails/Server.html" title="Rails::Server (class)"><code>::Rails::Server</code></a>. <code>bin/rails server</code> instantiates a <a href="Rails/Server.html" title="Rails::Server (class)"><code>::Rails::Server</code></a> object and starts the web server.</p>
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span><span class='op'>::</span><span class='const'><a href="Rails/Server.html" title="Rails::Server (class)">Server</a></span>.<span class='id identifier rubyid_new'><a href="Rails/Server.html#new-class_method" title="Rails::Server.new (method)">new</a></span>.<span class='id identifier rubyid_tap'>tap</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_server'>server</span><span class='op'>|</span>
+  <span class='id identifier rubyid_require'>require</span> <span class='const'><a href="#APP_PATH-constant" title="APP_PATH (constant)">APP_PATH</a></span>
+  <span class='const'>Dir</span>.<span class='id identifier rubyid_chdir'>chdir</span>(<span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_root'>root</span>)
+  <span class='id identifier rubyid_server'>server</span>.<span class='id identifier rubyid_start'>start</span>
+<span class='kw'>end</span></code></pre>
+<p>See the <a href='file.initialization.html#initialization_guide'>initialization guide</a> for further information on how the server starts up.</p>
+<h2 id="Action_Dispatch_Middleware_Stack">Action Dispatch Middleware Stack</h2>
+<p><a href="ActionDispatch/MiddlewareStack.html" title="ActionDispatch::MiddlewareStack (class)"><code>::ActionDispatch::MiddlewareStack</code></a> is Rails' equivalent of [<code>Rack::Builder</code>][]. It's built with more flexibility and features to meet Rails' requirements.</p>
+<p><a href="Rails/Application.html" title="Rails::Application (class)"><code>::Rails::Application</code></a> uses <a href="ActionDispatch/MiddlewareStack.html" title="ActionDispatch::MiddlewareStack (class)"><code>::ActionDispatch::MiddlewareStack</code></a> to combine internal and external middleware to build the stack which forms a complete Rack application using Rails.</p>
+<h3 id="Inspecting_the_Middleware_Stack">Inspecting the Middleware Stack</h3>
+<p>View the middleware stack by running:</p>
+<pre class="code bash"><code class="bash">$ bin/rails middleware
+</code></pre>
+<p>Here's an example from a freshly generated Rails app:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_use'>use</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/HostAuthorization.html" title="ActionDispatch::HostAuthorization (class)">HostAuthorization</a></span>
+<span class='id identifier rubyid_use'>use</span> <span class='const'><a href="Rack.html" title="Rack (module)">Rack</a></span><span class='op'>::</span><span class='const'>Sendfile</span>
+<span class='id identifier rubyid_use'>use</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/Static.html" title="ActionDispatch::Static (class)">Static</a></span>
+<span class='id identifier rubyid_use'>use</span> <span class='const'>Propshaft</span><span class='op'>::</span><span class='const'>Server</span>
+<span class='id identifier rubyid_use'>use</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/Executor.html" title="ActionDispatch::Executor (class)">Executor</a></span>
+<span class='id identifier rubyid_use'>use</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/ServerTiming.html" title="ActionDispatch::ServerTiming (class)">ServerTiming</a></span>
+<span class='id identifier rubyid_use'>use</span> <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/Cache.html" title="ActiveSupport::Cache (module)">Cache</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/Cache/Strategy.html" title="ActiveSupport::Cache::Strategy (module)">Strategy</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/Cache/Strategy/LocalCache.html" title="ActiveSupport::Cache::Strategy::LocalCache (module)">LocalCache</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/Cache/Strategy/LocalCache/Middleware.html" title="ActiveSupport::Cache::Strategy::LocalCache::Middleware (class)">Middleware</a></span>
+<span class='id identifier rubyid_use'>use</span> <span class='const'><a href="Rack.html" title="Rack (module)">Rack</a></span><span class='op'>::</span><span class='const'>Runtime</span>
+<span class='id identifier rubyid_use'>use</span> <span class='const'><a href="Rack.html" title="Rack (module)">Rack</a></span><span class='op'>::</span><span class='const'>MethodOverride</span>
+<span class='id identifier rubyid_use'>use</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/RequestId.html" title="ActionDispatch::RequestId (class)">RequestId</a></span>
+<span class='id identifier rubyid_use'>use</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/RemoteIp.html" title="ActionDispatch::RemoteIp (class)">RemoteIp</a></span>
+<span class='id identifier rubyid_use'>use</span> <span class='const'>Propshaft</span><span class='op'>::</span><span class='const'>QuietAssets</span>
+<span class='id identifier rubyid_use'>use</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span><span class='op'>::</span><span class='const'><a href="Rails/Rack.html" title="Rails::Rack (module)">Rack</a></span><span class='op'>::</span><span class='const'><a href="Rails/Rack/Logger.html" title="Rails::Rack::Logger (class)">Logger</a></span>
+<span class='id identifier rubyid_use'>use</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/ShowExceptions.html" title="ActionDispatch::ShowExceptions (class)">ShowExceptions</a></span>
+<span class='id identifier rubyid_use'>use</span> <span class='const'>WebConsole</span><span class='op'>::</span><span class='const'>Middleware</span>
+<span class='id identifier rubyid_use'>use</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/DebugExceptions.html" title="ActionDispatch::DebugExceptions (class)">DebugExceptions</a></span>
+<span class='id identifier rubyid_use'>use</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/ActionableExceptions.html" title="ActionDispatch::ActionableExceptions (class)">ActionableExceptions</a></span>
+<span class='id identifier rubyid_use'>use</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/Reloader.html" title="ActionDispatch::Reloader (class)">Reloader</a></span>
+<span class='id identifier rubyid_use'>use</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/Callbacks.html" title="ActionDispatch::Callbacks (class)">Callbacks</a></span>
+<span class='id identifier rubyid_use'>use</span> <span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/Migration.html" title="ActiveRecord::Migration (class)">Migration</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/Migration/CheckPending.html" title="ActiveRecord::Migration::CheckPending (class)">CheckPending</a></span>
+<span class='id identifier rubyid_use'>use</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/Cookies.html" title="ActionDispatch::Cookies (class)">Cookies</a></span>
+<span class='id identifier rubyid_use'>use</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/Session.html" title="ActionDispatch::Session (module)">Session</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/Session/CookieStore.html" title="ActionDispatch::Session::CookieStore (class)">CookieStore</a></span>
+<span class='id identifier rubyid_use'>use</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/Flash.html" title="ActionDispatch::Flash (class)">Flash</a></span>
+<span class='id identifier rubyid_use'>use</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/ContentSecurityPolicy.html" title="ActionDispatch::ContentSecurityPolicy (class)">ContentSecurityPolicy</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/ContentSecurityPolicy/Middleware.html" title="ActionDispatch::ContentSecurityPolicy::Middleware (class)">Middleware</a></span>
+<span class='id identifier rubyid_use'>use</span> <span class='const'><a href="Rack.html" title="Rack (module)">Rack</a></span><span class='op'>::</span><span class='const'>Head</span>
+<span class='id identifier rubyid_use'>use</span> <span class='const'><a href="Rack.html" title="Rack (module)">Rack</a></span><span class='op'>::</span><span class='const'>ConditionalGet</span>
+<span class='id identifier rubyid_use'>use</span> <span class='const'><a href="Rack.html" title="Rack (module)">Rack</a></span><span class='op'>::</span><span class='const'>ETag</span>
+<span class='id identifier rubyid_use'>use</span> <span class='const'><a href="Rack.html" title="Rack (module)">Rack</a></span><span class='op'>::</span><span class='const'>TempfileReaper</span>
+<span class='id identifier rubyid_run'>run</span> <span class='const'>MyApp</span><span class='op'>::</span><span class='const'>Application</span>.<span class='id identifier rubyid_routes'>routes</span></code></pre>
+<p>The <a href='#Internal_Middleware_Stack'>Internal Middleware Stack</a> section below summarizes the default middleware components depicted above.</p>
+<h3 id="Configuring_the_Middleware_Stack">Configuring the Middleware Stack</h3>
+<p>Rails provides a configuration interface <a href='https://api.rubyonrails.org/classes/Rails/Configuration/MiddlewareStackProxy.html'><code>config.middleware</code>&lt;/a&gt; for adding, removing, and modifying the middleware stack via <code>application.rb</code> or the environment specific configuration file <code>environments/<environment>.rb</code>.</p>
+<h4 id="Adding_Middleware">Adding Middleware</h4>
+<p>There are three methods to add new middleware to the stack.</p>
+<ul>
+<li>
+<p><code>config.middleware.use(new_middleware, args)</code>: Adds the new middleware at the bottom of the middleware stack.</p>
+</li>
+<li>
+<p><code>config.middleware.insert_before(existing_middleware, new_middleware, args)</code>: Adds the new middleware before the specified existing middleware in the middleware stack.</p>
+</li>
+<li>
+<p><code>config.middleware.insert_after(existing_middleware, new_middleware, args)</code>: Adds the new middleware after the specified existing middleware in the middleware stack.</p>
+</li>
+</ul>
+<p>Example usage:</p>
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/application.rb
+</span>
+<span class='comment'># Push `Rack::BounceFavicon` at the bottom
+</span><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_middleware'>middleware</span>.<span class='id identifier rubyid_use'>use</span> <span class='const'><a href="Rack.html" title="Rack (module)">Rack</a></span><span class='op'>::</span><span class='const'>BounceFavicon</span>
+
+<span class='comment'># Add `Lifo::Cache` after `ActionDispatch::Executor`.
+</span><span class='comment'># Pass { page_cache: false } argument to Lifo::Cache.
+</span><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_middleware'>middleware</span>.<span class='id identifier rubyid_insert_after'>insert_after</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/Executor.html" title="ActionDispatch::Executor (class)">Executor</a></span><span class='comma'>,</span> <span class='const'>Lifo</span><span class='op'>::</span><span class='const'>Cache</span><span class='comma'>,</span> <span class='label'>page_cache:</span> <span class='kw'>false</span></code></pre>
+<h4 id="Swapping_Middleware">Swapping Middleware</h4>
+<p>Swap middleware using <code>config.middleware.swap</code>.</p>
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/application.rb
+</span>
+<span class='comment'># Replace `ActionDispatch::ShowExceptions` with `Lifo::ShowExceptions`
+</span><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_middleware'>middleware</span>.<span class='id identifier rubyid_swap'>swap</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/ShowExceptions.html" title="ActionDispatch::ShowExceptions (class)">ShowExceptions</a></span><span class='comma'>,</span> <span class='const'>Lifo</span><span class='op'>::</span><span class='const'>ShowExceptions</span></code></pre>
+<h4 id="Moving_Middleware">Moving Middleware</h4>
+<p>Move existing middleware components in the stack using <code>config.middleware.move_before</code> or <code>config.middleware.move_after</code>.</p>
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/application.rb
+</span>
+<span class='comment'># Move ActionDispatch::ShowExceptions to before Lifo::ShowExceptions
+</span><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_middleware'>middleware</span>.<span class='id identifier rubyid_move_before'>move_before</span> <span class='const'>Lifo</span><span class='op'>::</span><span class='const'>ShowExceptions</span><span class='comma'>,</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/ShowExceptions.html" title="ActionDispatch::ShowExceptions (class)">ShowExceptions</a></span></code></pre>
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/application.rb
+</span>
+<span class='comment'># Move ActionDispatch::ShowExceptions to after Lifo::ShowExceptions
+</span><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_middleware'>middleware</span>.<span class='id identifier rubyid_move_after'>move_after</span> <span class='const'>Lifo</span><span class='op'>::</span><span class='const'>ShowExceptions</span><span class='comma'>,</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/ShowExceptions.html" title="ActionDispatch::ShowExceptions (class)">ShowExceptions</a></span></code></pre>
+<h4 id="Deleting_Middleware">Deleting Middleware</h4>
+<p>Delete middleware using <code>config.middleware.delete</code>.</p>
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/application.rb
+</span><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_middleware'>middleware</span>.<span class='id identifier rubyid_delete'>delete</span> <span class='const'><a href="Rack.html" title="Rack (module)">Rack</a></span><span class='op'>::</span><span class='const'>Runtime</span></code></pre>
+<p>Using <code>delete!</code> will raise an error if the middleware component doesn't exist.</p>
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/application.rb
+</span>
+<span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_middleware'>middleware</span>.<span class='id identifier rubyid_delete!'>delete!</span> <span class='const'>Some</span><span class='op'>::</span><span class='const'>NonExistentMiddleware</span></code></pre>
+<h3 id="Reloading_the_Middleware_Stack">Reloading the Middleware Stack</h3>
+<p>The middleware stack is loaded once and isn't monitored for changes. Restart your server after making changes to your middleware stack.</p>
+<h3 id="Internal_Middleware_Stack">Internal Middleware Stack</h3>
+<p>Much of Action Controller's functionality is implemented as middleware. The following list explains the purpose of each of them:</p>
+<h4 id="ActionDispatch_ActionableExceptions_"><a href="ActionDispatch/ActionableExceptions.html" title="ActionDispatch::ActionableExceptions (class)"><code>::ActionDispatch::ActionableExceptions</code></a></h4>
+<p>[<code>ActionDispatch::ActionableExceptions</code>][] provides a way to dispatch actions from Rails' error pages if the request is local.</p>
+<h4 id="ActionDispatch_Callbacks_"><a href="ActionDispatch/Callbacks.html" title="ActionDispatch::Callbacks (class)"><code>::ActionDispatch::Callbacks</code></a></h4>
+<p>[<code>ActionDispatch::Callbacks</code>][] provides callbacks to be executed before and after dispatching the request.</p>
+<h4 id="ActionDispatch_ContentSecurityPolicy_Middleware_"><a href="ActionDispatch/ContentSecurityPolicy/Middleware.html" title="ActionDispatch::ContentSecurityPolicy::Middleware (class)"><code>::ActionDispatch::ContentSecurityPolicy::Middleware</code></a></h4>
+<p><a href='file.security.html#ActionDispatch_ContentSecurityPolicy_Middleware_provides_a_DSL_to_configure_a_Content_Security_Policy_header_See_Securing_Rails_Applications'><code>ActionDispatch::ContentSecurityPolicy::Middleware</code>][] provides a DSL to configure a <code>Content-Security-Policy</code> header. See [Securing Rails Applications</a> for further information.</p>
+<h4 id="ActionDispatch_Cookies_"><a href="ActionDispatch/Cookies.html" title="ActionDispatch::Cookies (class)"><code>::ActionDispatch::Cookies</code></a></h4>
+<p>[<code>ActionDispatch::Cookies</code>][] reads cookie data from the request and writes cookie data on the response.</p>
+<h4 id="ActionDispatch_DebugExceptions_"><a href="ActionDispatch/DebugExceptions.html" title="ActionDispatch::DebugExceptions (class)"><code>::ActionDispatch::DebugExceptions</code></a></h4>
+<p>[<code>ActionDispatch::DebugExceptions</code>][] is responsible for logging exceptions and showing a debugging page if the request is local.</p>
+<h4 id="ActionDispatch_Executor_"><a href="ActionDispatch/Executor.html" title="ActionDispatch::Executor (class)"><code>::ActionDispatch::Executor</code></a></h4>
+<p>[<code>ActionDispatch::Executor</code>][] ensures thread safe code reloading during development.</p>
+<h4 id="ActionDispatch_Flash_"><a href="ActionDispatch/Flash.html" title="ActionDispatch::Flash (class)"><code>::ActionDispatch::Flash</code></a></h4>
+<p>[<code>ActionDispatch::Flash</code>][] sets up the flash keys. Only available if [<code>config.session_store</code>][] is set to a value.</p>
+<h4 id="ActionDispatch_HostAuthorization_"><a href="ActionDispatch/HostAuthorization.html" title="ActionDispatch::HostAuthorization (class)"><code>::ActionDispatch::HostAuthorization</code></a></h4>
+<p><a href='file.configuring.html#ActionDispatch_HostAuthorization_prevents_DNS_rebinding_attacks_by_restricting_the_hosts_to_which_a_request_can_be_sent_See_the_configuration_guide'><code>ActionDispatch::HostAuthorization</code>][] prevents DNS rebinding attacks by restricting the hosts to which a request can be sent. See the [configuration guide</a> for configuration instructions.</p>
+<h4 id="ActionDispatch_Reloader_"><a href="ActionDispatch/Reloader.html" title="ActionDispatch::Reloader (class)"><code>::ActionDispatch::Reloader</code></a></h4>
+<p>[<code>ActionDispatch::Reloader</code>][] provides prepare and cleanup callbacks, intended to assist with code reloading during development.</p>
+<h4 id="ActionDispatch_RemoteIp_"><a href="ActionDispatch/RemoteIp.html" title="ActionDispatch::RemoteIp (class)"><code>::ActionDispatch::RemoteIp</code></a></h4>
+<p>[<code>ActionDispatch::RemoteIp</code>][] checks for IP spoofing attacks.</p>
+<h4 id="ActionDispatch_RequestId_"><a href="ActionDispatch/RequestId.html" title="ActionDispatch::RequestId (class)"><code>::ActionDispatch::RequestId</code></a></h4>
+<p>[<code>ActionDispatch::RequestId</code>][] makes a unique <code>X-Request-Id</code> header available to the request and enables the <a href="ActionDispatch/Request.html#request_id-instance_method" title="ActionDispatch::Request#request_id (method)">ActionDispatch::Request#request_id</a> method.</p>
+<p>The unique request id can be used to trace a request end-to-end and would typically end up being part of log files from multiple pieces of the stack.</p>
+<h4 id="ActionDispatch_ServerTiming_"><a href="ActionDispatch/ServerTiming.html" title="ActionDispatch::ServerTiming (class)"><code>::ActionDispatch::ServerTiming</code></a></h4>
+<p><a href='https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Server-Timing'><code>ActionDispatch::ServerTiming</code>][] sets a [<code>Server-Timing</code>&lt;/a&gt; header containing performance metrics for the request.</p>
+<h4 id="ActionDispatch_Session_CookieStore_"><a href="ActionDispatch/Session/CookieStore.html" title="ActionDispatch::Session::CookieStore (class)"><code>::ActionDispatch::Session::CookieStore</code></a></h4>
+<p>[<code>ActionDispatch::Session::CookieStore</code>][] is responsible for storing the session in cookies.</p>
+<h4 id="ActionDispatch_ShowExceptions_"><a href="ActionDispatch/ShowExceptions.html" title="ActionDispatch::ShowExceptions (class)"><code>::ActionDispatch::ShowExceptions</code></a></h4>
+<p>[<code>ActionDispatch::ShowExceptions</code>][] rescues any exception returned by the application and calls an exceptions app that will wrap it in a format for the end user.</p>
+<h4 id="ActionDispatch_Static_"><a href="ActionDispatch/Static.html" title="ActionDispatch::Static (class)"><code>::ActionDispatch::Static</code></a></h4>
+<p>[<code>ActionDispatch::Static</code>][] serves static files from the <code>public</code> folder. Disabled when [<code>config.public_file_server.enabled</code>][] is <code>false</code>.</p>
+<h4 id="ActiveRecord_Migration_CheckPending_"><a href="ActiveRecord/Migration/CheckPending.html" title="ActiveRecord::Migration::CheckPending (class)"><code>::ActiveRecord::Migration::CheckPending</code></a></h4>
+<p>[<code>ActiveRecord::Migration::CheckPending</code>][] checks pending migrations and raises <a href="ActiveRecord/PendingMigrationError.html" title="ActiveRecord::PendingMigrationError (class)"><code>::ActiveRecord::PendingMigrationError</code></a> if any migrations are pending if [<code>config.action_dispatch.x_sendfile_header</code>][] is set to <code>:page_load</code>.</p>
+<h4 id="ActiveSupport_Cache_Strategy_LocalCache_Middleware_"><a href="ActiveSupport/Cache/Strategy/LocalCache/Middleware.html" title="ActiveSupport::Cache::Strategy::LocalCache::Middleware (class)"><code>::ActiveSupport::Cache::Strategy::LocalCache::Middleware</code></a></h4>
+<p>[<code>ActiveSupport::Cache::Strategy::LocalCache::Middleware</code>][] is the middleware for the in-memory local cache. This cache is not thread safe and is intended only for serving as a temporary memory cache for a single thread.</p>
+<h4 id="Propshaft_QuietAssets_"><code>Propshaft::QuietAssets</code></h4>
+<p>[<code>Propshaft::QuietAssets</code>][] suppresses logger output for asset requests.</p>
+<h4 id="Rack_ConditionalGet_"><code>Rack::ConditionalGet</code></h4>
+<p>[<code>Rack::ConditionalGet</code>][] enables &quot;Conditional <code>GET</code>&quot; requests using if-none-match and if-modified-since. If the requested page wasn't changed returns a 304 Not Modified and an empty body.</p>
+<h4 id="Rack_ETag_"><code>Rack::ETag</code></h4>
+<p><a href='file.caching_with_rails.html#Rack_ETag_adds_an_ETag_header_on_all_String_bodies_ETags_are_used_to_validate_the_cache_to_facilitate_Conditional_GET_requests_as_described_above_See_the_Caching_with_Rails'><code>Rack::ETag</code>][] adds an <code>ETag</code> header on all String bodies. ETags are used to validate the cache to facilitate &quot;Conditional <code>GET</code>&quot; requests as described above. See the [Caching with Rails</a> for further information.</p>
+<h4 id="Rack_Head_"><code>Rack::Head</code></h4>
+<p>[<code>Rack::Head</code>][] returns an empty body for all <code>HEAD</code> requests. It leaves all other requests unchanged.</p>
+<h4 id="Rack_Lock_"><code>Rack::Lock</code></h4>
+<p>[<code>Rack::Lock</code>][] locks every request inside a mutex, so that every request will effectively be executed synchronously.</p>
+<h4 id="Rack_MethodOverride_"><code>Rack::MethodOverride</code></h4>
+<p>[<code>Rack::MethodOverride</code>][] allows the method to be overridden if <code><a href=":_method">params</a></code> is set. This is how Rails supports <code>PUT</code>, <code>PATCH</code>, and <code>DELETE</code> HTTP methods since they are not browser native.</p>
+<h4 id="Rack_Runtime_"><code>Rack::Runtime</code></h4>
+<p>[<code>Rack::Runtime</code>][] sets an <code>X-Runtime</code> header, containing the time (in seconds) taken to execute the request.</p>
+<h4 id="Rack_Sendfile_"><code>Rack::Sendfile</code></h4>
+<p>[<code>Rack::Sendfile</code>] sets a server specific <code>X-Sendfile</code> header. This is useful for accelerated file sending if you use a reverse proxy server like Apache or Nginx. For example it can be set to 'X-Sendfile' for Apache. Configure this via [<code>config.action_dispatch.x_sendfile_header</code>][] option.</p>
+<h4 id="Rack_TempfileReaper_"><code>Rack::TempfileReaper</code></h4>
+<p>[<code>Rack::TempfileReaper</code>][] cleans up tempfiles used to buffer multipart requests.</p>
+<h4 id="Rails_Rack_Logger_"><a href="Rails/Rack/Logger.html" title="Rails::Rack::Logger (class)"><code>::Rails::Rack::Logger</code></a></h4>
+<p>[<code>Rails::Rack::Logger</code>][] notifies the logs that the request has begun. After the request is complete, flushes all the logs.</p>
+<p>TIP: You can use any of the above middleware in a custom Rack stack.</p>
+<h2 id="Custom_Middleware">Custom Middleware</h2>
+<p>You can create your own middleware and include it in your Rails app.</p>
+<h3 id="Creating_Middleware">Creating Middleware</h3>
+<p>Custom middleware files should be placed in the <code>lib/</code> folder and <code>require</code>d manually since middleware is not auto-reloaded.</p>
+<p>The below example reads the <code>locale</code> value from the URL params and stores it in the Rack <code>env</code>. It then deletes it from the query parameters so it isn't included in the <code>params</code> hash keeping it decluttered when the request hits the controller.</p>
+<pre class="code ruby"><code class="ruby"><span class='comment'># lib/middleware/extract_locale.rb
+</span>
+<span class='kw'>module</span> <span class='const'>RackMiddleware</span>
+  <span class='kw'>class</span> <span class='const'>ExtractLocale</span>
+    <span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span>(<span class='id identifier rubyid_app'>app</span>)
+      <span class='ivar'>@app</span> <span class='op'>=</span> <span class='id identifier rubyid_app'>app</span>
+    <span class='kw'>end</span>
+
+    <span class='kw'>def</span> <span class='id identifier rubyid_call'>call</span>(<span class='id identifier rubyid_env'>env</span>)
+      <span class='id identifier rubyid_request'>request</span> <span class='op'>=</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/Request.html" title="ActionDispatch::Request (class)">Request</a></span>.<span class='id identifier rubyid_new'><a href="ActionDispatch/Request.html#new-class_method" title="ActionDispatch::Request.new (method)">new</a></span>(<span class='id identifier rubyid_env'>env</span>)
+      <span class='kw'>if</span> <span class='id identifier rubyid_request'>request</span>.<span class='id identifier rubyid_params'>params</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>locale</span><span class='tstring_end'>&quot;</span></span>].<span class='id identifier rubyid_present?'>present?</span>
+        <span class='id identifier rubyid_env'>env</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>myapp.locale</span><span class='tstring_end'>&quot;</span></span>] <span class='op'>=</span> <span class='id identifier rubyid_env'>env</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>action_dispatch.request.query_parameters</span><span class='tstring_end'>&quot;</span></span>][<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>locale</span><span class='tstring_end'>&quot;</span></span>]
+
+        <span class='id identifier rubyid_env'>env</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>action_dispatch.request.query_parameters</span><span class='tstring_end'>&quot;</span></span>].<span class='id identifier rubyid_delete'>delete</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>locale</span><span class='tstring_end'>&quot;</span></span>)
+        <span class='id identifier rubyid_env'>env</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>action_dispatch.request.parameters</span><span class='tstring_end'>&quot;</span></span>].<span class='id identifier rubyid_delete'>delete</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>locale</span><span class='tstring_end'>&quot;</span></span>)
+      <span class='kw'>end</span>
+
+      <span class='ivar'>@app</span>.<span class='id identifier rubyid_call'>call</span>(<span class='id identifier rubyid_env'>env</span>)
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+<p>Rails doesn't create the <code>lib/middleware/</code> folder by default, so you'll need to create it yourself. Excluding it from the autoload path is recommended to prevent auto-loading issues.</p>
+<pre class="code ruby#7"><code class="ruby#7"># config/application.rb
+
+module MyApp
+  class Application &lt; Rails::Application
+    # ...
+
+    config.autoload_lib(ignore: %w[assets tasks middleware])
+
+    # ...
+  end
+end
+</code></pre>
+<h3 id="Adding_Custom_Middleware_to_the_Stack">Adding Custom Middleware to the Stack</h3>
+<p>Custom middleware can be added in <code>application.rb</code></p>
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/application.rb
+</span>
+<span class='comment'># ...
+</span>
+<span class='id identifier rubyid_require_relative'>require_relative</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>../lib/middleware/extract_locale</span><span class='tstring_end'>&quot;</span></span>
+
+<span class='kw'>module</span> <span class='const'>MyApp</span>
+  <span class='kw'>class</span> <span class='const'>Application</span> <span class='op'>&lt;</span> <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span><span class='op'>::</span><span class='const'><a href="Rails/Application.html" title="Rails::Application (class)">Application</a></span>
+    <span class='comment'># ...
+</span>
+    <span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_middleware'>middleware</span>.<span class='id identifier rubyid_use'>use</span> <span class='const'>RackMiddleware</span><span class='op'>::</span><span class='const'>ExtractLocale</span>
+
+    <span class='comment'># ...
+</span>  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+<p>or within a standalone initializer.</p>
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/initializers/extract_locale.rb
+</span>
+<span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_root'><a href="Rails.html#root-class_method" title="Rails.root (method)">root</a></span>.<span class='id identifier rubyid_join'>join</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>lib</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>middleware</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>extract_locale</span><span class='tstring_end'>&quot;</span></span>)<span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
+
+<span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_middleware'>middleware</span>.<span class='id identifier rubyid_use'>use</span> <span class='const'>RackMiddleware</span><span class='op'>::</span><span class='const'>ExtractLocale</span></code></pre>
+<h2 id="Accessing_Rack_Internals_in_Rails">Accessing Rack Internals in Rails</h2>
+<p>The underlying Rack API can be used within Rails controllers.</p>
+<h3 id="Accessing_the_Rack_env_">Accessing the Rack <code>env</code></h3>
+<p>The Rack <code>env</code> hash is available in Rails controllers using <code>request.env</code>.</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>HomeController</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_index'>index</span>
+    <span class='id identifier rubyid_user_agent'>user_agent</span> <span class='op'>=</span> <span class='id identifier rubyid_request'>request</span>.<span class='id identifier rubyid_env'>env</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>HTTP_USER_AGENT</span><span class='tstring_end'>&quot;</span></span>]
+
+    <span class='comment'># ...
+</span>  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+<h3 id="Writing_a_Rack_Response">Writing a Rack Response</h3>
+<p>A Rack response can be written in a Rails controller as:</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>HomeController</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_index'>index</span>
+    <span class='kw'>self</span>.<span class='id identifier rubyid_response'>response</span> <span class='op'>=</span> <span class='const'><a href="Rack.html" title="Rack (module)">Rack</a></span><span class='op'>::</span><span class='const'>Response</span>[<span class='int'>200</span><span class='comma'>,</span> {}<span class='comma'>,</span> [<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>I&#39;m Home!</span><span class='tstring_end'>&quot;</span></span>]]
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+<h3 id="Routing_to_a_Rack_App">Routing to a Rack App</h3>
+<p>You can route requests to a Rack App in your <code>config/routes.rb</code>. See the <a href='file.routing.html#routing_guide'>routing guide</a> for further details.</p>
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>
