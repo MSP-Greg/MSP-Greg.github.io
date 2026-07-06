@@ -79,7 +79,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ocsp.c#L1766'>ext/openssl/ossl_ocsp.c</a>      </td>
+      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ocsp.c#L1689'>ext/openssl/ossl_ocsp.c</a>      </td>
     </tr>
   </tbody>
 </table>
@@ -177,32 +177,36 @@ from a <em>response_der</em> string.</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ocsp.c#L546-L567'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ocsp.c#L496-L521'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='546' data-end='567'></pre>
+  <pre class='lines_num' data-start='496' data-end='521'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ocsp.c', line 546</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ocsp.c', line 496</span></pre>
 <pre class='code cpp'>
 
 static VALUE
 ossl_ocspres_initialize(int argc, VALUE *argv, VALUE self)
 {
     VALUE arg;
-    OCSP_RESPONSE *res, *res_new;
+    OCSP_RESPONSE *res_new;
     const unsigned char *p;
 
     rb_scan_args(argc, argv, &quot;01&quot;, &amp;arg);
-    if(!NIL_P(arg)){
-        GetOCSPRes(self, res);
+    ossl_want_uninitialized(self, &amp;ossl_ocsp_response_type);
+    if (NIL_P(arg)) {
+        res_new = OCSP_RESPONSE_new();
+        if (!res_new)
+            ossl_raise(eOCSPError, &quot;OCSP_RESPONSE_new&quot;);
+    }
+    else {
         arg = ossl_to_der_if_possible(arg);
         StringValue(arg);
         p = (unsigned char *)RSTRING_PTR(arg);
         res_new = d2i_OCSP_RESPONSE(NULL, &amp;p, RSTRING_LEN(arg));
         if (!res_new)
             ossl_raise(eOCSPError, &quot;d2i_OCSP_RESPONSE&quot;);
-        SetOCSPRes(self, res_new);
-        OCSP_RESPONSE_free(res);
     }
+    RTYPEDDATA_DATA(self) = res_new;
 
     return self;
 }
@@ -220,11 +224,11 @@ ossl_ocspres_initialize(int argc, VALUE *argv, VALUE self)
     <p>Creates an <code>Response</code> from <em>status</em> and <em>basic_response</em>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ocsp.c#L485-L501'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ocsp.c#L452-L468'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='485' data-end='501'></pre>
+  <pre class='lines_num' data-start='452' data-end='468'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ocsp.c', line 485</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ocsp.c', line 452</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -237,10 +241,10 @@ ossl_ocspres_s_create(VALUE klass, VALUE status, VALUE basic_resp)
 
     if(NIL_P(basic_resp)) bs = NULL;
     else GetOCSPBasicRes(basic_resp, bs); /* NO NEED TO DUP */
-    obj = NewOCSPRes(klass);
-    if(!(res = OCSP_response_create(st, bs)))
-        ossl_raise(eOCSPError, NULL);
-    SetOCSPRes(obj, res);
+    obj = ossl_ocspres_alloc(klass);
+    if (!(res = OCSP_response_create(st, bs)))
+        ossl_raise(eOCSPError, &quot;OCSP_response_create&quot;);
+    RTYPEDDATA_DATA(obj) = res;
 
     return obj;
 }
@@ -258,11 +262,11 @@ ossl_ocspres_s_create(VALUE klass, VALUE status, VALUE basic_resp)
     <p>Returns a <a href="BasicResponse.html" title="OpenSSL::OCSP::BasicResponse (class)"><code>BasicResponse</code></a> for this response</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ocsp.c#L614-L628'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ocsp.c#L570-L584'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='614' data-end='628'></pre>
+  <pre class='lines_num' data-start='570' data-end='584'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ocsp.c', line 614</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ocsp.c', line 570</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -273,10 +277,10 @@ ossl_ocspres_get_basic(VALUE self)
     VALUE ret;
 
     GetOCSPRes(self, res);
-    ret = NewOCSPBasicRes(cOCSPBasicRes);
-    if(!(bs = OCSP_response_get1_basic(res)))
+    ret = ossl_ocspbres_alloc(cOCSPBasicRes);
+    if (!(bs = OCSP_response_get1_basic(res)))
         return Qnil;
-    SetOCSPBasicRes(ret, bs);
+    RTYPEDDATA_DATA(ret) = bs;
 
     return ret;
 }
@@ -292,28 +296,25 @@ ossl_ocspres_get_basic(VALUE self)
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ocsp.c#L518-L535'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ocsp.c#L471-L485'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='518' data-end='535'></pre>
+  <pre class='lines_num' data-start='471' data-end='485'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ocsp.c', line 518</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ocsp.c', line 471</span></pre>
 <pre class='code cpp'>
 
 static VALUE
 ossl_ocspres_initialize_copy(VALUE self, VALUE other)
 {
-    OCSP_RESPONSE *res, *res_old, *res_new;
+    OCSP_RESPONSE *res, *res_new;
 
-    rb_check_frozen(self);
-    GetOCSPRes(self, res_old);
+    ossl_want_uninitialized(self, &amp;ossl_ocsp_response_type);
     GetOCSPRes(other, res);
 
     res_new = ASN1_item_dup(ASN1_ITEM_rptr(OCSP_RESPONSE), res);
     if (!res_new)
         ossl_raise(eOCSPError, &quot;ASN1_item_dup&quot;);
-
-    SetOCSPRes(self, res_new);
-    OCSP_RESPONSE_free(res_old);
+    RTYPEDDATA_DATA(self) = res_new;
 
     return self;
 }
@@ -330,11 +331,11 @@ ossl_ocspres_initialize_copy(VALUE self, VALUE other)
     <p>Returns the status of the response.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ocsp.c#L576-L586'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ocsp.c#L530-L540'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='576' data-end='586'></pre>
+  <pre class='lines_num' data-start='530' data-end='540'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ocsp.c', line 576</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ocsp.c', line 530</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -361,11 +362,11 @@ ossl_ocspres_status(VALUE self)
     <p>Returns a status string for the response.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ocsp.c#L595-L605'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ocsp.c#L549-L559'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='595' data-end='605'></pre>
+  <pre class='lines_num' data-start='549' data-end='559'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ocsp.c', line 595</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ocsp.c', line 549</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -392,11 +393,11 @@ ossl_ocspres_status_string(VALUE self)
     <p>Returns this response as a DER-encoded string.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ocsp.c#L637-L655'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ocsp.c#L593-L611'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='637' data-end='655'></pre>
+  <pre class='lines_num' data-start='593' data-end='611'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ocsp.c', line 637</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ocsp.c', line 593</span></pre>
 <pre class='code cpp'>
 
 static VALUE
