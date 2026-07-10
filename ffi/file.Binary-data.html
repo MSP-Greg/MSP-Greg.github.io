@@ -62,38 +62,28 @@
   </header>
 <div id='content' class='file'>
 <p>Consider the following Ruby code:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_string1'>string1</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Hello world</span><span class='tstring_end'>&quot;</span></span>
 <span class='id identifier rubyid_string2'>string2</span> <span class='op'>=</span> <span class='const'>File</span>.<span class='id identifier rubyid_read'>read</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>data.txt</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>r</span><span class='tstring_end'>&quot;</span></span>)
 <span class='id identifier rubyid_string3'>string3</span> <span class='op'>=</span> <span class='const'>File</span>.<span class='id identifier rubyid_read'>read</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>image.jpg</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>rb</span><span class='tstring_end'>&quot;</span></span>)</code></pre>
-
 <p>All three string variable are of class String, yet the data stored in <code>string3</code>
 is binary image data rather than text data.</p>
-
 <p>Check it for yourself using the <code>String#encoding</code> method. <code>string1</code> uses the
 <code>__ENCODING__</code> of the source file, which is most likely <code>Encoding::UTF_8</code>.
-<code>string2</code> uses the <code>Encoding::default_external</code> encoding, which is most likely
+<code>string2</code> uses the <code>Encoding.default_external</code> encoding, which is most likely
 <code>Encoding::UTF_8</code> as well. But <code>string3</code> uses <code>Encoding::ASCII_8BIT</code> (a.k.a.
-Encoding::BINARY).</p>
-
+<code>Encoding::BINARY</code>).</p>
 <p>At the Ruby level we not not care about this because Ruby abstracts that all
 away. However, when using FFI, how to pass this data to and from C libraries
 suddenly becomes very important.</p>
-
-<h2>Passing binary data</h2>
-
+<h2 id="Passing_binary_data">Passing binary data</h2>
 <p>If a Ruby string contains binary data, then you cannot use the following:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_example_function'>example_function</span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_string'>string</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_int'>int</span></code></pre>
-
 <p>The reason being that FFI converts a Ruby string into a C style
 (null-terminated) string. This will cause trouble if your binary data contains
 a null byte (and chances are that it will).</p>
-
 <p>When dealing with binary data, most C code will use memory buffers. The
 following example shows how a file would be read into memory for use in a
 <code>convert()</code> function in a C program:</p>
-
 <pre class="code c"><code class="c">  char                *inputName = &quot;cat.jpg&quot;;
   FILE                *inputFile = 0;
   unsigned char       *picBuf = 0;
@@ -106,7 +96,7 @@ following example shows how a file would be read into memory for use in a
   // Get the filesize
   fseek(inputFile, 0, SEEK_END);
   picBufSize = ftell(inputFile);
-
+  
   // Return to the beginning of the file and set the buffer size
   fseek(inputFile, 0, SEEK_SET);
   picBuf = malloc(picBufSize * sizeof(unsigned char));
@@ -123,22 +113,17 @@ following example shows how a file would be read into memory for use in a
 
   free(picBuf);
 </code></pre>
-
 <p>If we want to use the <code>convert()</code> function from FFI, then we will need to pass
 in the binary data directly. To do this, we need to do the following:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'>ExampleLib</span>
   <span class='id identifier rubyid_extend'>extend</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/Library.html" title="FFI::Library (module)">Library</a></span>
   <span class='id identifier rubyid_ffi_lib'>ffi_lib</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>example_lib.so</span><span class='tstring_end'>&quot;</span></span> 
 
   <span class='id identifier rubyid_attach_function'>attach_function</span> <span class='symbeg'>:</span><span class='id identifier rubyid_convert'>convert</span><span class='comma'>,</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_pointer'>pointer</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_uint'>uint</span>]<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_int'>int</span>
 <span class='kw'>end</span></code></pre>
-
-<p>As you can see, we&#39;ve attached the function <code>convert()</code> with a <code>:pointer</code> argument.</p>
-
+<p>As you can see, we've attached the function <code>convert()</code> with a <code>:pointer</code> argument.</p>
 <p>Now we need to pass in a pointer to the beginning of the memory and the size of
 the allocation. We can do this as follows:</p>
-
 <pre class="code ruby"><code class="ruby"><span class='kw'>module</span> <span class='const'>ExampleLib</span>
   <span class='id identifier rubyid_extend'>extend</span> <span class='const'><a href="FFI.html" title="FFI (module)">FFI</a></span><span class='op'>::</span><span class='const'><a href="FFI/Library.html" title="FFI::Library (module)">Library</a></span>
   <span class='id identifier rubyid_ffi_lib'>ffi_lib</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>example_lib.so</span><span class='tstring_end'>&quot;</span></span> 
@@ -157,10 +142,8 @@ the allocation. We can do this as follows:</p>
 
 <span class='id identifier rubyid_data'>data</span> <span class='op'>=</span> <span class='const'>File</span>.<span class='id identifier rubyid_read'>read</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>cat.jpg</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>rb</span><span class='tstring_end'>&quot;</span></span>)
 <span class='const'>ExampleLib</span>.<span class='id identifier rubyid_convert_image'>convert_image</span>(<span class='id identifier rubyid_data'>data</span>)</code></pre>
-
 <p>Note that, because this is binary data (possibly containing null bytes),
 <code>MemoryPointer#put_bytes</code> must be used instead of <code>MemoryPointer#put_string</code>.</p>
-
 <div id='footer'></div>
 </div> <!-- content  -->
 </div> <!-- y_main   -->
