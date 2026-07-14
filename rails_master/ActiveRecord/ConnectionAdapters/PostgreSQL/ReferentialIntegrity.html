@@ -98,8 +98,29 @@
   </li>
   <li>
     <span class='summary_signature nodoc'>
-      <a href="#disable_referential_integrity-instance_method" title="#disable_referential_integrity (instance method)">#<strong>disable_referential_integrity</strong>  </a>
+      <a href="#disable_referential_integrity-instance_method" title="#disable_referential_integrity (instance method)">#<strong>disable_referential_integrity</strong>(&amp;block)  </a>
     </span>
+  </li>
+  <li>
+    <span class='summary_signature priv nodoc'>
+      <a href="#enforced_foreign_keys-instance_method" title="#enforced_foreign_keys (instance method)">#<strong>enforced_foreign_keys</strong>(current_schemas_only: false)  </a>
+    </span>
+    <span class='note title private'>private</span>
+    <div class='summary_desc'>
+      <div class='inline'><p>conparentid = 0: a partition's child copy can't be ALTERed; the parent's ALTER cascades.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature priv nodoc'>
+      <a href="#set_foreign_key_enforcement-instance_method" title="#set_foreign_key_enforcement (instance method)">#<strong>set_foreign_key_enforcement</strong>(fk, enforced:)  </a>
+    </span>
+    <span class='note title private'>private</span>
+  </li>
+  <li>
+    <span class='summary_signature priv nodoc'>
+      <a href="#toggle_foreign_key_enforcement-instance_method" title="#toggle_foreign_key_enforcement (instance method)">#<strong>toggle_foreign_key_enforcement</strong>(current_schemas_only: false)  </a>
+    </span>
+    <span class='note title private'>private</span>
   </li>
 </ul>
 </div>  <!-- instance_method_summary -->
@@ -108,53 +129,41 @@
   <h3 class='signature nodoc first'>
     #<strong>check_all_foreign_keys_valid!</strong>  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/connection_adapters/postgresql/referential_integrity.rb#L71-L112'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/connection_adapters/postgresql/referential_integrity.rb#L45-L74'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='71' data-end='112'></pre>
+  <pre class='lines_num' data-start='45' data-end='74'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/postgresql/referential_integrity.rb', line 71</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/postgresql/referential_integrity.rb', line 45</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_check_all_foreign_keys_valid!'>check_all_foreign_keys_valid!</span> <span class='comment'># :nodoc:
-</span>  <span class='comment'># Skip `NOT ENFORCED` constraints (PG 18.4+): `VALIDATE CONSTRAINT` cannot be
-</span>  <span class='comment'># applied to them and raises an error.
 </span>  <span class='kw'>if</span> <span class='id identifier rubyid_supports_enforced_foreign_keys?'>supports_enforced_foreign_keys?</span>
-    <span class='id identifier rubyid_enforced_join'>enforced_join</span> <span class='op'>=</span> <span class='heredoc_beg'>&lt;&lt;~SQL</span>
-<span class='ignored_sp'>      </span><span class='tstring_content'>JOIN pg_catalog.pg_constraint c
-</span><span class='ignored_sp'>      </span><span class='tstring_content'>  ON c.conname = tc.constraint_name
-</span><span class='ignored_sp'>      </span><span class='tstring_content'> AND c.conenforced = true
-</span><span class='ignored_sp'>      </span><span class='tstring_content'>JOIN pg_catalog.pg_class cls ON cls.oid = c.conrelid
-</span><span class='ignored_sp'>      </span><span class='tstring_content'> AND cls.relname = tc.table_name
-</span><span class='ignored_sp'>      </span><span class='tstring_content'>JOIN pg_catalog.pg_namespace ns ON ns.oid = cls.relnamespace
-</span><span class='ignored_sp'>      </span><span class='tstring_content'> AND ns.nspname = tc.table_schema
-</span><span class='ignored_sp'>      </span><span class='tstring_content'> AND ns.nspname = tc.constraint_schema
+    <span class='id identifier rubyid_toggle_foreign_key_enforcement'><a href="#toggle_foreign_key_enforcement-instance_method" title="ActiveRecord::ConnectionAdapters::PostgreSQL::ReferentialIntegrity#toggle_foreign_key_enforcement (method)">toggle_foreign_key_enforcement</a></span>
+  <span class='kw'>else</span>
+    <span class='id identifier rubyid_sql'>sql</span> <span class='op'>=</span> <span class='heredoc_beg'>&lt;&lt;~SQL</span>
+<span class='ignored_sp'>      </span><span class='tstring_content'>do $$
+</span><span class='ignored_sp'>      </span><span class='tstring_content'>  declare r record;
+</span><span class='ignored_sp'>      </span><span class='tstring_content'>BEGIN
+</span><span class='ignored_sp'>      </span><span class='tstring_content'>FOR r IN (
+</span><span class='ignored_sp'>      </span><span class='tstring_content'>  SELECT FORMAT(
+</span><span class='ignored_sp'>      </span><span class='tstring_content'>    &#39;UPDATE pg_catalog.pg_constraint SET convalidated=false WHERE conname = &#39;&#39;%1$I&#39;&#39; AND connamespace::regnamespace = &#39;&#39;%2$I&#39;&#39;::regnamespace AND conrelid::regclass = &#39;&#39;%3$I&#39;&#39;::regclass; ALTER TABLE %2$I.%3$I VALIDATE CONSTRAINT %1$I;&#39;,
+</span><span class='ignored_sp'>      </span><span class='tstring_content'>    constraint_name,
+</span><span class='ignored_sp'>      </span><span class='tstring_content'>    table_schema,
+</span><span class='ignored_sp'>      </span><span class='tstring_content'>    table_name
+</span><span class='ignored_sp'>      </span><span class='tstring_content'>  ) AS constraint_check
+</span><span class='ignored_sp'>      </span><span class='tstring_content'>  FROM information_schema.table_constraints tc
+</span><span class='ignored_sp'>      </span><span class='tstring_content'>  WHERE tc.constraint_type = &#39;FOREIGN KEY&#39;
+</span><span class='ignored_sp'>      </span><span class='tstring_content'>)
+</span><span class='ignored_sp'>      </span><span class='tstring_content'>  LOOP
+</span><span class='ignored_sp'>      </span><span class='tstring_content'>    EXECUTE (r.constraint_check);
+</span><span class='ignored_sp'>      </span><span class='tstring_content'>  END LOOP;
+</span><span class='ignored_sp'>      </span><span class='tstring_content'>END;
+</span><span class='ignored_sp'>      </span><span class='tstring_content'>$$;
 </span><span class='heredoc_end'>    SQL
-</span>  <span class='kw'>end</span>
-
-  <span class='id identifier rubyid_sql'>sql</span> <span class='op'>=</span> <span class='heredoc_beg'>&lt;&lt;~SQL</span>
-<span class='ignored_sp'>    </span><span class='tstring_content'>do $$
-</span><span class='ignored_sp'>    </span><span class='tstring_content'>  declare r record;
-</span><span class='ignored_sp'>    </span><span class='tstring_content'>BEGIN
-</span><span class='ignored_sp'>    </span><span class='tstring_content'>FOR r IN (
-</span><span class='ignored_sp'>    </span><span class='tstring_content'>  SELECT FORMAT(
-</span><span class='ignored_sp'>    </span><span class='tstring_content'>    &#39;UPDATE pg_catalog.pg_constraint SET convalidated=false WHERE conname = &#39;&#39;%1$I&#39;&#39; AND connamespace::regnamespace = &#39;&#39;%2$I&#39;&#39;::regnamespace AND conrelid::regclass = &#39;&#39;%3$I&#39;&#39;::regclass; ALTER TABLE %2$I.%3$I VALIDATE CONSTRAINT %1$I;&#39;,
-</span><span class='ignored_sp'>    </span><span class='tstring_content'>    constraint_name,
-</span><span class='ignored_sp'>    </span><span class='tstring_content'>    table_schema,
-</span><span class='ignored_sp'>    </span><span class='tstring_content'>    table_name
-</span><span class='ignored_sp'>    </span><span class='tstring_content'>  ) AS constraint_check
-</span><span class='ignored_sp'>    </span><span class='tstring_content'>  FROM information_schema.table_constraints tc
-</span><span class='ignored_sp'>    </span><span class='tstring_content'>  </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_enforced_join'>enforced_join</span><span class='embexpr_end'>}</span><span class='tstring_content'>
-</span><span class='ignored_sp'>    </span><span class='tstring_content'>  WHERE tc.constraint_type = &#39;FOREIGN KEY&#39;
-</span><span class='ignored_sp'>    </span><span class='tstring_content'>)
-</span><span class='ignored_sp'>    </span><span class='tstring_content'>  LOOP
-</span><span class='ignored_sp'>    </span><span class='tstring_content'>    EXECUTE (r.constraint_check);
-</span><span class='ignored_sp'>    </span><span class='tstring_content'>  END LOOP;
-</span><span class='ignored_sp'>    </span><span class='tstring_content'>END;
-</span><span class='ignored_sp'>    </span><span class='tstring_content'>$$;
-</span><span class='heredoc_end'>  SQL
 </span>
-  <span class='id identifier rubyid_transaction'>transaction</span>(<span class='label'>requires_new:</span> <span class='kw'>true</span>) <span class='kw'>do</span>
-    <span class='id identifier rubyid_execute'>execute</span>(<span class='id identifier rubyid_sql'>sql</span>)
+    <span class='id identifier rubyid_transaction'>transaction</span>(<span class='label'>requires_new:</span> <span class='kw'>true</span>) <span class='kw'>do</span>
+      <span class='id identifier rubyid_execute'>execute</span>(<span class='id identifier rubyid_sql'>sql</span>)
+    <span class='kw'>end</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span>
 </pre>
@@ -164,44 +173,18 @@
 
 <section class='method_details' id="disable_referential_integrity-instance_method">
   <h3 class='signature nodoc'>
-    #<strong>disable_referential_integrity</strong>  
+    #<strong>disable_referential_integrity</strong>(&amp;block)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/connection_adapters/postgresql/referential_integrity.rb#L7-L69'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/connection_adapters/postgresql/referential_integrity.rb#L7-L43'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='7' data-end='69'></pre>
+  <pre class='lines_num' data-start='7' data-end='43'></pre>
   <div class='lines_code'>
 <pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/postgresql/referential_integrity.rb', line 7</span></pre>
 <pre class='code ruby'>
 
-<span class='kw'>def</span> <span class='id identifier rubyid_disable_referential_integrity'>disable_referential_integrity</span> <span class='comment'># :nodoc:
+<span class='kw'>def</span> <span class='id identifier rubyid_disable_referential_integrity'>disable_referential_integrity</span>(<span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span>) <span class='comment'># :nodoc:
 </span>  <span class='kw'>if</span> <span class='id identifier rubyid_supports_enforced_foreign_keys?'>supports_enforced_foreign_keys?</span>
-    <span class='comment'># Only toggle FKs that are currently `ENFORCED`; leave `NOT ENFORCED` ones unchanged.
-</span>    <span class='comment'># `conparentid = 0` excludes constraints inherited from a partitioned parent —
-</span>    <span class='comment'># `ALTER CONSTRAINT` must be issued on the parent and is propagated to partitions.
-</span>    <span class='id identifier rubyid_enforced_fks'>enforced_fks</span> <span class='op'>=</span> <span class='id identifier rubyid_query_all'>query_all</span>(<span class='heredoc_beg'>&lt;&lt;~SQL</span>)
-<span class='ignored_sp'>      </span><span class='tstring_content'>SELECT n.nspname AS schema_name, t.relname AS table_name, c.conname AS constraint_name
-</span><span class='ignored_sp'>      </span><span class='tstring_content'>FROM pg_constraint c
-</span><span class='ignored_sp'>      </span><span class='tstring_content'>JOIN pg_class t ON c.conrelid = t.oid
-</span><span class='ignored_sp'>      </span><span class='tstring_content'>JOIN pg_namespace n ON c.connamespace = n.oid
-</span><span class='ignored_sp'>      </span><span class='tstring_content'>WHERE c.contype = &#39;f&#39;
-</span><span class='ignored_sp'>      </span><span class='tstring_content'>  AND c.conenforced = true
-</span><span class='ignored_sp'>      </span><span class='tstring_content'>  AND c.conparentid = 0
-</span><span class='ignored_sp'>      </span><span class='tstring_content'>  AND n.nspname = ANY (current_schemas(false))
-</span><span class='heredoc_end'>    SQL
-</span>
-    <span class='id identifier rubyid_transaction'>transaction</span>(<span class='label'>requires_new:</span> <span class='kw'>true</span>) <span class='kw'>do</span>
-      <span class='id identifier rubyid_enforced_fks'>enforced_fks</span>.<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_fk'>fk</span><span class='op'>|</span>
-        <span class='id identifier rubyid_execute'>execute</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ALTER TABLE </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_quote_table_name'>quote_table_name</span>(<span class='id identifier rubyid_fk'>fk</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>schema_name</span><span class='tstring_end'>&quot;</span></span>])<span class='embexpr_end'>}</span><span class='tstring_content'>.</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_quote_table_name'>quote_table_name</span>(<span class='id identifier rubyid_fk'>fk</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>table_name</span><span class='tstring_end'>&quot;</span></span>])<span class='embexpr_end'>}</span><span class='tstring_content'> </span><span class='tstring_end'>&quot;</span></span> \
-                <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ALTER CONSTRAINT </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_quote_column_name'>quote_column_name</span>(<span class='id identifier rubyid_fk'>fk</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>constraint_name</span><span class='tstring_end'>&quot;</span></span>])<span class='embexpr_end'>}</span><span class='tstring_content'> NOT ENFORCED</span><span class='tstring_end'>&quot;</span></span>)
-      <span class='kw'>end</span>
-
-      <span class='kw'>yield</span>
-
-      <span class='id identifier rubyid_enforced_fks'>enforced_fks</span>.<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_fk'>fk</span><span class='op'>|</span>
-        <span class='id identifier rubyid_execute'>execute</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ALTER TABLE </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_quote_table_name'>quote_table_name</span>(<span class='id identifier rubyid_fk'>fk</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>schema_name</span><span class='tstring_end'>&quot;</span></span>])<span class='embexpr_end'>}</span><span class='tstring_content'>.</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_quote_table_name'>quote_table_name</span>(<span class='id identifier rubyid_fk'>fk</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>table_name</span><span class='tstring_end'>&quot;</span></span>])<span class='embexpr_end'>}</span><span class='tstring_content'> </span><span class='tstring_end'>&quot;</span></span> \
-                <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ALTER CONSTRAINT </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_quote_column_name'>quote_column_name</span>(<span class='id identifier rubyid_fk'>fk</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>constraint_name</span><span class='tstring_end'>&quot;</span></span>])<span class='embexpr_end'>}</span><span class='tstring_content'> ENFORCED</span><span class='tstring_end'>&quot;</span></span>)
-      <span class='kw'>end</span>
-    <span class='kw'>end</span>
+    <span class='id identifier rubyid_toggle_foreign_key_enforcement'><a href="#toggle_foreign_key_enforcement-instance_method" title="ActiveRecord::ConnectionAdapters::PostgreSQL::ReferentialIntegrity#toggle_foreign_key_enforcement (method)">toggle_foreign_key_enforcement</a></span>(<span class='label'>current_schemas_only:</span> <span class='kw'>true</span><span class='comma'>,</span> <span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span>)
   <span class='kw'>else</span>
     <span class='id identifier rubyid_original_exception'>original_exception</span> <span class='op'>=</span> <span class='kw'>nil</span>
 
@@ -234,6 +217,88 @@
       <span class='kw'>end</span>
     <span class='kw'>rescue</span> <span class='const'><a href="../../../ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="../../ActiveRecordError.html" title="ActiveRecord::ActiveRecordError (class)">ActiveRecordError</a></span>
     <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="enforced_foreign_keys-instance_method">
+  <h3 class='signature priv  nodoc'>
+    #<strong>enforced_foreign_keys</strong>(current_schemas_only: false)   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    <p>conparentid = 0: a partition's child copy can't be ALTERed; the parent's ALTER cascades</p>
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/connection_adapters/postgresql/referential_integrity.rb#L78-L90'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='78' data-end='90'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/postgresql/referential_integrity.rb', line 78</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_enforced_foreign_keys'>enforced_foreign_keys</span>(<span class='label'>current_schemas_only:</span> <span class='kw'>false</span>)
+  <span class='id identifier rubyid_query_all'>query_all</span>(<span class='heredoc_beg'>&lt;&lt;~SQL</span>)
+<span class='ignored_sp'>    </span><span class='tstring_content'>SELECT n.nspname AS schema_name, t.relname AS table_name, c.conname AS constraint_name
+</span><span class='ignored_sp'>    </span><span class='tstring_content'>FROM pg_constraint c
+</span><span class='ignored_sp'>    </span><span class='tstring_content'>JOIN pg_class t ON c.conrelid = t.oid
+</span><span class='ignored_sp'>    </span><span class='tstring_content'>JOIN pg_namespace n ON c.connamespace = n.oid
+</span><span class='ignored_sp'>    </span><span class='tstring_content'>WHERE c.contype = &#39;f&#39;
+</span><span class='ignored_sp'>    </span><span class='tstring_content'>  AND c.conenforced = true
+</span><span class='ignored_sp'>    </span><span class='tstring_content'>  AND c.conparentid = 0
+</span><span class='ignored_sp'>    </span><span class='tstring_content'>  AND pg_catalog.pg_has_role(t.relowner, &#39;USAGE&#39;)
+</span><span class='ignored_sp'>    </span><span class='tstring_content'>  </span><span class='embexpr_beg'>#{</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>AND n.nspname = ANY (current_schemas(false))</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>if</span> <span class='id identifier rubyid_current_schemas_only'>current_schemas_only</span><span class='embexpr_end'>}</span><span class='tstring_content'>
+</span><span class='heredoc_end'>  SQL
+</span><span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="set_foreign_key_enforcement-instance_method">
+  <h3 class='signature priv  nodoc'>
+    #<strong>set_foreign_key_enforcement</strong>(fk, enforced:)   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/connection_adapters/postgresql/referential_integrity.rb#L104-L108'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='104' data-end='108'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/postgresql/referential_integrity.rb', line 104</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_set_foreign_key_enforcement'>set_foreign_key_enforcement</span>(<span class='id identifier rubyid_fk'>fk</span><span class='comma'>,</span> <span class='label'>enforced:</span>)
+  <span class='id identifier rubyid_table'>table</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_quote_column_name'>quote_column_name</span>(<span class='id identifier rubyid_fk'>fk</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>schema_name</span><span class='tstring_end'>&quot;</span></span>])<span class='embexpr_end'>}</span><span class='tstring_content'>.</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_quote_column_name'>quote_column_name</span>(<span class='id identifier rubyid_fk'>fk</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>table_name</span><span class='tstring_end'>&quot;</span></span>])<span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_execute'>execute</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ALTER TABLE </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_table'>table</span><span class='embexpr_end'>}</span><span class='tstring_content'> ALTER CONSTRAINT </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_quote_column_name'>quote_column_name</span>(<span class='id identifier rubyid_fk'>fk</span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>constraint_name</span><span class='tstring_end'>&quot;</span></span>])<span class='embexpr_end'>}</span><span class='tstring_content'> </span><span class='tstring_end'>&quot;</span></span> \
+          <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_enforced'>enforced</span> <span class='op'>?</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ENFORCED</span><span class='tstring_end'>&quot;</span></span> <span class='op'>:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>NOT ENFORCED</span><span class='tstring_end'>&quot;</span></span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>)
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="toggle_foreign_key_enforcement-instance_method">
+  <h3 class='signature priv  nodoc'>
+    #<strong>toggle_foreign_key_enforcement</strong>(current_schemas_only: false)   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/main/activerecord/lib/active_record/connection_adapters/postgresql/referential_integrity.rb#L92-L102'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='92' data-end='102'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_adapters/postgresql/referential_integrity.rb', line 92</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_toggle_foreign_key_enforcement'>toggle_foreign_key_enforcement</span>(<span class='label'>current_schemas_only:</span> <span class='kw'>false</span>)
+  <span class='id identifier rubyid_fks'>fks</span> <span class='op'>=</span> <span class='id identifier rubyid_enforced_foreign_keys'><a href="#enforced_foreign_keys-instance_method" title="ActiveRecord::ConnectionAdapters::PostgreSQL::ReferentialIntegrity#enforced_foreign_keys (method)">enforced_foreign_keys</a></span>(<span class='label'>current_schemas_only:</span> <span class='id identifier rubyid_current_schemas_only'>current_schemas_only</span>)
+
+  <span class='id identifier rubyid_transaction'>transaction</span>(<span class='label'>requires_new:</span> <span class='kw'>true</span>) <span class='kw'>do</span>
+    <span class='id identifier rubyid_fks'>fks</span>.<span class='id identifier rubyid_each'>each</span> { <span class='op'>|</span><span class='id identifier rubyid_fk'>fk</span><span class='op'>|</span> <span class='id identifier rubyid_set_foreign_key_enforcement'><a href="#set_foreign_key_enforcement-instance_method" title="ActiveRecord::ConnectionAdapters::PostgreSQL::ReferentialIntegrity#set_foreign_key_enforcement (method)">set_foreign_key_enforcement</a></span>(<span class='id identifier rubyid_fk'>fk</span><span class='comma'>,</span> <span class='label'>enforced:</span> <span class='kw'>false</span>) }
+
+    <span class='kw'>yield</span> <span class='kw'>if</span> <span class='id identifier rubyid_block_given?'>block_given?</span>
+
+    <span class='id identifier rubyid_fks'>fks</span>.<span class='id identifier rubyid_each'>each</span> { <span class='op'>|</span><span class='id identifier rubyid_fk'>fk</span><span class='op'>|</span> <span class='id identifier rubyid_set_foreign_key_enforcement'><a href="#set_foreign_key_enforcement-instance_method" title="ActiveRecord::ConnectionAdapters::PostgreSQL::ReferentialIntegrity#set_foreign_key_enforcement (method)">set_foreign_key_enforcement</a></span>(<span class='id identifier rubyid_fk'>fk</span><span class='comma'>,</span> <span class='label'>enforced:</span> <span class='kw'>true</span>) }
   <span class='kw'>end</span>
 <span class='kw'>end</span>
 </pre>
