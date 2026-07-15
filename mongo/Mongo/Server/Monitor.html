@@ -220,13 +220,6 @@ minHeartbeatFrequencyMS in the SDAM spec.</p>
 <ul class='summary full'>
   <li>
     <span class='summary_signature ro'>
-      <a href="#connection-instance_method" title="#connection (instance method)">#<strong>connection</strong>  &#x21d2; Mongo::Server::Monitor::Connection </a>
-    </span>
-    <span class='note title readonly'>readonly</span>
-    <span class='nodoc note title'>Internal use only</span>
-  </li>
-  <li>
-    <span class='summary_signature ro'>
       <a href="#monitoring-instance_method" title="#monitoring (instance method)">#<strong>monitoring</strong>  &#x21d2; Monitoring </a>
     </span>
     <span class='note title readonly'>readonly</span>
@@ -298,7 +291,22 @@ minHeartbeatFrequencyMS in the SDAM spec.</p>
 <ul class='summary full'>
   <li>
     <span class='summary_signature '>
-      <a href="#create_push_monitor!-instance_method" title="#create_push_monitor! (instance method)">#<strong>create_push_monitor!</strong>(topology_version)  </a>
+      <a href="#cancel_check!-instance_method" title="#cancel_check! (instance method)">#<strong>cancel_check!</strong>  </a>
+    </span>
+    <span class='nodoc note title'>Internal use only</span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Cancel the in-progress check and close the monitoring connection.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#connection-instance_method" title="#connection (instance method)">#<strong>connection</strong>  &#x21d2; Mongo::Server::Monitor::Connection | nil </a>
+    </span>
+    <span class='nodoc note title'>Internal use only</span>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#create_push_monitor!-instance_method" title="#create_push_monitor! (instance method)">#<strong>create_push_monitor!</strong>(topology_version, connection)  </a>
     </span>
     <span class='nodoc note title'>Internal use only</span>
   </li>
@@ -379,6 +387,16 @@ minHeartbeatFrequencyMS in the SDAM spec.</p>
   </li>
   <li>
     <span class='summary_signature priv'>
+      <a href="#clear_connection-instance_method" title="#clear_connection (instance method)">#<strong>clear_connection</strong>(connection)  </a>
+    </span>
+    <span class='note title private'>private</span>
+    <span class='nodoc note title'>Internal use only</span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Clear the monitoring connection, but only if it is still the one passed in.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
       <a href="#do_scan-instance_method" title="#do_scan (instance method)">#<strong>do_scan</strong>(publish_heartbeat: true)  </a>
     </span>
     <span class='note title private'>private</span>
@@ -390,6 +408,16 @@ minHeartbeatFrequencyMS in the SDAM spec.</p>
     </span>
     <span class='note title private'>private</span>
     <span class='nodoc note title'>Internal use only</span>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
+      <a href="#store_connection-instance_method" title="#store_connection (instance method)">#<strong>store_connection</strong>(connection)  </a>
+    </span>
+    <span class='note title private'>private</span>
+    <span class='nodoc note title'>Internal use only</span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Store a freshly established monitoring connection.</p></div>
+    </div>
   </li>
   <li>
     <span class='summary_signature priv'>
@@ -568,9 +596,9 @@ execute operations on the monitoring connection.</p></div>        </li>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L76-L89'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L76-L94'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='76' data-end='89'></pre>
+  <pre class='lines_num' data-start='76' data-end='94'></pre>
   <div class='lines_code'>
 <pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 76</span></pre>
 <pre class='code ruby'>
@@ -588,6 +616,11 @@ execute operations on the monitoring connection.</p></div>        </li>
   <span class='ivar'>@sdam_mutex</span> <span class='op'>=</span> <span class='const'>Mutex</span>.<span class='id identifier rubyid_new'>new</span>
   <span class='ivar'>@next_earliest_scan</span> <span class='op'>=</span> <span class='ivar'>@next_wanted_scan</span> <span class='op'>=</span> <span class='const'>Time</span>.<span class='id identifier rubyid_now'>now</span>
   <span class='ivar'>@update_mutex</span> <span class='op'>=</span> <span class='const'>Mutex</span>.<span class='id identifier rubyid_new'>new</span>
+  <span class='comment'># Guards reads and writes of @connection so the polling connection can
+</span>  <span class='comment'># be cancelled from another thread. Per the Server Monitoring spec&#39;s
+</span>  <span class='comment'># cancelCheck pseudocode, the lock is only held long enough to copy or
+</span>  <span class='comment'># assign the reference - never across the blocking check.
+</span>  <span class='ivar'>@connection_lock</span> <span class='op'>=</span> <span class='const'>Mutex</span>.<span class='id identifier rubyid_new'>new</span>
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -595,46 +628,8 @@ execute operations on the monitoring connection.</p></div>        </li>
 </section>
 
 <h2 class='y_details'>Instance Attribute Details</h2>
-<section class='method_details first' id="connection-instance_method">
+<section class='method_details first' id="monitoring-instance_method">
   <h3 class='signature ro first'>
-    #<strong>connection</strong>  &#x21d2; <a href="Monitor/Connection.html" title="Mongo::Server::Monitor::Connection (class)">Mongo::Server::Monitor::Connection</a>  <span class="extras">(<span class='readonly'>readonly</span>)</span>
-  </h3>
-<div class='docstring'>
-  <div class='discussion'>
-    
-  </div>
-</div>
-<div class='tags'>
-  <p class='tag_title'>Returns:</p>
-<ul class='return'>
-  <li>
-    <span class='type'>(<a href="Monitor/Connection.html" title="Mongo::Server::Monitor::Connection (class)">Mongo::Server::Monitor::Connection</a>)</span>
-&mdash;    <div class='inline'><p>connection The connection to use.</p></div>
-  </li>
-</ul>
-<p class='tag_title'>Since:</p>
-<ul class='since'>
-  <li>
-    <div class='inline'><p>2.0.0</p></div>
-  </li>
-</ul>
-
-</div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L96-L96'>GitHub</a>&#8202;]</span>
-<div class='source_code h'>
-  <pre class='lines_num' data-start='96' data-end='96'></pre>
-  <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 96</span></pre>
-<pre class='code ruby'>
-
-<span class='id identifier rubyid_attr_reader'>attr_reader</span> <span class='symbeg'>:</span><span class='id identifier rubyid_connection'>connection</span>
-</pre>
-  </div>
-</div>
-</section>
-
-<section class='method_details' id="monitoring-instance_method">
-  <h3 class='signature ro'>
     #<strong>monitoring</strong>  &#x21d2; <a href="../Monitoring.html" title="Mongo::Monitoring (class)">Monitoring</a>  <span class="extras">(<span class='readonly'>readonly</span>)</span>
   </h3>
 <div class='docstring'>
@@ -658,11 +653,11 @@ execute operations on the monitoring connection.</p></div>        </li>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L118-L118'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L127-L127'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='118' data-end='118'></pre>
+  <pre class='lines_num' data-start='127' data-end='127'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 118</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 127</span></pre>
 <pre class='code ruby'>
 
 <span class='id identifier rubyid_attr_reader'>attr_reader</span> <span class='symbeg'>:</span><span class='id identifier rubyid_monitoring'>monitoring</span>
@@ -696,11 +691,11 @@ execute operations on the monitoring connection.</p></div>        </li>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L99-L99'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L108-L108'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='99' data-end='99'></pre>
+  <pre class='lines_num' data-start='108' data-end='108'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 99</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 108</span></pre>
 <pre class='code ruby'>
 
 <span class='id identifier rubyid_attr_reader'>attr_reader</span> <span class='symbeg'>:</span><span class='id identifier rubyid_options'>options</span>
@@ -731,15 +726,15 @@ connection-reuse check is a real server check and not RTT-only.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L312-L325'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L350-L363'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='312' data-end='325'></pre>
+  <pre class='lines_num' data-start='350' data-end='363'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 312</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 350</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_rtt_measurement_only?'>rtt_measurement_only?</span>
-  <span class='kw'>return</span> <span class='kw'>false</span> <span class='kw'>if</span> <span class='ivar'>@connection</span>.<span class='id identifier rubyid_nil?'>nil?</span>
+  <span class='kw'>return</span> <span class='kw'>false</span> <span class='kw'>if</span> <span class='id identifier rubyid_connection'><a href="#connection-instance_method" title="Mongo::Server::Monitor#connection (method)">connection</a></span>.<span class='id identifier rubyid_nil?'>nil?</span>
 
   <span class='comment'># Only suppress the check while the server is in a known state and the
 </span>  <span class='comment'># PushMonitor is the authoritative streaming source. If the server is
@@ -782,11 +777,11 @@ connection-reuse check is a real server check and not RTT-only.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L93-L93'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L98-L98'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='93' data-end='93'></pre>
+  <pre class='lines_num' data-start='98' data-end='98'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 93</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 98</span></pre>
 <pre class='code ruby'>
 
 <span class='id identifier rubyid_attr_reader'>attr_reader</span> <span class='symbeg'>:</span><span class='id identifier rubyid_server'>server</span>
@@ -826,11 +821,11 @@ serverMonitoringMode option. Default mode is <code>:auto</code>.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L387-L397'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L451-L461'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='387' data-end='397'></pre>
+  <pre class='lines_num' data-start='451' data-end='461'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 387</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 451</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_streaming_enabled?'>streaming_enabled?</span>
@@ -850,8 +845,58 @@ serverMonitoringMode option. Default mode is <code>:auto</code>.</p>
 </section>
 
 <h2 class='y_details'>Instance Method Details</h2>
-<section class='method_details first' id="check-instance_method">
-  <h3 class='signature priv first'>
+<section class='method_details first' id="cancel_check!-instance_method">
+  <h3 class='signature  first'>
+    #<strong>cancel_check!</strong>  
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    <p>Cancel the in-progress check and close the monitoring connection.</p>
+<p>Called when the server is marked Unknown from a network error, per the
+<a href="../Server.html" title="Mongo::Server (class)"><code>::Mongo::Server</code></a> Monitoring spec (&quot;hello or legacy hello Cancellation&quot;). Stops the
+streaming <a href="PushMonitor.html" title="Mongo::Server::PushMonitor (class)"><code>PushMonitor</code></a> (interrupting its awaited hello read) and closes
+the polling connection, so the next check must establish a fresh one
+rather than re-validating the server over a possibly-dead socket.</p>
+  </div>
+</div>
+<div class='tags'>
+  <p class='tag_title'>Since:</p>
+<ul class='since'>
+  <li>
+    <div class='inline'><p>2.0.0</p></div>
+  </li>
+</ul>
+
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L210-L224'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='210' data-end='224'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 210</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_cancel_check!'>cancel_check!</span>
+  <span class='id identifier rubyid_stop_push_monitor!'><a href="#stop_push_monitor!-instance_method" title="Mongo::Server::Monitor#stop_push_monitor! (method)">stop_push_monitor!</a></span>
+
+  <span class='comment'># Copy the connection reference under the lock, then interrupt and close
+</span>  <span class='comment'># it outside the lock. Closing the socket interrupts any in-progress
+</span>  <span class='comment'># read on the monitor thread; nil-ing the reference forces the next
+</span>  <span class='comment'># check to reconnect. The monitor thread is the only writer of a new
+</span>  <span class='comment'># connection, so it is safe for this thread to clear it.
+</span>  <span class='id identifier rubyid_connection'><a href="#connection-instance_method" title="Mongo::Server::Monitor#connection (method)">connection</a></span> <span class='op'>=</span> <span class='ivar'>@connection_lock</span>.<span class='id identifier rubyid_synchronize'>synchronize</span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_conn'>conn</span> <span class='op'>=</span> <span class='ivar'>@connection</span>
+    <span class='ivar'>@connection</span> <span class='op'>=</span> <span class='kw'>nil</span>
+    <span class='id identifier rubyid_conn'>conn</span>
+  <span class='kw'>end</span>
+  <span class='id identifier rubyid_connection'><a href="#connection-instance_method" title="Mongo::Server::Monitor#connection (method)">connection</a></span><span class='op'>&amp;.</span><span class='id identifier rubyid_disconnect!'><a href="../Server.html#disconnect!-instance_method" title="Mongo::Server#disconnect! (method)">disconnect!</a></span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="check-instance_method">
+  <h3 class='signature priv'>
     #<strong>check</strong>   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
 <div class='docstring'>
@@ -868,31 +913,38 @@ serverMonitoringMode option. Default mode is <code>:auto</code>.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L327-L368'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L365-L416'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='327' data-end='368'></pre>
+  <pre class='lines_num' data-start='365' data-end='416'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 327</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 365</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_check'>check</span>
-  <span class='kw'>if</span> <span class='ivar'>@connection</span> <span class='op'>&amp;&amp;</span> <span class='ivar'>@connection</span>.<span class='id identifier rubyid_pid'>pid</span> <span class='op'>!=</span> <span class='const'>Process</span>.<span class='id identifier rubyid_pid'>pid</span>
-    <span class='id identifier rubyid_log_warn'>log_warn</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Detected PID change - Mongo client should have been reconnected (old pid </span><span class='embexpr_beg'>#{</span><span class='ivar'>@connection</span>.<span class='id identifier rubyid_pid'>pid</span><span class='embexpr_end'>}</span><span class='tstring_content'>, new pid </span><span class='embexpr_beg'>#{</span><span class='const'>Process</span>.<span class='id identifier rubyid_pid'>pid</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>)
-    <span class='ivar'>@connection</span>.<span class='id identifier rubyid_disconnect!'><a href="../Server.html#disconnect!-instance_method" title="Mongo::Server#disconnect! (method)">disconnect!</a></span>
-    <span class='ivar'>@connection</span> <span class='op'>=</span> <span class='kw'>nil</span>
+  <span class='comment'># Snapshot the connection under the lock. A concurrent cancel_check!
+</span>  <span class='comment'># may nil @connection from another thread; working on a local copy keeps
+</span>  <span class='comment'># this check consistent, and the guarded writeback below never clobbers
+</span>  <span class='comment'># a connection the monitor thread did not itself establish.
+</span>  <span class='id identifier rubyid_connection'><a href="#connection-instance_method" title="Mongo::Server::Monitor#connection (method)">connection</a></span> <span class='op'>=</span> <span class='kw'>self</span>.<span class='id identifier rubyid_connection'><a href="#connection-instance_method" title="Mongo::Server::Monitor#connection (method)">connection</a></span>
+
+  <span class='kw'>if</span> <span class='id identifier rubyid_connection'><a href="#connection-instance_method" title="Mongo::Server::Monitor#connection (method)">connection</a></span> <span class='op'>&amp;&amp;</span> <span class='id identifier rubyid_connection'><a href="#connection-instance_method" title="Mongo::Server::Monitor#connection (method)">connection</a></span>.<span class='id identifier rubyid_pid'>pid</span> <span class='op'>!=</span> <span class='const'>Process</span>.<span class='id identifier rubyid_pid'>pid</span>
+    <span class='id identifier rubyid_log_warn'>log_warn</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Detected PID change - Mongo client should have been reconnected (old pid </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_connection'><a href="#connection-instance_method" title="Mongo::Server::Monitor#connection (method)">connection</a></span>.<span class='id identifier rubyid_pid'>pid</span><span class='embexpr_end'>}</span><span class='tstring_content'>, new pid </span><span class='embexpr_beg'>#{</span><span class='const'>Process</span>.<span class='id identifier rubyid_pid'>pid</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>)
+    <span class='id identifier rubyid_connection'><a href="#connection-instance_method" title="Mongo::Server::Monitor#connection (method)">connection</a></span>.<span class='id identifier rubyid_disconnect!'><a href="../Server.html#disconnect!-instance_method" title="Mongo::Server#disconnect! (method)">disconnect!</a></span>
+    <span class='id identifier rubyid_clear_connection'><a href="#clear_connection-instance_method" title="Mongo::Server::Monitor#clear_connection (method)">clear_connection</a></span>(<span class='id identifier rubyid_connection'><a href="#connection-instance_method" title="Mongo::Server::Monitor#connection (method)">connection</a></span>)
+    <span class='id identifier rubyid_connection'><a href="#connection-instance_method" title="Mongo::Server::Monitor#connection (method)">connection</a></span> <span class='op'>=</span> <span class='kw'>nil</span>
   <span class='kw'>end</span>
 
-  <span class='kw'>if</span> <span class='ivar'>@connection</span>
+  <span class='kw'>if</span> <span class='id identifier rubyid_connection'><a href="#connection-instance_method" title="Mongo::Server::Monitor#connection (method)">connection</a></span>
     <span class='id identifier rubyid_result'>result</span> <span class='op'>=</span> <span class='id identifier rubyid_server'><a href="#server-instance_method" title="Mongo::Server::Monitor#server (method)">server</a></span>.<span class='id identifier rubyid_round_trip_time_calculator'><a href="../Server.html#round_trip_time_calculator-instance_method" title="Mongo::Server#round_trip_time_calculator (method)">round_trip_time_calculator</a></span>.<span class='id identifier rubyid_measure'>measure</span> <span class='kw'>do</span>
-      <span class='id identifier rubyid_doc'>doc</span> <span class='op'>=</span> <span class='ivar'>@connection</span>.<span class='id identifier rubyid_check_document'>check_document</span>
+      <span class='id identifier rubyid_doc'>doc</span> <span class='op'>=</span> <span class='id identifier rubyid_connection'><a href="#connection-instance_method" title="Mongo::Server::Monitor#connection (method)">connection</a></span>.<span class='id identifier rubyid_check_document'>check_document</span>
       <span class='id identifier rubyid_cmd'>cmd</span> <span class='op'>=</span> <span class='const'><a href="../Protocol.html" title="Mongo::Protocol (module)">Protocol</a></span><span class='op'>::</span><span class='const'><a href="../Protocol/Query.html" title="Mongo::Protocol::Query (class)">Query</a></span>.<span class='id identifier rubyid_new'><a href="../Protocol/Query.html#new-class_method" title="Mongo::Protocol::Query.new (method)">new</a></span>(
         <span class='const'><a href="../Database.html" title="Mongo::Database (class)">Database</a></span><span class='op'>::</span><span class='const'><a href="../Database.html#ADMIN-constant" title="Mongo::Database::ADMIN (constant)">ADMIN</a></span><span class='comma'>,</span> <span class='const'><a href="../Database.html" title="Mongo::Database (class)">Database</a></span><span class='op'>::</span><span class='const'><a href="../Database.html#COMMAND-constant" title="Mongo::Database::COMMAND (constant)">COMMAND</a></span><span class='comma'>,</span> <span class='id identifier rubyid_doc'>doc</span><span class='comma'>,</span> <span class='label'>limit:</span> <span class='op'>-</span><span class='int'>1</span>
       )
-      <span class='id identifier rubyid_message'>message</span> <span class='op'>=</span> <span class='ivar'>@connection</span>.<span class='id identifier rubyid_dispatch_bytes'>dispatch_bytes</span>(<span class='id identifier rubyid_cmd'>cmd</span>.<span class='id identifier rubyid_serialize'>serialize</span>.<span class='id identifier rubyid_to_s'><a href="#to_s-instance_method" title="Mongo::Server::Monitor#to_s (method)">to_s</a></span>)
+      <span class='id identifier rubyid_message'>message</span> <span class='op'>=</span> <span class='id identifier rubyid_connection'><a href="#connection-instance_method" title="Mongo::Server::Monitor#connection (method)">connection</a></span>.<span class='id identifier rubyid_dispatch_bytes'>dispatch_bytes</span>(<span class='id identifier rubyid_cmd'>cmd</span>.<span class='id identifier rubyid_serialize'>serialize</span>.<span class='id identifier rubyid_to_s'><a href="#to_s-instance_method" title="Mongo::Server::Monitor#to_s (method)">to_s</a></span>)
       <span class='id identifier rubyid_message'>message</span>.<span class='id identifier rubyid_documents'>documents</span>.<span class='id identifier rubyid_first'>first</span>
     <span class='kw'>rescue</span> <span class='const'><a href="../../Mongo.html" title="Mongo (module)">Mongo</a></span><span class='op'>::</span><span class='const'><a href="../Error.html" title="Mongo::Error (class)">Error</a></span>
-      <span class='ivar'>@connection</span>.<span class='id identifier rubyid_disconnect!'><a href="../Server.html#disconnect!-instance_method" title="Mongo::Server#disconnect! (method)">disconnect!</a></span>
-      <span class='ivar'>@connection</span> <span class='op'>=</span> <span class='kw'>nil</span>
+      <span class='id identifier rubyid_connection'><a href="#connection-instance_method" title="Mongo::Server::Monitor#connection (method)">connection</a></span>.<span class='id identifier rubyid_disconnect!'><a href="../Server.html#disconnect!-instance_method" title="Mongo::Server#disconnect! (method)">disconnect!</a></span>
+      <span class='id identifier rubyid_clear_connection'><a href="#clear_connection-instance_method" title="Mongo::Server::Monitor#clear_connection (method)">clear_connection</a></span>(<span class='id identifier rubyid_connection'><a href="#connection-instance_method" title="Mongo::Server::Monitor#connection (method)">connection</a></span>)
       <span class='id identifier rubyid_raise'>raise</span>
     <span class='kw'>end</span>
   <span class='kw'>else</span>
@@ -901,10 +953,13 @@ serverMonitoringMode option. Default mode is <code>:auto</code>.</p>
     <span class='id identifier rubyid_result'>result</span> <span class='op'>=</span> <span class='id identifier rubyid_server'><a href="#server-instance_method" title="Mongo::Server::Monitor#server (method)">server</a></span>.<span class='id identifier rubyid_round_trip_time_calculator'><a href="../Server.html#round_trip_time_calculator-instance_method" title="Mongo::Server#round_trip_time_calculator (method)">round_trip_time_calculator</a></span>.<span class='id identifier rubyid_measure'>measure</span> <span class='kw'>do</span>
       <span class='id identifier rubyid_connection'><a href="#connection-instance_method" title="Mongo::Server::Monitor#connection (method)">connection</a></span>.<span class='id identifier rubyid_handshake!'>handshake!</span>
     <span class='kw'>end</span>
-    <span class='ivar'>@connection</span> <span class='op'>=</span> <span class='id identifier rubyid_connection'><a href="#connection-instance_method" title="Mongo::Server::Monitor#connection (method)">connection</a></span>
+    <span class='id identifier rubyid_store_connection'><a href="#store_connection-instance_method" title="Mongo::Server::Monitor#store_connection (method)">store_connection</a></span>(<span class='id identifier rubyid_connection'><a href="#connection-instance_method" title="Mongo::Server::Monitor#connection (method)">connection</a></span>)
     <span class='kw'>if</span> (<span class='id identifier rubyid_tv_doc'>tv_doc</span> <span class='op'>=</span> <span class='id identifier rubyid_result'>result</span>[<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>topologyVersion</span><span class='tstring_end'>&#39;</span></span>])
       <span class='kw'>if</span> <span class='id identifier rubyid_streaming_enabled?'><a href="#streaming_enabled%3F-instance_method" title="Mongo::Server::Monitor#streaming_enabled? (method)">streaming_enabled?</a></span>
-        <span class='id identifier rubyid_create_push_monitor!'><a href="#create_push_monitor!-instance_method" title="Mongo::Server::Monitor#create_push_monitor! (method)">create_push_monitor!</a></span>(<span class='const'><a href="../TopologyVersion.html" title="Mongo::TopologyVersion (class)">TopologyVersion</a></span>.<span class='id identifier rubyid_new'><a href="../TopologyVersion.html#new-class_method" title="Mongo::TopologyVersion.new (method)">new</a></span>(<span class='id identifier rubyid_tv_doc'>tv_doc</span>))
+        <span class='comment'># Run the instance we just created rather than re-reading the
+</span>        <span class='comment'># push_monitor getter: a concurrent cancel_check! may have nil&#39;d
+</span>        <span class='comment'># @push_monitor between the two calls.
+</span>        <span class='id identifier rubyid_push_monitor'><a href="#push_monitor-instance_method" title="Mongo::Server::Monitor#push_monitor (method)">push_monitor</a></span> <span class='op'>=</span> <span class='id identifier rubyid_create_push_monitor!'><a href="#create_push_monitor!-instance_method" title="Mongo::Server::Monitor#create_push_monitor! (method)">create_push_monitor!</a></span>(<span class='const'><a href="../TopologyVersion.html" title="Mongo::TopologyVersion (class)">TopologyVersion</a></span>.<span class='id identifier rubyid_new'><a href="../TopologyVersion.html#new-class_method" title="Mongo::TopologyVersion.new (method)">new</a></span>(<span class='id identifier rubyid_tv_doc'>tv_doc</span>)<span class='comma'>,</span> <span class='id identifier rubyid_connection'><a href="#connection-instance_method" title="Mongo::Server::Monitor#connection (method)">connection</a></span>)
         <span class='id identifier rubyid_push_monitor'><a href="#push_monitor-instance_method" title="Mongo::Server::Monitor#push_monitor (method)">push_monitor</a></span>.<span class='id identifier rubyid_run!'>run!</span>
       <span class='kw'>else</span>
         <span class='id identifier rubyid_stop_push_monitor!'><a href="#stop_push_monitor!-instance_method" title="Mongo::Server::Monitor#stop_push_monitor! (method)">stop_push_monitor!</a></span>
@@ -922,13 +977,15 @@ serverMonitoringMode option. Default mode is <code>:auto</code>.</p>
 </div>
 </section>
 
-<section class='method_details' id="create_push_monitor!-instance_method">
-  <h3 class='signature '>
-    #<strong>create_push_monitor!</strong>(topology_version)  
+<section class='method_details' id="clear_connection-instance_method">
+  <h3 class='signature priv'>
+    #<strong>clear_connection</strong>(connection)   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
 <div class='docstring'>
   <div class='discussion'>
-    
+    <p>Clear the monitoring connection, but only if it is still the one passed
+in. A concurrent cancel_check! may have already cleared or replaced it,
+in which case we must leave the current connection alone.</p>
   </div>
 </div>
 <div class='tags'>
@@ -940,14 +997,102 @@ serverMonitoringMode option. Default mode is <code>:auto</code>.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L162-L177'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L428-L432'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='162' data-end='177'></pre>
+  <pre class='lines_num' data-start='428' data-end='432'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 162</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 428</span></pre>
 <pre class='code ruby'>
 
-<span class='kw'>def</span> <span class='id identifier rubyid_create_push_monitor!'>create_push_monitor!</span>(<span class='id identifier rubyid_topology_version'>topology_version</span>)
+<span class='kw'>def</span> <span class='id identifier rubyid_clear_connection'>clear_connection</span>(<span class='id identifier rubyid_connection'><a href="#connection-instance_method" title="Mongo::Server::Monitor#connection (method)">connection</a></span>)
+  <span class='ivar'>@connection_lock</span>.<span class='id identifier rubyid_synchronize'>synchronize</span> <span class='kw'>do</span>
+    <span class='ivar'>@connection</span> <span class='op'>=</span> <span class='kw'>nil</span> <span class='kw'>if</span> <span class='ivar'>@connection</span>.<span class='id identifier rubyid_equal?'>equal?</span>(<span class='id identifier rubyid_connection'><a href="#connection-instance_method" title="Mongo::Server::Monitor#connection (method)">connection</a></span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="connection-instance_method">
+  <h3 class='signature '>
+    #<strong>connection</strong>  &#x21d2; <a href="Monitor/Connection.html" title="Mongo::Server::Monitor::Connection (class)">Mongo::Server::Monitor::Connection</a> | <code>nil</code> 
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+  </div>
+</div>
+<div class='tags'>
+  <p class='tag_title'>Returns:</p>
+<ul class='return'>
+  <li>
+    <span class='type'>(<a href="Monitor/Connection.html" title="Mongo::Server::Monitor::Connection (class)">Mongo::Server::Monitor::Connection</a> | <code>nil</code>)</span>
+&mdash;    <div class='inline'><p>The connection to
+use, read under @connection_lock so callers never observe a stale
+reference after a concurrent cancel_check! clears it.</p></div>
+  </li>
+</ul>
+<p class='tag_title'>Since:</p>
+<ul class='since'>
+  <li>
+    <div class='inline'><p>2.0.0</p></div>
+  </li>
+</ul>
+
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L103-L105'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='103' data-end='105'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 103</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_connection'>connection</span>
+  <span class='ivar'>@connection_lock</span>.<span class='id identifier rubyid_synchronize'>synchronize</span> { <span class='ivar'>@connection</span> }
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="create_push_monitor!-instance_method">
+  <h3 class='signature '>
+    #<strong>create_push_monitor!</strong>(topology_version, connection)  
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    
+  </div>
+</div>
+<div class='tags'>
+  <p class='tag_title'>Parameters:</p>
+<ul class='param'>
+  <li>
+    <span class='name'>connection</span>
+    <span class='type'>(<a href="Monitor/Connection.html" title="Mongo::Server::Monitor::Connection (class)">Mongo::Server::Monitor::Connection</a>)</span>
+&mdash;    <div class='inline'><p>The freshly
+established monitoring connection. Passed explicitly (rather than read
+from @connection) so a concurrent cancel_check! cannot nil it out from
+under us between establishing it and building the <a href="PushMonitor.html" title="Mongo::Server::PushMonitor (class)"><code>PushMonitor</code></a>.</p></div>
+  </li>
+</ul>
+<p class='tag_title'>Since:</p>
+<ul class='since'>
+  <li>
+    <div class='inline'><p>2.0.0</p></div>
+  </li>
+</ul>
+
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L175-L190'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='175' data-end='190'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 175</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_create_push_monitor!'>create_push_monitor!</span>(<span class='id identifier rubyid_topology_version'>topology_version</span><span class='comma'>,</span> <span class='id identifier rubyid_connection'><a href="#connection-instance_method" title="Mongo::Server::Monitor#connection (method)">connection</a></span>)
   <span class='ivar'>@update_mutex</span>.<span class='id identifier rubyid_synchronize'>synchronize</span> <span class='kw'>do</span>
     <span class='ivar'>@push_monitor</span> <span class='op'>=</span> <span class='kw'>nil</span> <span class='kw'>if</span> <span class='ivar'>@push_monitor</span> <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='ivar'>@push_monitor</span>.<span class='id identifier rubyid_running?'>running?</span>
 
@@ -958,7 +1103,7 @@ serverMonitoringMode option. Default mode is <code>:auto</code>.</p>
       <span class='op'>**</span><span class='const'><a href="../Utils.html" title="Mongo::Utils (module)">Utils</a></span>.<span class='id identifier rubyid_shallow_symbolize_keys'>shallow_symbolize_keys</span>(<span class='id identifier rubyid_options'><a href="#options-instance_method" title="Mongo::Server::Monitor#options (method)">options</a></span>.<span class='id identifier rubyid_merge'>merge</span>(
                                        <span class='label'>socket_timeout:</span> <span class='id identifier rubyid_heartbeat_interval'><a href="#heartbeat_interval-instance_method" title="Mongo::Server::Monitor#heartbeat_interval (method)">heartbeat_interval</a></span> <span class='op'>+</span> <span class='id identifier rubyid_connection'><a href="#connection-instance_method" title="Mongo::Server::Monitor#connection (method)">connection</a></span>.<span class='id identifier rubyid_socket_timeout'>socket_timeout</span><span class='comma'>,</span>
                                        <span class='label'>app_metadata:</span> <span class='id identifier rubyid_options'><a href="#options-instance_method" title="Mongo::Server::Monitor#options (method)">options</a></span>[<span class='symbeg'>:</span><span class='id identifier rubyid_push_monitor_app_metadata'>push_monitor_app_metadata</span>]<span class='comma'>,</span>
-                                       <span class='label'>check_document:</span> <span class='ivar'>@connection</span>.<span class='id identifier rubyid_check_document'>check_document</span>
+                                       <span class='label'>check_document:</span> <span class='id identifier rubyid_connection'><a href="#connection-instance_method" title="Mongo::Server::Monitor#connection (method)">connection</a></span>.<span class='id identifier rubyid_check_document'>check_document</span>
                                      ))
     )
   <span class='kw'>end</span>
@@ -986,11 +1131,11 @@ serverMonitoringMode option. Default mode is <code>:auto</code>.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L288-L303'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L326-L341'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='288' data-end='303'></pre>
+  <pre class='lines_num' data-start='326' data-end='341'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 288</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 326</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_do_scan'>do_scan</span>(<span class='label'>publish_heartbeat:</span> <span class='kw'>true</span>)
@@ -1032,11 +1177,11 @@ serverMonitoringMode option. Default mode is <code>:auto</code>.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L131-L143'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L140-L152'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='131' data-end='143'></pre>
+  <pre class='lines_num' data-start='140' data-end='152'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 131</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 140</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_do_work'>do_work</span>
@@ -1082,11 +1227,11 @@ serverMonitoringMode option. Default mode is <code>:auto</code>.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L104-L106'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L113-L115'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='104' data-end='106'></pre>
+  <pre class='lines_num' data-start='113' data-end='115'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 104</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 113</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_heartbeat_interval'>heartbeat_interval</span>
@@ -1115,11 +1260,11 @@ serverMonitoringMode option. Default mode is <code>:auto</code>.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L284-L286'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L322-L324'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='284' data-end='286'></pre>
+  <pre class='lines_num' data-start='322' data-end='324'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 284</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 322</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_pre_stop'>pre_stop</span>
@@ -1156,11 +1301,11 @@ used.</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L122-L126'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L131-L135'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='122' data-end='126'></pre>
+  <pre class='lines_num' data-start='131' data-end='135'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 122</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 131</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_push_monitor'>push_monitor</span>
@@ -1203,11 +1348,11 @@ used.</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L270-L276'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L308-L314'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='270' data-end='276'></pre>
+  <pre class='lines_num' data-start='308' data-end='314'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 270</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 308</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_restart!'>restart!</span>
@@ -1240,11 +1385,11 @@ used.</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L230-L260'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L268-L298'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='230' data-end='260'></pre>
+  <pre class='lines_num' data-start='268' data-end='298'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 230</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 268</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_run_sdam_flow'>run_sdam_flow</span>(<span class='id identifier rubyid_result'>result</span><span class='comma'>,</span> <span class='label'>awaited:</span> <span class='kw'>false</span><span class='comma'>,</span> <span class='label'>scan_error:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>rtt_only:</span> <span class='kw'>false</span>)
@@ -1327,11 +1472,11 @@ as a result.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L206-L228'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L244-L266'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='206' data-end='228'></pre>
+  <pre class='lines_num' data-start='244' data-end='266'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 206</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 244</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_scan!'>scan!</span>
@@ -1388,11 +1533,11 @@ reasonable amount of time.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L151-L160'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L160-L169'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='151' data-end='160'></pre>
+  <pre class='lines_num' data-start='160' data-end='169'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 151</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 160</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_stop!'>stop!</span>
@@ -1428,11 +1573,11 @@ reasonable amount of time.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L179-L186'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L192-L199'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='179' data-end='186'></pre>
+  <pre class='lines_num' data-start='192' data-end='199'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 179</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 192</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_stop_push_monitor!'>stop_push_monitor!</span>
@@ -1441,6 +1586,41 @@ reasonable amount of time.</p>
       <span class='ivar'>@push_monitor</span>.<span class='id identifier rubyid_stop!'><a href="#stop!-instance_method" title="Mongo::Server::Monitor#stop! (method)">stop!</a></span>
       <span class='ivar'>@push_monitor</span> <span class='op'>=</span> <span class='kw'>nil</span>
     <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="store_connection-instance_method">
+  <h3 class='signature priv'>
+    #<strong>store_connection</strong>(connection)   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    <p>Store a freshly established monitoring connection.</p>
+  </div>
+</div>
+<div class='tags'>
+  <p class='tag_title'>Since:</p>
+<ul class='since'>
+  <li>
+    <div class='inline'><p>2.0.0</p></div>
+  </li>
+</ul>
+
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L419-L423'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='419' data-end='423'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 419</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_store_connection'>store_connection</span>(<span class='id identifier rubyid_connection'><a href="#connection-instance_method" title="Mongo::Server::Monitor#connection (method)">connection</a></span>)
+  <span class='ivar'>@connection_lock</span>.<span class='id identifier rubyid_synchronize'>synchronize</span> <span class='kw'>do</span>
+    <span class='ivar'>@connection</span> <span class='op'>=</span> <span class='id identifier rubyid_connection'><a href="#connection-instance_method" title="Mongo::Server::Monitor#connection (method)">connection</a></span>
   <span class='kw'>end</span>
 <span class='kw'>end</span>
 </pre>
@@ -1473,11 +1653,11 @@ can sleep for a very long time.</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L372-L377'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L436-L441'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='372' data-end='377'></pre>
+  <pre class='lines_num' data-start='436' data-end='441'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 372</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 436</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_throttle_scan_frequency!'>throttle_scan_frequency!</span>
@@ -1509,11 +1689,11 @@ can sleep for a very long time.</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L278-L280'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/monitor.rb#L316-L318'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='278' data-end='280'></pre>
+  <pre class='lines_num' data-start='316' data-end='318'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 278</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/monitor.rb', line 316</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_to_s'>to_s</span>
