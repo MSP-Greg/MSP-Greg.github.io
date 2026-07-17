@@ -149,8 +149,84 @@ For example:</p>
 </div>
 </div>
 <div class="paragraph">
-<p>With &lt;code&gt;UseProjectIndex: true&lt;/code&gt;, RuboCop reports a &lt;code&gt;Lint/ConstantReassignment&lt;/code&gt; offense referencing the other file.
-Index-aware cops automatically pick up the index whenever it is built; no per-cop opt-in is required.</p>
+<p>With &lt;code&gt;UseProjectIndex: true&lt;/code&gt;, RuboCop reports a &lt;code&gt;Lint/ConstantReassignment&lt;/code&gt; offense referencing the other file.</p>
+</div>
+<div class="paragraph">
+<p>&lt;code&gt;Lint/DuplicateMethods&lt;/code&gt; reports methods whose duplicate definition lives in another file.
+For example:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='comment'># a.rb
+</span><span class='kw'>class</span> <span class='const'>Foo</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_bar'>bar</span><span class='semicolon'>;</span> <span class='kw'>end</span>
+<span class='kw'>end</span>
+
+<span class='comment'># b.rb
+</span><span class='kw'>class</span> <span class='const'>Foo</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_bar'>bar</span><span class='semicolon'>;</span> <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>With &lt;code&gt;UseProjectIndex: true&lt;/code&gt;, RuboCop reports a &lt;code&gt;Lint/DuplicateMethods&lt;/code&gt; offense in each file,
+referencing the definition in the other one. Redefining a method from another file on purpose
+(e.g. a monkey patch) can be signaled with the self-alias trick (<code>alias bar bar</code> right before
+the redefinition), which also suppresses Ruby&#8217;s method redefinition warning.</p>
+</div>
+<div class="paragraph">
+<p>&lt;code&gt;Lint/DeprecatedReference&lt;/code&gt; (pending) is entirely powered by the index: it reports calls to methods
+and references to constants documented with a YARD &lt;code&gt;@deprecated&lt;/code&gt; tag anywhere in the project.</p>
+</div>
+<div class="paragraph">
+<p>&lt;code&gt;Lint/UnusedPrivateMethod&lt;/code&gt; (disabled by default) uses the index for project-wide dead-code
+detection: it reports private instance methods whose names are never referenced anywhere in
+the indexed project. Since symbol-based references from other files (e.g. Rails callbacks
+declared in a concern) cannot be detected, it is best suited for occasional dead-code sweeps.</p>
+</div>
+<div class="paragraph">
+<p>&lt;code&gt;Style/MissingRespondToMissing&lt;/code&gt; accepts a <code>respond_to_missing?</code> defined in another definition
+of the same class or module (e.g. a reopening in another file).</p>
+</div>
+<div class="paragraph">
+<p>&lt;code&gt;Lint/InheritException&lt;/code&gt; also reports classes that inherit from <code>Exception</code> indirectly, through
+a parent class defined elsewhere in the project.</p>
+</div>
+<div class="paragraph">
+<p>&lt;code&gt;Style/StaticClass&lt;/code&gt; does not report classes that are subclassed anywhere in the project.</p>
+</div>
+<div class="paragraph">
+<p>&lt;code&gt;Naming/PredicatePrefix&lt;/code&gt; and &lt;code&gt;Naming/AccessorMethodName&lt;/code&gt; do not suggest renaming methods
+that override a method defined by an ancestor elsewhere in the project.</p>
+</div>
+<div class="paragraph">
+<p>&lt;code&gt;Style/ClassAndModuleChildren&lt;/code&gt; uses the index to make its (unsafe) autocorrection more reliable:
+when nesting a compact definition (<code>class Foo::Bar</code>), the namespace wrapper&#8217;s keyword (<code>class</code> or
+<code>module</code>) is resolved from the actual definition of <code>Foo</code> instead of guessed, and compacting a
+nested definition is skipped when the outer namespace is not defined elsewhere (the compact form
+would raise <code>NameError</code> at load time).</p>
+</div>
+<div class="paragraph">
+<p>&lt;code&gt;Lint/MissingSuper&lt;/code&gt; skips the constructor offense when the class' entire ancestry is resolvable
+in the index and no ancestor defines <code>initialize</code> - in that case <code>super</code> would only reach the
+no-op <code>Object#initialize</code>. This removes the need to list project-local abstract base classes in
+<code>AllowedParentClasses</code>.</p>
+</div>
+<div class="paragraph">
+<p>&lt;code&gt;Style/RedundantConstantBase&lt;/code&gt; also reports a leading &lt;code&gt;::&lt;/code&gt; inside a namespace when the
+constant provably resolves identically without it.</p>
+</div>
+<div class="paragraph">
+<p>&lt;code&gt;Lint/ConstantResolution&lt;/code&gt; reports only genuinely ambiguous constants - those that resolve to a
+different declaration through the surrounding nesting than they would fully qualified - which
+makes the cop practical to enable without <code>Only</code>/<code>Ignore</code> lists.</p>
+</div>
+<div class="paragraph">
+<p>&lt;code&gt;Style/Documentation&lt;/code&gt; accepts a reopened class or module when any of its other definition
+sites carries a documentation comment, instead of requiring a comment at every reopening.</p>
+</div>
+<div class="paragraph">
+<p>Index-aware cops automatically pick up the index whenever it is built; no per-cop opt-in is required.</p>
 </div>
 </div>
 </div>
@@ -167,7 +243,15 @@ Index-aware cops automatically pick up the index whenever it is built; no per-co
 use serial inspection (omit <code>--parallel</code>).</p>
 </li>
 <li>
-<p>The index is rebuilt once per <code>rubocop</code> invocation; no on-disk index is shared between runs.</p>
+<p>The index always covers the whole project (rooted at the directory containing <code>Gemfile</code>
+or <code>gems.rb</code>, falling back to the current directory), regardless of which files a
+particular run inspects. Inspecting a single file therefore reports the same cross-file
+offenses as a full run.</p>
+</li>
+<li>
+<p>The index is rebuilt once per <code>rubocop</code> invocation; no on-disk index is shared between
+runs. Indexing is fast (roughly 100ms for a couple thousand files), but very large
+monorepos will notice the per-run cost on single-file runs.</p>
 </li>
 </ul>
 </div>
