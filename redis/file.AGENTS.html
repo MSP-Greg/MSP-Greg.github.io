@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen' content='yes'>
+<meta name='mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: AGENTS &mdash; Redis master</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "AGENTS",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>Redis master</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: AGENTS&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<h2 id="Repository_layout">Repository layout</h2>
+<p>This repository ships <strong>two gems</strong> from one tree:</p>
+<ul>
+<li><code>redis</code> — the high-level standalone/sentinel client. Source under <code>lib/</code>, gemspec at <code>redis.gemspec</code>.</li>
+<li><code>redis-clustering</code> — the cluster client, a thin subclass that depends on <code>redis</code>. Source under <code>cluster/lib/</code>, gemspec at <code>cluster/redis-clustering.gemspec</code>. It is a separate gem on purpose: passing <code>cluster:</code> to <a href="Redis.html#new-class_method" title="Redis.new (method)">Redis.new</a> raises (see <code>lib/redis.rb</code>).</li>
+</ul>
+<p>Cluster code, tests, and CHANGELOG live under <code>cluster/</code>. When making changes that span both, edit both — the cluster gem reuses <code>lib/redis/commands/**</code> from the main gem but has its own client class (<code>cluster/lib/redis/cluster/client.rb</code>) and transaction adapter.</p>
+<h2 id="Common_commands">Common commands</h2>
+<p>The dev workflow runs <a href="Redis.html" title="Redis (class)"><code>Redis</code></a> in Docker containers via <code>docker-compose.yml</code> using the prebuilt <code>redislabs/client-libs-test</code> image. Topologies are selected by Docker profiles (<code>standalone</code>, <code>sentinel</code>, <code>cluster</code>, <code>all</code>). The <code>makefile</code> is a thin shim around <code>docker compose --profile X up -d --wait</code> and <code>down -v</code>, so the historical target names still work:</p>
+<pre class="code sh"><code class="sh"># bring up everything: standalone, replica, 3 sentinels, 6-node cluster
+make start_all
+
+# run the full suite (all four test groups)
+make test
+
+# stop everything
+make stop_all
+
+# one shot: start, test, stop
+make all
+</code></pre>
+<p><code>make test</code> shells out to <code>bundle exec rake test</code>, which runs four <code>Rake::TestTask</code> groups defined in <code>Rakefile</code>:</p>
+<pre class="code sh"><code class="sh">bundle exec rake test:redis        # lib/redis core
+bundle exec rake test:distributed  # lib/redis/distributed (client-side sharding)
+bundle exec rake test:sentinel     # sentinel-mode tests
+bundle exec rake test:cluster      # cluster gem (loads cluster/lib + cluster/test)
+</code></pre>
+<p>To run a single test file or method, use Minitest's options via <code>TESTOPTS</code>:</p>
+<pre class="code sh"><code class="sh">bundle exec rake test:redis TEST=test/redis/commands_on_strings_test.rb
+bundle exec rake test:cluster TEST=cluster/test/commands_on_strings_test.rb TESTOPTS=&quot;--name=/get/&quot;
+</code></pre>
+<p>Other useful knobs:</p>
+<ul>
+<li><code>REDIS_VERSION=8.X.Y make start_all</code> — pin the image tag (default is set at the top of <code>makefile</code>). Tags are published per Redis minor.patch (e.g. <code>8.0.6</code>, <code>8.2.6</code>, <code>8.4.3</code>, <code>8.6.3</code>, <code>8.8.0</code>); a bare <code>8.4</code> tag generally does not exist.</li>
+<li><code>DRIVER=hiredis bundle exec rake test</code> — run the suite against the <code>hiredis-client</code> C-extension driver instead of the pure-Ruby parser (see <code>test/helper.rb</code>).</li>
+<li><code>REDIS_SOCKET_PATH=...</code> — override the Unix socket location. The default expects <code>tmp/redis.sock</code>, which the standalone container bind-mounts from <code>./tmp:/sockets</code>; <code>test/helper.rb</code> aborts if it's missing.</li>
+<li><code>bundle exec rubocop</code> — lint. The Rubocop config is in <code>.rubocop.yml</code> (root) and <code>cluster/.rubocop.yml</code>.</li>
+<li><code>bin/console</code> — IRB session with <code>redis</code> preloaded.</li>
+</ul>
+<p>You can also drive <code>docker compose</code> directly when you want a single profile up:</p>
+<pre class="code sh"><code class="sh">docker compose --profile standalone up -d --wait
+docker compose --profile sentinel   up -d --wait
+docker compose --profile cluster    up -d --wait
+docker compose --profile all down -v
+</code></pre>
+<p>The cluster profile's healthcheck waits for <code>cluster_state:ok</code> (not just PING) so tests can connect without hitting the historical <code>InitialSetupError</code> race. Pre-configured sentinel node directories live under <code>test/support/sentinel-config/</code> and are bind-mounted into the sentinel container; the image's entrypoint starts each as a sentinel because their directory names begin with <code>node-sentinel</code>.</p>
+<h3 id="macOS_Docker_Desktop_note">macOS / Docker Desktop note</h3>
+<p>The compose stack uses <code>network_mode: host</code> so sentinel and cluster nodes report <code>127.0.0.1</code> addresses the test runner on the host can reach. On Linux this works natively. On macOS, Docker Desktop's &quot;host networking&quot; beta must be enabled (Settings → Resources → Network → Enable host networking); without it, the containers are healthy but their ports aren't visible on <code>127.0.0.1</code>. AF_UNIX sockets bind-mounted out of the standalone container also don't route through Docker Desktop's VM on macOS, so <code>test_connecting_to_unix_domain_socket</code> fails locally but passes on Linux CI.</p>
+<h2 id="Architecture">Architecture</h2>
+<h3 id="Layering">Layering</h3>
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Redis.html" title="Redis (class)">Redis</a></span> (<span class='id identifier rubyid_lib'>lib</span><span class='op'>/</span><span class='id identifier rubyid_redis'>redis</span>.<span class='id identifier rubyid_rb'>rb</span>)                <span class='id identifier rubyid_ergonomics'>ergonomics</span><span class='op'>:</span> <span class='id identifier rubyid_keyword'>keyword</span> <span class='const'>DSL</span><span class='comma'>,</span> <span class='const'>RESP2</span> <span class='id identifier rubyid_reshape'>reshape</span><span class='comma'>,</span> <span class='id identifier rubyid_error'>error</span> <span class='id identifier rubyid_translation'>translation</span><span class='comma'>,</span>
+   <span class='id identifier rubyid_├'>├</span> <span class='const'>Commands</span> (<span class='id identifier rubyid_lib'>lib</span><span class='op'>/</span><span class='id identifier rubyid_redis'>redis</span><span class='op'>/</span><span class='id identifier rubyid_commands'>commands</span>)  <span class='id identifier rubyid_pub'>pub</span><span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>sub second-socket, pipelined</span><span class='regexp_end'>/multi</span></span> <span class='id identifier rubyid_wrappers'>wrappers</span>
+   <span class='id identifier rubyid_├'>├</span> <span class='const'>Monitor</span> (<span class='id identifier rubyid_lock'>lock</span>)
+   <span class='id identifier rubyid_└'>└</span> <span class='ivar'>@client</span> <span class='op'>:</span> <span class='const'><a href="Redis.html" title="Redis (class)">Redis</a></span><span class='op'>::</span><span class='const'><a href="Redis/Client.html" title="Redis::Client (class)">Client</a></span> <span class='op'>&lt;</span> <span class='const'>RedisClient</span>
+                                    <span class='id identifier rubyid_↓'>↓</span>
+              <span class='id identifier rubyid_redis'>redis</span><span class='op'>-</span><span class='id identifier rubyid_client'>client</span> <span class='id identifier rubyid_gem'>gem</span> (<span class='id identifier rubyid_external'>external</span><span class='comma'>,</span> <span class='id identifier rubyid_vendored'>vendored</span> <span class='id identifier rubyid_as'>as</span> <span class='id identifier rubyid_runtime'>runtime</span> <span class='id identifier rubyid_dep'>dep</span>)
+                                    <span class='id identifier rubyid_↓'>↓</span>
+              <span class='const'>TCP</span><span class='op'>/</span><span class='const'>TLS</span><span class='op'>/</span><span class='const'>Unix</span> <span class='id identifier rubyid_socket'>socket</span></code></pre>
+<p>The <a href="Redis.html" title="Redis (class)"><code>Redis</code></a> class is the public surface. It delegates all network I/O to <a href="Redis/Client.html" title="Redis::Client (class)"><code>::Redis::Client</code></a>, which inherits from <code>RedisClient</code> (in the <code>redis-client</code> gem) and only adds:</p>
+<ol>
+<li>Error translation: maps <code>RedisClient.*</code> exceptions to <code>Redis.*</code> via <code>ERROR_MAPPING</code> in <code>lib/redis/client.rb</code>. Every public method on <a href="Redis/Client.html" title="Redis::Client (class)"><code>::Redis::Client</code></a> is wrapped in a rescue that calls <code>Client.translate_error!</code>.</li>
+<li>A hard pin of <code>protocol: 2</code> in <code>lib/redis/client.rb</code>. RESP3 is intentionally not supported at this layer (see &quot;RESP2 invariant&quot; below).</li>
+<li>Trivial config delegators (<code>#host</code>, <code>#port</code>, <code>#db</code>, …).</li>
+</ol>
+<p>The full command execution flow is: <code>Redis#some_command</code> (defined in <code>lib/redis/commands/&lt;category&gt;.rb</code>) builds an array → <a href="Redis.html#send_command-instance_method" title="Redis#send_command (method)">Redis#send_command</a> grabs <code>@monitor</code> → <a href="Redis/Client.html#call_v-instance_method" title="Redis::Client#call_v (method)">Redis::Client#call_v</a> rescues + re-raises → <code>RedisClient#call_v</code> serializes RESP and reads the reply → optional reshape lambda runs → result returned.</p>
+<h3 id="Commands_as_a_module_composition">Commands as a module composition</h3>
+<p>Every Redis command category is a module under <code>lib/redis/commands/</code> (strings, lists, hashes, sets, sorted_sets, streams, scripting, transactions, pubsub, etc.). They are all <code>include</code>d into a parent <a href="Redis/Commands.html" title="Redis::Commands (module)"><code>::Redis::Commands</code></a> module (<code>lib/redis/commands.rb</code>), which is in turn mixed into:</p>
+<ul>
+<li><a href="Redis.html" title="Redis (class)"><code>Redis</code></a> (<code>lib/redis.rb</code>)</li>
+<li><a href="Redis/PipelinedConnection.html" title="Redis::PipelinedConnection (class)"><code>::Redis::PipelinedConnection</code></a> (<code>lib/redis/pipeline.rb</code>) — used inside <code>pipelined</code> and <code>multi</code> blocks</li>
+<li>(Indirectly) <code>Redis::Cluster</code> via inheritance from <a href="Redis.html" title="Redis (class)"><code>Redis</code></a></li>
+</ul>
+<p>This is the <strong>single most important pattern in the codebase</strong>. To add a new command, find the matching <code>commands/<category>.rb</code> and add a method that calls <code>send_command([:cmd, ...])</code> — that method automatically becomes available on every client type. The mixin classes each provide their own <code>send_command</code> and <code>synchronize</code> so the same <code>Commands</code> methods work in direct calls, pipelines, and transactions.</p>
+<p>There is also a catch-all <code>method_missing</code> in <code>lib/redis/commands.rb</code> that forwards any unknown method as a Redis command — so unwrapped commands &quot;just work.&quot;</p>
+<h3 id="Reply_reshaping_RESP2_invariant_">Reply reshaping (RESP2 invariant)</h3>
+<p>The top of <code>lib/redis/commands.rb</code> defines a family of lambdas — <code>Boolify</code>, <code>BoolifySet</code>, <code>Hashify</code>, <code>Floatify</code>, <code>FloatifyPairs</code>, <code>HashifyInfo</code>, <code>HashifyStreamEntries</code>, <code>HashifyClusterNodes</code>, … — that reshape flat RESP2 replies into idiomatic Ruby (Hash, Float, boolean, etc.). They are passed as blocks to <code>send_command</code>:</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_incrbyfloat'>incrbyfloat</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_increment'>increment</span>)
+  <span class='id identifier rubyid_send_command'>send_command</span>([<span class='symbeg'>:</span><span class='id identifier rubyid_incrbyfloat'>incrbyfloat</span><span class='comma'>,</span> <span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='const'>Float</span>(<span class='id identifier rubyid_increment'>increment</span>)]<span class='comma'>,</span> <span class='op'>&amp;</span><span class='const'>Floatify</span>)
+<span class='kw'>end</span></code></pre>
+<p>These lambdas <strong>assume RESP2-shaped replies</strong> — flat arrays the lambda slices into hashes, integer 0/1 it turns into booleans, etc. This is why <a href="Redis/Client.html#config-class_method" title="Redis::Client.config (method)">Redis::Client.config</a> hard-codes <code>protocol: 2</code>: under RESP3 the server already returns native maps/booleans/doubles and the lambdas would either double-process or break. If you're tempted to enable RESP3, the realistic path is to drop down to <code>RedisClient</code> directly rather than touch this layer.</p>
+<p>When adding a command that needs reply transformation, write or reuse one of these lambdas; do not coerce in the command method itself.</p>
+<h3 id="Connection_lifecycle_long_lived_lazy_fork_safe_">Connection lifecycle (long-lived, lazy, fork-safe)</h3>
+<ul>
+<li><a href="Redis.html#new-class_method" title="Redis.new (method)">Redis.new</a> does <strong>not</strong> open a socket — it's lazy. The first command triggers <code>RedisClient#ensure_connected</code>, which runs the <code>connection_prelude</code> (HELLO/AUTH, SELECT, CLIENT SETINFO, then CLIENT SETNAME and ROLE) and caches the socket.</li>
+<li>One <a href="Redis.html" title="Redis (class)"><code>Redis</code></a> instance owns one socket, guarded by a <code>Monitor</code> defined in <code>lib/redis.rb</code> and acquired in <a href="Redis.html#send_command-instance_method" title="Redis#send_command (method)">Redis#send_command</a>. The reentrant lock matters for nested <code>watch { multi { ... } }</code> patterns; do not &quot;optimize&quot; it to <code>Mutex</code> without redesigning that API.</li>
+<li>For concurrent use, wrap with <code>connection_pool</code> — the README documents this and it's the only recommended pooling story. The gem itself does not pool.</li>
+<li>Fork safety is handled inside <code>redis-client</code> via <code>PIDCache</code>: a forked child detects the inherited socket and reconnects on next use. The <code>inherit_socket</code> option in <code>lib/redis.rb</code> disables that check; almost no callers should use it.</li>
+</ul>
+<h3 id="Pub_Sub_separate_socket_same_process">Pub/Sub — separate socket, same process</h3>
+<p><code>subscribe</code> / <code>psubscribe</code> / <code>ssubscribe</code> open a <strong>second</strong> dedicated socket via <code>@client.pubsub</code> (in <code>lib/redis.rb</code>) wrapped in <code>SubscribedClient</code> (<code>lib/redis/subscribe.rb</code>). This keeps the command socket usable from other threads while one thread is blocked in the <code>next_event</code> loop. The subscription loop on the calling thread is synchronous — if you want it off the main thread, the caller spawns a <code>Thread</code>. There's a separate write-monitor on the subscription socket. Sharded pub/sub (<code>SSUBSCRIBE</code>) subscribes one channel at a time to avoid cross-slot errors in cluster mode.</p>
+<h3 id="Pipelines_and_transactions">Pipelines and transactions</h3>
+<p><code>pipelined</code> and <code>multi</code> both yield a <a href="Redis/PipelinedConnection.html" title="Redis::PipelinedConnection (class)"><code>::Redis::PipelinedConnection</code></a> (or <code>MultiConnection</code>) that re-includes <code>Commands</code> (<code>lib/redis/pipeline.rb</code>). Each command inside the block returns a <a href="Redis/Future.html" title="Redis::Future (class)"><code>::Redis::Future</code></a> that resolves when the batch flushes. <code>MultiFuture</code> (in <code>lib/redis/pipeline.rb</code>) splits the <code>EXEC</code> reply array back across individual command futures. Inside a <code>MULTI</code>, blocking commands degrade to non-blocking — that's intentional, matching Redis server semantics.</p>
+<h3 id="Cluster_gem_differences">Cluster gem differences</h3>
+<p><code>cluster/lib/redis/cluster.rb</code> defines <code>Redis::Cluster &lt; ::Redis</code>, so it inherits the full <code>Commands</code> surface but swaps <code>initialize_client</code> to build a <code>RedisClient::Cluster</code> via the <code>redis-cluster-client</code> gem. Cluster-specific differences worth knowing:</p>
+<ul>
+<li><code>Redis::Cluster::Client</code> (<code>cluster/lib/redis/cluster/client.rb</code>) maintains a <strong>per-node connection pool internally</strong> via <code>redis-cluster-client</code>. Do not wrap this in the <code>connection_pool</code> gem.</li>
+<li><code>watch</code> <strong>requires a block with an argument</strong> in <code>cluster/lib/redis/cluster/client.rb</code>. The block receives a <code>Redis::Cluster::TransactionAdapter</code> that pins commands to the same node/slot. Standalone <code>Redis#watch</code> accepts the no-block form; cluster does not.</li>
+<li><code>Redis::Cluster#connection</code> raises <code>NotImplementedError</code> — there's no single &quot;connection&quot; to report.</li>
+<li>Extra error classes: <code>InitialSetupError</code>, <code>OrchestrationCommandNotSupported</code>, <code>CommandErrorCollection</code>, <code>AmbiguousNodeError</code>, <code>TransactionConsistencyError</code>, <code>NodeMightBeDown</code> (defined in <code>cluster/lib/redis/cluster.rb</code>).</li>
+</ul>
+<h3 id="Redis_Distributed_is_not_Redis_Cluster"><a href="Redis/Distributed.html" title="Redis::Distributed (class)"><code>::Redis::Distributed</code></a> is not Redis Cluster</h3>
+<p><code>lib/redis/distributed.rb</code> + <code>lib/redis/hash_ring.rb</code> implement <strong>client-side consistent-hash sharding</strong> across N independent standalone Redis servers. It is <em>not</em> the Redis Cluster protocol — there are no slot maps, no MOVED/ASK redirects, no automatic resharding. Keys are hashed with CRC32 against an MD5-built ring (160 vnodes/server) and dispatched to one underlying <a href="Redis.html" title="Redis (class)"><code>Redis</code></a> instance. Multi-key commands raise <code>CannotDistribute</code> since co-location isn't guaranteed.</p>
+<p>It is <strong>separately maintained</strong> from <code>Commands</code> — <a href="Redis/Distributed.html" title="Redis::Distributed (class)"><code>::Redis::Distributed</code></a> does <em>not</em> include the <code>Commands</code> mixin; every method is explicitly defined in <code>distributed.rb</code> so it can route to the right node via <code>node_for(key)</code>. When adding a new Redis command that should be available here, add a corresponding method to <code>lib/redis/distributed.rb</code> and a test under <code>test/distributed/</code>. The <code>test:distributed</code> Rake task runs as part of the default suite, so missing or broken Distributed implementations will fail CI.</p>
+<p>It is supported (recent commits add JSON, HEXPIRE/HPTTL, HSCAN, etc.) and not deprecated. For new applications needing horizontal scaling, <code>Redis::Cluster</code> is generally the better choice because the server enforces consistency; <a href="Redis/Distributed.html" title="Redis::Distributed (class)"><code>::Redis::Distributed</code></a> is the right tool when you have N independent standalone Redises and want memcache-style key distribution.</p>
+<h2 id="Conventions">Conventions</h2>
+<ul>
+<li>Every file starts with <code># frozen_string_literal: true</code>. Keep it when editing or creating files.</li>
+<li>Commands take symbols for the verb (<code>[:incr, key]</code>); strings and arguments are coerced where needed (<code>Integer(x)</code>, <code>Float(x)</code>, <code>value.to_s</code>). Follow the local pattern in <code>lib/redis/commands/<category>.rb</code> when adding new methods.</li>
+<li>Yard-style docstrings (<code>@param</code>, <code>@option</code>, <code>@return</code>, <code>@example</code>) are on every public command method. New methods should keep that format.</li>
+<li>Error mapping is centralized in <a href="Redis/Client.html#ERROR_MAPPING-constant" title="Redis::Client::ERROR_MAPPING (constant)">Redis::Client::ERROR_MAPPING</a> (and extended in <code>Redis::Cluster::Client::ERROR_MAPPING</code>). If you add a new RedisClient error class to handle, add it there rather than catching in individual command methods.</li>
+<li>Test files must live under one of <code>test/redis</code>, <code>test/distributed</code>, <code>test/sentinel</code>, <code>cluster/test</code>. The Rakefile fails the build if a <code>*_test.rb</code> exists outside those groups.</li>
+</ul>
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>

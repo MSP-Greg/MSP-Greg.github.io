@@ -1,0 +1,1951 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen'       content='yes'>
+<meta name='apple-mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Active Record Querying &mdash; Rails 6.1.7.10</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "active_record_querying",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>Rails 6.1.7.10</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Active Record Querying&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<p><strong>DO NOT READ THIS FILE ON GITHUB, GUIDES ARE PUBLISHED ON <a href="https://guides.rubyonrails.org">https://guides.rubyonrails.org</a>.</strong></p>
+
+<h1>Active Record Query Interface</h1>
+
+<p>This guide covers different ways to retrieve data from the database using Active Record.</p>
+
+<p>After reading this guide, you will know:</p>
+
+<ul>
+<li>How to find records using a variety of methods and conditions.</li>
+<li>How to specify the order, retrieved attributes, grouping, and other properties of the found records.</li>
+<li>How to use eager loading to reduce the number of database queries needed for data retrieval.</li>
+<li>How to use dynamic finder methods.</li>
+<li>How to use method chaining to use multiple Active Record methods together.</li>
+<li>How to check for the existence of particular records.</li>
+<li>How to perform various calculations on Active Record models.</li>
+<li>How to run EXPLAIN on relations.</li>
+</ul>
+
+<hr>
+
+<h2>What is the Active Record Query Interface?</h2>
+
+<p>If you&#39;re used to using raw SQL to find database records, then you will generally find that there are better ways to carry out the same operations in <a href="Rails.html" title="Rails (module)"><code>Rails</code></a>. Active Record insulates you from the need to use SQL in most cases.</p>
+
+<p>Active Record will perform queries on the database for you and is compatible with most database systems, including MySQL, MariaDB, PostgreSQL, and SQLite. Regardless of which database system you&#39;re using, the Active Record method format will always be the same.</p>
+
+<p>Code examples throughout this guide will refer to one or more of the following models:</p>
+
+<p>TIP: All of the following models use <code>id</code> as the primary key, unless specified otherwise.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Author</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_has_many'>has_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_books'>books</span><span class='comma'>,</span> <span class='tlambda'>-&gt;</span> <span class='tlambeg'>{</span> <span class='id identifier rubyid_order'>order</span>(<span class='label'>year_published:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_desc'>desc</span>) }
+<span class='kw'>end</span></code></pre>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Book</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_belongs_to'>belongs_to</span> <span class='symbeg'>:</span><span class='id identifier rubyid_supplier'>supplier</span>
+  <span class='id identifier rubyid_belongs_to'>belongs_to</span> <span class='symbeg'>:</span><span class='id identifier rubyid_author'>author</span>
+  <span class='id identifier rubyid_has_many'>has_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_reviews'>reviews</span>
+  <span class='id identifier rubyid_has_and_belongs_to_many'>has_and_belongs_to_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_orders'>orders</span><span class='comma'>,</span> <span class='label'>join_table:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>books_orders</span><span class='tstring_end'>&#39;</span></span>
+
+  <span class='id identifier rubyid_scope'>scope</span> <span class='symbeg'>:</span><span class='id identifier rubyid_in_print'>in_print</span><span class='comma'>,</span> <span class='tlambda'>-&gt;</span> <span class='tlambeg'>{</span> <span class='id identifier rubyid_where'>where</span>(<span class='label'>out_of_print:</span> <span class='kw'>false</span>) }
+  <span class='id identifier rubyid_scope'>scope</span> <span class='symbeg'>:</span><span class='id identifier rubyid_out_of_print'>out_of_print</span><span class='comma'>,</span> <span class='tlambda'>-&gt;</span> <span class='tlambeg'>{</span> <span class='id identifier rubyid_where'>where</span>(<span class='label'>out_of_print:</span> <span class='kw'>true</span>) }
+  <span class='id identifier rubyid_scope'>scope</span> <span class='symbeg'>:</span><span class='id identifier rubyid_old'>old</span><span class='comma'>,</span> <span class='tlambda'>-&gt;</span> <span class='tlambeg'>{</span> <span class='id identifier rubyid_where'>where</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>year_published &lt; ?</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='int'>50</span>.<span class='id identifier rubyid_years'>years</span>.<span class='id identifier rubyid_ago'>ago</span> )}
+  <span class='id identifier rubyid_scope'>scope</span> <span class='symbeg'>:</span><span class='id identifier rubyid_out_of_print_and_expensive'>out_of_print_and_expensive</span><span class='comma'>,</span> <span class='tlambda'>-&gt;</span> <span class='tlambeg'>{</span> <span class='id identifier rubyid_out_of_print'>out_of_print</span>.<span class='id identifier rubyid_where'>where</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>price &gt; 500</span><span class='tstring_end'>&#39;</span></span>) }
+  <span class='id identifier rubyid_scope'>scope</span> <span class='symbeg'>:</span><span class='id identifier rubyid_costs_more_than'>costs_more_than</span><span class='comma'>,</span> <span class='tlambda'>-&gt;</span>(<span class='id identifier rubyid_amount'>amount</span>) <span class='tlambeg'>{</span> <span class='id identifier rubyid_where'>where</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>price &gt; ?</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_amount'>amount</span>) }
+<span class='kw'>end</span></code></pre>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Customer</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_has_many'>has_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_orders'>orders</span>
+  <span class='id identifier rubyid_has_many'>has_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_reviews'>reviews</span>
+<span class='kw'>end</span></code></pre>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Order</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_belongs_to'>belongs_to</span> <span class='symbeg'>:</span><span class='id identifier rubyid_customer'>customer</span>
+  <span class='id identifier rubyid_has_and_belongs_to_many'>has_and_belongs_to_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_books'>books</span><span class='comma'>,</span> <span class='label'>join_table:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>books_orders</span><span class='tstring_end'>&#39;</span></span>
+
+  <span class='id identifier rubyid_enum'>enum</span> <span class='label'>status:</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_shipped'>shipped</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_being_packed'>being_packed</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_complete'>complete</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_cancelled'>cancelled</span>]
+
+  <span class='id identifier rubyid_scope'>scope</span> <span class='symbeg'>:</span><span class='id identifier rubyid_created_before'>created_before</span><span class='comma'>,</span> <span class='tlambda'>-&gt;</span>(<span class='id identifier rubyid_time'>time</span>) <span class='tlambeg'>{</span> <span class='id identifier rubyid_where'>where</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>created_at &lt; ?</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_time'>time</span>) }
+<span class='kw'>end</span></code></pre>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Review</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_belongs_to'>belongs_to</span> <span class='symbeg'>:</span><span class='id identifier rubyid_customer'>customer</span>
+  <span class='id identifier rubyid_belongs_to'>belongs_to</span> <span class='symbeg'>:</span><span class='id identifier rubyid_book'>book</span>
+
+  <span class='id identifier rubyid_enum'>enum</span> <span class='label'>state:</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_not_reviewed'>not_reviewed</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_published'>published</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_hidden'>hidden</span>]
+<span class='kw'>end</span></code></pre>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Supplier</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_has_many'>has_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_books'>books</span>
+  <span class='id identifier rubyid_has_many'>has_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_authors'>authors</span><span class='comma'>,</span> <span class='label'>through:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_books'>books</span>
+<span class='kw'>end</span></code></pre>
+
+<p><img src="images/active_record_querying/bookstore_models.png" alt="Diagram of all of the bookstore models"></p>
+
+<h2>Retrieving Objects from the Database</h2>
+
+<p>To retrieve objects from the database, Active Record provides several finder methods. Each finder method allows you to pass arguments into it to perform certain queries on your database without writing raw SQL.</p>
+
+<p>The methods are:</p>
+
+<ul>
+<li><a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-annotate"><code>annotate</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActiveRecord/FinderMethods.html#method-i-find"><code>find</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-create_with"><code>create_with</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-distinct"><code>distinct</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-eager_load"><code>eager_load</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-extending"><code>extending</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-extract_associated"><code>extract_associated</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-from"><code>from</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-group"><code>group</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-having"><code>having</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-includes"><code>includes</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-joins"><code>joins</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-left_outer_joins"><code>left_outer_joins</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-limit"><code>limit</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-lock"><code>lock</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-none"><code>none</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-offset"><code>offset</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-optimizer_hints"><code>optimizer_hints</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-order"><code>order</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-preload"><code>preload</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-readonly"><code>readonly</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-references"><code>references</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-reorder"><code>reorder</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-reselect"><code>reselect</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-reverse_order"><code>reverse_order</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-select"><code>select</code></a></li>
+<li><a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-where"><code>where</code></a></li>
+</ul>
+
+<p>Finder methods that return a collection, such as <code>where</code> and <code>group</code>, return an instance of <a href="https://api.rubyonrails.org/classes/ActiveRecord/Relation.html"><a href="ActiveRecord/Relation.html" title="ActiveRecord::Relation (class)"><code>::ActiveRecord::Relation</code></a></a>.  Methods that find a single entity, such as <code>find</code> and <code>first</code>, return a single instance of the model.</p>
+
+<p>The primary operation of <code>Model.find(options)</code> can be summarized as:</p>
+
+<ul>
+<li>Convert the supplied options to an equivalent SQL query.</li>
+<li>Fire the SQL query and retrieve the corresponding results from the database.</li>
+<li>Instantiate the equivalent Ruby object of the appropriate model for every resulting row.</li>
+<li>Run <code>after_find</code> and then <code>after_initialize</code> callbacks, if any.</li>
+</ul>
+
+<h3>Retrieving a Single Object</h3>
+
+<p>Active Record provides several different ways of retrieving a single object.</p>
+
+<h4><code>find</code></h4>
+
+<p>Using the <a href="https://api.rubyonrails.org/classes/ActiveRecord/FinderMethods.html#method-i-find"><code>find</code></a> method, you can retrieve the object corresponding to the specified <em>primary key</em> that matches any supplied options. For example:</p>
+
+<pre class="code irb"><code class="irb"># Find the customer with primary key (id) 10.
+irb&gt; customer = Customer.find(10)
+=&gt; #&lt;Customer id: 10, first_name: &quot;Ryan&quot;&gt;
+</code></pre>
+
+<p>The SQL equivalent of the above is:</p>
+
+<pre class="code sql"><code class="sql">SELECT * FROM customers WHERE (customers.id = 10) LIMIT 1
+</code></pre>
+
+<p>The <code>find</code> method will raise an <a href="ActiveRecord/RecordNotFound.html" title="ActiveRecord::RecordNotFound (class)"><code>::ActiveRecord::RecordNotFound</code></a> exception if no matching record is found.</p>
+
+<p>You can also use this method to query for multiple objects. Call the <code>find</code> method and pass in an array of primary keys. The return will be an array containing all of the matching records for the supplied <em>primary keys</em>. For example:</p>
+
+<pre class="code irb"><code class="irb"># Find the customers with primary keys 1 and 10.
+irb&gt; customers = Customer.find([1, 10]) # OR Customer.find(1, 10)
+=&gt; [#&lt;Customer id: 1, first_name: &quot;Lifo&quot;&gt;, #&lt;Customer id: 10, first_name: &quot;Ryan&quot;&gt;]
+</code></pre>
+
+<p>The SQL equivalent of the above is:</p>
+
+<pre class="code sql"><code class="sql">SELECT * FROM customers WHERE (customers.id IN (1,10))
+</code></pre>
+
+<p>WARNING: The <code>find</code> method will raise an <a href="ActiveRecord/RecordNotFound.html" title="ActiveRecord::RecordNotFound (class)"><code>::ActiveRecord::RecordNotFound</code></a> exception unless a matching record is found for <strong>all</strong> of the supplied primary keys.</p>
+
+<h4><code>take</code></h4>
+
+<p>The <a href="https://api.rubyonrails.org/classes/ActiveRecord/FinderMethods.html#method-i-take"><code>take</code></a> method retrieves a record without any implicit ordering. For example:</p>
+
+<pre class="code irb"><code class="irb">irb&gt; customer = Customer.take
+=&gt; #&lt;Customer id: 1, first_name: &quot;Lifo&quot;&gt;
+</code></pre>
+
+<p>The SQL equivalent of the above is:</p>
+
+<pre class="code sql"><code class="sql">SELECT * FROM customers LIMIT 1
+</code></pre>
+
+<p>The <code>take</code> method returns <code>nil</code> if no record is found and no exception will be raised.</p>
+
+<p>You can pass in a numerical argument to the <code>take</code> method to return up to that number of results. For example</p>
+
+<pre class="code irb"><code class="irb">irb&gt; customers = Customer.take(2)
+=&gt; [#&lt;Customer id: 1, first_name: &quot;Lifo&quot;&gt;, #&lt;Customer id: 220, first_name: &quot;Sara&quot;&gt;]
+</code></pre>
+
+<p>The SQL equivalent of the above is:</p>
+
+<pre class="code sql"><code class="sql">SELECT * FROM customers LIMIT 2
+</code></pre>
+
+<p>The <a href="https://api.rubyonrails.org/classes/ActiveRecord/FinderMethods.html#method-i-take-21"><code>take!</code></a> method behaves exactly like <code>take</code>, except that it will raise <a href="ActiveRecord/RecordNotFound.html" title="ActiveRecord::RecordNotFound (class)"><code>::ActiveRecord::RecordNotFound</code></a> if no matching record is found.</p>
+
+<p>TIP: The retrieved record may vary depending on the database engine.</p>
+
+<h4><code>first</code></h4>
+
+<p>The <a href="https://api.rubyonrails.org/classes/ActiveRecord/FinderMethods.html#method-i-first"><code>first</code></a> method finds the first record ordered by primary key (default). For example:</p>
+
+<pre class="code irb"><code class="irb">irb&gt; customer = Customer.first
+=&gt; #&lt;Customer id: 1, first_name: &quot;Lifo&quot;&gt;
+</code></pre>
+
+<p>The SQL equivalent of the above is:</p>
+
+<pre class="code sql"><code class="sql">SELECT * FROM customers ORDER BY customers.id ASC LIMIT 1
+</code></pre>
+
+<p>The <code>first</code> method returns <code>nil</code> if no matching record is found and no exception will be raised.</p>
+
+<p>If your <a href="active_record_querying.html#applying-a-default-scope">default scope</a> contains an order method, <code>first</code> will return the first record according to this ordering.</p>
+
+<p>You can pass in a numerical argument to the <code>first</code> method to return up to that number of results. For example</p>
+
+<pre class="code irb"><code class="irb">irb&gt; customers = Customer.first(3)
+=&gt; [#&lt;Customer id: 1, first_name: &quot;Lifo&quot;&gt;, #&lt;Customer id: 2, first_name: &quot;Fifo&quot;&gt;, #&lt;Customer id: 3, first_name: &quot;Filo&quot;&gt;]
+</code></pre>
+
+<p>The SQL equivalent of the above is:</p>
+
+<pre class="code sql"><code class="sql">SELECT * FROM customers ORDER BY customers.id ASC LIMIT 3
+</code></pre>
+
+<p>On a collection that is ordered using <code>order</code>, <code>first</code> will return the first record ordered by the specified attribute for <code>order</code>.</p>
+
+<pre class="code irb"><code class="irb">irb&gt; customer = Customer.order(:first_name).first
+=&gt; #&lt;Customer id: 2, first_name: &quot;Fifo&quot;&gt;
+</code></pre>
+
+<p>The SQL equivalent of the above is:</p>
+
+<pre class="code sql"><code class="sql">SELECT * FROM customers ORDER BY customers.first_name ASC LIMIT 1
+</code></pre>
+
+<p>The <a href="https://api.rubyonrails.org/classes/ActiveRecord/FinderMethods.html#method-i-first-21"><code>first!</code></a> method behaves exactly like <code>first</code>, except that it will raise <a href="ActiveRecord/RecordNotFound.html" title="ActiveRecord::RecordNotFound (class)"><code>::ActiveRecord::RecordNotFound</code></a> if no matching record is found.</p>
+
+<h4><code>last</code></h4>
+
+<p>The <a href="https://api.rubyonrails.org/classes/ActiveRecord/FinderMethods.html#method-i-last"><code>last</code></a> method finds the last record ordered by primary key (default). For example:</p>
+
+<pre class="code irb"><code class="irb">irb&gt; customer = Customer.last
+=&gt; #&lt;Customer id: 221, first_name: &quot;Russel&quot;&gt;
+</code></pre>
+
+<p>The SQL equivalent of the above is:</p>
+
+<pre class="code sql"><code class="sql">SELECT * FROM customers ORDER BY customers.id DESC LIMIT 1
+</code></pre>
+
+<p>The <code>last</code> method returns <code>nil</code> if no matching record is found and no exception will be raised.</p>
+
+<p>If your <a href="active_record_querying.html#applying-a-default-scope">default scope</a> contains an order method, <code>last</code> will return the last record according to this ordering.</p>
+
+<p>You can pass in a numerical argument to the <code>last</code> method to return up to that number of results. For example</p>
+
+<pre class="code irb"><code class="irb">irb&gt; customers = Customer.last(3)
+=&gt; [#&lt;Customer id: 219, first_name: &quot;James&quot;&gt;, #&lt;Customer id: 220, first_name: &quot;Sara&quot;&gt;, #&lt;Customer id: 221, first_name: &quot;Russel&quot;&gt;]
+</code></pre>
+
+<p>The SQL equivalent of the above is:</p>
+
+<pre class="code sql"><code class="sql">SELECT * FROM customers ORDER BY customers.id DESC LIMIT 3
+</code></pre>
+
+<p>On a collection that is ordered using <code>order</code>, <code>last</code> will return the last record ordered by the specified attribute for <code>order</code>.</p>
+
+<pre class="code irb"><code class="irb">irb&gt; customer = Customer.order(:first_name).last
+=&gt; #&lt;Customer id: 220, first_name: &quot;Sara&quot;&gt;
+</code></pre>
+
+<p>The SQL equivalent of the above is:</p>
+
+<pre class="code sql"><code class="sql">SELECT * FROM customers ORDER BY customers.first_name DESC LIMIT 1
+</code></pre>
+
+<p>The <a href="https://api.rubyonrails.org/classes/ActiveRecord/FinderMethods.html#method-i-last-21"><code>last!</code></a> method behaves exactly like <code>last</code>, except that it will raise <a href="ActiveRecord/RecordNotFound.html" title="ActiveRecord::RecordNotFound (class)"><code>::ActiveRecord::RecordNotFound</code></a> if no matching record is found.</p>
+
+<h4><code>find_by</code></h4>
+
+<p>The <a href="https://api.rubyonrails.org/classes/ActiveRecord/FinderMethods.html#method-i-find_by"><code>find_by</code></a> method finds the first record matching some conditions. For example:</p>
+
+<pre class="code irb"><code class="irb">irb&gt; Customer.find_by first_name: &#39;Lifo&#39;
+=&gt; #&lt;Customer id: 1, first_name: &quot;Lifo&quot;&gt;
+
+irb&gt; Customer.find_by first_name: &#39;Jon&#39;
+=&gt; nil
+</code></pre>
+
+<p>It is equivalent to writing:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_where'>where</span>(<span class='label'>first_name:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Lifo</span><span class='tstring_end'>&#39;</span></span>).<span class='id identifier rubyid_take'>take</span></code></pre>
+
+<p>The SQL equivalent of the above is:</p>
+
+<pre class="code sql"><code class="sql">SELECT * FROM customers WHERE (customers.first_name = &#39;Lifo&#39;) LIMIT 1
+</code></pre>
+
+<p>The <a href="https://api.rubyonrails.org/classes/ActiveRecord/FinderMethods.html#method-i-find_by-21"><code>find_by!</code></a> method behaves exactly like <code>find_by</code>, except that it will raise <a href="ActiveRecord/RecordNotFound.html" title="ActiveRecord::RecordNotFound (class)"><code>::ActiveRecord::RecordNotFound</code></a> if no matching record is found. For example:</p>
+
+<pre class="code irb"><code class="irb">irb&gt; Customer.find_by! first_name: &#39;does not exist&#39;
+ActiveRecord::RecordNotFound
+</code></pre>
+
+<p>This is equivalent to writing:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_where'>where</span>(<span class='label'>first_name:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>does not exist</span><span class='tstring_end'>&#39;</span></span>).<span class='id identifier rubyid_take!'>take!</span></code></pre>
+
+<h3>Retrieving Multiple Objects in Batches</h3>
+
+<p>We often need to iterate over a large set of records, as when we send a newsletter to a large set of customers, or when we export data.</p>
+
+<p>This may appear straightforward:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># This may consume too much memory if the table is big.
+</span><span class='const'>Customer</span>.<span class='id identifier rubyid_all'>all</span>.<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_customer'>customer</span><span class='op'>|</span>
+  <span class='const'>NewsMailer</span>.<span class='id identifier rubyid_weekly'>weekly</span>(<span class='id identifier rubyid_customer'>customer</span>).<span class='id identifier rubyid_deliver_now'>deliver_now</span>
+<span class='kw'>end</span></code></pre>
+
+<p>But this approach becomes increasingly impractical as the table size increases, since <code>Customer.all.each</code> instructs Active Record to fetch <em>the entire table</em> in a single pass, build a model object per row, and then keep the entire array of model objects in memory. Indeed, if we have a large number of records, the entire collection may exceed the amount of memory available.</p>
+
+<p>Rails provides two methods that address this problem by dividing records into memory-friendly batches for processing. The first method, <code>find_each</code>, retrieves a batch of records and then yields <em>each</em> record to the block individually as a model. The second method, <code>find_in_batches</code>, retrieves a batch of records and then yields <em>the entire batch</em> to the block as an array of models.</p>
+
+<p>TIP: The <code>find_each</code> and <code>find_in_batches</code> methods are intended for use in the batch processing of a large number of records that wouldn&#39;t fit in memory all at once. If you just need to loop over a thousand records the regular find methods are the preferred option.</p>
+
+<h4><code>find_each</code></h4>
+
+<p>The <a href="https://api.rubyonrails.org/classes/ActiveRecord/Batches.html#method-i-find_each"><code>find_each</code></a> method retrieves records in batches and then yields <em>each</em> one to the block. In the following example, <code>find_each</code> retrieves customers in batches of 1000 and yields them to the block one by one:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_find_each'>find_each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_customer'>customer</span><span class='op'>|</span>
+  <span class='const'>NewsMailer</span>.<span class='id identifier rubyid_weekly'>weekly</span>(<span class='id identifier rubyid_customer'>customer</span>).<span class='id identifier rubyid_deliver_now'>deliver_now</span>
+<span class='kw'>end</span></code></pre>
+
+<p>This process is repeated, fetching more batches as needed, until all of the records have been processed.</p>
+
+<p><code>find_each</code> works on model classes, as seen above, and also on relations:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_where'>where</span>(<span class='label'>weekly_subscriber:</span> <span class='kw'>true</span>).<span class='id identifier rubyid_find_each'>find_each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_customer'>customer</span><span class='op'>|</span>
+  <span class='const'>NewsMailer</span>.<span class='id identifier rubyid_weekly'>weekly</span>(<span class='id identifier rubyid_customer'>customer</span>).<span class='id identifier rubyid_deliver_now'>deliver_now</span>
+<span class='kw'>end</span></code></pre>
+
+<p>as long as they have no ordering, since the method needs to force an order
+internally to iterate.</p>
+
+<p>If an order is present in the receiver the behaviour depends on the flag
+<code>config.active_record.error_on_ignored_order</code>. If true, <code>ArgumentError</code> is
+raised, otherwise the order is ignored and a warning issued, which is the
+default. This can be overridden with the option <code>:error_on_ignore</code>, explained
+below.</p>
+
+<h5>Options for <code>find_each</code></h5>
+
+<p><strong><code>:batch_size</code></strong></p>
+
+<p>The <code>:batch_size</code> option allows you to specify the number of records to be retrieved in each batch, before being passed individually to the block. For example, to retrieve records in batches of 5000:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_find_each'>find_each</span>(<span class='label'>batch_size:</span> <span class='int'>5000</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_customer'>customer</span><span class='op'>|</span>
+  <span class='const'>NewsMailer</span>.<span class='id identifier rubyid_weekly'>weekly</span>(<span class='id identifier rubyid_customer'>customer</span>).<span class='id identifier rubyid_deliver_now'>deliver_now</span>
+<span class='kw'>end</span></code></pre>
+
+<p><strong><code>:start</code></strong></p>
+
+<p>By default, records are fetched in ascending order of the primary key. The <code>:start</code> option allows you to configure the first ID of the sequence whenever the lowest ID is not the one you need. This would be useful, for example, if you wanted to resume an interrupted batch process, provided you saved the last processed ID as a checkpoint.</p>
+
+<p>For example, to send newsletters only to customers with the primary key starting from 2000:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_find_each'>find_each</span>(<span class='label'>start:</span> <span class='int'>2000</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_customer'>customer</span><span class='op'>|</span>
+  <span class='const'>NewsMailer</span>.<span class='id identifier rubyid_weekly'>weekly</span>(<span class='id identifier rubyid_customer'>customer</span>).<span class='id identifier rubyid_deliver_now'>deliver_now</span>
+<span class='kw'>end</span></code></pre>
+
+<p><strong><code>:finish</code></strong></p>
+
+<p>Similar to the <code>:start</code> option, <code>:finish</code> allows you to configure the last ID of the sequence whenever the highest ID is not the one you need.
+This would be useful, for example, if you wanted to run a batch process using a subset of records based on <code>:start</code> and <code>:finish</code>.</p>
+
+<p>For example, to send newsletters only to customers with the primary key starting from 2000 up to 10000:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_find_each'>find_each</span>(<span class='label'>start:</span> <span class='int'>2000</span><span class='comma'>,</span> <span class='label'>finish:</span> <span class='int'>10000</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_customer'>customer</span><span class='op'>|</span>
+  <span class='const'>NewsMailer</span>.<span class='id identifier rubyid_weekly'>weekly</span>(<span class='id identifier rubyid_customer'>customer</span>).<span class='id identifier rubyid_deliver_now'>deliver_now</span>
+<span class='kw'>end</span></code></pre>
+
+<p>Another example would be if you wanted multiple workers handling the same
+processing queue. You could have each worker handle 10000 records by setting the
+appropriate <code>:start</code> and <code>:finish</code> options on each worker.</p>
+
+<p><strong><code>:error_on_ignore</code></strong></p>
+
+<p>Overrides the application config to specify if an error should be raised when an
+order is present in the relation.</p>
+
+<h4><code>find_in_batches</code></h4>
+
+<p>The <a href="https://api.rubyonrails.org/classes/ActiveRecord/Batches.html#method-i-find_in_batches"><code>find_in_batches</code></a> method is similar to <code>find_each</code>, since both retrieve batches of records. The difference is that <code>find_in_batches</code> yields <em>batches</em> to the block as an array of models, instead of individually. The following example will yield to the supplied block an array of up to 1000 customers at a time, with the final block containing any remaining customers:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># Give add_customers an array of 1000 customers at a time.
+</span><span class='const'>Customer</span>.<span class='id identifier rubyid_find_in_batches'>find_in_batches</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_customers'>customers</span><span class='op'>|</span>
+  <span class='id identifier rubyid_export'>export</span>.<span class='id identifier rubyid_add_customers'>add_customers</span>(<span class='id identifier rubyid_customers'>customers</span>)
+<span class='kw'>end</span></code></pre>
+
+<p><code>find_in_batches</code> works on model classes, as seen above, and also on relations:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># Give add_customers an array of 1000 recently active customers at a time.
+</span><span class='const'>Customer</span>.<span class='id identifier rubyid_recently_active'>recently_active</span>.<span class='id identifier rubyid_find_in_batches'>find_in_batches</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_customers'>customers</span><span class='op'>|</span>
+  <span class='id identifier rubyid_export'>export</span>.<span class='id identifier rubyid_add_customers'>add_customers</span>(<span class='id identifier rubyid_customers'>customers</span>)
+<span class='kw'>end</span></code></pre>
+
+<p>as long as they have no ordering, since the method needs to force an order
+internally to iterate.</p>
+
+<h5>Options for <code>find_in_batches</code></h5>
+
+<p>The <code>find_in_batches</code> method accepts the same options as <code>find_each</code>:</p>
+
+<p><strong><code>:batch_size</code></strong></p>
+
+<p>Just like for <code>find_each</code>, <code>batch_size</code> establishes how many records will be retrieved in each group. For example, retrieving batches of 2500 records can be specified as:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_find_in_batches'>find_in_batches</span>(<span class='label'>batch_size:</span> <span class='int'>2500</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_customers'>customers</span><span class='op'>|</span>
+  <span class='id identifier rubyid_export'>export</span>.<span class='id identifier rubyid_add_customers'>add_customers</span>(<span class='id identifier rubyid_customers'>customers</span>)
+<span class='kw'>end</span></code></pre>
+
+<p><strong><code>:start</code></strong></p>
+
+<p>The <code>start</code> option allows specifying the beginning ID from where records will be selected. As mentioned before, by default records are fetched in ascending order of the primary key. For example, to retrieve customers starting on ID: 5000 in batches of 2500 records, the following code can be used:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_find_in_batches'>find_in_batches</span>(<span class='label'>batch_size:</span> <span class='int'>2500</span><span class='comma'>,</span> <span class='label'>start:</span> <span class='int'>5000</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_customers'>customers</span><span class='op'>|</span>
+  <span class='id identifier rubyid_export'>export</span>.<span class='id identifier rubyid_add_customers'>add_customers</span>(<span class='id identifier rubyid_customers'>customers</span>)
+<span class='kw'>end</span></code></pre>
+
+<p><strong><code>:finish</code></strong></p>
+
+<p>The <code>finish</code> option allows specifying the ending ID of the records to be retrieved. The code below shows the case of retrieving customers in batches, up to the customer with ID: 7000:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_find_in_batches'>find_in_batches</span>(<span class='label'>finish:</span> <span class='int'>7000</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_customers'>customers</span><span class='op'>|</span>
+  <span class='id identifier rubyid_export'>export</span>.<span class='id identifier rubyid_add_customers'>add_customers</span>(<span class='id identifier rubyid_customers'>customers</span>)
+<span class='kw'>end</span></code></pre>
+
+<p><strong><code>:error_on_ignore</code></strong></p>
+
+<p>The <code>error_on_ignore</code> option overrides the application config to specify if an error should be raised when a specific order is present in the relation.</p>
+
+<h2>Conditions</h2>
+
+<p>The <a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-where"><code>where</code></a> method allows you to specify conditions to limit the records returned, representing the <code>WHERE</code>-part of the SQL statement. Conditions can either be specified as a string, array, or hash.</p>
+
+<h3>Pure String Conditions</h3>
+
+<p>If you&#39;d like to add conditions to your find, you could just specify them in there, just like <code>Book.where(&quot;title = &#39;Introduction to Algorithms&#39;&quot;)</code>. This will find all books where the <code>title</code> field value is &#39;Introduction to Algorithms&#39;.</p>
+
+<p>WARNING: Building your own conditions as pure strings can leave you vulnerable to SQL injection exploits. For example, <code>Book.where(&quot;title LIKE &#39;%#{params[:title]}%&#39;&quot;)</code> is not safe. See the next section for the preferred way to handle conditions using an array.</p>
+
+<h3>Array Conditions</h3>
+
+<p>Now what if that title could vary, say as an argument from somewhere? The find would then take the form:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Book</span>.<span class='id identifier rubyid_where'>where</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>title = ?</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_title'>title</span>])</code></pre>
+
+<p>Active Record will take the first argument as the conditions string and any additional arguments will replace the question marks <code>(?)</code> in it.</p>
+
+<p>If you want to specify multiple conditions:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Book</span>.<span class='id identifier rubyid_where'>where</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>title = ? AND out_of_print = ?</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_title'>title</span>]<span class='comma'>,</span> <span class='kw'>false</span>)</code></pre>
+
+<p>In this example, the first question mark will be replaced with the value in <code>params[:title]</code> and the second will be replaced with the SQL representation of <code>false</code>, which depends on the adapter.</p>
+
+<p>This code is highly preferable:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Book</span>.<span class='id identifier rubyid_where'>where</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>title = ?</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_title'>title</span>])</code></pre>
+
+<p>to this code:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Book</span>.<span class='id identifier rubyid_where'>where</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>title = </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_title'>title</span>]<span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>)</code></pre>
+
+<p>because of argument safety. Putting the variable directly into the conditions string will pass the variable to the database <strong>as-is</strong>. This means that it will be an unescaped variable directly from a user who may have malicious intent. If you do this, you put your entire database at risk because once a user finds out they can exploit your database they can do just about anything to it. Never ever put your arguments directly inside the conditions string.</p>
+
+<p>TIP: For more information on the dangers of SQL injection, see the <a href="security.html#sql-injection">Ruby on Rails Security Guide</a>.</p>
+
+<h4>Placeholder Conditions</h4>
+
+<p>Similar to the <code>(?)</code> replacement style of params, you can also specify keys in your conditions string along with a corresponding keys/values hash:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Book</span>.<span class='id identifier rubyid_where'>where</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>created_at &gt;= :start_date AND created_at &lt;= :end_date</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  {<span class='label'>start_date:</span> <span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_start_date'>start_date</span>]<span class='comma'>,</span> <span class='label'>end_date:</span> <span class='id identifier rubyid_params'>params</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_end_date'>end_date</span>]})</code></pre>
+
+<p>This makes for clearer readability if you have a large number of variable conditions.</p>
+
+<h3>Hash Conditions</h3>
+
+<p>Active Record also allows you to pass in hash conditions which can increase the readability of your conditions syntax. With hash conditions, you pass in a hash with keys of the fields you want qualified and the values of how you want to qualify them:</p>
+
+<p>NOTE: Only equality, range, and subset checking are possible with Hash conditions.</p>
+
+<h4>Equality Conditions</h4>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Book</span>.<span class='id identifier rubyid_where'>where</span>(<span class='label'>out_of_print:</span> <span class='kw'>true</span>)</code></pre>
+
+<p>This will generate SQL like this:</p>
+
+<pre class="code sql"><code class="sql">SELECT * FROM books WHERE (books.out_of_print = 1)
+</code></pre>
+
+<p>The field name can also be a string:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Book</span>.<span class='id identifier rubyid_where'>where</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>out_of_print</span><span class='tstring_end'>&#39;</span></span> <span class='op'>=&gt;</span> <span class='kw'>true</span>)</code></pre>
+
+<p>In the case of a belongs_to relationship, an association key can be used to specify the model if an Active Record object is used as the value. This method works with polymorphic relationships as well.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_author'>author</span> <span class='op'>=</span> <span class='const'>Author</span>.<span class='id identifier rubyid_first'>first</span>
+<span class='const'>Book</span>.<span class='id identifier rubyid_where'>where</span>(<span class='label'>author:</span> <span class='id identifier rubyid_author'>author</span>)
+<span class='const'>Author</span>.<span class='id identifier rubyid_joins'>joins</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_books'>books</span>).<span class='id identifier rubyid_where'>where</span>(<span class='label'>books:</span> { <span class='label'>author:</span> <span class='id identifier rubyid_author'>author</span> })</code></pre>
+
+<h4>Range Conditions</h4>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Book</span>.<span class='id identifier rubyid_where'>where</span>(<span class='label'>created_at:</span> (<span class='const'><a href="Time.html" title="Time (class)">Time</a></span>.<span class='id identifier rubyid_now'>now</span>.<span class='id identifier rubyid_midnight'>midnight</span> <span class='op'>-</span> <span class='int'>1</span>.<span class='id identifier rubyid_day'>day</span>)<span class='op'>..</span><span class='const'><a href="Time.html" title="Time (class)">Time</a></span>.<span class='id identifier rubyid_now'>now</span>.<span class='id identifier rubyid_midnight'>midnight</span>)</code></pre>
+
+<p>This will find all books created yesterday by using a <code>BETWEEN</code> SQL statement:</p>
+
+<pre class="code sql"><code class="sql">SELECT * FROM books WHERE (books.created_at BETWEEN &#39;2008-12-21 00:00:00&#39; AND &#39;2008-12-22 00:00:00&#39;)
+</code></pre>
+
+<p>This demonstrates a shorter syntax for the examples in <a href="#array-conditions">Array Conditions</a></p>
+
+<h4>Subset Conditions</h4>
+
+<p>If you want to find records using the <code>IN</code> expression you can pass an array to the conditions hash:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_where'>where</span>(<span class='label'>orders_count:</span> [<span class='int'>1</span><span class='comma'>,</span><span class='int'>3</span><span class='comma'>,</span><span class='int'>5</span>])</code></pre>
+
+<p>This code will generate SQL like this:</p>
+
+<pre class="code sql"><code class="sql">SELECT * FROM customers WHERE (customers.orders_count IN (1,3,5))
+</code></pre>
+
+<h3>NOT Conditions</h3>
+
+<p><code>NOT</code> SQL queries can be built by <a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods/WhereChain.html#method-i-not"><code>where.not</code></a>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_where'>where</span>.<span class='id identifier rubyid_not'>not</span>(<span class='label'>orders_count:</span> [<span class='int'>1</span><span class='comma'>,</span><span class='int'>3</span><span class='comma'>,</span><span class='int'>5</span>])</code></pre>
+
+<p>In other words, this query can be generated by calling <code>where</code> with no argument, then immediately chain with <code>not</code> passing <code>where</code> conditions.  This will generate SQL like this:</p>
+
+<pre class="code sql"><code class="sql">SELECT * FROM customers WHERE (customers.orders_count NOT IN (1,3,5))
+</code></pre>
+
+<h3>OR Conditions</h3>
+
+<p><code>OR</code> conditions between two relations can be built by calling <a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-or"><code>or</code></a> on the first
+relation, and passing the second one as an argument.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_where'>where</span>(<span class='label'>last_name:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Smith</span><span class='tstring_end'>&#39;</span></span>).<span class='id identifier rubyid_or'>or</span>(<span class='const'>Customer</span>.<span class='id identifier rubyid_where'>where</span>(<span class='label'>orders_count:</span> [<span class='int'>1</span><span class='comma'>,</span><span class='int'>3</span><span class='comma'>,</span><span class='int'>5</span>]))</code></pre>
+
+<pre class="code sql"><code class="sql">SELECT * FROM customers WHERE (customers.last_name = &#39;Smith&#39; OR customers.orders_count IN (1,3,5))
+</code></pre>
+
+<h2>Ordering</h2>
+
+<p>To retrieve records from the database in a specific order, you can use the <a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-order"><code>order</code></a> method.</p>
+
+<p>For example, if you&#39;re getting a set of records and want to order them in ascending order by the <code>created_at</code> field in your table:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_order'>order</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_created_at'>created_at</span>)
+<span class='comment'># OR
+</span><span class='const'>Customer</span>.<span class='id identifier rubyid_order'>order</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>created_at</span><span class='tstring_end'>&quot;</span></span>)</code></pre>
+
+<p>You could specify <code>ASC</code> or <code>DESC</code> as well:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_order'>order</span>(<span class='label'>created_at:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_desc'>desc</span>)
+<span class='comment'># OR
+</span><span class='const'>Customer</span>.<span class='id identifier rubyid_order'>order</span>(<span class='label'>created_at:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_asc'>asc</span>)
+<span class='comment'># OR
+</span><span class='const'>Customer</span>.<span class='id identifier rubyid_order'>order</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>created_at DESC</span><span class='tstring_end'>&quot;</span></span>)
+<span class='comment'># OR
+</span><span class='const'>Customer</span>.<span class='id identifier rubyid_order'>order</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>created_at ASC</span><span class='tstring_end'>&quot;</span></span>)</code></pre>
+
+<p>Or ordering by multiple fields:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_order'>order</span>(<span class='label'>orders_count:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_asc'>asc</span><span class='comma'>,</span> <span class='label'>created_at:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_desc'>desc</span>)
+<span class='comment'># OR
+</span><span class='const'>Customer</span>.<span class='id identifier rubyid_order'>order</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_orders_count'>orders_count</span><span class='comma'>,</span> <span class='label'>created_at:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_desc'>desc</span>)
+<span class='comment'># OR
+</span><span class='const'>Customer</span>.<span class='id identifier rubyid_order'>order</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>orders_count ASC, created_at DESC</span><span class='tstring_end'>&quot;</span></span>)
+<span class='comment'># OR
+</span><span class='const'>Customer</span>.<span class='id identifier rubyid_order'>order</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>orders_count ASC</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>created_at DESC</span><span class='tstring_end'>&quot;</span></span>)</code></pre>
+
+<p>If you want to call <code>order</code> multiple times, subsequent orders will be appended to the first:</p>
+
+<pre class="code irb"><code class="irb">irb&gt; Customer.order(&quot;orders_count ASC&quot;).order(&quot;created_at DESC&quot;)
+SELECT * FROM customers ORDER BY orders_count ASC, created_at DESC
+</code></pre>
+
+<p>WARNING: In most database systems, on selecting fields with <code>distinct</code> from a result set using methods like <code>select</code>, <code>pluck</code> and <code>ids</code>; the <code>order</code> method will raise an <a href="ActiveRecord/StatementInvalid.html" title="ActiveRecord::StatementInvalid (class)"><code>::ActiveRecord::StatementInvalid</code></a> exception unless the field(s) used in <code>order</code> clause are included in the select list. See the next section for selecting fields from the result set.</p>
+
+<h2>Selecting Specific Fields</h2>
+
+<p>By default, <code>Model.find</code> selects all the fields from the result set using <code>select *</code>.</p>
+
+<p>To select only a subset of fields from the result set, you can specify the subset via the <a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-select"><code>select</code></a> method.</p>
+
+<p>For example, to select only <code>isbn</code> and <code>out_of_print</code> columns:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Book</span>.<span class='id identifier rubyid_select'>select</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_isbn'>isbn</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_out_of_print'>out_of_print</span>)
+<span class='comment'># OR
+</span><span class='const'>Book</span>.<span class='id identifier rubyid_select'>select</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>isbn, out_of_print</span><span class='tstring_end'>&quot;</span></span>)</code></pre>
+
+<p>The SQL query used by this find call will be somewhat like:</p>
+
+<pre class="code sql"><code class="sql">SELECT isbn, out_of_print FROM books
+</code></pre>
+
+<p>Be careful because this also means you&#39;re initializing a model object with only the fields that you&#39;ve selected. If you attempt to access a field that is not in the initialized record you&#39;ll receive:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="ActiveModel.html" title="ActiveModel (module)">ActiveModel</a></span><span class='op'>::</span><span class='const'><a href="ActiveModel/MissingAttributeError.html" title="ActiveModel::MissingAttributeError (class)">MissingAttributeError</a></span><span class='op'>:</span> <span class='id identifier rubyid_missing'>missing</span> <span class='label'>attribute:</span> <span class='op'>&lt;</span><span class='id identifier rubyid_attribute'>attribute</span><span class='op'>&gt;</span></code></pre>
+
+<p>Where <code>&lt;attribute&gt;</code> is the attribute you asked for. The <code>id</code> method will not raise the <code>ActiveRecord::MissingAttributeError</code>, so just be careful when working with associations because they need the <code>id</code> method to function properly.</p>
+
+<p>If you would like to only grab a single record per unique value in a certain field, you can use <a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-distinct"><code>distinct</code></a>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_select'>select</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_last_name'>last_name</span>).<span class='id identifier rubyid_distinct'>distinct</span></code></pre>
+
+<p>This would generate SQL like:</p>
+
+<pre class="code sql"><code class="sql">SELECT DISTINCT last_name FROM customers
+</code></pre>
+
+<p>You can also remove the uniqueness constraint:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># Returns unique last_names
+</span><span class='id identifier rubyid_query'>query</span> <span class='op'>=</span> <span class='const'>Customer</span>.<span class='id identifier rubyid_select'>select</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_last_name'>last_name</span>).<span class='id identifier rubyid_distinct'>distinct</span>
+
+<span class='comment'># Returns all last_names, even if there are duplicates
+</span><span class='id identifier rubyid_query'>query</span>.<span class='id identifier rubyid_distinct'>distinct</span>(<span class='kw'>false</span>)</code></pre>
+
+<h2>Limit and Offset</h2>
+
+<p>To apply <code>LIMIT</code> to the SQL fired by the <code>Model.find</code>, you can specify the <code>LIMIT</code> using <a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-limit"><code>limit</code></a> and <a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-offset"><code>offset</code></a> methods on the relation.</p>
+
+<p>You can use <code>limit</code> to specify the number of records to be retrieved, and use <code>offset</code> to specify the number of records to skip before starting to return the records. For example</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_limit'>limit</span>(<span class='int'>5</span>)</code></pre>
+
+<p>will return a maximum of 5 customers and because it specifies no offset it will return the first 5 in the table. The SQL it executes looks like this:</p>
+
+<pre class="code sql"><code class="sql">SELECT * FROM customers LIMIT 5
+</code></pre>
+
+<p>Adding <code>offset</code> to that</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_limit'>limit</span>(<span class='int'>5</span>).<span class='id identifier rubyid_offset'>offset</span>(<span class='int'>30</span>)</code></pre>
+
+<p>will return instead a maximum of 5 customers beginning with the 31st. The SQL looks like:</p>
+
+<pre class="code sql"><code class="sql">SELECT * FROM customers LIMIT 5 OFFSET 30
+</code></pre>
+
+<h2>Group</h2>
+
+<p>To apply a <code>GROUP BY</code> clause to the SQL fired by the finder, you can use the <a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-group"><code>group</code></a> method.</p>
+
+<p>For example, if you want to find a collection of the dates on which orders were created:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Order</span>.<span class='id identifier rubyid_select'>select</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>created_at</span><span class='tstring_end'>&quot;</span></span>).<span class='id identifier rubyid_group'>group</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>created_at</span><span class='tstring_end'>&quot;</span></span>)</code></pre>
+
+<p>And this will give you a single <code>Order</code> object for each date where there are orders in the database.</p>
+
+<p>The SQL that would be executed would be something like this:</p>
+
+<pre class="code sql"><code class="sql">SELECT created_at
+FROM orders
+GROUP BY created_at
+</code></pre>
+
+<h3>Total of grouped items</h3>
+
+<p>To get the total of grouped items on a single query, call <a href="https://api.rubyonrails.org/classes/ActiveRecord/Calculations.html#method-i-count"><code>count</code></a> after the <code>group</code>.</p>
+
+<pre class="code irb"><code class="irb">irb&gt; Order.group(:status).count
+=&gt; {&quot;being_packed&quot;=&gt;7, &quot;shipped&quot;=&gt;12}
+</code></pre>
+
+<p>The SQL that would be executed would be something like this:</p>
+
+<pre class="code sql"><code class="sql">SELECT COUNT (*) AS count_all, status AS status
+FROM orders
+GROUP BY status
+</code></pre>
+
+<h2>Having</h2>
+
+<p>SQL uses the <code>HAVING</code> clause to specify conditions on the <code>GROUP BY</code> fields. You can add the <code>HAVING</code> clause to the SQL fired by the <code>Model.find</code> by adding the <a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-having"><code>having</code></a> method to the find.</p>
+
+<p>For example:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Order</span>.<span class='id identifier rubyid_select'>select</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>created_at, sum(total) as total_price</span><span class='tstring_end'>&quot;</span></span>).
+  <span class='id identifier rubyid_group'>group</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>created_at</span><span class='tstring_end'>&quot;</span></span>).<span class='id identifier rubyid_having'>having</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>sum(total) &gt; ?</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='int'>200</span>)</code></pre>
+
+<p>The SQL that would be executed would be something like this:</p>
+
+<pre class="code sql"><code class="sql">SELECT created_at as ordered_date, sum(total) as total_price
+FROM orders
+GROUP BY created_at
+HAVING sum(total) &gt; 200
+</code></pre>
+
+<p>This returns the date and total price for each order object, grouped by the day they were ordered and where the total is more than $200.</p>
+
+<p>You would access the <code>total_price</code> for each order object returned like this:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_big_orders'>big_orders</span> <span class='op'>=</span> <span class='const'>Order</span>.<span class='id identifier rubyid_select'>select</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>created_at, sum(total) as total_price</span><span class='tstring_end'>&quot;</span></span>)
+                  .<span class='id identifier rubyid_group'>group</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>created_at</span><span class='tstring_end'>&quot;</span></span>)
+                  .<span class='id identifier rubyid_having'>having</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>sum(total) &gt; ?</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='int'>200</span>)
+
+<span class='id identifier rubyid_big_orders'>big_orders</span>[<span class='int'>0</span>].<span class='id identifier rubyid_total_price'>total_price</span>
+<span class='comment'># Returns the total price for the first Order object</span></code></pre>
+
+<h2>Overriding Conditions</h2>
+
+<h3><code>unscope</code></h3>
+
+<p>You can specify certain conditions to be removed using the <a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-unscope"><code>unscope</code></a> method. For example:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Book</span>.<span class='id identifier rubyid_where'>where</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>id &gt; 100</span><span class='tstring_end'>&#39;</span></span>).<span class='id identifier rubyid_limit'>limit</span>(<span class='int'>20</span>).<span class='id identifier rubyid_order'>order</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>id desc</span><span class='tstring_end'>&#39;</span></span>).<span class='id identifier rubyid_unscope'>unscope</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_order'>order</span>)</code></pre>
+
+<p>The SQL that would be executed:</p>
+
+<pre class="code sql"><code class="sql">SELECT * FROM books WHERE id &gt; 100 LIMIT 20
+
+-- Original query without `unscope`
+SELECT * FROM books WHERE id &gt; 100 ORDER BY id desc LIMIT 20
+</code></pre>
+
+<p>You can also unscope specific <code>where</code> clauses. For example, this will remove <code>id</code> condition from the where clause:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Book</span>.<span class='id identifier rubyid_where'>where</span>(<span class='label'>id:</span> <span class='int'>10</span><span class='comma'>,</span> <span class='label'>out_of_print:</span> <span class='kw'>false</span>).<span class='id identifier rubyid_unscope'>unscope</span>(<span class='label'>where:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span>)
+<span class='comment'># SELECT books.* FROM books WHERE out_of_print = 0</span></code></pre>
+
+<p>A relation which has used <code>unscope</code> will affect any relation into which it is merged:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Book</span>.<span class='id identifier rubyid_order'>order</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>id desc</span><span class='tstring_end'>&#39;</span></span>).<span class='id identifier rubyid_merge'>merge</span>(<span class='const'>Book</span>.<span class='id identifier rubyid_unscope'>unscope</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_order'>order</span>))
+<span class='comment'># SELECT books.* FROM books</span></code></pre>
+
+<h3><code>only</code></h3>
+
+<p>You can also override conditions using the <a href="https://api.rubyonrails.org/classes/ActiveRecord/SpawnMethods.html#method-i-only"><code>only</code></a> method. For example:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Book</span>.<span class='id identifier rubyid_where'>where</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>id &gt; 10</span><span class='tstring_end'>&#39;</span></span>).<span class='id identifier rubyid_limit'>limit</span>(<span class='int'>20</span>).<span class='id identifier rubyid_order'>order</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>id desc</span><span class='tstring_end'>&#39;</span></span>).<span class='id identifier rubyid_only'>only</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_order'>order</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_where'>where</span>)</code></pre>
+
+<p>The SQL that would be executed:</p>
+
+<pre class="code sql"><code class="sql">SELECT * FROM books WHERE id &gt; 10 ORDER BY id DESC
+
+-- Original query without `only`
+SELECT * FROM books WHERE id &gt; 10 ORDER BY id DESC LIMIT 20
+</code></pre>
+
+<h3><code>reselect</code></h3>
+
+<p>The <a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-reselect"><code>reselect</code></a> method overrides an existing select statement. For example:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Book</span>.<span class='id identifier rubyid_select'>select</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_title'>title</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_isbn'>isbn</span>).<span class='id identifier rubyid_reselect'>reselect</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_created_at'>created_at</span>)</code></pre>
+
+<p>The SQL that would be executed:</p>
+
+<pre class="code sql"><code class="sql">SELECT `books`.`created_at` FROM `books`
+</code></pre>
+
+<p>Compare this to the case where the <code>reselect</code> clause is not used:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Book</span>.<span class='id identifier rubyid_select'>select</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_title'>title</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_isbn'>isbn</span>).<span class='id identifier rubyid_select'>select</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_created_at'>created_at</span>)</code></pre>
+
+<p>the SQL executed would be:</p>
+
+<pre class="code sql"><code class="sql">SELECT `books`.`title`, `books`.`isbn`, `books`.`created_at` FROM `books`
+</code></pre>
+
+<h3><code>reorder</code></h3>
+
+<p>The <a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-reorder"><code>reorder</code></a> method overrides the default scope order. For example if the class definition includes this:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Author</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_has_many'>has_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_books'>books</span><span class='comma'>,</span> <span class='tlambda'>-&gt;</span> <span class='tlambeg'>{</span> <span class='id identifier rubyid_order'>order</span>(<span class='label'>year_published:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_desc'>desc</span>) }
+<span class='kw'>end</span></code></pre>
+
+<p>And you execute this:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Author</span>.<span class='id identifier rubyid_find'>find</span>(<span class='int'>10</span>).<span class='id identifier rubyid_books'>books</span></code></pre>
+
+<p>The SQL that would be executed:</p>
+
+<pre class="code sql"><code class="sql">SELECT * FROM authors WHERE id = 10 LIMIT 1
+SELECT * FROM books WHERE author_id = 10 ORDER BY year_published DESC
+</code></pre>
+
+<p>You can using the <code>reorder</code> clause to specify a different way to order the books:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Author</span>.<span class='id identifier rubyid_find'>find</span>(<span class='int'>10</span>).<span class='id identifier rubyid_books'>books</span>.<span class='id identifier rubyid_reorder'>reorder</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>year_published ASC</span><span class='tstring_end'>&#39;</span></span>)</code></pre>
+
+<p>The SQL that would be executed:</p>
+
+<pre class="code sql"><code class="sql">SELECT * FROM authors WHERE id = 10 LIMIT 1
+SELECT * FROM books WHERE author_id = 10 ORDER BY year_published ASC
+</code></pre>
+
+<h3><code>reverse_order</code></h3>
+
+<p>The <a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-reverse_order"><code>reverse_order</code></a> method reverses the ordering clause if specified.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_where'>where</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>orders_count &gt; 10</span><span class='tstring_end'>&quot;</span></span>).<span class='id identifier rubyid_order'>order</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_last_name'>last_name</span>).<span class='id identifier rubyid_reverse_order'>reverse_order</span></code></pre>
+
+<p>The SQL that would be executed:</p>
+
+<pre class="code sql"><code class="sql">SELECT * FROM customers WHERE orders_count &gt; 10 ORDER BY last_name DESC
+</code></pre>
+
+<p>If no ordering clause is specified in the query, the <code>reverse_order</code> orders by the primary key in reverse order.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_where'>where</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>orders_count &gt; 10</span><span class='tstring_end'>&quot;</span></span>).<span class='id identifier rubyid_reverse_order'>reverse_order</span></code></pre>
+
+<p>The SQL that would be executed:</p>
+
+<pre class="code sql"><code class="sql">SELECT * FROM customers WHERE orders_count &gt; 10 ORDER BY customers.id DESC
+</code></pre>
+
+<p>The <code>reverse_order</code> method accepts <strong>no</strong> arguments.</p>
+
+<h3><code>rewhere</code></h3>
+
+<p>The <a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-rewhere"><code>rewhere</code></a> method overrides an existing, named <code>where</code> condition. For example:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Book</span>.<span class='id identifier rubyid_where'>where</span>(<span class='label'>out_of_print:</span> <span class='kw'>true</span>).<span class='id identifier rubyid_rewhere'>rewhere</span>(<span class='label'>out_of_print:</span> <span class='kw'>false</span>)</code></pre>
+
+<p>The SQL that would be executed:</p>
+
+<pre class="code sql"><code class="sql">SELECT * FROM books WHERE `out_of_print` = 0
+</code></pre>
+
+<p>If the <code>rewhere</code> clause is not used, the where clauses are ANDed together:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Book</span>.<span class='id identifier rubyid_where'>where</span>(<span class='label'>out_of_print:</span> <span class='kw'>true</span>).<span class='id identifier rubyid_where'>where</span>(<span class='label'>out_of_print:</span> <span class='kw'>false</span>)</code></pre>
+
+<p>the SQL executed would be:</p>
+
+<pre class="code sql"><code class="sql">SELECT * FROM books WHERE `out_of_print` = 1 AND `out_of_print` = 0
+</code></pre>
+
+<h2>Null Relation</h2>
+
+<p>The <a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-none"><code>none</code></a> method returns a chainable relation with no records. Any subsequent conditions chained to the returned relation will continue generating empty relations. This is useful in scenarios where you need a chainable response to a method or a scope that could return zero results.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Order</span>.<span class='id identifier rubyid_none'>none</span> <span class='comment'># returns an empty Relation and fires no queries.</span></code></pre>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># The highlighted_reviews method below is expected to always return a Relation.
+</span><span class='const'>Book</span>.<span class='id identifier rubyid_first'>first</span>.<span class='id identifier rubyid_highlighted_reviews'>highlighted_reviews</span>.<span class='id identifier rubyid_average'>average</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_rating'>rating</span>)
+<span class='comment'># =&gt; Returns average rating of a book
+</span>
+<span class='kw'>class</span> <span class='const'>Book</span>
+  <span class='comment'># Returns reviews if there are at least 5,
+</span>  <span class='comment'># else consider this as non-reviewed book
+</span>  <span class='kw'>def</span> <span class='id identifier rubyid_highlighted_reviews'>highlighted_reviews</span>
+    <span class='kw'>if</span> <span class='id identifier rubyid_reviews'>reviews</span>.<span class='id identifier rubyid_count'>count</span> <span class='op'>&gt;</span> <span class='int'>5</span>
+      <span class='id identifier rubyid_reviews'>reviews</span>
+    <span class='kw'>else</span>
+      <span class='const'>Review</span>.<span class='id identifier rubyid_none'>none</span> <span class='comment'># Does not meet minimum threshold yet
+</span>    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<h2>Readonly Objects</h2>
+
+<p>Active Record provides the <a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-readonly"><code>readonly</code></a> method on a relation to explicitly disallow modification of any of the returned objects. Any attempt to alter a readonly record will not succeed, raising an <a href="ActiveRecord/ReadOnlyRecord.html" title="ActiveRecord::ReadOnlyRecord (class)"><code>::ActiveRecord::ReadOnlyRecord</code></a> exception.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_customer'>customer</span> <span class='op'>=</span> <span class='const'>Customer</span>.<span class='id identifier rubyid_readonly'>readonly</span>.<span class='id identifier rubyid_first'>first</span>
+<span class='id identifier rubyid_customer'>customer</span>.<span class='id identifier rubyid_visits'>visits</span> <span class='op'>+=</span> <span class='int'>1</span>
+<span class='id identifier rubyid_customer'>customer</span>.<span class='id identifier rubyid_save'>save</span></code></pre>
+
+<p>As <code>customer</code> is explicitly set to be a readonly object, the above code will raise an <a href="ActiveRecord/ReadOnlyRecord.html" title="ActiveRecord::ReadOnlyRecord (class)"><code>::ActiveRecord::ReadOnlyRecord</code></a> exception when calling <code>customer.save</code> with an updated value of <em>visits</em>.</p>
+
+<h2>Locking Records for Update</h2>
+
+<p>Locking is helpful for preventing race conditions when updating records in the database and ensuring atomic updates.</p>
+
+<p>Active Record provides two locking mechanisms:</p>
+
+<ul>
+<li>Optimistic Locking</li>
+<li>Pessimistic Locking</li>
+</ul>
+
+<h3>Optimistic Locking</h3>
+
+<p>Optimistic locking allows multiple users to access the same record for edits, and assumes a minimum of conflicts with the data. It does this by checking whether another process has made changes to a record since it was opened. An <a href="ActiveRecord/StaleObjectError.html" title="ActiveRecord::StaleObjectError (class)"><code>::ActiveRecord::StaleObjectError</code></a> exception is thrown if that has occurred and the update is ignored.</p>
+
+<p><strong>Optimistic locking column</strong></p>
+
+<p>In order to use optimistic locking, the table needs to have a column called <code>lock_version</code> of type integer. Each time the record is updated, Active Record increments the <code>lock_version</code> column. If an update request is made with a lower value in the <code>lock_version</code> field than is currently in the <code>lock_version</code> column in the database, the update request will fail with an <a href="ActiveRecord/StaleObjectError.html" title="ActiveRecord::StaleObjectError (class)"><code>::ActiveRecord::StaleObjectError</code></a>.</p>
+
+<p>For example:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_c1'>c1</span> <span class='op'>=</span> <span class='const'>Customer</span>.<span class='id identifier rubyid_find'>find</span>(<span class='int'>1</span>)
+<span class='id identifier rubyid_c2'>c2</span> <span class='op'>=</span> <span class='const'>Customer</span>.<span class='id identifier rubyid_find'>find</span>(<span class='int'>1</span>)
+
+<span class='id identifier rubyid_c1'>c1</span>.<span class='id identifier rubyid_first_name'>first_name</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Sandra</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_c1'>c1</span>.<span class='id identifier rubyid_save'>save</span>
+
+<span class='id identifier rubyid_c2'>c2</span>.<span class='id identifier rubyid_first_name'>first_name</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Michael</span><span class='tstring_end'>&quot;</span></span>
+<span class='id identifier rubyid_c2'>c2</span>.<span class='id identifier rubyid_save'>save</span> <span class='comment'># Raises an ActiveRecord::StaleObjectError</span></code></pre>
+
+<p>You&#39;re then responsible for dealing with the conflict by rescuing the exception and either rolling back, merging, or otherwise apply the business logic needed to resolve the conflict.</p>
+
+<p>This behavior can be turned off by setting <code>ActiveRecord::Base.lock_optimistically = false</code>.</p>
+
+<p>To override the name of the <code>lock_version</code> column, <a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)"><code>::ActiveRecord::Base</code></a> provides a class attribute called <code>locking_column</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Customer</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='kw'>self</span>.<span class='id identifier rubyid_locking_column'>locking_column</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_lock_customer_column'>lock_customer_column</span>
+<span class='kw'>end</span></code></pre>
+
+<h3>Pessimistic Locking</h3>
+
+<p>Pessimistic locking uses a locking mechanism provided by the underlying database. Using <code>lock</code> when building a relation obtains an exclusive lock on the selected rows. Relations using <code>lock</code> are usually wrapped inside a transaction for preventing deadlock conditions.</p>
+
+<p>For example:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Book</span>.<span class='id identifier rubyid_transaction'>transaction</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_book'>book</span> <span class='op'>=</span> <span class='const'>Book</span>.<span class='id identifier rubyid_lock'>lock</span>.<span class='id identifier rubyid_first'>first</span>
+  <span class='id identifier rubyid_book'>book</span>.<span class='id identifier rubyid_title'>title</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Algorithms, second edition</span><span class='tstring_end'>&#39;</span></span>
+  <span class='id identifier rubyid_book'>book</span>.<span class='id identifier rubyid_save!'>save!</span>
+<span class='kw'>end</span></code></pre>
+
+<p>The above session produces the following SQL for a MySQL backend:</p>
+
+<pre class="code sql"><code class="sql">SQL (0.2ms)   BEGIN
+Book Load (0.3ms)   SELECT * FROM `books` LIMIT 1 FOR UPDATE
+Book Update (0.4ms)   UPDATE `books` SET `updated_at` = &#39;2009-02-07 18:05:56&#39;, `title` = &#39;Algorithms, second edition&#39; WHERE `id` = 1
+SQL (0.8ms)   COMMIT
+</code></pre>
+
+<p>You can also pass raw SQL to the <code>lock</code> method for allowing different types of locks. For example, MySQL has an expression called <code>LOCK IN SHARE MODE</code> where you can lock a record but still allow other queries to read it. To specify this expression just pass it in as the lock option:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Book</span>.<span class='id identifier rubyid_transaction'>transaction</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_book'>book</span> <span class='op'>=</span> <span class='const'>Book</span>.<span class='id identifier rubyid_lock'>lock</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>LOCK IN SHARE MODE</span><span class='tstring_end'>&quot;</span></span>).<span class='id identifier rubyid_find'>find</span>(<span class='int'>1</span>)
+  <span class='id identifier rubyid_book'>book</span>.<span class='id identifier rubyid_increment!'>increment!</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_views'>views</span>)
+<span class='kw'>end</span></code></pre>
+
+<p>NOTE:  Note that your database must support the raw SQL, that you pass in to the <code>lock</code> method.</p>
+
+<p>If you already have an instance of your model, you can start a transaction and acquire the lock in one go using the following code:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_book'>book</span> <span class='op'>=</span> <span class='const'>Book</span>.<span class='id identifier rubyid_first'>first</span>
+<span class='id identifier rubyid_book'>book</span>.<span class='id identifier rubyid_with_lock'>with_lock</span> <span class='kw'>do</span>
+  <span class='comment'># This block is called within a transaction,
+</span>  <span class='comment'># book is already locked.
+</span>  <span class='id identifier rubyid_book'>book</span>.<span class='id identifier rubyid_increment!'>increment!</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_views'>views</span>)
+<span class='kw'>end</span></code></pre>
+
+<h2>Joining Tables</h2>
+
+<p>Active Record provides two finder methods for specifying <code>JOIN</code> clauses on the
+resulting SQL: <code>joins</code> and <code>left_outer_joins</code>.
+While <code>joins</code> should be used for <code>INNER JOIN</code> or custom queries,
+<code>left_outer_joins</code> is used for queries using <code>LEFT OUTER JOIN</code>.</p>
+
+<h3><code>joins</code></h3>
+
+<p>There are multiple ways to use the <a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-joins"><code>joins</code></a> method.</p>
+
+<h4>Using a String SQL Fragment</h4>
+
+<p>You can just supply the raw SQL specifying the <code>JOIN</code> clause to <code>joins</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Author</span>.<span class='id identifier rubyid_joins'>joins</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>INNER JOIN books ON books.author_id = authors.id AND books.out_of_print = FALSE</span><span class='tstring_end'>&quot;</span></span>)</code></pre>
+
+<p>This will result in the following SQL:</p>
+
+<pre class="code sql"><code class="sql">SELECT authors.* FROM authors INNER JOIN books ON books.author_id = authors.id AND books.out_of_print = FALSE
+</code></pre>
+
+<h4>Using Array/Hash of Named Associations</h4>
+
+<p>Active Record lets you use the names of the <a href="association_basics.html">associations</a> defined on the model as a shortcut for specifying <code>JOIN</code> clauses for those associations when using the <code>joins</code> method.</p>
+
+<p>All of the following will produce the expected join queries using <code>INNER JOIN</code>:</p>
+
+<h5>Joining a Single Association</h5>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Book</span>.<span class='id identifier rubyid_joins'>joins</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_reviews'>reviews</span>)</code></pre>
+
+<p>This produces:</p>
+
+<pre class="code sql"><code class="sql">SELECT books.* FROM books
+  INNER JOIN reviews ON reviews.book_id = books.id
+</code></pre>
+
+<p>Or, in English: &quot;return a Book object for all books with reviews&quot;. Note that you will see duplicate books if a book has more than one review.  If you want unique books, you can use <code>Book.joins(:reviews).distinct</code>.</p>
+
+<h4>Joining Multiple Associations</h4>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Book</span>.<span class='id identifier rubyid_joins'>joins</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_author'>author</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_reviews'>reviews</span>)</code></pre>
+
+<p>This produces:</p>
+
+<pre class="code sql"><code class="sql">SELECT books.* FROM books
+  INNER JOIN authors ON authors.id = books.author_id
+  INNER JOIN reviews ON reviews.book_id = books.id
+</code></pre>
+
+<p>Or, in English: &quot;return all books with their author that have at least one review&quot;. Note again that books with multiple reviews will show up multiple times.</p>
+
+<h5>Joining Nested Associations (Single Level)</h5>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Book</span>.<span class='id identifier rubyid_joins'>joins</span>(<span class='label'>reviews:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_customer'>customer</span>)</code></pre>
+
+<p>This produces:</p>
+
+<pre class="code sql"><code class="sql">SELECT books.* FROM books
+  INNER JOIN reviews ON reviews.book_id = books.id
+  INNER JOIN customers ON customers.id = reviews.customer_id
+</code></pre>
+
+<p>Or, in English: &quot;return all books that have a review by a customer.&quot;</p>
+
+<h5>Joining Nested Associations (Multiple Level)</h5>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Author</span>.<span class='id identifier rubyid_joins'>joins</span>(<span class='label'>books:</span> [{<span class='label'>reviews:</span> { <span class='label'>customer:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_orders'>orders</span>} }<span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_supplier'>supplier</span>] )</code></pre>
+
+<p>This produces:</p>
+
+<pre class="code sql"><code class="sql">SELECT * FROM authors
+  INNER JOIN books ON books.author_id = authors.id
+  INNER JOIN reviews ON reviews.book_id = books.id
+  INNER JOIN customers ON customers.id = reviews.customer_id
+  INNER JOIN orders ON orders.customer_id = customers.id
+INNER JOIN suppliers ON suppliers.id = books.supplier_id
+</code></pre>
+
+<p>Or, in English: &quot;return all authors that have books with reviews <em>and</em> have been ordered by a customer, and the suppliers for those books.&quot;</p>
+
+<h4>Specifying Conditions on the Joined Tables</h4>
+
+<p>You can specify conditions on the joined tables using the regular <a href="#array-conditions">Array</a> and <a href="#pure-string-conditions">String</a> conditions. <a href="#hash-conditions">Hash conditions</a> provide a special syntax for specifying conditions for the joined tables:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_time_range'>time_range</span> <span class='op'>=</span> (<span class='const'><a href="Time.html" title="Time (class)">Time</a></span>.<span class='id identifier rubyid_now'>now</span>.<span class='id identifier rubyid_midnight'>midnight</span> <span class='op'>-</span> <span class='int'>1</span>.<span class='id identifier rubyid_day'>day</span>)<span class='op'>..</span><span class='const'><a href="Time.html" title="Time (class)">Time</a></span>.<span class='id identifier rubyid_now'>now</span>.<span class='id identifier rubyid_midnight'>midnight</span>
+<span class='const'>Customer</span>.<span class='id identifier rubyid_joins'>joins</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_orders'>orders</span>).<span class='id identifier rubyid_where'>where</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>orders.created_at</span><span class='tstring_end'>&#39;</span></span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_time_range'>time_range</span>).<span class='id identifier rubyid_distinct'>distinct</span></code></pre>
+
+<p>This will find all customers who have orders that were created yesterday, using a <code>BETWEEN</code> SQL expression to compare <code>created_at</code>.</p>
+
+<p>An alternative and cleaner syntax is to nest the hash conditions:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_time_range'>time_range</span> <span class='op'>=</span> (<span class='const'><a href="Time.html" title="Time (class)">Time</a></span>.<span class='id identifier rubyid_now'>now</span>.<span class='id identifier rubyid_midnight'>midnight</span> <span class='op'>-</span> <span class='int'>1</span>.<span class='id identifier rubyid_day'>day</span>)<span class='op'>..</span><span class='const'><a href="Time.html" title="Time (class)">Time</a></span>.<span class='id identifier rubyid_now'>now</span>.<span class='id identifier rubyid_midnight'>midnight</span>
+<span class='const'>Customer</span>.<span class='id identifier rubyid_joins'>joins</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_orders'>orders</span>).<span class='id identifier rubyid_where'>where</span>(<span class='label'>orders:</span> { <span class='label'>created_at:</span> <span class='id identifier rubyid_time_range'>time_range</span> }).<span class='id identifier rubyid_distinct'>distinct</span></code></pre>
+
+<p>For more advanced conditions or to reuse an existing named scope, <code>Relation#merge</code> may be used. First, let&#39;s add a new named scope to the Order model:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Order</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_belongs_to'>belongs_to</span> <span class='symbeg'>:</span><span class='id identifier rubyid_customer'>customer</span>
+
+  <span class='id identifier rubyid_scope'>scope</span> <span class='symbeg'>:</span><span class='id identifier rubyid_created_in_time_range'>created_in_time_range</span><span class='comma'>,</span> <span class='tlambda'>-&gt;</span>(<span class='id identifier rubyid_time_range'>time_range</span>) <span class='tlambeg'>{</span>
+    <span class='id identifier rubyid_where'>where</span>(<span class='label'>created_at:</span> <span class='id identifier rubyid_time_range'>time_range</span>)
+  }
+<span class='kw'>end</span></code></pre>
+
+<p>Now we can use <code>Relation#merge</code> to merge in the <code>created_in_time_range</code> scope:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_time_range'>time_range</span> <span class='op'>=</span> (<span class='const'><a href="Time.html" title="Time (class)">Time</a></span>.<span class='id identifier rubyid_now'>now</span>.<span class='id identifier rubyid_midnight'>midnight</span> <span class='op'>-</span> <span class='int'>1</span>.<span class='id identifier rubyid_day'>day</span>)<span class='op'>..</span><span class='const'><a href="Time.html" title="Time (class)">Time</a></span>.<span class='id identifier rubyid_now'>now</span>.<span class='id identifier rubyid_midnight'>midnight</span>
+<span class='const'>Customer</span>.<span class='id identifier rubyid_joins'>joins</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_orders'>orders</span>).<span class='id identifier rubyid_merge'>merge</span>(<span class='const'>Order</span>.<span class='id identifier rubyid_created_in_time_range'>created_in_time_range</span>(<span class='id identifier rubyid_time_range'>time_range</span>)).<span class='id identifier rubyid_distinct'>distinct</span></code></pre>
+
+<p>This will find all customers who have orders that were created yesterday, again using a <code>BETWEEN</code> SQL expression.</p>
+
+<h3><code>left_outer_joins</code></h3>
+
+<p>If you want to select a set of records whether or not they have associated
+records you can use the <a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-left_outer_joins"><code>left_outer_joins</code></a> method.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_left_outer_joins'>left_outer_joins</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_reviews'>reviews</span>).<span class='id identifier rubyid_distinct'>distinct</span>.<span class='id identifier rubyid_select'>select</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>customers.*, COUNT(reviews.*) AS reviews_count</span><span class='tstring_end'>&#39;</span></span>).<span class='id identifier rubyid_group'>group</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>customers.id</span><span class='tstring_end'>&#39;</span></span>)</code></pre>
+
+<p>Which produces:</p>
+
+<pre class="code sql"><code class="sql">SELECT DISTINCT customers.*, COUNT(reviews.*) AS reviews_count FROM customers
+LEFT OUTER JOIN reviews ON reviews.customer_id = customers.id GROUP BY customers.id
+</code></pre>
+
+<p>Which means: &quot;return all customers with their count of reviews, whether or not they
+have any reviews at all&quot;</p>
+
+<h2>Eager Loading Associations</h2>
+
+<p>Eager loading is the mechanism for loading the associated records of the objects returned by <code>Model.find</code> using as few queries as possible.</p>
+
+<p><strong>N + 1 queries problem</strong></p>
+
+<p>Consider the following code, which finds 10 books and prints their authors&#39; last_name:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_books'>books</span> <span class='op'>=</span> <span class='const'>Book</span>.<span class='id identifier rubyid_limit'>limit</span>(<span class='int'>10</span>)
+
+<span class='id identifier rubyid_books'>books</span>.<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_book'>book</span><span class='op'>|</span>
+  <span class='id identifier rubyid_puts'>puts</span> <span class='id identifier rubyid_book'>book</span>.<span class='id identifier rubyid_author'>author</span>.<span class='id identifier rubyid_last_name'>last_name</span>
+<span class='kw'>end</span></code></pre>
+
+<p>This code looks fine at the first sight. But the problem lies within the total number of queries executed. The above code executes 1 (to find 10 books) + 10 (one per each book to load the author) = <strong>11</strong> queries in total.</p>
+
+<p><strong>Solution to N + 1 queries problem</strong></p>
+
+<p>Active Record lets you specify in advance all the associations that are going to be loaded. This is possible by specifying the <a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-includes"><code>includes</code></a> method of the <code>Model.find</code> call. With <code>includes</code>, Active Record ensures that all of the specified associations are loaded using the minimum possible number of queries.</p>
+
+<p>Revisiting the above case, we could rewrite <code>Book.limit(10)</code> to eager load authors:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_books'>books</span> <span class='op'>=</span> <span class='const'>Book</span>.<span class='id identifier rubyid_includes'>includes</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_author'>author</span>).<span class='id identifier rubyid_limit'>limit</span>(<span class='int'>10</span>)
+
+<span class='id identifier rubyid_books'>books</span>.<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_book'>book</span><span class='op'>|</span>
+  <span class='id identifier rubyid_puts'>puts</span> <span class='id identifier rubyid_book'>book</span>.<span class='id identifier rubyid_author'>author</span>.<span class='id identifier rubyid_last_name'>last_name</span>
+<span class='kw'>end</span></code></pre>
+
+<p>The above code will execute just <strong>2</strong> queries, as opposed to <strong>11</strong> queries in the previous case:</p>
+
+<pre class="code sql"><code class="sql">SELECT * FROM books LIMIT 10
+SELECT authors.* FROM authors
+  WHERE (authors.id IN (1,2,3,4,5,6,7,8,9,10))
+</code></pre>
+
+<h3>Eager Loading Multiple Associations</h3>
+
+<p>Active Record lets you eager load any number of associations with a single <code>Model.find</code> call by using an array, hash, or a nested hash of array/hash with the <code>includes</code> method.</p>
+
+<h4>Array of Multiple Associations</h4>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_includes'>includes</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_orders'>orders</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_reviews'>reviews</span>)</code></pre>
+
+<p>This loads all the customers and the associated orders and reviews for each.</p>
+
+<h4>Nested Associations Hash</h4>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_includes'>includes</span>(<span class='label'>orders:</span> {<span class='label'>books:</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_supplier'>supplier</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_author'>author</span>]}).<span class='id identifier rubyid_find'>find</span>(<span class='int'>1</span>)</code></pre>
+
+<p>This will find the customer with id 1 and eager load all of the associated orders for it, the books for all of the orders, and the author and supplier for each of the books.</p>
+
+<h3>Specifying Conditions on Eager Loaded Associations</h3>
+
+<p>Even though Active Record lets you specify conditions on the eager loaded associations just like <code>joins</code>, the recommended way is to use <a href="#joining-tables">joins</a> instead.</p>
+
+<p>However if you must do this, you may use <code>where</code> as you would normally.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Author</span>.<span class='id identifier rubyid_includes'>includes</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_books'>books</span>).<span class='id identifier rubyid_where'>where</span>(<span class='label'>books:</span> { <span class='label'>out_of_print:</span> <span class='kw'>true</span> })</code></pre>
+
+<p>This would generate a query which contains a <code>LEFT OUTER JOIN</code> whereas the
+<code>joins</code> method would generate one using the <code>INNER JOIN</code> function instead.</p>
+
+<pre class="code sql"><code class="sql">  SELECT authors.id AS t0_r0, ... books.updated_at AS t1_r5 FROM authors LEFT OUTER JOIN &quot;books&quot; ON &quot;books&quot;.&quot;author_id&quot; = &quot;authors&quot;.&quot;id&quot; WHERE (books.out_of_print = 1)
+</code></pre>
+
+<p>If there was no <code>where</code> condition, this would generate the normal set of two queries.</p>
+
+<p>NOTE: Using <code>where</code> like this will only work when you pass it a Hash. For
+SQL-fragments you need to use <code>references</code> to force joined tables:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Author</span>.<span class='id identifier rubyid_includes'>includes</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_books'>books</span>).<span class='id identifier rubyid_where'>where</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>books.out_of_print = true</span><span class='tstring_end'>&quot;</span></span>).<span class='id identifier rubyid_references'>references</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_books'>books</span>)</code></pre>
+
+<p>If, in the case of this <code>includes</code> query, there were no books for any
+authors, all the authors would still be loaded. By using <code>joins</code> (an INNER
+JOIN), the join conditions <strong>must</strong> match, otherwise no records will be
+returned.</p>
+
+<p>NOTE: If an association is eager loaded as part of a join, any fields from a custom select clause will not be present on the loaded models.
+This is because it is ambiguous whether they should appear on the parent record, or the child.</p>
+
+<h2>Scopes</h2>
+
+<p>Scoping allows you to specify commonly-used queries which can be referenced as method calls on the association objects or models. With these scopes, you can use every method previously covered such as <code>where</code>, <code>joins</code> and <code>includes</code>. All scope bodies should return an <a href="ActiveRecord/Relation.html" title="ActiveRecord::Relation (class)"><code>::ActiveRecord::Relation</code></a> or <code>nil</code> to allow for further methods (such as other scopes) to be called on it.</p>
+
+<p>To define a simple scope, we use the <a href="https://api.rubyonrails.org/classes/ActiveRecord/Scoping/Named/ClassMethods.html#method-i-scope"><code>scope</code></a> method inside the class, passing the query that we&#39;d like to run when this scope is called:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Book</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_scope'>scope</span> <span class='symbeg'>:</span><span class='id identifier rubyid_out_of_print'>out_of_print</span><span class='comma'>,</span> <span class='tlambda'>-&gt;</span> <span class='tlambeg'>{</span> <span class='id identifier rubyid_where'>where</span>(<span class='label'>out_of_print:</span> <span class='kw'>true</span>) }
+<span class='kw'>end</span></code></pre>
+
+<p>To call this <code>out_of_print</code> scope we can call it on either the class:</p>
+
+<pre class="code irb"><code class="irb">irb&gt; Book.out_of_print
+=&gt; #&lt;ActiveRecord::Relation&gt; # all out of print books
+</code></pre>
+
+<p>Or on an association consisting of <code>Book</code> objects:</p>
+
+<pre class="code irb"><code class="irb">irb&gt; author = Author.first
+irb&gt; author.books.out_of_print
+=&gt; #&lt;ActiveRecord::Relation&gt; # all out of print books by `author`
+</code></pre>
+
+<p>Scopes are also chainable within scopes:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Book</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_scope'>scope</span> <span class='symbeg'>:</span><span class='id identifier rubyid_out_of_print'>out_of_print</span><span class='comma'>,</span> <span class='tlambda'>-&gt;</span> <span class='tlambeg'>{</span> <span class='id identifier rubyid_where'>where</span>(<span class='label'>out_of_print:</span> <span class='kw'>true</span>) }
+  <span class='id identifier rubyid_scope'>scope</span> <span class='symbeg'>:</span><span class='id identifier rubyid_out_of_print_and_expensive'>out_of_print_and_expensive</span><span class='comma'>,</span> <span class='tlambda'>-&gt;</span> <span class='tlambeg'>{</span> <span class='id identifier rubyid_out_of_print'>out_of_print</span>.<span class='id identifier rubyid_where'>where</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>price &gt; 500</span><span class='tstring_end'>&quot;</span></span>) }
+<span class='kw'>end</span></code></pre>
+
+<h3>Passing in arguments</h3>
+
+<p>Your scope can take arguments:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Book</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_scope'>scope</span> <span class='symbeg'>:</span><span class='id identifier rubyid_costs_more_than'>costs_more_than</span><span class='comma'>,</span> <span class='tlambda'>-&gt;</span>(<span class='id identifier rubyid_amount'>amount</span>) <span class='tlambeg'>{</span> <span class='id identifier rubyid_where'>where</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>price &gt; ?</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_amount'>amount</span>) }
+<span class='kw'>end</span></code></pre>
+
+<p>Call the scope as if it were a class method:</p>
+
+<pre class="code irb"><code class="irb">irb&gt; Book.costs_more_than(100.10)
+</code></pre>
+
+<p>However, this is just duplicating the functionality that would be provided to you by a class method.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Book</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_costs_more_than'>costs_more_than</span>(<span class='id identifier rubyid_amount'>amount</span>)
+    <span class='id identifier rubyid_where'>where</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>price &gt; ?</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_amount'>amount</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>These methods will still be accessible on the association objects:</p>
+
+<pre class="code irb"><code class="irb">irb&gt; author.books.costs_more_than(100.10)
+</code></pre>
+
+<h3>Using conditionals</h3>
+
+<p>Your scope can utilize conditionals:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Order</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_scope'>scope</span> <span class='symbeg'>:</span><span class='id identifier rubyid_created_before'>created_before</span><span class='comma'>,</span> <span class='tlambda'>-&gt;</span>(<span class='id identifier rubyid_time'>time</span>) <span class='tlambeg'>{</span> <span class='id identifier rubyid_where'>where</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>created_at &lt; ?</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_time'>time</span>) <span class='kw'>if</span> <span class='id identifier rubyid_time'>time</span>.<span class='id identifier rubyid_present?'>present?</span> }
+<span class='kw'>end</span></code></pre>
+
+<p>Like the other examples, this will behave similarly to a class method.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Order</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_created_before'>created_before</span>(<span class='id identifier rubyid_time'>time</span>)
+    <span class='id identifier rubyid_where'>where</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>created_at &lt; ?</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_time'>time</span>) <span class='kw'>if</span> <span class='id identifier rubyid_time'>time</span>.<span class='id identifier rubyid_present?'>present?</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>However, there is one important caveat: A scope will always return an <a href="ActiveRecord/Relation.html" title="ActiveRecord::Relation (class)"><code>::ActiveRecord::Relation</code></a> object, even if the conditional evaluates to <code>false</code>, whereas a class method, will return <code>nil</code>. This can cause <code>NoMethodError</code> when chaining class methods with conditionals, if any of the conditionals return <code>false</code>.</p>
+
+<h3>Applying a default scope</h3>
+
+<p>If we wish for a scope to be applied across all queries to the model we can use the
+<a href="https://api.rubyonrails.org/classes/ActiveRecord/Scoping/Default/ClassMethods.html#method-i-default_scope"><code>default_scope</code></a> method within the model itself.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Book</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_default_scope'>default_scope</span> { <span class='id identifier rubyid_where'>where</span>(<span class='label'>out_of_print:</span> <span class='kw'>false</span>) }
+<span class='kw'>end</span></code></pre>
+
+<p>When queries are executed on this model, the SQL query will now look something like
+this:</p>
+
+<pre class="code sql"><code class="sql">SELECT * FROM books WHERE (out_of_print = false)
+</code></pre>
+
+<p>If you need to do more complex things with a default scope, you can alternatively
+define it as a class method:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Book</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_default_scope'>default_scope</span>
+    <span class='comment'># Should return an ActiveRecord::Relation.
+</span>  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<p>NOTE: The <code>default_scope</code> is also applied while creating/building a record
+when the scope arguments are given as a <a href="Hash.html" title="Hash (class)"><code>Hash</code></a>. It is not applied while
+updating a record. E.g.:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Book</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_default_scope'>default_scope</span> { <span class='id identifier rubyid_where'>where</span>(<span class='label'>out_of_print:</span> <span class='kw'>false</span>) }
+<span class='kw'>end</span></code></pre>
+
+<pre class="code irb"><code class="irb">irb&gt; Book.new
+=&gt; #&lt;Book id: nil, out_of_print: false&gt;
+irb&gt; Book.unscoped.new
+=&gt; #&lt;Book id: nil, out_of_print: nil&gt;
+</code></pre>
+
+<p>Be aware that, when given in the <a href="Array.html" title="Array (class)"><code>Array</code></a> format, <code>default_scope</code> query arguments
+cannot be converted to a <a href="Hash.html" title="Hash (class)"><code>Hash</code></a> for default attribute assignment. E.g.:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Book</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_default_scope'>default_scope</span> { <span class='id identifier rubyid_where'>where</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>out_of_print = ?</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='kw'>false</span>) }
+<span class='kw'>end</span></code></pre>
+
+<pre class="code irb"><code class="irb">irb&gt; Book.new
+=&gt; #&lt;Book id: nil, out_of_print: nil&gt;
+</code></pre>
+
+<h3>Merging of scopes</h3>
+
+<p>Just like <code>where</code> clauses, scopes are merged using <code>AND</code> conditions.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Book</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_scope'>scope</span> <span class='symbeg'>:</span><span class='id identifier rubyid_in_print'>in_print</span><span class='comma'>,</span> <span class='tlambda'>-&gt;</span> <span class='tlambeg'>{</span> <span class='id identifier rubyid_where'>where</span>(<span class='label'>out_of_print:</span> <span class='kw'>false</span>) }
+  <span class='id identifier rubyid_scope'>scope</span> <span class='symbeg'>:</span><span class='id identifier rubyid_out_of_print'>out_of_print</span><span class='comma'>,</span> <span class='tlambda'>-&gt;</span> <span class='tlambeg'>{</span> <span class='id identifier rubyid_where'>where</span>(<span class='label'>out_of_print:</span> <span class='kw'>true</span>) }
+
+  <span class='id identifier rubyid_scope'>scope</span> <span class='symbeg'>:</span><span class='id identifier rubyid_recent'>recent</span><span class='comma'>,</span> <span class='tlambda'>-&gt;</span> <span class='tlambeg'>{</span> <span class='id identifier rubyid_where'>where</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>year_published &gt;= ?</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='const'><a href="Date.html" title="Date (class)">Date</a></span>.<span class='id identifier rubyid_current'><a href="Date.html#current-class_method" title="Date.current (method)">current</a></span>.<span class='id identifier rubyid_year'>year</span> <span class='op'>-</span> <span class='int'>50</span> )}
+  <span class='id identifier rubyid_scope'>scope</span> <span class='symbeg'>:</span><span class='id identifier rubyid_old'>old</span><span class='comma'>,</span> <span class='tlambda'>-&gt;</span> <span class='tlambeg'>{</span> <span class='id identifier rubyid_where'>where</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>year_published &lt; ?</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='const'><a href="Date.html" title="Date (class)">Date</a></span>.<span class='id identifier rubyid_current'><a href="Date.html#current-class_method" title="Date.current (method)">current</a></span>.<span class='id identifier rubyid_year'>year</span> <span class='op'>-</span> <span class='int'>50</span> )}
+<span class='kw'>end</span></code></pre>
+
+<pre class="code irb"><code class="irb">irb&gt; Book.out_of_print.old
+SELECT books.* FROM books WHERE books.out_of_print = &#39;true&#39; AND books.year_published &lt; 1969
+</code></pre>
+
+<p>We can mix and match <code>scope</code> and <code>where</code> conditions and the final SQL
+will have all conditions joined with <code>AND</code>.</p>
+
+<pre class="code irb"><code class="irb">irb&gt; Book.in_print.where(&#39;price &lt; 100&#39;)
+SELECT books.* FROM books WHERE books.out_of_print = &#39;false&#39; AND books.price &lt; 100
+</code></pre>
+
+<p>If we do want the last <code>where</code> clause to win then <a href="https://api.rubyonrails.org/classes/ActiveRecord/SpawnMethods.html#method-i-merge"><code>merge</code></a> can
+be used.</p>
+
+<pre class="code irb"><code class="irb">irb&gt; Book.in_print.merge(Book.out_of_print)
+SELECT books.* FROM books WHERE books.out_of_print = true
+</code></pre>
+
+<p>One important caveat is that <code>default_scope</code> will be prepended in
+<code>scope</code> and <code>where</code> conditions.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Book</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_default_scope'>default_scope</span> { <span class='id identifier rubyid_where'>where</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>year_published &gt;= ?</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='const'><a href="Date.html" title="Date (class)">Date</a></span>.<span class='id identifier rubyid_current'><a href="Date.html#current-class_method" title="Date.current (method)">current</a></span>.<span class='id identifier rubyid_year'>year</span> <span class='op'>-</span> <span class='int'>50</span> )}
+
+  <span class='id identifier rubyid_scope'>scope</span> <span class='symbeg'>:</span><span class='id identifier rubyid_in_print'>in_print</span><span class='comma'>,</span> <span class='tlambda'>-&gt;</span> <span class='tlambeg'>{</span> <span class='id identifier rubyid_where'>where</span>(<span class='label'>out_of_print:</span> <span class='kw'>false</span>) }
+  <span class='id identifier rubyid_scope'>scope</span> <span class='symbeg'>:</span><span class='id identifier rubyid_out_of_print'>out_of_print</span><span class='comma'>,</span> <span class='tlambda'>-&gt;</span> <span class='tlambeg'>{</span> <span class='id identifier rubyid_where'>where</span>(<span class='label'>out_of_print:</span> <span class='kw'>true</span>) }
+<span class='kw'>end</span></code></pre>
+
+<pre class="code irb"><code class="irb">irb&gt; Book.all
+SELECT books.* FROM books WHERE (year_published &gt;= 1969)
+
+irb&gt; Book.in_print
+SELECT books.* FROM books WHERE (year_published &gt;= 1969) AND books.out_of_print = true
+
+irb&gt; Book.where(&#39;price &gt; 50&#39;)
+SELECT books.* FROM books WHERE (year_published &gt;= 1969) AND (price &gt; 50)
+</code></pre>
+
+<p>As you can see above the <code>default_scope</code> is being merged in both
+<code>scope</code> and <code>where</code> conditions.</p>
+
+<h3>Removing All Scoping</h3>
+
+<p>If we wish to remove scoping for any reason we can use the <a href="https://api.rubyonrails.org/classes/ActiveRecord/Scoping/Default/ClassMethods.html#method-i-unscoped"><code>unscoped</code></a> method. This is
+especially useful if a <code>default_scope</code> is specified in the model and should not be
+applied for this particular query.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Book</span>.<span class='id identifier rubyid_unscoped'>unscoped</span>.<span class='id identifier rubyid_load'>load</span></code></pre>
+
+<p>This method removes all scoping and will do a normal query on the table.</p>
+
+<pre class="code irb"><code class="irb">irb&gt; Book.unscoped.all
+SELECT books.* FROM books
+
+irb&gt; Book.where(out_of_print: true).unscoped.all
+SELECT books.* FROM books
+</code></pre>
+
+<p><code>unscoped</code> can also accept a block:</p>
+
+<pre class="code irb"><code class="irb">irb&gt; Book.unscoped { Book.out_of_print }
+SELECT books.* FROM books WHERE books.out_of_print
+</code></pre>
+
+<h2>Dynamic Finders</h2>
+
+<p>For every field (also known as an attribute) you define in your table,
+Active Record provides a finder method. If you have a field called <code>first_name</code> on your <code>Customer</code> model for example,
+you get the instance method <code>find_by_first_name</code> for free from Active Record.
+If you also have a <code>locked</code> field on the <code>Customer</code> model, you also get <code>find_by_locked</code> method.</p>
+
+<p>You can specify an exclamation point (<code>!</code>) on the end of the dynamic finders
+to get them to raise an <a href="ActiveRecord/RecordNotFound.html" title="ActiveRecord::RecordNotFound (class)"><code>::ActiveRecord::RecordNotFound</code></a> error if they do not return any records, like <code>Customer.find_by_name!("Ryan")</code></p>
+
+<p>If you want to find both by <code>name</code> and <code>orders_count</code>, you can chain these finders together by simply typing &quot;<code>and</code>&quot; between the fields.
+For example, <code>Customer.find_by_first_name_and_orders_count(&quot;Ryan&quot;, 5)</code>.</p>
+
+<h2>Enums</h2>
+
+<p>An enum lets you define an Array of values for an attribute and refer to them by name.  The actual value stored in the database is an integer that has been mapped to one of the values.</p>
+
+<p>Declaring an enum will:</p>
+
+<ul>
+<li>Create scopes that can be used to find all objects that have or do not have one of the enum values</li>
+<li>Create an instance method that can be used to determine if an object has a particular value for the enum</li>
+<li>Create an instance method that can be used to change the enum value of an object</li>
+</ul>
+
+<p>for all possible values of an enum.</p>
+
+<p>For example, given this <a href="https://api.rubyonrails.org/classes/ActiveRecord/Enum.html#method-i-enum"><code>enum</code></a> declaration:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Order</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_enum'>enum</span> <span class='label'>status:</span> [<span class='symbeg'>:</span><span class='id identifier rubyid_shipped'>shipped</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_being_packaged'>being_packaged</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_complete'>complete</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_cancelled'>cancelled</span>]
+<span class='kw'>end</span></code></pre>
+
+<p>These <a href="#scopes">scopes</a> are created automatically and can be used to find all objects with or without a particular value for <code>status</code>:</p>
+
+<pre class="code irb"><code class="irb">irb&gt; Order.shipped
+=&gt; #&lt;ActiveRecord::Relation&gt; # all orders with status == :shipped
+irb&gt; Order.not_shipped
+=&gt; #&lt;ActiveRecord::Relation&gt; # all orders with status != :shipped
+</code></pre>
+
+<p>These instance methods are created automatically and query whether the model has that value for the <code>status</code> enum:</p>
+
+<pre class="code irb"><code class="irb">irb&gt; order = Order.shipped.first
+irb&gt; order.shipped?
+=&gt; true
+irb&gt; order.complete?
+=&gt; false
+</code></pre>
+
+<p>These instance methods are created automatically and will first update the value of <code>status</code> to the named value
+and then query whether or not the status has been successfully set to the value:</p>
+
+<pre class="code irb"><code class="irb">irb&gt; order = Order.first
+irb&gt; order.shipped!
+UPDATE &quot;orders&quot; SET &quot;status&quot; = ?, &quot;updated_at&quot; = ? WHERE &quot;orders&quot;.&quot;id&quot; = ?  [[&quot;status&quot;, 0], [&quot;updated_at&quot;, &quot;2019-01-24 07:13:08.524320&quot;], [&quot;id&quot;, 1]]
+=&gt; true
+</code></pre>
+
+<p>Full documentation about enums can be found <a href="https://api.rubyonrails.org/classes/ActiveRecord/Enum.html">here</a>.</p>
+
+<h2>Understanding Method Chaining</h2>
+
+<p>The Active Record pattern implements <a href="https://en.wikipedia.org/wiki/Method_chaining">Method Chaining</a>,
+which allow us to use multiple Active Record methods together in a simple and straightforward way.</p>
+
+<p>You can chain methods in a statement when the previous method called returns an
+<a href="https://api.rubyonrails.org/classes/ActiveRecord/Relation.html"><a href="ActiveRecord/Relation.html" title="ActiveRecord::Relation (class)"><code>::ActiveRecord::Relation</code></a></a>, like <code>all</code>, <code>where</code>, and <code>joins</code>. Methods that return
+a single object (see <a href="#retrieving-a-single-object">Retrieving a Single Object Section</a>)
+have to be at the end of the statement.</p>
+
+<p>There are some examples below. This guide won&#39;t cover all the possibilities, just a few as examples.
+When an Active Record method is called, the query is not immediately generated and sent to the database.
+The query is sent only when the data is actually needed. So each example below generates a single query.</p>
+
+<h3>Retrieving filtered data from multiple tables</h3>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>
+  .<span class='id identifier rubyid_select'>select</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>customers.id, customers.last_name, reviews.body</span><span class='tstring_end'>&#39;</span></span>)
+  .<span class='id identifier rubyid_joins'>joins</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_reviews'>reviews</span>)
+  .<span class='id identifier rubyid_where'>where</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>reviews.created_at &gt; ?</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='int'>1</span>.<span class='id identifier rubyid_week'>week</span>.<span class='id identifier rubyid_ago'>ago</span>)</code></pre>
+
+<p>The result should be something like this:</p>
+
+<pre class="code sql"><code class="sql">SELECT customers.id, customers.last_name, reviews.body
+FROM customers
+INNER JOIN reviews
+  ON reviews.customer_id = customers.id
+WHERE (reviews.created_at &gt; &#39;2019-01-08&#39;)
+</code></pre>
+
+<h3>Retrieving specific data from multiple tables</h3>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Book</span>
+  .<span class='id identifier rubyid_select'>select</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>books.id, books.title, authors.first_name</span><span class='tstring_end'>&#39;</span></span>)
+  .<span class='id identifier rubyid_joins'>joins</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_author'>author</span>)
+  .<span class='id identifier rubyid_find_by'>find_by</span>(<span class='label'>title:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Abstraction and Specification in Program Development</span><span class='tstring_end'>&#39;</span></span>)</code></pre>
+
+<p>The above should generate:</p>
+
+<pre class="code sql"><code class="sql">SELECT books.id, books.title, authors.first_name
+FROM books
+INNER JOIN authors
+  ON authors.id = books.author_id
+WHERE books.title = $1 [[&quot;title&quot;, &quot;Abstraction and Specification in Program Development&quot;]]
+LIMIT 1
+</code></pre>
+
+<p>NOTE: Note that if a query matches multiple records, <code>find_by</code> will
+fetch only the first one and ignore the others (see the <code>LIMIT 1</code>
+statement above).</p>
+
+<h2>Find or Build a New Object</h2>
+
+<p>It&#39;s common that you need to find a record or create it if it doesn&#39;t exist. You can do that with the <code>find_or_create_by</code> and <code>find_or_create_by!</code> methods.</p>
+
+<h3><code>find_or_create_by</code></h3>
+
+<p>The <a href="https://api.rubyonrails.org/classes/ActiveRecord/Relation.html#method-i-find_or_create_by"><code>find_or_create_by</code></a> method checks whether a record with the specified attributes exists. If it doesn&#39;t, then <code>create</code> is called. Let&#39;s see an example.</p>
+
+<p>Suppose you want to find a customer named &quot;Andy&quot;, and if there&#39;s none, create one. You can do so by running:</p>
+
+<pre class="code irb"><code class="irb">irb&gt; Customer.find_or_create_by(first_name: &#39;Andy&#39;)
+=&gt; #&lt;Customer id: 5, first_name: &quot;Andy&quot;, last_name: nil, title: nil, visits: 0, orders_count: nil, lock_version: 0, created_at: &quot;2019-01-17 07:06:45&quot;, updated_at: &quot;2019-01-17 07:06:45&quot;&gt;
+</code></pre>
+
+<p>The SQL generated by this method looks like this:</p>
+
+<pre class="code sql"><code class="sql">SELECT * FROM customers WHERE (customers.first_name = &#39;Andy&#39;) LIMIT 1
+BEGIN
+INSERT INTO customers (created_at, first_name, locked, orders_count, updated_at) VALUES (&#39;2011-08-30 05:22:57&#39;, &#39;Andy&#39;, 1, NULL, &#39;2011-08-30 05:22:57&#39;)
+COMMIT
+</code></pre>
+
+<p><code>find_or_create_by</code> returns either the record that already exists or the new record. In our case, we didn&#39;t already have a customer named Andy so the record is created and returned.</p>
+
+<p>The new record might not be saved to the database; that depends on whether validations passed or not (just like <code>create</code>).</p>
+
+<p>Suppose we want to set the &#39;locked&#39; attribute to <code>false</code> if we&#39;re
+creating a new record, but we don&#39;t want to include it in the query. So
+we want to find the customer named &quot;Andy&quot;, or if that customer doesn&#39;t
+exist, create a customer named &quot;Andy&quot; which is not locked.</p>
+
+<p>We can achieve this in two ways. The first is to use <code>create_with</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_create_with'>create_with</span>(<span class='label'>locked:</span> <span class='kw'>false</span>).<span class='id identifier rubyid_find_or_create_by'>find_or_create_by</span>(<span class='label'>first_name:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Andy</span><span class='tstring_end'>&#39;</span></span>)</code></pre>
+
+<p>The second way is using a block:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_find_or_create_by'>find_or_create_by</span>(<span class='label'>first_name:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Andy</span><span class='tstring_end'>&#39;</span></span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_c'>c</span><span class='op'>|</span>
+  <span class='id identifier rubyid_c'>c</span>.<span class='id identifier rubyid_locked'>locked</span> <span class='op'>=</span> <span class='kw'>false</span>
+<span class='kw'>end</span></code></pre>
+
+<p>The block will only be executed if the customer is being created. The
+second time we run this code, the block will be ignored.</p>
+
+<h3><code>find_or_create_by!</code></h3>
+
+<p>You can also use <a href="https://api.rubyonrails.org/classes/ActiveRecord/Relation.html#method-i-find_or_create_by-21"><code>find_or_create_by!</code></a> to raise an exception if the new record is invalid. Validations are not covered on this guide, but let&#39;s assume for a moment that you temporarily add</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_validates'>validates</span> <span class='symbeg'>:</span><span class='id identifier rubyid_orders_count'>orders_count</span><span class='comma'>,</span> <span class='label'>presence:</span> <span class='kw'>true</span></code></pre>
+
+<p>to your <code>Customer</code> model. If you try to create a new <code>Customer</code> without passing an <code>orders_count</code>, the record will be invalid and an exception will be raised:</p>
+
+<pre class="code irb"><code class="irb">irb&gt; Customer.find_or_create_by!(first_name: &#39;Andy&#39;)
+ActiveRecord::RecordInvalid: Validation failed: Orders count can&#39;t be blank
+</code></pre>
+
+<h3><code>find_or_initialize_by</code></h3>
+
+<p>The <a href="https://api.rubyonrails.org/classes/ActiveRecord/Relation.html#method-i-find_or_initialize_by"><code>find_or_initialize_by</code></a> method will work just like
+<code>find_or_create_by</code> but it will call <code>new</code> instead of <code>create</code>. This
+means that a new model instance will be created in memory but won&#39;t be
+saved to the database. Continuing with the <code>find_or_create_by</code> example, we
+now want the customer named &#39;Nina&#39;:</p>
+
+<pre class="code irb"><code class="irb">irb&gt; nina = Customer.find_or_initialize_by(first_name: &#39;Nina&#39;)
+=&gt; #&lt;Customer id: nil, first_name: &quot;Nina&quot;, orders_count: 0, locked: true, created_at: &quot;2011-08-30 06:09:27&quot;, updated_at: &quot;2011-08-30 06:09:27&quot;&gt;
+
+irb&gt; nina.persisted?
+=&gt; false
+
+irb&gt; nina.new_record?
+=&gt; true
+</code></pre>
+
+<p>Because the object is not yet stored in the database, the SQL generated looks like this:</p>
+
+<pre class="code sql"><code class="sql">SELECT * FROM customers WHERE (customers.first_name = &#39;Nina&#39;) LIMIT 1
+</code></pre>
+
+<p>When you want to save it to the database, just call <code>save</code>:</p>
+
+<pre class="code irb"><code class="irb">irb&gt; nina.save
+=&gt; true
+</code></pre>
+
+<h2>Finding by SQL</h2>
+
+<p>If you&#39;d like to use your own SQL to find records in a table you can use <a href="https://api.rubyonrails.org/classes/ActiveRecord/Querying.html#method-i-find_by_sql"><code>find_by_sql</code></a>. The <code>find_by_sql</code> method will return an array of objects even if the underlying query returns just a single record. For example you could run this query:</p>
+
+<pre class="code irb"><code class="irb">irb&gt; Customer.find_by_sql(&quot;SELECT * FROM customers INNER JOIN orders ON customers.id = orders.customer_id ORDER BY customers.created_at desc&quot;)
+=&gt; [#&lt;Customer id: 1, first_name: &quot;Lucas&quot; ...&gt;, #&lt;Customer id: 2, first_name: &quot;Jan&quot; ...&gt;, ...]
+</code></pre>
+
+<p><code>find_by_sql</code> provides you with a simple way of making custom calls to the database and retrieving instantiated objects.</p>
+
+<h3><code>select_all</code></h3>
+
+<p><code>find_by_sql</code> has a close relative called <a href="https://api.rubyonrails.org/classes/ActiveRecord/ConnectionAdapters/DatabaseStatements.html#method-i-select_all"><code>connection.select_all</code></a>. <code>select_all</code> will retrieve
+objects from the database using custom SQL just like <code>find_by_sql</code> but will not instantiate them.
+This method will return an instance of <a href="ActiveRecord/Result.html" title="ActiveRecord::Result (class)"><code>::ActiveRecord::Result</code></a> class and calling <code>to_a</code> on this
+object would return you an array of hashes where each hash indicates a record.</p>
+
+<pre class="code irb"><code class="irb">irb&gt; Customer.connection.select_all(&quot;SELECT first_name, created_at FROM customers WHERE id = &#39;1&#39;&quot;).to_hash
+=&gt; [{&quot;first_name&quot;=&gt;&quot;Rafael&quot;, &quot;created_at&quot;=&gt;&quot;2012-11-10 23:23:45.281189&quot;}, {&quot;first_name&quot;=&gt;&quot;Eileen&quot;, &quot;created_at&quot;=&gt;&quot;2013-12-09 11:22:35.221282&quot;}]
+</code></pre>
+
+<h3><code>pluck</code></h3>
+
+<p><a href="https://api.rubyonrails.org/classes/ActiveRecord/Calculations.html#method-i-pluck"><code>pluck</code></a> can be used to query single or multiple columns from the underlying table of a model. It accepts a list of column names as an argument and returns an array of values of the specified columns with the corresponding data type.</p>
+
+<pre class="code irb"><code class="irb">irb&gt; Book.where(out_of_print: true).pluck(:id)
+SELECT id FROM books WHERE out_of_print = false
+=&gt; [1, 2, 3]
+
+irb&gt; Order.distinct.pluck(:status)
+SELECT DISTINCT status FROM orders
+=&gt; [&quot;shipped&quot;, &quot;being_packed&quot;, &quot;cancelled&quot;]
+
+irb&gt; Customer.pluck(:id, :first_name)
+SELECT customers.id, customers.name FROM customers
+=&gt; [[1, &quot;David&quot;], [2, &quot;Fran&quot;], [3, &quot;Jose&quot;]]
+</code></pre>
+
+<p><code>pluck</code> makes it possible to replace code like:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_select'>select</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span>).<span class='id identifier rubyid_map'>map</span> { <span class='op'>|</span><span class='id identifier rubyid_c'>c</span><span class='op'>|</span> <span class='id identifier rubyid_c'>c</span>.<span class='id identifier rubyid_id'>id</span> }
+<span class='comment'># or
+</span><span class='const'>Customer</span>.<span class='id identifier rubyid_select'>select</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span>).<span class='id identifier rubyid_map'>map</span>(<span class='op'>&amp;</span><span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span>)
+<span class='comment'># or
+</span><span class='const'>Customer</span>.<span class='id identifier rubyid_select'>select</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_name'>name</span>).<span class='id identifier rubyid_map'>map</span> { <span class='op'>|</span><span class='id identifier rubyid_c'>c</span><span class='op'>|</span> [<span class='id identifier rubyid_c'>c</span>.<span class='id identifier rubyid_id'>id</span><span class='comma'>,</span> <span class='id identifier rubyid_c'>c</span>.<span class='id identifier rubyid_first_name'>first_name</span>] }</code></pre>
+
+<p>with:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_pluck'>pluck</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span>)
+<span class='comment'># or
+</span><span class='const'>Customer</span>.<span class='id identifier rubyid_pluck'>pluck</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_id'>id</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_first_name'>first_name</span>)</code></pre>
+
+<p>Unlike <code>select</code>, <code>pluck</code> directly converts a database result into a Ruby <a href="Array.html" title="Array (class)"><code>Array</code></a>,
+without constructing <a href="ActiveRecord.html" title="ActiveRecord (module)"><code>ActiveRecord</code></a> objects. This can mean better performance for
+a large or frequently-run query. However, any model method overrides will
+not be available. For example:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Customer</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_name'>name</span>
+    <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>I am </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_first_name'>first_name</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+
+<pre class="code irb"><code class="irb">irb&gt; Customer.select(:first_name).map &amp;:name
+=&gt; [&quot;I am David&quot;, &quot;I am Jeremy&quot;, &quot;I am Jose&quot;]
+
+irb&gt; Customer.pluck(:first_name)
+=&gt; [&quot;David&quot;, &quot;Jeremy&quot;, &quot;Jose&quot;]
+</code></pre>
+
+<p>You are not limited to querying fields from a single table, you can query multiple tables as well.</p>
+
+<pre class="code irb"><code class="irb">irb&gt; Order.joins(:customer, :books).pluck(&quot;orders.created_at, customers.email, books.title&quot;)
+</code></pre>
+
+<p>Furthermore, unlike <code>select</code> and other <code>Relation</code> scopes, <code>pluck</code> triggers an immediate
+query, and thus cannot be chained with any further scopes, although it can work with
+scopes already constructed earlier:</p>
+
+<pre class="code irb"><code class="irb">irb&gt; Customer.pluck(:first_name).limit(1)
+NoMethodError: undefined method `limit&#39; for #&lt;Array:0x007ff34d3ad6d8&gt;
+
+irb&gt; Customer.limit(1).pluck(:first_name)
+=&gt; [&quot;David&quot;]
+</code></pre>
+
+<p>NOTE: You should also know that using <code>pluck</code> will trigger eager loading if the relation object contains include values, even if the eager loading is not necessary for the query. For example:</p>
+
+<pre class="code irb"><code class="irb">irb&gt; assoc = Customer.includes(:reviews)
+irb&gt; assoc.pluck(:id)
+SELECT &quot;customers&quot;.&quot;id&quot; FROM &quot;customers&quot; LEFT OUTER JOIN &quot;reviews&quot; ON &quot;reviews&quot;.&quot;id&quot; = &quot;customers&quot;.&quot;review_id&quot;
+</code></pre>
+
+<p>One way to avoid this is to <code>unscope</code> the includes:</p>
+
+<pre class="code irb"><code class="irb">irb&gt; assoc.unscope(:includes).pluck(:id)
+</code></pre>
+
+<h3><code>ids</code></h3>
+
+<p><a href="https://api.rubyonrails.org/classes/ActiveRecord/Calculations.html#method-i-ids"><code>ids</code></a> can be used to pluck all the IDs for the relation using the table&#39;s primary key.</p>
+
+<pre class="code irb"><code class="irb">irb&gt; Customer.ids
+SELECT id FROM customers
+</code></pre>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Customer</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='kw'>self</span>.<span class='id identifier rubyid_primary_key'>primary_key</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>customer_id</span><span class='tstring_end'>&quot;</span></span>
+<span class='kw'>end</span></code></pre>
+
+<pre class="code irb"><code class="irb">irb&gt; Customer.ids
+SELECT customer_id FROM customers
+</code></pre>
+
+<h2>Existence of Objects</h2>
+
+<p>If you simply want to check for the existence of the object there&#39;s a method called <a href="https://api.rubyonrails.org/classes/ActiveRecord/FinderMethods.html#method-i-exists-3F"><code>exists?</code></a>.
+This method will query the database using the same query as <code>find</code>, but instead of returning an
+object or collection of objects it will return either <code>true</code> or <code>false</code>.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_exists?'>exists?</span>(<span class='int'>1</span>)</code></pre>
+
+<p>The <code>exists?</code> method also takes multiple values, but the catch is that it will return <code>true</code> if any
+one of those records exists.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_exists?'>exists?</span>(<span class='label'>id:</span> [<span class='int'>1</span><span class='comma'>,</span><span class='int'>2</span><span class='comma'>,</span><span class='int'>3</span>])
+<span class='comment'># or
+</span><span class='const'>Customer</span>.<span class='id identifier rubyid_exists?'>exists?</span>(<span class='label'>name:</span> [<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Jane</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Sergei</span><span class='tstring_end'>&#39;</span></span>])</code></pre>
+
+<p>It&#39;s even possible to use <code>exists?</code> without any arguments on a model or a relation.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_where'>where</span>(<span class='label'>first_name:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Ryan</span><span class='tstring_end'>&#39;</span></span>).<span class='id identifier rubyid_exists?'>exists?</span></code></pre>
+
+<p>The above returns <code>true</code> if there is at least one customer with the <code>first_name</code> &#39;Ryan&#39; and <code>false</code>
+otherwise.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_exists?'>exists?</span></code></pre>
+
+<p>The above returns <code>false</code> if the <code>customers</code> table is empty and <code>true</code> otherwise.</p>
+
+<p>You can also use <code>any?</code> and <code>many?</code> to check for existence on a model or relation.  <code>many?</code> will use SQL <code>count</code> to determine if the item exists.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># via a model
+</span><span class='const'>Order</span>.<span class='id identifier rubyid_any?'>any?</span>   <span class='comment'># =&gt; SELECT 1 AS one FROM orders
+</span><span class='const'>Order</span>.<span class='id identifier rubyid_many?'>many?</span>  <span class='comment'># =&gt; SELECT COUNT(*) FROM orders
+</span>
+<span class='comment'># via a named scope
+</span><span class='const'>Order</span>.<span class='id identifier rubyid_shipped'>shipped</span>.<span class='id identifier rubyid_any?'>any?</span>   <span class='comment'># =&gt; SELECT 1 AS one FROM orders WHERE orders.status = 0
+</span><span class='const'>Order</span>.<span class='id identifier rubyid_shipped'>shipped</span>.<span class='id identifier rubyid_many?'>many?</span>  <span class='comment'># =&gt; SELECT COUNT(*) FROM orders WHERE orders.status = 0
+</span>
+<span class='comment'># via a relation
+</span><span class='const'>Book</span>.<span class='id identifier rubyid_where'>where</span>(<span class='label'>out_of_print:</span> <span class='kw'>true</span>).<span class='id identifier rubyid_any?'>any?</span>
+<span class='const'>Book</span>.<span class='id identifier rubyid_where'>where</span>(<span class='label'>out_of_print:</span> <span class='kw'>true</span>).<span class='id identifier rubyid_many?'>many?</span>
+
+<span class='comment'># via an association
+</span><span class='const'>Customer</span>.<span class='id identifier rubyid_first'>first</span>.<span class='id identifier rubyid_orders'>orders</span>.<span class='id identifier rubyid_any?'>any?</span>
+<span class='const'>Customer</span>.<span class='id identifier rubyid_first'>first</span>.<span class='id identifier rubyid_orders'>orders</span>.<span class='id identifier rubyid_many?'>many?</span></code></pre>
+
+<h2>Calculations</h2>
+
+<p>This section uses <a href="https://api.rubyonrails.org/classes/ActiveRecord/Calculations.html#method-i-count"><code>count</code></a> as an example method in this preamble, but the options described apply to all sub-sections.</p>
+
+<p>All calculation methods work directly on a model:</p>
+
+<pre class="code irb"><code class="irb">irb&gt; Customer.count
+SELECT COUNT(*) FROM customers
+</code></pre>
+
+<p>Or on a relation:</p>
+
+<pre class="code irb"><code class="irb">irb&gt; Customer.where(first_name: &#39;Ryan&#39;).count
+SELECT COUNT(*) FROM customers WHERE (first_name = &#39;Ryan&#39;)
+</code></pre>
+
+<p>You can also use various finder methods on a relation for performing complex calculations:</p>
+
+<pre class="code irb"><code class="irb">irb&gt; Customer.includes(&quot;orders&quot;).where(first_name: &#39;Ryan&#39;, orders: { status: &#39;shipped&#39; }).count
+</code></pre>
+
+<p>Which will execute:</p>
+
+<pre class="code sql"><code class="sql">SELECT COUNT(DISTINCT customers.id) FROM customers
+  LEFT OUTER JOIN orders ON orders.customer_id = customers.id
+  WHERE (customers.first_name = &#39;Ryan&#39; AND orders.status = 0)
+</code></pre>
+
+<p>assuming that Order has <code>enum status: [ :shipped, :being_packed, :cancelled ]</code>.</p>
+
+<h3>Count</h3>
+
+<p>If you want to see how many records are in your model&#39;s table you could call <code>Customer.count</code> and that will return the number.
+If you want to be more specific and find all the customers with a title present in the database you can use <code>Customer.count(:title)</code>.</p>
+
+<p>For options, please see the parent section, <a href="#calculations">Calculations</a>.</p>
+
+<h3>Average</h3>
+
+<p>If you want to see the average of a certain number in one of your tables you can call the <a href="https://api.rubyonrails.org/classes/ActiveRecord/Calculations.html#method-i-average"><code>average</code></a> method on the class that relates to the table. This method call will look something like this:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Order</span>.<span class='id identifier rubyid_average'>average</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>subtotal</span><span class='tstring_end'>&quot;</span></span>)</code></pre>
+
+<p>This will return a number (possibly a floating point number such as 3.14159265) representing the average value in the field.</p>
+
+<p>For options, please see the parent section, <a href="#calculations">Calculations</a>.</p>
+
+<h3>Minimum</h3>
+
+<p>If you want to find the minimum value of a field in your table you can call the <a href="https://api.rubyonrails.org/classes/ActiveRecord/Calculations.html#method-i-minimum"><code>minimum</code></a> method on the class that relates to the table. This method call will look something like this:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Order</span>.<span class='id identifier rubyid_minimum'>minimum</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>subtotal</span><span class='tstring_end'>&quot;</span></span>)</code></pre>
+
+<p>For options, please see the parent section, <a href="#calculations">Calculations</a>.</p>
+
+<h3>Maximum</h3>
+
+<p>If you want to find the maximum value of a field in your table you can call the <a href="https://api.rubyonrails.org/classes/ActiveRecord/Calculations.html#method-i-maximum"><code>maximum</code></a> method on the class that relates to the table. This method call will look something like this:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Order</span>.<span class='id identifier rubyid_maximum'>maximum</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>subtotal</span><span class='tstring_end'>&quot;</span></span>)</code></pre>
+
+<p>For options, please see the parent section, <a href="#calculations">Calculations</a>.</p>
+
+<h3>Sum</h3>
+
+<p>If you want to find the sum of a field for all records in your table you can call the <a href="https://api.rubyonrails.org/classes/ActiveRecord/Calculations.html#method-i-sum"><code>sum</code></a> method on the class that relates to the table. This method call will look something like this:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Order</span>.<span class='id identifier rubyid_sum'>sum</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>subtotal</span><span class='tstring_end'>&quot;</span></span>)</code></pre>
+
+<p>For options, please see the parent section, <a href="#calculations">Calculations</a>.</p>
+
+<h2>Running EXPLAIN</h2>
+
+<p>You can run <a href="https://api.rubyonrails.org/classes/ActiveRecord/Relation.html#method-i-explain"><code>explain</code></a> on a relation. EXPLAIN output varies for each database.</p>
+
+<p>For example, running</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_where'>where</span>(<span class='label'>id:</span> <span class='int'>1</span>).<span class='id identifier rubyid_joins'>joins</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_orders'>orders</span>).<span class='id identifier rubyid_explain'>explain</span></code></pre>
+
+<p>may yield</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>EXPLAIN</span> <span class='label'>for:</span> <span class='const'>SELECT</span> <span class='backtick'>`</span><span class='tstring_content'>customers</span><span class='tstring_end'>`</span></span>.<span class='op'>*</span> <span class='const'>FROM</span> <span class='backtick'>`</span><span class='tstring_content'>customers</span><span class='tstring_end'>`</span></span> <span class='const'>INNER</span> <span class='const'>JOIN</span> <span class='backtick'>`</span><span class='tstring_content'>orders</span><span class='tstring_end'>`</span></span> <span class='const'>ON</span> <span class='backtick'>`</span><span class='tstring_content'>orders</span><span class='tstring_end'>`</span></span>.<span class='backtick'>`</span><span class='id identifier rubyid_customer_id'>customer_id</span><span class='backtick'>`</span><span class='tstring_content'> = </span><span class='tstring_end'>`</span></span><span class='id identifier rubyid_customers'>customers</span><span class='backtick'>`</span><span class='tstring_content'>.</span><span class='tstring_end'>`</span></span><span class='id identifier rubyid_id'>id</span><span class='backtick'>`</span><span class='tstring_content'> WHERE </span><span class='tstring_end'>`</span></span><span class='id identifier rubyid_customers'>customers</span><span class='backtick'>`</span><span class='tstring_content'>.</span><span class='tstring_end'>`</span></span><span class='id identifier rubyid_id'>id</span><span class='backtick'>`</span><span class='tstring_content'> = 1
+---------------------------------------------------
+| id | select_type | table      | type  | possible_keys |
+---------------------------------------------------
+|  1 | SIMPLE      | customers  | const | PRIMARY       |
+|  1 | SIMPLE      | orders     | ALL   | NULL          |
+---------------------------------------------------
+--------------------------------------------
+| key     | key_len | ref   | rows | Extra       |
+--------------------------------------------
+| PRIMARY | 4       | const |    1 |             |
+| NULL    | NULL    | NULL  |    1 | Using where |
+--------------------------------------------
+
+2 rows in set (0.00 sec)</span></code></pre>
+
+<p>under MySQL and MariaDB.</p>
+
+<p>Active Record performs a pretty printing that emulates that of the
+corresponding database shell. So, the same query running with the
+PostgreSQL adapter would yield instead</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>EXPLAIN</span> <span class='label'>for:</span> <span class='const'>SELECT</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>customers</span><span class='tstring_end'>&quot;</span></span>.<span class='op'>*</span> <span class='const'>FROM</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>customers</span><span class='tstring_end'>&quot;</span></span> <span class='const'>INNER</span> <span class='const'>JOIN</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>orders</span><span class='tstring_end'>&quot;</span></span> <span class='const'>ON</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>orders</span><span class='tstring_end'>&quot;</span></span>.<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>customer_id</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>customers</span><span class='tstring_end'>&quot;</span></span>.<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>id</span><span class='tstring_end'>&quot;</span></span> <span class='const'>WHERE</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>customers</span><span class='tstring_end'>&quot;</span></span>.<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>id</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=</span> <span class='backref'>$1</span> [[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>id</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='int'>1</span>]]
+                                  <span class='const'>QUERY</span> <span class='const'>PLAN</span>
+<span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span>
+ <span class='const'>Nested</span> <span class='const'>Loop</span>  (<span class='id identifier rubyid_cost'>cost</span><span class='op'>=</span><span class='float'>4.33</span><span class='op'>..</span><span class='float'>20.85</span> <span class='id identifier rubyid_rows'>rows</span><span class='op'>=</span><span class='int'>4</span> <span class='id identifier rubyid_width'>width</span><span class='op'>=</span><span class='int'>164</span>)
+    <span class='comment'>#=&gt;  Index Scan using customers_pkey on customers  (cost=0.15..8.17 rows=1 width=164)
+</span>          <span class='const'>Index</span> <span class='label'>Cond:</span> (<span class='id identifier rubyid_id'>id</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>1</span><span class='tstring_end'>&#39;</span></span><span class='op'>::</span><span class='id identifier rubyid_bigint'>bigint</span>)
+    <span class='comment'>#=&gt;  Bitmap Heap Scan on orders  (cost=4.18..12.64 rows=4 width=8)
+</span>          <span class='const'>Recheck</span> <span class='label'>Cond:</span> (<span class='id identifier rubyid_customer_id'>customer_id</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>1</span><span class='tstring_end'>&#39;</span></span><span class='op'>::</span><span class='id identifier rubyid_bigint'>bigint</span>)
+          <span class='comment'>#=&gt;  Bitmap Index Scan on index_orders_on_customer_id  (cost=0.00..4.18 rows=4 width=0)
+</span>                <span class='const'>Index</span> <span class='label'>Cond:</span> (<span class='id identifier rubyid_customer_id'>customer_id</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>1</span><span class='tstring_end'>&#39;</span></span><span class='op'>::</span><span class='id identifier rubyid_bigint'>bigint</span>)
+(<span class='int'>7</span> <span class='id identifier rubyid_rows'>rows</span>)</code></pre>
+
+<p>Eager loading may trigger more than one query under the hood, and some queries
+may need the results of previous ones. Because of that, <code>explain</code> actually
+executes the query, and then asks for the query plans. For example,</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_where'>where</span>(<span class='label'>id:</span> <span class='int'>1</span>).<span class='id identifier rubyid_includes'>includes</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_orders'>orders</span>).<span class='id identifier rubyid_explain'>explain</span></code></pre>
+
+<p>may yield this for MySQL and MariaDB:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>EXPLAIN</span> <span class='label'>for:</span> <span class='const'>SELECT</span> <span class='backtick'>`</span><span class='tstring_content'>customers</span><span class='tstring_end'>`</span></span>.<span class='op'>*</span> <span class='const'>FROM</span> <span class='backtick'>`</span><span class='tstring_content'>customers</span><span class='tstring_end'>`</span></span>  <span class='const'>WHERE</span> <span class='backtick'>`</span><span class='tstring_content'>customers</span><span class='tstring_end'>`</span></span>.<span class='backtick'>`</span><span class='id identifier rubyid_id'>id</span><span class='backtick'>`</span><span class='tstring_content'> = 1
+--------------------------------------------------
+| id | select_type | table     | type  | possible_keys |
+--------------------------------------------------
+|  1 | SIMPLE      | customers | const | PRIMARY       |
+--------------------------------------------------
+--------------------------------------
+| key     | key_len | ref   | rows | Extra |
+--------------------------------------
+| PRIMARY | 4       | const |    1 |       |
+--------------------------------------
+
+1 row in set (0.00 sec)
+
+EXPLAIN for: SELECT </span><span class='tstring_end'>`</span></span><span class='id identifier rubyid_orders'>orders</span><span class='backtick'>`</span><span class='tstring_content'>.* FROM </span><span class='tstring_end'>`</span></span><span class='id identifier rubyid_orders'>orders</span><span class='backtick'>`</span><span class='tstring_content'>  WHERE </span><span class='tstring_end'>`</span></span><span class='id identifier rubyid_orders'>orders</span><span class='backtick'>`</span><span class='tstring_content'>.</span><span class='tstring_end'>`</span></span><span class='id identifier rubyid_customer_id'>customer_id</span><span class='backtick'>`</span><span class='tstring_content'> IN (1)
+----------------------------------------------
+| id | select_type | table  | type | possible_keys |
+----------------------------------------------
+|  1 | SIMPLE      | orders | ALL  | NULL          |
+----------------------------------------------
+----------------------------------------
+| key  | key_len | ref  | rows | Extra       |
+----------------------------------------
+| NULL | NULL    | NULL |    1 | Using where |
+----------------------------------------
+
+
+1 row in set (0.00 sec)</span></code></pre>
+
+<p>and may yield this for PostgreSQL:</p>
+
+<pre class="code ruby"><code class="ruby">  <span class='const'>Customer</span> <span class='const'>Load</span> (<span class='float'>0.3</span><span class='id identifier rubyid_ms'>ms</span>)  <span class='const'>SELECT</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>customers</span><span class='tstring_end'>&quot;</span></span>.<span class='op'>*</span> <span class='const'>FROM</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>customers</span><span class='tstring_end'>&quot;</span></span> <span class='const'>WHERE</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>customers</span><span class='tstring_end'>&quot;</span></span>.<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>id</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=</span> <span class='backref'>$1</span>  [[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>id</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='int'>1</span>]]
+  <span class='const'>Order</span> <span class='const'>Load</span> (<span class='float'>0.3</span><span class='id identifier rubyid_ms'>ms</span>)  <span class='const'>SELECT</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>orders</span><span class='tstring_end'>&quot;</span></span>.<span class='op'>*</span> <span class='const'>FROM</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>orders</span><span class='tstring_end'>&quot;</span></span> <span class='const'>WHERE</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>orders</span><span class='tstring_end'>&quot;</span></span>.<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>customer_id</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=</span> <span class='backref'>$1</span>  [[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>customer_id</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='int'>1</span>]]
+<span class='comment'>#=&gt; EXPLAIN for: SELECT &quot;customers&quot;.* FROM &quot;customers&quot; WHERE &quot;customers&quot;.&quot;id&quot; = $1 [[&quot;id&quot;, 1]]
+</span>                                    <span class='const'>QUERY</span> <span class='const'>PLAN</span>
+<span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span>
+ <span class='const'>Index</span> <span class='const'>Scan</span> <span class='id identifier rubyid_using'>using</span> <span class='id identifier rubyid_customers_pkey'>customers_pkey</span> <span class='id identifier rubyid_on'>on</span> <span class='id identifier rubyid_customers'>customers</span>  (<span class='id identifier rubyid_cost'>cost</span><span class='op'>=</span><span class='float'>0.15</span><span class='op'>..</span><span class='float'>8.17</span> <span class='id identifier rubyid_rows'>rows</span><span class='op'>=</span><span class='int'>1</span> <span class='id identifier rubyid_width'>width</span><span class='op'>=</span><span class='int'>164</span>)
+   <span class='const'>Index</span> <span class='label'>Cond:</span> (<span class='id identifier rubyid_id'>id</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>1</span><span class='tstring_end'>&#39;</span></span><span class='op'>::</span><span class='id identifier rubyid_bigint'>bigint</span>)
+(<span class='int'>2</span> <span class='id identifier rubyid_rows'>rows</span>)</code></pre>
+
+<h3>Interpreting EXPLAIN</h3>
+
+<p>Interpretation of the output of EXPLAIN is beyond the scope of this guide. The
+following pointers may be helpful:</p>
+
+<ul>
+<li><p>SQLite3: <a href="https://www.sqlite.org/eqp.html">EXPLAIN QUERY PLAN</a></p></li>
+<li><p>MySQL: <a href="https://dev.mysql.com/doc/refman/en/explain-output.html">EXPLAIN Output Format</a></p></li>
+<li><p>MariaDB: <a href="https://mariadb.com/kb/en/mariadb/explain/">EXPLAIN</a></p></li>
+<li><p>PostgreSQL: <a href="https://www.postgresql.org/docs/current/static/using-explain.html">Using EXPLAIN</a></p></li>
+</ul>
+
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>
