@@ -87,7 +87,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2 o'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/brianmario/mysql2/blob/master/lib/mysql2/result.rb#L2'>lib/mysql2/result.rb</a><span class='defines'>,<br /><a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L1271'>ext/mysql2/result.c</a></span>
+      <td class='box_rel'><a class='repo' href='https://github.com/brianmario/mysql2/blob/master/lib/mysql2/result.rb#L2'>lib/mysql2/result.rb</a><span class='defines'>,<br /><a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L1310'>ext/mysql2/result.c</a></span>
       </td>
     </tr>
   </tbody>
@@ -179,11 +179,11 @@
   <h3 class='signature '>
     #<strong>each</strong>(*args)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L1095-L1187'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L1127-L1234'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1095' data-end='1187'></pre>
+  <pre class='lines_num' data-start='1127' data-end='1234'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/mysql2/result.c', line 1095</span></pre>
+<pre><span class='info file'># File 'ext/mysql2/result.c', line 1127</span></pre>
 <pre class='code cpp'>
 
 static VALUE rb_mysql_result_each(int argc, VALUE * argv, VALUE self) {
@@ -226,6 +226,21 @@ static VALUE rb_mysql_result_each(int argc, VALUE * argv, VALUE self) {
 
   if (wrapper-&gt;stmt_wrapper &amp;&amp; !cast) {
     rb_warn(&quot;:cast is forced for prepared statements&quot;);
+  }
+
+  /* A freed result can only be re-iterated from the fully cached rows array
+   * (or raise the streaming-specific error below when a completed stream is
+   * re-iterated); anything else would dereference the freed MYSQL_RES. The
+   * rows-length check matters: with cache_rows: false the rows array stays
+   * empty even after a full iteration, and replaying it would yield nil
+   * rows. */
+  if (wrapper-&gt;resultFreed) {
+    int replayable = cacheRows &amp;&amp; wrapper-&gt;rows != Qnil &amp;&amp;
+                     wrapper-&gt;lastRowProcessed == wrapper-&gt;numberOfRows &amp;&amp;
+                     (my_ulonglong)RARRAY_LEN(wrapper-&gt;rows) == wrapper-&gt;numberOfRows;
+    if (wrapper-&gt;is_streaming ? !wrapper-&gt;streamingComplete : !replayable) {
+      rb_raise(cMysql2Error, &quot;Result set has already been freed&quot;);
+    }
   }
 
   dbTz = rb_hash_aref(opts, sym_database_timezone);
@@ -288,11 +303,11 @@ static VALUE rb_mysql_result_each(int argc, VALUE * argv, VALUE self) {
   <h3 class='signature '>
     #<strong>field_types</strong>  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L982-L1002'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L992-L1012'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='982' data-end='1002'></pre>
+  <pre class='lines_num' data-start='992' data-end='1012'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/mysql2/result.c', line 982</span></pre>
+<pre><span class='info file'># File 'ext/mysql2/result.c', line 992</span></pre>
 <pre class='code cpp'>
 
 static VALUE rb_mysql_result_fetch_field_types(VALUE self) {
@@ -325,11 +340,11 @@ static VALUE rb_mysql_result_fetch_field_types(VALUE self) {
   <h3 class='signature '>
     #<strong>fields</strong>  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L952-L980'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L962-L990'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='952' data-end='980'></pre>
+  <pre class='lines_num' data-start='962' data-end='990'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/mysql2/result.c', line 952</span></pre>
+<pre><span class='info file'># File 'ext/mysql2/result.c', line 962</span></pre>
 <pre class='code cpp'>
 
 static VALUE rb_mysql_result_fetch_fields(VALUE self) {
@@ -370,16 +385,15 @@ static VALUE rb_mysql_result_fetch_fields(VALUE self) {
   <h3 class='signature '>
     #<strong>free</strong>  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L180-L184'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L1031-L1034'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='180' data-end='184'></pre>
+  <pre class='lines_num' data-start='1031' data-end='1034'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/mysql2/result.c', line 180</span></pre>
+<pre><span class='info file'># File 'ext/mysql2/result.c', line 1031</span></pre>
 <pre class='code cpp'>
 
 static VALUE rb_mysql_result_free_(VALUE self) {
-  GET_RESULT(self);
-  rb_mysql_result_free_result(wrapper);
+  rb_mysql_result_cache_metadata_and_free(self);
   return Qnil;
 }
 </pre>
@@ -392,11 +406,11 @@ static VALUE rb_mysql_result_free_(VALUE self) {
     #<strong>size</strong>  
     <span class='aliases'>Also known as: <span class='names'>#count</span></span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L1189-L1208'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L1236-L1255'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1189' data-end='1208'></pre>
+  <pre class='lines_num' data-start='1236' data-end='1255'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/mysql2/result.c', line 1189</span></pre>
+<pre><span class='info file'># File 'ext/mysql2/result.c', line 1236</span></pre>
 <pre class='code cpp'>
 
 static VALUE rb_mysql_result_count(VALUE self) {
