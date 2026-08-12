@@ -87,24 +87,12 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2 o'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/brianmario/mysql2/blob/master/lib/mysql2/result.rb#L2'>lib/mysql2/result.rb</a><span class='defines'>,<br /><a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L1435'>ext/mysql2/result.c</a></span>
+      <td class='box_rel'><a class='repo' href='https://github.com/brianmario/mysql2/blob/master/lib/mysql2/result.rb#L2'>lib/mysql2/result.rb</a><span class='defines'>,<br /><a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L2046'>ext/mysql2/result.c</a></span>
       </td>
     </tr>
   </tbody>
 </table>
 </div>
-<h2 class='h2_sum' id='instance_attribute_summary'>Instance Attribute Summary</h2>
-<div class='div_sum'>
-<ul class='summary full'>
-  <li>
-    <span class='summary_signature ro'>
-      <a href="#server_flags-instance_method" title="#server_flags (instance method)">#<strong>server_flags</strong>  </a>
-    </span>
-    <span class='note title readonly'>readonly</span>
-  </li>
-</ul>
-</div>  <!-- instance_attribute_summary -->
-
 <h2 class='h2_sum' id='instance_method_summary'>Instance Method Summary</h2>
 <div class='div_sum'>
 <ul class='summary full'>
@@ -138,30 +126,17 @@
   </li>
   <li>
     <span class='summary_signature '>
+      <a href="#server_flags-instance_method" title="#server_flags (instance method)">#<strong>server_flags</strong>  </a>
+    </span>
+  </li>
+  <li>
+    <span class='summary_signature '>
       <a href="#size-instance_method" title="#size (instance method)">#<strong>size</strong>  </a>
       (also: #count)
     </span>
   </li>
 </ul>
 </div>  <!-- instance_method_summary -->
-<h2 class='y_details'>Instance Attribute Details</h2>
-<section class='method_details first' id="server_flags-instance_method">
-  <h3 class='signature ro first'>
-    #<strong>server_flags</strong>   <span class="extras">(<span class='readonly'>readonly</span>)</span>
-  </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/lib/mysql2/result.rb#L3-L3'>GitHub</a>&#8202;]</span>
-<div class='source_code h'>
-  <pre class='lines_num' data-start='3' data-end='3'></pre>
-  <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mysql2/result.rb', line 3</span></pre>
-<pre class='code ruby'>
-
-<span class='id identifier rubyid_attr_reader'>attr_reader</span> <span class='symbeg'>:</span><span class='id identifier rubyid_server_flags'>server_flags</span>
-</pre>
-  </div>
-</div>
-</section>
-
 <h2 class='y_details'>Instance Method Details</h2>
 <section class='method_details first' id="count-instance_method">
   <h3 class='signature  first'>
@@ -179,18 +154,21 @@
   <h3 class='signature '>
     #<strong>each</strong>(*args)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L1252-L1359'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L1704-L1897'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1252' data-end='1359'></pre>
+  <pre class='lines_num' data-start='1704' data-end='1897'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/mysql2/result.c', line 1252</span></pre>
+<pre><span class='info file'># File 'ext/mysql2/result.c', line 1704</span></pre>
 <pre class='code cpp'>
 
 static VALUE rb_mysql_result_each(int argc, VALUE * argv, VALUE self) {
   result_each_args args;
-  VALUE defaults, opts, (*fetch_row_func)(VALUE, MYSQL_FIELD *fields, const result_each_args *args);
-  ID db_timezone, app_timezone, dbTz, appTz;
-  int symbolizeKeys, asArray, castBool, cacheRows, cast;
+  VALUE opts, (*fetch_row_func)(VALUE, MYSQL_FIELD *fields, const result_each_args *args);
+  ID db_timezone, app_timezone;
+  int symbolizeKeys, asArray, castBool, cacheRows;
+  mysql2_cast_mode cast;
+  int warnDbTimezone, perEachOpts;
+  unsigned long rowsPerGvlYield;
 
   GET_RESULT(self);
 
@@ -198,22 +176,112 @@ static VALUE rb_mysql_result_each(int argc, VALUE * argv, VALUE self) {
     rb_raise(cMysql2Error, &quot;Statement handle already closed&quot;);
   }
 
-  defaults = rb_ivar_get(self, intern_query_options);
-  Check_Type(defaults, T_HASH);
-
   // A block can be passed to this method, but since we don&#39;t call the block directly from C,
   // we don&#39;t need to capture it into a variable here with the &quot;&amp;&quot; scan arg.
-  if (rb_scan_args(argc, argv, &quot;01&quot;, &amp;opts) == 1) {
-    opts = rb_funcall(defaults, intern_merge, 1, opts);
-  } else {
-    opts = defaults;
+  perEachOpts = rb_scan_args(argc, argv, &quot;01&quot;, &amp;opts) == 1;
+
+  /* :force_encoding is resolved when the query/execute command is issued
+   * and is fixed for the life of the Result: non-streaming
+   * Statement#execute materializes every row by calling #each itself, so
+   * a value passed here could never be honored consistently. Reject it
+   * outright rather than silently ignoring it. (The merged defaults
+   * below legitimately carry the query-time value; only the per-#each
+   * hash is checked.) */
+  if (perEachOpts &amp;&amp; RB_TYPE_P(opts, T_HASH) &amp;&amp; rb_hash_lookup2(opts, sym_force_encoding, Qundef) != Qundef) {
+    rb_raise(cMysql2Error, &quot;:force_encoding is a query option and cannot be set on Result#each&quot;);
   }
 
-  symbolizeKeys = RTEST(rb_hash_aref(opts, sym_symbolize_keys));
-  asArray       = rb_hash_aref(opts, sym_as) == sym_array;
-  castBool      = RTEST(rb_hash_aref(opts, sym_cast_booleans));
-  cacheRows     = RTEST(rb_hash_aref(opts, sym_cache_rows));
-  cast          = RTEST(rb_hash_aref(opts, sym_cast));
+  if (!perEachOpts &amp;&amp; wrapper-&gt;each_opts.parsed) {
+    /* Argument-less #each over the already-parsed @query_options: reuse the
+     * parse. Warnings are deliberately not part of the cache -- their
+     * conditions are recomputed from the cached (pre-forcing) values below,
+     * so they fire on every call exactly as an uncached parse would. */
+    symbolizeKeys   = wrapper-&gt;each_opts.symbolizeKeys;
+    asArray         = wrapper-&gt;each_opts.asArray;
+    castBool        = wrapper-&gt;each_opts.castBool;
+    cacheRows       = wrapper-&gt;each_opts.cacheRows;
+    cast            = wrapper-&gt;each_opts.cast;
+    warnDbTimezone  = wrapper-&gt;each_opts.warnDbTimezone;
+    rowsPerGvlYield = wrapper-&gt;each_opts.rowsPerGvlYield;
+    db_timezone     = wrapper-&gt;each_opts.db_timezone;
+    app_timezone    = wrapper-&gt;each_opts.app_timezone;
+  } else {
+    VALUE dbTz, appTz, rowsPerGvlYieldOpt, castOpt;
+    VALUE defaults = rb_ivar_get(self, intern_query_options);
+    Check_Type(defaults, T_HASH);
+
+    opts = perEachOpts ? rb_funcall(defaults, intern_merge, 1, opts) : defaults;
+
+    symbolizeKeys = RTEST(rb_hash_aref(opts, sym_symbolize_keys));
+    asArray       = rb_hash_aref(opts, sym_as) == sym_array;
+    castBool      = RTEST(rb_hash_aref(opts, sym_cast_booleans));
+    cacheRows     = RTEST(rb_hash_aref(opts, sym_cache_rows));
+
+    /* See mysql2_cast_mode: only the exact symbol :fast selects partial
+     * casting; any other truthy value stays full casting. */
+    castOpt = rb_hash_aref(opts, sym_cast);
+    if (castOpt == sym_fast) {
+      cast = MYSQL2_CAST_FAST;
+    } else if (RTEST(castOpt)) {
+      cast = MYSQL2_CAST_ALL;
+    } else {
+      cast = MYSQL2_CAST_NONE;
+    }
+
+    /* :rows_per_gvl_yield -- 0 disables yielding; nil uses the default. */
+    rowsPerGvlYield = MYSQL2_ROWS_PER_GVL_YIELD_DEFAULT;
+    rowsPerGvlYieldOpt = rb_hash_aref(opts, sym_rows_per_gvl_yield);
+    if (!NIL_P(rowsPerGvlYieldOpt)) {
+      long requested = NUM2LONG(rowsPerGvlYieldOpt);
+      if (requested &lt; 0) {
+        rb_raise(cMysql2Error, &quot;:rows_per_gvl_yield must not be negative&quot;);
+      }
+      rowsPerGvlYield = (unsigned long)requested;
+    }
+
+    /* The timezone lookups are hoisted from their historical spot below the
+     * freed-result guard so a complete parse exists to cache; the lookups
+     * themselves are side-effect free, and the invalid-:database_timezone
+     * warning is deferred (warnDbTimezone) to its historical point, after
+     * that guard. */
+    dbTz = rb_hash_aref(opts, sym_database_timezone);
+    warnDbTimezone = 0;
+    if (dbTz == sym_local) {
+      db_timezone = intern_local;
+    } else if (dbTz == sym_utc) {
+      db_timezone = intern_utc;
+    } else {
+      warnDbTimezone = !NIL_P(dbTz);
+      db_timezone = intern_local;
+    }
+
+    appTz = rb_hash_aref(opts, sym_application_timezone);
+    if (appTz == sym_local) {
+      app_timezone = intern_local;
+    } else if (appTz == sym_utc) {
+      app_timezone = intern_utc;
+    } else {
+      app_timezone = Qnil;
+    }
+
+    if (!perEachOpts) {
+      /* Nothing above raised, so this parse of @query_options is complete
+       * and can serve every later argument-less call. An invalid
+       * :rows_per_gvl_yield raises before this point, leaving the cache
+       * unset so the next call re-parses and re-raises just as an uncached
+       * one would. */
+      wrapper-&gt;each_opts.symbolizeKeys   = symbolizeKeys;
+      wrapper-&gt;each_opts.asArray         = asArray;
+      wrapper-&gt;each_opts.castBool        = castBool;
+      wrapper-&gt;each_opts.cacheRows       = cacheRows;
+      wrapper-&gt;each_opts.cast            = cast;
+      wrapper-&gt;each_opts.warnDbTimezone  = warnDbTimezone;
+      wrapper-&gt;each_opts.rowsPerGvlYield = rowsPerGvlYield;
+      wrapper-&gt;each_opts.db_timezone     = db_timezone;
+      wrapper-&gt;each_opts.app_timezone    = app_timezone;
+      wrapper-&gt;each_opts.parsed          = 1;
+    }
+  }
 
   if (wrapper-&gt;is_streaming &amp;&amp; cacheRows) {
     rb_warn(&quot;:cache_rows is ignored if :stream is true&quot;);
@@ -224,7 +292,10 @@ static VALUE rb_mysql_result_each(int argc, VALUE * argv, VALUE self) {
     cacheRows = 1;
   }
 
-  if (wrapper-&gt;stmt_wrapper &amp;&amp; !cast) {
+  /* The binary-protocol row fetch (rb_mysql_result_fetch_row_stmt) always
+   * fully casts; the existing warning already reads as &quot;any non-true :cast
+   * is overridden here&quot;, so cast: :fast reuses it verbatim. */
+  if (wrapper-&gt;stmt_wrapper &amp;&amp; cast != MYSQL2_CAST_ALL) {
     rb_warn(&quot;:cast is forced for prepared statements&quot;);
   }
 
@@ -243,37 +314,23 @@ static VALUE rb_mysql_result_each(int argc, VALUE * argv, VALUE self) {
     }
   }
 
-  dbTz = rb_hash_aref(opts, sym_database_timezone);
-  if (dbTz == sym_local) {
-    db_timezone = intern_local;
-  } else if (dbTz == sym_utc) {
-    db_timezone = intern_utc;
-  } else {
-    if (!NIL_P(dbTz)) {
-      rb_warn(&quot;:database_timezone option must be :utc or :local - defaulting to :local&quot;);
-    }
-    db_timezone = intern_local;
-  }
-
-  appTz = rb_hash_aref(opts, sym_application_timezone);
-  if (appTz == sym_local) {
-    app_timezone = intern_local;
-  } else if (appTz == sym_utc) {
-    app_timezone = intern_utc;
-  } else {
-    app_timezone = Qnil;
+  if (warnDbTimezone) {
+    rb_warn(&quot;:database_timezone option must be :utc or :local - defaulting to :local&quot;);
   }
 
   if (wrapper-&gt;rows == Qnil &amp;&amp; !wrapper-&gt;is_streaming) {
     wrapper-&gt;numberOfRows = wrapper-&gt;stmt_wrapper ? mysql_stmt_num_rows(wrapper-&gt;stmt_wrapper-&gt;stmt) : mysql_num_rows(wrapper-&gt;result);
-    wrapper-&gt;rows = rb_ary_new2(wrapper-&gt;numberOfRows);
+    /* Only reserve room for every row when the rows will actually be kept.
+     * With cache_rows: false nothing is ever stored in this array, so the
+     * reservation is dead weight proportional to the result size. */
+    wrapper-&gt;rows = cacheRows ? rb_ary_new2(wrapper-&gt;numberOfRows) : rb_ary_new();
   } else if (wrapper-&gt;rows &amp;&amp; !cacheRows) {
     if (wrapper-&gt;resultFreed) {
       rb_raise(cMysql2Error, &quot;Result set has already been freed&quot;);
     }
     mysql_data_seek(wrapper-&gt;result, 0);
     wrapper-&gt;lastRowProcessed = 0;
-    wrapper-&gt;rows = rb_ary_new2(wrapper-&gt;numberOfRows);
+    wrapper-&gt;rows = rb_ary_new();
   }
 
   // Backward compat
@@ -281,10 +338,14 @@ static VALUE rb_mysql_result_each(int argc, VALUE * argv, VALUE self) {
   args.asArray = asArray;
   args.castBool = castBool;
   args.cacheRows = cacheRows;
+  args.rowsPerGvlYield = rowsPerGvlYield;
   args.cast = cast;
   args.db_timezone = db_timezone;
   args.app_timezone = app_timezone;
   args.block_given = rb_block_given_p();
+  /* Captured once per #each call; see the field&#39;s comment in
+   * result_each_args. */
+  args.default_internal_enc = rb_default_internal_encoding();
 
   if (wrapper-&gt;stmt_wrapper) {
     fetch_row_func = rb_mysql_result_fetch_row_stmt;
@@ -303,11 +364,11 @@ static VALUE rb_mysql_result_each(int argc, VALUE * argv, VALUE self) {
   <h3 class='signature '>
     #<strong>field_types</strong>  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L1096-L1127'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L1533-L1564'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1096' data-end='1127'></pre>
+  <pre class='lines_num' data-start='1533' data-end='1564'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/mysql2/result.c', line 1096</span></pre>
+<pre><span class='info file'># File 'ext/mysql2/result.c', line 1533</span></pre>
 <pre class='code cpp'>
 
 static VALUE rb_mysql_result_fetch_field_types(VALUE self) {
@@ -351,11 +412,11 @@ static VALUE rb_mysql_result_fetch_field_types(VALUE self) {
   <h3 class='signature '>
     #<strong>fields</strong>  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L1059-L1094'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L1496-L1531'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1059' data-end='1094'></pre>
+  <pre class='lines_num' data-start='1496' data-end='1531'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/mysql2/result.c', line 1059</span></pre>
+<pre><span class='info file'># File 'ext/mysql2/result.c', line 1496</span></pre>
 <pre class='code cpp'>
 
 static VALUE rb_mysql_result_fetch_fields(VALUE self) {
@@ -403,11 +464,11 @@ static VALUE rb_mysql_result_fetch_fields(VALUE self) {
   <h3 class='signature '>
     #<strong>free</strong>  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L1146-L1149'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L1583-L1586'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1146' data-end='1149'></pre>
+  <pre class='lines_num' data-start='1583' data-end='1586'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/mysql2/result.c', line 1146</span></pre>
+<pre><span class='info file'># File 'ext/mysql2/result.c', line 1583</span></pre>
 <pre class='code cpp'>
 
 static VALUE rb_mysql_result_free_(VALUE self) {
@@ -419,16 +480,65 @@ static VALUE rb_mysql_result_free_(VALUE self) {
 </div>
 </section>
 
+<section class='method_details' id="server_flags-instance_method">
+  <h3 class='signature '>
+    #<strong>server_flags</strong>  
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L1911-L1943'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='1911' data-end='1943'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'ext/mysql2/result.c', line 1911</span></pre>
+<pre class='code cpp'>
+
+static VALUE rb_mysql_result_server_flags(VALUE self) {
+  GET_RESULT(self);
+
+  if (NIL_P(wrapper-&gt;server_flags)) {
+    VALUE server_flags = rb_hash_new();
+
+#ifdef HAVE_CONST_SERVER_QUERY_NO_GOOD_INDEX_USED
+    rb_hash_aset(server_flags, sym_no_good_index_used, flag_to_bool(SERVER_QUERY_NO_GOOD_INDEX_USED));
+#else
+    rb_hash_aset(server_flags, sym_no_good_index_used, Qnil);
+#endif
+
+#ifdef HAVE_CONST_SERVER_QUERY_NO_INDEX_USED
+    rb_hash_aset(server_flags, sym_no_index_used, flag_to_bool(SERVER_QUERY_NO_INDEX_USED));
+#else
+    rb_hash_aset(server_flags, sym_no_index_used, Qnil);
+#endif
+
+#ifdef HAVE_CONST_SERVER_QUERY_WAS_SLOW
+    rb_hash_aset(server_flags, sym_query_was_slow, flag_to_bool(SERVER_QUERY_WAS_SLOW));
+#else
+    rb_hash_aset(server_flags, sym_query_was_slow, Qnil);
+#endif
+
+    /* Memoize in the wrapper struct, marked from rb_mysql_result_mark: a
+     * plain C field write, so it works even on a frozen Result (an ivar set
+     * would raise FrozenError), and later calls return this same Hash object
+     * (mutations included), as the eager version did. */
+    wrapper-&gt;server_flags = server_flags;
+  }
+
+  return wrapper-&gt;server_flags;
+}
+</pre>
+  </div>
+</div>
+</section>
+
 <section class='method_details' id="size-instance_method">
   <h3 class='signature '>
     #<strong>size</strong>  
     <span class='aliases'>Also known as: <span class='names'>#count</span></span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L1361-L1380'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L1946-L1965'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1361' data-end='1380'></pre>
+  <pre class='lines_num' data-start='1946' data-end='1965'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/mysql2/result.c', line 1361</span></pre>
+<pre><span class='info file'># File 'ext/mysql2/result.c', line 1946</span></pre>
 <pre class='code cpp'>
 
 static VALUE rb_mysql_result_count(VALUE self) {

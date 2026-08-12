@@ -342,6 +342,15 @@ the <code>:sslverify</code> boolean. For details on each of the <code>:ssl_mode<
 information about SSL/TLS in MariaDB, see
 <a href='https://mariadb.com/kb/en/securing-connections-for-client-and-server/'><a href="https://mariadb.com/kb/en/securing-connections-for-client-and-server/</a>">https://mariadb.com/kb/en/securing-connections-for-client-and-server/</a></a>
 and <a href='https://mariadb.com/kb/en/mysql_optionsv/#tls-options'><a href="https://mariadb.com/kb/en/mysql_optionsv/#tls-options</a>">https://mariadb.com/kb/en/mysql_optionsv/#tls-options</a></a></p>
+<p>To set the TLS Server Name Indication (SNI) hostname sent during the TLS
+handshake, e.g. when connecting through a proxy that routes by hostname:</p>
+<pre class="code ruby"><code class="ruby">{<span class='const'><a href="Mysql2.html" title="Mysql2 (module)">Mysql2</a></span><span class='op'>::</span><span class='const'><a href="Mysql2/Client.html" title="Mysql2::Client (class)">Client</a></span>.<span class='id identifier rubyid_new'><a href="Mysql2/Client.html#new-class_method" title="Mysql2::Client.new (method)">new</a></span>}(
+  <span class='comment'># ...options as above...,
+</span>  <span class='symbeg'>:</span><span class='id identifier rubyid_tls_sni_name'>tls_sni_name</span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>db.example.com</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span>
+  )</code></pre>
+<p>This requires MySQL client library 8.1 or higher. On older client libraries
+and all versions of MariaDB, passing this option raises <a href="Mysql2/Error.html" title="Mysql2::Error (class)"><code>::Mysql2::Error</code></a>
+rather than silently connecting without it.</p>
 <h3 id="Secure_auth">Secure auth</h3>
 <p>Starting with MySQL 5.6.5, secure_auth is enabled by default on servers (it was disabled by default prior to this).
 When secure_auth is enabled, the server will refuse a connection if the account password is stored in old pre-MySQL 4.1 format.
@@ -469,6 +478,23 @@ Mysql                  0.080000   0.000000   0.080000 (  0.129355)
 do_mysql               0.520000   0.010000   0.530000 (  0.574619)
 </code></pre>
 <p>Although Mysql2 performs reasonably well at retrieving uncasted data, it (currently) is not as fast as the Mysql gem.  In spite of this small disadvantage, Mysql2 still sports a friendlier interface and doesn't block the entire ruby process when querying.</p>
+<h3 id="Forcing_a_string_encoding">Forcing a string encoding</h3>
+<p>Pass <code>:force_encoding</code> to <code>Client#query</code> or <code>Statement#execute</code> to retag string results with an encoding of your choosing:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_result'>result</span> <span class='op'>=</span> <span class='id identifier rubyid_client'>client</span>.<span class='id identifier rubyid_query'>query</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>SELECT * FROM legacy_table</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>force_encoding:</span> {<span class='const'>Encoding</span><span class='op'>::</span><span class='const'>UTF_8</span>})</code></pre>
+<p>It accepts an <code>Encoding</code> object or an encoding name (anything <code>Encoding.find</code> accepts). Invalid values raise before anything is sent to the server.</p>
+<p>Retag means exactly that: values keep their bytes and only the encoding tag changes — nothing is transcoded. Force means force, so the forced encoding wins over everything else: BLOB/<code>BINARY</code> columns are retagged too (instead of being tagged ASCII-8BIT), and the usual <code>Encoding.default_internal</code> conversion is skipped. This is useful for reading legacy data stored in a mislabeled character set (say, UTF-8 bytes living in latin1 columns), or for forcing <code>binary</code> when you want raw bytes for hashing or byte-wise comparison.</p>
+<p>Only values that arrive as strings are affected. With the default <code>cast: true</code>, columns cast to Integer/Date/Time and friends are untouched; with <code>cast: false</code>, every non-NULL value is a string and all of them are retagged. Field names are never affected.</p>
+<p><code>:force_encoding</code> is fixed when the query or execute is issued — <a href="Mysql2/Result.html#each-instance_method" title="Mysql2::Result#each (method)">Mysql2::Result#each</a> raises if you pass it there, because non-streaming <code>Statement#execute</code> materializes rows internally with <code>#each</code>, so a per-<code>each</code> value could never be honored consistently.</p>
+<h3 id="Partial_casting">Partial casting</h3>
+<p>Between <code>:cast =&gt; true</code> and <code>:cast =&gt; false</code> sits <code>:cast =&gt; :fast</code>: cheap conversions still happen in C, while the expensive ones are skipped and their values returned as encoding-tagged Strings of the raw wire bytes.</p>
+<ul>
+<li>Cast, exactly as <code>:cast =&gt; true</code> does: <code>NULL</code> (<code>nil</code>), the integer types (TINYINT through BIGINT, YEAR), FLOAT/DOUBLE, BIT, and TINYINT(1)/BIT(1) booleans when <code>:cast_booleans</code> is enabled.</li>
+<li>Returned as Strings, exactly as <code>:cast =&gt; false</code> returns them: DECIMAL, DATE, DATETIME, TIMESTAMP, and TIME -- the types whose casting dominates the cost of materializing a row (BigDecimal, Date, and Time construction).</li>
+<li>Everything else (CHAR/VARCHAR/TEXT, blobs, ENUM, SET, JSON, ...) is already a String and is identical to <code>:cast =&gt; true</code>.</li>
+</ul>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_result'>result</span> <span class='op'>=</span> <span class='id identifier rubyid_client'>client</span>.<span class='id identifier rubyid_query'>query</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>SELECT * FROM table</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_cast'>cast</span> <span class='op'>=&gt;</span> <span class='symbeg'>:</span><span class='id identifier rubyid_fast'>fast</span>)</code></pre>
+<p>This is for callers that consume mysql2 results directly -- raw-mysql2 pipelines, ETL jobs, and applications that do their own value parsing -- where DECIMAL and temporal columns are often passed through or parsed lazily, and paying BigDecimal/Time construction for every cell up front is waste. Your code must be prepared to receive Strings for those columns. Note that Active Record does not use this option.</p>
+<p>Any <code>:cast</code> value other than the exact symbol <code>:fast</code> (or <code>false</code>/<code>nil</code>) keeps meaning full casting. Prepared statement results are always fully cast, as with <code>:cast =&gt; false</code>.</p>
 <h3 id="Async">Async</h3>
 <p>NOTE: Not supported on Windows.</p>
 <p><a href="Mysql2/Client.html" title="Mysql2::Client (class)"><code>::Mysql2::Client</code></a> takes advantage of the MySQL C API's (undocumented) non-blocking function mysql_send_query for <em>all</em> queries.
