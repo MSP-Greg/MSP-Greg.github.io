@@ -560,7 +560,16 @@ already been defined.</p>
     </span>
     <span class='note title private'>private</span>
     <div class='summary_desc'>
-      <div class='inline'><div class="paragraph"><p>Autocorrect by swapping between two nodes autocorrecting them.</p></div></div>
+      <div class='inline'><div class="paragraph"><p>Autocorrect by moving the node, together with the contiguous group of same-category elements that follows it, to its expected position.</p></div></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
+      <a href="#barrier%3F-instance_method" title="#barrier? (instance method)">#<strong>barrier?</strong>(node, sibling)  &#x21d2; Boolean </a>
+    </span>
+    <span class='note title private'>private</span>
+    <div class='summary_desc'>
+      <div class='inline'><div class="paragraph"><p>A dynamic constant blocks every element: the cop does not move such constants, and letting other elements jump over one would change execution order just the same.</p></div></div>
     </div>
   </li>
   <li>
@@ -661,13 +670,40 @@ already been defined.</p>
   </li>
   <li>
     <span class='summary_signature priv'>
-      <a href="#ignore_for_autocorrect%3F-instance_method" title="#ignore_for_autocorrect? (instance method)">#<strong>ignore_for_autocorrect?</strong>(node, sibling)  &#x21d2; Boolean </a>
+      <a href="#insertion_anchor-instance_method" title="#insertion_anchor (instance method)">#<strong>insertion_anchor</strong>(node)  </a>
+    </span>
+    <span class='note title private'>private</span>
+    <div class='summary_desc'>
+      <div class='inline'><div class="paragraph"><p>The expected position of the node: the first left sibling within its movable span whose category is expected to appear after the node&#8217;s.</p></div></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
+      <a href="#marked_as_private_constant%3F-instance_method" title="#marked_as_private_constant? (instance method)">#<strong>marked_as_private_constant?</strong>(node, name)  &#x21d2; Boolean </a>
     </span>
     <span class='note title private'>private</span>
   </li>
   <li>
     <span class='summary_signature priv'>
-      <a href="#marked_as_private_constant%3F-instance_method" title="#marked_as_private_constant? (instance method)">#<strong>marked_as_private_constant?</strong>(node, name)  &#x21d2; Boolean </a>
+      <a href="#movable_group-instance_method" title="#movable_group (instance method)">#<strong>movable_group</strong>(node)  </a>
+    </span>
+    <span class='note title private'>private</span>
+    <div class='summary_desc'>
+      <div class='inline'><div class="paragraph"><p>The node together with the contiguous same-category right siblings, so that the whole group moves in a single pass while the offense is reported only on its first element.</p></div></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
+      <a href="#movable_span-instance_method" title="#movable_span (instance method)">#<strong>movable_span</strong>(node)  </a>
+    </span>
+    <span class='note title private'>private</span>
+    <div class='summary_desc'>
+      <div class='inline'><div class="paragraph"><p>Left siblings the node may be reordered with: those after the last barrier.</p></div></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
+      <a href="#out_of_order_elements-instance_method" title="#out_of_order_elements (instance method)">#<strong>out_of_order_elements</strong>(class_node)  </a>
     </span>
     <span class='note title private'>private</span>
   </li>
@@ -682,6 +718,15 @@ already been defined.</p>
       <a href="#start_line_position-instance_method" title="#start_line_position (instance method)">#<strong>start_line_position</strong>(node)  </a>
     </span>
     <span class='note title private'>private</span>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
+      <a href="#visibility_dependent%3F-instance_method" title="#visibility_dependent? (instance method)">#<strong>visibility_dependent?</strong>(node)  &#x21d2; Boolean </a>
+    </span>
+    <span class='note title private'>private</span>
+    <div class='summary_desc'>
+      <div class='inline'><div class="paragraph"><p>Whether moving the node across a bare visibility modifier would change its meaning.</p></div></div>
+    </div>
   </li>
   <li>
     <span class='summary_signature priv'>
@@ -958,28 +1003,64 @@ already been defined.</p>
 <div class='docstring'>
   <div class='discussion'>
     <div class="paragraph">
-<p>Autocorrect by swapping between two nodes autocorrecting them</p>
+<p>Autocorrect by moving the node, together with the contiguous group of
+same-category elements that follows it, to its expected position.</p>
 </div>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L209-L220'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L231-L245'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='209' data-end='220'></pre>
+  <pre class='lines_num' data-start='231' data-end='245'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 209</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 231</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_autocorrect'>autocorrect</span>(<span class='id identifier rubyid_corrector'>corrector</span><span class='comma'>,</span> <span class='id identifier rubyid_node'>node</span>)
-  <span class='id identifier rubyid_previous'>previous</span> <span class='op'>=</span> <span class='id identifier rubyid_node'>node</span>.<span class='id identifier rubyid_left_siblings'>left_siblings</span>.<span class='id identifier rubyid_reverse'>reverse</span>.<span class='id identifier rubyid_find'>find</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_sibling'>sibling</span><span class='op'>|</span>
-    <span class='op'>!</span><span class='id identifier rubyid_ignore_for_autocorrect?'><a href="#ignore_for_autocorrect%3F-instance_method" title="RuboCop::Cop::Layout::ClassStructure#ignore_for_autocorrect? (method)">ignore_for_autocorrect?</a></span>(<span class='id identifier rubyid_node'>node</span><span class='comma'>,</span> <span class='id identifier rubyid_sibling'>sibling</span>)
+  <span class='kw'>return</span> <span class='kw'>if</span> <span class='id identifier rubyid_dynamic_constant?'><a href="#dynamic_constant%3F-instance_method" title="RuboCop::Cop::Layout::ClassStructure#dynamic_constant? (method)">dynamic_constant?</a></span>(<span class='id identifier rubyid_node'>node</span>)
+
+  <span class='id identifier rubyid_anchor'>anchor</span> <span class='op'>=</span> <span class='id identifier rubyid_insertion_anchor'><a href="#insertion_anchor-instance_method" title="RuboCop::Cop::Layout::ClassStructure#insertion_anchor (method)">insertion_anchor</a></span>(<span class='id identifier rubyid_node'>node</span>)
+  <span class='kw'>return</span> <span class='kw'>unless</span> <span class='id identifier rubyid_anchor'>anchor</span>
+
+  <span class='id identifier rubyid_anchor_range'>anchor_range</span> <span class='op'>=</span> <span class='id identifier rubyid_source_range_with_comment'>source_range_with_comment</span>(<span class='id identifier rubyid_anchor'>anchor</span>)
+  <span class='comment'># Reversed for the same reason offenses are registered in reverse source order:
+</span>  <span class='comment'># the last insertion at a position comes first.
+</span>  <span class='id identifier rubyid_movable_group'><a href="#movable_group-instance_method" title="RuboCop::Cop::Layout::ClassStructure#movable_group (method)">movable_group</a></span>(<span class='id identifier rubyid_node'>node</span>).<span class='id identifier rubyid_reverse_each'>reverse_each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_group_node'>group_node</span><span class='op'>|</span>
+    <span class='id identifier rubyid_current_range'>current_range</span> <span class='op'>=</span> <span class='id identifier rubyid_source_range_with_comment'>source_range_with_comment</span>(<span class='id identifier rubyid_group_node'>group_node</span>)
+    <span class='id identifier rubyid_corrector'>corrector</span>.<span class='id identifier rubyid_insert_before'>insert_before</span>(<span class='id identifier rubyid_anchor_range'>anchor_range</span><span class='comma'>,</span> <span class='id identifier rubyid_current_range'>current_range</span>.<span class='id identifier rubyid_source'>source</span>)
+    <span class='id identifier rubyid_corrector'>corrector</span>.<span class='id identifier rubyid_remove'>remove</span>(<span class='id identifier rubyid_current_range'>current_range</span>)
   <span class='kw'>end</span>
-  <span class='kw'>return</span> <span class='kw'>unless</span> <span class='id identifier rubyid_previous'>previous</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
 
-  <span class='id identifier rubyid_current_range'>current_range</span> <span class='op'>=</span> <span class='id identifier rubyid_source_range_with_comment'>source_range_with_comment</span>(<span class='id identifier rubyid_node'>node</span>)
-  <span class='id identifier rubyid_previous_range'>previous_range</span> <span class='op'>=</span> <span class='id identifier rubyid_source_range_with_comment'>source_range_with_comment</span>(<span class='id identifier rubyid_previous'>previous</span>)
+<section class='method_details' id="barrier?-instance_method">
+  <h3 class='signature priv'>
+    #<strong>barrier?</strong>(node, sibling)  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    <div class="paragraph">
+<p>A dynamic constant blocks every element: the cop does not move such constants,
+and letting other elements jump over one would change execution order just the same.
+A bare visibility modifier blocks only the elements whose meaning depends on
+the visibility section they appear in.</p>
+</div>
+  </div>
+</div>
+<div class='tags'>
+  
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L390-L392'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='390' data-end='392'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 390</span></pre>
+<pre class='code ruby'>
 
-  <span class='id identifier rubyid_corrector'>corrector</span>.<span class='id identifier rubyid_insert_before'>insert_before</span>(<span class='id identifier rubyid_previous_range'>previous_range</span><span class='comma'>,</span> <span class='id identifier rubyid_current_range'>current_range</span>.<span class='id identifier rubyid_source'>source</span>)
-  <span class='id identifier rubyid_corrector'>corrector</span>.<span class='id identifier rubyid_remove'>remove</span>(<span class='id identifier rubyid_current_range'>current_range</span>)
+<span class='kw'>def</span> <span class='id identifier rubyid_barrier?'>barrier?</span>(<span class='id identifier rubyid_node'>node</span><span class='comma'>,</span> <span class='id identifier rubyid_sibling'>sibling</span>)
+  <span class='id identifier rubyid_dynamic_constant?'><a href="#dynamic_constant%3F-instance_method" title="RuboCop::Cop::Layout::ClassStructure#dynamic_constant? (method)">dynamic_constant?</a></span>(<span class='id identifier rubyid_sibling'>sibling</span>) <span class='op'>||</span> (<span class='id identifier rubyid_visibility_dependent?'><a href="#visibility_dependent%3F-instance_method" title="RuboCop::Cop::Layout::ClassStructure#visibility_dependent? (method)">visibility_dependent?</a></span>(<span class='id identifier rubyid_node'>node</span>) <span class='op'>&amp;&amp;</span> <span class='id identifier rubyid_visibility_block?'>visibility_block?</span>(<span class='id identifier rubyid_sibling'>sibling</span>))
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -990,11 +1071,11 @@ already been defined.</p>
   <h3 class='signature priv'>
     #<strong>begin_pos_with_comment</strong>(node)   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L357-L366'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L433-L442'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='357' data-end='366'></pre>
+  <pre class='lines_num' data-start='433' data-end='442'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 357</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 433</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_begin_pos_with_comment'>begin_pos_with_comment</span>(<span class='id identifier rubyid_node'>node</span>)
@@ -1016,11 +1097,11 @@ already been defined.</p>
   <h3 class='signature priv'>
     #<strong>buffer</strong>   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L380-L382'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L456-L458'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='380' data-end='382'></pre>
+  <pre class='lines_num' data-start='456' data-end='458'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 380</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 456</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_buffer'>buffer</span>
@@ -1043,11 +1124,11 @@ in the <a href="#expected_order-instance_method" title="RuboCop::Cop::Layout::Cl
 </div>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L392-L394'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L468-L470'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='392' data-end='394'></pre>
+  <pre class='lines_num' data-start='468' data-end='470'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 392</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 468</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_categories'>categories</span>
@@ -1062,11 +1143,11 @@ in the <a href="#expected_order-instance_method" title="RuboCop::Cop::Layout::Cl
   <h3 class='signature priv'>
     #<strong>class_elements</strong>(class_node)   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L276-L290'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L301-L315'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='276' data-end='290'></pre>
+  <pre class='lines_num' data-start='301' data-end='315'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 276</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 301</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_class_elements'>class_elements</span>(<span class='id identifier rubyid_class_node'>class_node</span>)
@@ -1136,11 +1217,11 @@ by method name</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L229-L241'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L254-L266'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='229' data-end='241'></pre>
+  <pre class='lines_num' data-start='254' data-end='266'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 229</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 254</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_classify'>classify</span>(<span class='id identifier rubyid_node'>node</span>)
@@ -1173,11 +1254,11 @@ by method name</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L323-L329'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L339-L345'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='323' data-end='329'></pre>
+  <pre class='lines_num' data-start='339' data-end='345'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 323</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 339</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_dynamic_constant?'>dynamic_constant?</span>(<span class='id identifier rubyid_node'>node</span>)
@@ -1196,11 +1277,11 @@ by method name</p>
   <h3 class='signature priv'>
     #<strong>end_position_for</strong>(node)   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L347-L355'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L423-L431'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='347' data-end='355'></pre>
+  <pre class='lines_num' data-start='423' data-end='431'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 347</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 423</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_end_position_for'>end_position_for</span>(<span class='id identifier rubyid_node'>node</span>)
@@ -1229,11 +1310,11 @@ Define new terms in the expected order by adding new <a href="#categories-instan
 </div>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L386-L388'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L462-L464'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='386' data-end='388'></pre>
+  <pre class='lines_num' data-start='462' data-end='464'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 386</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 462</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_expected_order'>expected_order</span>
@@ -1248,11 +1329,11 @@ Define new terms in the expected order by adding new <a href="#categories-instan
   <h3 class='signature priv'>
     #<strong>find_category</strong>(name)   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L261-L265'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L286-L290'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='261' data-end='265'></pre>
+  <pre class='lines_num' data-start='286' data-end='290'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 261</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 286</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_find_category'>find_category</span>(<span class='id identifier rubyid_name'>name</span>)
@@ -1269,11 +1350,11 @@ Define new terms in the expected order by adding new <a href="#categories-instan
   <h3 class='signature priv'>
     #<strong>find_heredoc</strong>(node)   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L376-L378'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L452-L454'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='376' data-end='378'></pre>
+  <pre class='lines_num' data-start='452' data-end='454'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 376</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 452</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_find_heredoc'>find_heredoc</span>(<span class='id identifier rubyid_node'>node</span>)
@@ -1319,11 +1400,11 @@ also its visibility.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L248-L259'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L273-L284'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='248' data-end='259'></pre>
+  <pre class='lines_num' data-start='273' data-end='284'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 248</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 273</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_find_send_node_category'>find_send_node_category</span>(<span class='id identifier rubyid_node'>node</span>)
@@ -1347,11 +1428,11 @@ also its visibility.</p>
   <h3 class='signature priv'>
     #<strong>flatten_class_elements</strong>(node)   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L299-L303'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L324-L328'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='299' data-end='303'></pre>
+  <pre class='lines_num' data-start='324' data-end='328'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 299</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 324</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_flatten_class_elements'>flatten_class_elements</span>(<span class='id identifier rubyid_node'>node</span>)
@@ -1368,11 +1449,11 @@ also its visibility.</p>
   <h3 class='signature priv'>
     #<strong>humanize_node</strong>(node)   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L314-L321'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L330-L337'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='314' data-end='321'></pre>
+  <pre class='lines_num' data-start='330' data-end='337'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 314</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 330</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_humanize_node'>humanize_node</span>(<span class='id identifier rubyid_node'>node</span>)
@@ -1400,11 +1481,11 @@ also its visibility.</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L292-L297'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L317-L322'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='292' data-end='297'></pre>
+  <pre class='lines_num' data-start='317' data-end='322'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 292</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 317</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_ignore?'>ignore?</span>(<span class='id identifier rubyid_node'>node</span><span class='comma'>,</span> <span class='id identifier rubyid_classification'>classification</span>)
@@ -1418,32 +1499,34 @@ also its visibility.</p>
 </div>
 </section>
 
-<section class='method_details' id="ignore_for_autocorrect?-instance_method">
+<section class='method_details' id="insertion_anchor-instance_method">
   <h3 class='signature priv'>
-    #<strong>ignore_for_autocorrect?</strong>(node, sibling)  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='priv'>private</span>)</span>
+    #<strong>insertion_anchor</strong>(node)   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
 <div class='docstring'>
   <div class='discussion'>
-    
+    <div class="paragraph">
+<p>The expected position of the node: the first left sibling within its movable span
+whose category is expected to appear after the node&#8217;s.
+Requiring a strictly later category keeps the order of elements sharing a category stable.</p>
+</div>
   </div>
 </div>
-<div class='tags'>
-  
-</div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L305-L312'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L350-L358'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='305' data-end='312'></pre>
+  <pre class='lines_num' data-start='350' data-end='358'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 305</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 350</span></pre>
 <pre class='code ruby'>
 
-<span class='kw'>def</span> <span class='id identifier rubyid_ignore_for_autocorrect?'>ignore_for_autocorrect?</span>(<span class='id identifier rubyid_node'>node</span><span class='comma'>,</span> <span class='id identifier rubyid_sibling'>sibling</span>)
-  <span class='id identifier rubyid_classification'>classification</span> <span class='op'>=</span> <span class='id identifier rubyid_classify'><a href="#classify-instance_method" title="RuboCop::Cop::Layout::ClassStructure#classify (method)">classify</a></span>(<span class='id identifier rubyid_node'>node</span>)
-  <span class='id identifier rubyid_sibling_class'>sibling_class</span> <span class='op'>=</span> <span class='id identifier rubyid_classify'><a href="#classify-instance_method" title="RuboCop::Cop::Layout::ClassStructure#classify (method)">classify</a></span>(<span class='id identifier rubyid_sibling'>sibling</span>)
+<span class='kw'>def</span> <span class='id identifier rubyid_insertion_anchor'>insertion_anchor</span>(<span class='id identifier rubyid_node'>node</span>)
+  <span class='id identifier rubyid_index'>index</span> <span class='op'>=</span> <span class='id identifier rubyid_expected_order'><a href="#expected_order-instance_method" title="RuboCop::Cop::Layout::ClassStructure#expected_order (method)">expected_order</a></span>.<span class='id identifier rubyid_index'>index</span>(<span class='id identifier rubyid_classify'><a href="#classify-instance_method" title="RuboCop::Cop::Layout::ClassStructure#classify (method)">classify</a></span>(<span class='id identifier rubyid_node'>node</span>))
 
-  <span class='id identifier rubyid_ignore?'><a href="#ignore%3F-instance_method" title="RuboCop::Cop::Layout::ClassStructure#ignore? (method)">ignore?</a></span>(<span class='id identifier rubyid_sibling'>sibling</span><span class='comma'>,</span> <span class='id identifier rubyid_sibling_class'>sibling_class</span>) <span class='op'>||</span>
-    <span class='id identifier rubyid_classification'>classification</span> <span class='op'>==</span> <span class='id identifier rubyid_sibling_class'>sibling_class</span> <span class='op'>||</span>
-    <span class='id identifier rubyid_dynamic_constant?'><a href="#dynamic_constant%3F-instance_method" title="RuboCop::Cop::Layout::ClassStructure#dynamic_constant? (method)">dynamic_constant?</a></span>(<span class='id identifier rubyid_node'>node</span>)
+  <span class='id identifier rubyid_movable_span'><a href="#movable_span-instance_method" title="RuboCop::Cop::Layout::ClassStructure#movable_span (method)">movable_span</a></span>(<span class='id identifier rubyid_node'>node</span>).<span class='id identifier rubyid_find'>find</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_sibling'>sibling</span><span class='op'>|</span>
+    <span class='id identifier rubyid_classification'>classification</span> <span class='op'>=</span> <span class='id identifier rubyid_classify'><a href="#classify-instance_method" title="RuboCop::Cop::Layout::ClassStructure#classify (method)">classify</a></span>(<span class='id identifier rubyid_sibling'>sibling</span>)
+
+    <span class='op'>!</span><span class='id identifier rubyid_ignore?'><a href="#ignore%3F-instance_method" title="RuboCop::Cop::Layout::ClassStructure#ignore? (method)">ignore?</a></span>(<span class='id identifier rubyid_sibling'>sibling</span><span class='comma'>,</span> <span class='id identifier rubyid_classification'>classification</span>) <span class='op'>&amp;&amp;</span> <span class='id identifier rubyid_expected_order'><a href="#expected_order-instance_method" title="RuboCop::Cop::Layout::ClassStructure#expected_order (method)">expected_order</a></span>.<span class='id identifier rubyid_index'>index</span>(<span class='id identifier rubyid_classification'>classification</span>) <span class='op'>&gt;</span> <span class='id identifier rubyid_index'>index</span>
+  <span class='kw'>end</span>
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -1462,17 +1545,85 @@ also its visibility.</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L341-L345'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L417-L421'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='341' data-end='345'></pre>
+  <pre class='lines_num' data-start='417' data-end='421'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 341</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 417</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_marked_as_private_constant?'>marked_as_private_constant?</span>(<span class='id identifier rubyid_node'>node</span><span class='comma'>,</span> <span class='id identifier rubyid_name'>name</span>)
   <span class='kw'>return</span> <span class='kw'>false</span> <span class='kw'>unless</span> <span class='id identifier rubyid_node'>node</span>.<span class='id identifier rubyid_method?'>method?</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_private_constant'>private_constant</span>)
 
   <span class='id identifier rubyid_node'>node</span>.<span class='id identifier rubyid_arguments'>arguments</span>.<span class='id identifier rubyid_any?'>any?</span> { <span class='op'>|</span><span class='id identifier rubyid_arg'>arg</span><span class='op'>|</span> <span class='id identifier rubyid_arg'>arg</span>.<span class='id identifier rubyid_type?'>type?</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_sym'>sym</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_str'>str</span>) <span class='op'>&amp;&amp;</span> <span class='id identifier rubyid_arg'>arg</span>.<span class='id identifier rubyid_value'>value</span> <span class='op'>==</span> <span class='id identifier rubyid_name'>name</span> }
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="movable_group-instance_method">
+  <h3 class='signature priv'>
+    #<strong>movable_group</strong>(node)   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    <div class="paragraph">
+<p>The node together with the contiguous same-category right siblings,
+so that the whole group moves in a single pass while the offense is
+reported only on its first element.</p>
+</div>
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L363-L375'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='363' data-end='375'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 363</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_movable_group'>movable_group</span>(<span class='id identifier rubyid_node'>node</span>)
+  <span class='id identifier rubyid_classification'>classification</span> <span class='op'>=</span> <span class='id identifier rubyid_classify'><a href="#classify-instance_method" title="RuboCop::Cop::Layout::ClassStructure#classify (method)">classify</a></span>(<span class='id identifier rubyid_node'>node</span>)
+  <span class='id identifier rubyid_group'>group</span> <span class='op'>=</span> [<span class='id identifier rubyid_node'>node</span>]
+
+  <span class='id identifier rubyid_node'>node</span>.<span class='id identifier rubyid_right_siblings'>right_siblings</span>.<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_sibling'>sibling</span><span class='op'>|</span>
+    <span class='kw'>break</span> <span class='kw'>unless</span> <span class='id identifier rubyid_classify'><a href="#classify-instance_method" title="RuboCop::Cop::Layout::ClassStructure#classify (method)">classify</a></span>(<span class='id identifier rubyid_sibling'>sibling</span>) <span class='op'>==</span> <span class='id identifier rubyid_classification'>classification</span>
+    <span class='kw'>break</span> <span class='kw'>if</span> <span class='id identifier rubyid_ignore?'><a href="#ignore%3F-instance_method" title="RuboCop::Cop::Layout::ClassStructure#ignore? (method)">ignore?</a></span>(<span class='id identifier rubyid_sibling'>sibling</span><span class='comma'>,</span> <span class='id identifier rubyid_classification'>classification</span>) <span class='op'>||</span> <span class='id identifier rubyid_dynamic_constant?'><a href="#dynamic_constant%3F-instance_method" title="RuboCop::Cop::Layout::ClassStructure#dynamic_constant? (method)">dynamic_constant?</a></span>(<span class='id identifier rubyid_sibling'>sibling</span>)
+
+    <span class='id identifier rubyid_group'>group</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_sibling'>sibling</span>
+  <span class='kw'>end</span>
+
+  <span class='id identifier rubyid_group'>group</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="movable_span-instance_method">
+  <h3 class='signature priv'>
+    #<strong>movable_span</strong>(node)   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    <div class="paragraph">
+<p>Left siblings the node may be reordered with: those after the last barrier.
+Ignored elements within the span are simply jumped over.</p>
+</div>
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L379-L384'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='379' data-end='384'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 379</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_movable_span'>movable_span</span>(<span class='id identifier rubyid_node'>node</span>)
+  <span class='id identifier rubyid_left_siblings'>left_siblings</span> <span class='op'>=</span> <span class='id identifier rubyid_node'>node</span>.<span class='id identifier rubyid_left_siblings'>left_siblings</span>
+  <span class='id identifier rubyid_barrier_index'>barrier_index</span> <span class='op'>=</span> <span class='id identifier rubyid_left_siblings'>left_siblings</span>.<span class='id identifier rubyid_rindex'>rindex</span> { <span class='op'>|</span><span class='id identifier rubyid_sibling'>sibling</span><span class='op'>|</span> <span class='id identifier rubyid_barrier?'><a href="#barrier%3F-instance_method" title="RuboCop::Cop::Layout::ClassStructure#barrier? (method)">barrier?</a></span>(<span class='id identifier rubyid_node'>node</span><span class='comma'>,</span> <span class='id identifier rubyid_sibling'>sibling</span>) }
+
+  <span class='id identifier rubyid_barrier_index'>barrier_index</span> <span class='op'>?</span> <span class='id identifier rubyid_left_siblings'>left_siblings</span>[(<span class='id identifier rubyid_barrier_index'>barrier_index</span> <span class='op'>+</span> <span class='int'>1</span>)<span class='op'>..</span>] <span class='op'>:</span> <span class='id identifier rubyid_left_siblings'>left_siblings</span>
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -1488,26 +1639,32 @@ also its visibility.</p>
   <div class='discussion'>
     <div class="paragraph">
 <p>Validates code style on class declaration.
-Add offense when find a node out of expected order.</p>
+Add offense when find a node out of expected order.
+A node is out of order when its category is expected earlier than
+the highest-priority category seen so far, so that a low-priority element
+(even an unmovable one) cannot mask disorder among the elements that follow it.
+Consecutive elements of the same category are reported only once,
+on the first element of the group.</p>
 </div>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L193-L203'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L198-L209'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='193' data-end='203'></pre>
+  <pre class='lines_num' data-start='198' data-end='209'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 193</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 198</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_on_class'>on_class</span>(<span class='id identifier rubyid_class_node'>class_node</span>)
-  <span class='id identifier rubyid_previous'>previous</span> <span class='op'>=</span> <span class='op'>-</span><span class='int'>1</span>
-  <span class='id identifier rubyid_walk_over_nested_class_definition'><a href="#walk_over_nested_class_definition-instance_method" title="RuboCop::Cop::Layout::ClassStructure#walk_over_nested_class_definition (method)">walk_over_nested_class_definition</a></span>(<span class='id identifier rubyid_class_node'>class_node</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_node'>node</span><span class='comma'>,</span> <span class='id identifier rubyid_category'>category</span><span class='op'>|</span>
-    <span class='id identifier rubyid_index'>index</span> <span class='op'>=</span> <span class='id identifier rubyid_expected_order'><a href="#expected_order-instance_method" title="RuboCop::Cop::Layout::ClassStructure#expected_order (method)">expected_order</a></span>.<span class='id identifier rubyid_index'>index</span>(<span class='id identifier rubyid_category'>category</span>)
-    <span class='kw'>if</span> <span class='id identifier rubyid_index'>index</span> <span class='op'>&lt;</span> <span class='id identifier rubyid_previous'>previous</span>
-      <span class='id identifier rubyid_message'>message</span> <span class='op'>=</span> <span class='id identifier rubyid_format'>format</span>(<span class='const'><a href="#MSG-constant" title="RuboCop::Cop::Layout::ClassStructure::MSG (constant)">MSG</a></span><span class='comma'>,</span> <span class='label'>category:</span> <span class='id identifier rubyid_category'>category</span><span class='comma'>,</span> <span class='label'>previous:</span> <span class='id identifier rubyid_expected_order'><a href="#expected_order-instance_method" title="RuboCop::Cop::Layout::ClassStructure#expected_order (method)">expected_order</a></span>[<span class='id identifier rubyid_previous'>previous</span>])
-      <span class='id identifier rubyid_add_offense'>add_offense</span>(<span class='id identifier rubyid_node'>node</span><span class='comma'>,</span> <span class='label'>message:</span> <span class='id identifier rubyid_message'>message</span>) { <span class='op'>|</span><span class='id identifier rubyid_corrector'>corrector</span><span class='op'>|</span> <span class='id identifier rubyid_autocorrect'><a href="#autocorrect-instance_method" title="RuboCop::Cop::Layout::ClassStructure#autocorrect (method)">autocorrect</a></span>(<span class='id identifier rubyid_corrector'>corrector</span><span class='comma'>,</span> <span class='id identifier rubyid_node'>node</span>) }
+  <span class='comment'># Corrections are registered in reverse source order because an insertion at
+</span>  <span class='comment'># a given position lands before any insertion already made there;
+</span>  <span class='comment'># this keeps the source order of nodes moved before the same anchor.
+</span>  <span class='id identifier rubyid_out_of_order_elements'><a href="#out_of_order_elements-instance_method" title="RuboCop::Cop::Layout::ClassStructure#out_of_order_elements (method)">out_of_order_elements</a></span>(<span class='id identifier rubyid_class_node'>class_node</span>).<span class='id identifier rubyid_reverse_each'>reverse_each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_node'>node</span><span class='comma'>,</span> <span class='id identifier rubyid_category'>category</span><span class='comma'>,</span> <span class='id identifier rubyid_previous'>previous</span><span class='op'>|</span>
+    <span class='id identifier rubyid_message'>message</span> <span class='op'>=</span> <span class='id identifier rubyid_format'>format</span>(<span class='const'><a href="#MSG-constant" title="RuboCop::Cop::Layout::ClassStructure::MSG (constant)">MSG</a></span><span class='comma'>,</span> <span class='label'>category:</span> <span class='id identifier rubyid_category'>category</span><span class='comma'>,</span> <span class='label'>previous:</span> <span class='id identifier rubyid_previous'>previous</span>)
+
+    <span class='id identifier rubyid_add_offense'>add_offense</span>(<span class='id identifier rubyid_node'>node</span><span class='comma'>,</span> <span class='label'>message:</span> <span class='id identifier rubyid_message'>message</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_corrector'>corrector</span><span class='op'>|</span>
+      <span class='id identifier rubyid_autocorrect'><a href="#autocorrect-instance_method" title="RuboCop::Cop::Layout::ClassStructure#autocorrect (method)">autocorrect</a></span>(<span class='id identifier rubyid_corrector'>corrector</span><span class='comma'>,</span> <span class='id identifier rubyid_node'>node</span>)
     <span class='kw'>end</span>
-    <span class='id identifier rubyid_previous'>previous</span> <span class='op'>=</span> <span class='id identifier rubyid_index'>index</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span>
 </pre>
@@ -1526,14 +1683,44 @@ Add offense when find a node out of expected order.</p>
 </div>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L204-L204'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L210-L210'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='204' data-end='204'></pre>
+  <pre class='lines_num' data-start='210' data-end='210'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 204</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 210</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>alias</span> <span class='id identifier rubyid_on_sclass'>on_sclass</span> <span class='id identifier rubyid_on_class'><a href="#on_class-instance_method" title="RuboCop::Cop::Layout::ClassStructure#on_class (method)">on_class</a></span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="out_of_order_elements-instance_method">
+  <h3 class='signature priv'>
+    #<strong>out_of_order_elements</strong>(class_node)   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L214-L227'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='214' data-end='227'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 214</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_out_of_order_elements'>out_of_order_elements</span>(<span class='id identifier rubyid_class_node'>class_node</span>)
+  <span class='id identifier rubyid_out_of_order'>out_of_order</span> <span class='op'>=</span> []
+  <span class='id identifier rubyid_max_index'>max_index</span> <span class='op'>=</span> <span class='op'>-</span><span class='int'>1</span>
+  <span class='id identifier rubyid_previous_category'>previous_category</span> <span class='op'>=</span> <span class='kw'>nil</span>
+  <span class='id identifier rubyid_walk_over_nested_class_definition'><a href="#walk_over_nested_class_definition-instance_method" title="RuboCop::Cop::Layout::ClassStructure#walk_over_nested_class_definition (method)">walk_over_nested_class_definition</a></span>(<span class='id identifier rubyid_class_node'>class_node</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_node'>node</span><span class='comma'>,</span> <span class='id identifier rubyid_category'>category</span><span class='op'>|</span>
+    <span class='id identifier rubyid_index'>index</span> <span class='op'>=</span> <span class='id identifier rubyid_expected_order'><a href="#expected_order-instance_method" title="RuboCop::Cop::Layout::ClassStructure#expected_order (method)">expected_order</a></span>.<span class='id identifier rubyid_index'>index</span>(<span class='id identifier rubyid_category'>category</span>)
+    <span class='kw'>if</span> <span class='id identifier rubyid_index'>index</span> <span class='op'>&lt;</span> <span class='id identifier rubyid_max_index'>max_index</span> <span class='op'>&amp;&amp;</span> <span class='id identifier rubyid_category'>category</span> <span class='op'>!=</span> <span class='id identifier rubyid_previous_category'>previous_category</span>
+      <span class='id identifier rubyid_out_of_order'>out_of_order</span> <span class='op'>&lt;&lt;</span> [<span class='id identifier rubyid_node'>node</span><span class='comma'>,</span> <span class='id identifier rubyid_category'>category</span><span class='comma'>,</span> <span class='id identifier rubyid_expected_order'><a href="#expected_order-instance_method" title="RuboCop::Cop::Layout::ClassStructure#expected_order (method)">expected_order</a></span>[<span class='id identifier rubyid_max_index'>max_index</span>]]
+    <span class='kw'>end</span>
+    <span class='id identifier rubyid_max_index'>max_index</span> <span class='op'>=</span> <span class='id identifier rubyid_index'>index</span> <span class='kw'>if</span> <span class='id identifier rubyid_index'>index</span> <span class='op'>&gt;</span> <span class='id identifier rubyid_max_index'>max_index</span>
+    <span class='id identifier rubyid_previous_category'>previous_category</span> <span class='op'>=</span> <span class='id identifier rubyid_category'>category</span>
+  <span class='kw'>end</span>
+  <span class='id identifier rubyid_out_of_order'>out_of_order</span>
+<span class='kw'>end</span>
 </pre>
   </div>
 </div>
@@ -1551,11 +1738,11 @@ Add offense when find a node out of expected order.</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L331-L339'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L407-L415'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='331' data-end='339'></pre>
+  <pre class='lines_num' data-start='407' data-end='415'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 331</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 407</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_private_constant?'>private_constant?</span>(<span class='id identifier rubyid_node'>node</span>)
@@ -1576,11 +1763,11 @@ Add offense when find a node out of expected order.</p>
   <h3 class='signature priv'>
     #<strong>start_line_position</strong>(node)   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L372-L374'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L448-L450'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='372' data-end='374'></pre>
+  <pre class='lines_num' data-start='448' data-end='450'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 372</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 448</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_start_line_position'>start_line_position</span>(<span class='id identifier rubyid_node'>node</span>)
@@ -1591,15 +1778,52 @@ Add offense when find a node out of expected order.</p>
 </div>
 </section>
 
+<section class='method_details' id="visibility_dependent?-instance_method">
+  <h3 class='signature priv'>
+    #<strong>visibility_dependent?</strong>(node)  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    <div class="paragraph">
+<p>Whether moving the node across a bare visibility modifier would change its meaning.
+This is the case for <code>def</code> nodes and for macros whose category is classified by visibility
+(e.g. <code>attr_accessor</code> when the expected order lists <code>private_attribute_macros</code>).
+Inline visibility (<code>private def foo</code>, <code>def self.foo</code>) travels with the node.</p>
+</div>
+  </div>
+</div>
+<div class='tags'>
+  
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L398-L405'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='398' data-end='405'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 398</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_visibility_dependent?'>visibility_dependent?</span>(<span class='id identifier rubyid_node'>node</span>)
+  <span class='kw'>return</span> <span class='kw'>true</span> <span class='kw'>if</span> <span class='id identifier rubyid_node'>node</span>.<span class='id identifier rubyid_def_type?'>def_type?</span>
+  <span class='kw'>return</span> <span class='kw'>false</span> <span class='kw'>if</span> <span class='op'>!</span><span class='id identifier rubyid_node'>node</span>.<span class='id identifier rubyid_send_type?'>send_type?</span> <span class='op'>||</span> <span class='id identifier rubyid_node'>node</span>.<span class='id identifier rubyid_def_modifier?'>def_modifier?</span>
+
+  <span class='id identifier rubyid_key'>key</span> <span class='op'>=</span> <span class='id identifier rubyid_find_category'><a href="#find_category-instance_method" title="RuboCop::Cop::Layout::ClassStructure#find_category (method)">find_category</a></span>(<span class='id identifier rubyid_node'>node</span>.<span class='id identifier rubyid_method_name'>method_name</span>) <span class='op'>||</span> <span class='id identifier rubyid_node'>node</span>.<span class='id identifier rubyid_method_name'>method_name</span>.<span class='id identifier rubyid_to_s'>to_s</span>
+
+  <span class='const'><a href="../VisibilityHelp.html#VISIBILITY_SCOPES-constant" title="RuboCop::Cop::VisibilityHelp::VISIBILITY_SCOPES (constant)">VISIBILITY_SCOPES</a></span>.<span class='id identifier rubyid_any?'>any?</span> { <span class='op'>|</span><span class='id identifier rubyid_visibility'>visibility</span><span class='op'>|</span> <span class='id identifier rubyid_expected_order'><a href="#expected_order-instance_method" title="RuboCop::Cop::Layout::ClassStructure#expected_order (method)">expected_order</a></span>.<span class='id identifier rubyid_include?'>include?</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_visibility'>visibility</span><span class='embexpr_end'>}</span><span class='tstring_content'>_</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_key'>key</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>) }
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
 <section class='method_details' id="walk_over_nested_class_definition-instance_method">
   <h3 class='signature priv'>
     #<strong>walk_over_nested_class_definition</strong>(class_node)   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L267-L274'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L292-L299'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='267' data-end='274'></pre>
+  <pre class='lines_num' data-start='292' data-end='299'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 267</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 292</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_walk_over_nested_class_definition'>walk_over_nested_class_definition</span>(<span class='id identifier rubyid_class_node'>class_node</span>)
@@ -1627,11 +1851,11 @@ Add offense when find a node out of expected order.</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L368-L370'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/cop/layout/class_structure.rb#L444-L446'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='368' data-end='370'></pre>
+  <pre class='lines_num' data-start='444' data-end='446'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 368</span></pre>
+<pre><span class='info file'># File 'lib/rubocop/cop/layout/class_structure.rb', line 444</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_whole_line_comment_at_line?'>whole_line_comment_at_line?</span>(<span class='id identifier rubyid_line'>line</span>)
