@@ -87,7 +87,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2 o'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/brianmario/mysql2/blob/master/lib/mysql2/result.rb#L2'>lib/mysql2/result.rb</a><span class='defines'>,<br /><a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L2086'>ext/mysql2/result.c</a></span>
+      <td class='box_rel'><a class='repo' href='https://github.com/brianmario/mysql2/blob/master/lib/mysql2/result.rb#L2'>lib/mysql2/result.rb</a><span class='defines'>,<br /><a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L2236'>ext/mysql2/result.c</a></span>
       </td>
     </tr>
   </tbody>
@@ -103,6 +103,11 @@
     <div class='summary_desc'>
       <div class='inline'><p>Alias for <a href="#size-instance_method" title="Mysql2::Result#size (method)">#size</a>.</p></div>
     </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#dbs-instance_method" title="#dbs (instance method)">#<strong>dbs</strong>  </a>
+    </span>
   </li>
   <li>
     <span class='summary_signature '>
@@ -135,6 +140,11 @@
       (also: #count)
     </span>
   </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#tables-instance_method" title="#tables (instance method)">#<strong>tables</strong>  </a>
+    </span>
+  </li>
 </ul>
 </div>  <!-- instance_method_summary -->
 <h2 class='y_details'>Instance Method Details</h2>
@@ -150,19 +160,55 @@
 
 </section>
 
+<section class='method_details' id="dbs-instance_method">
+  <h3 class='signature '>
+    #<strong>dbs</strong>  
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L1683-L1700'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='1683' data-end='1700'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'ext/mysql2/result.c', line 1683</span></pre>
+<pre class='code cpp'>
+
+static VALUE rb_mysql_result_fetch_dbs(VALUE self) {
+  unsigned int i = 0;
+
+  GET_RESULT(self);
+
+  if (wrapper-&gt;dbs == Qnil) {
+    wrapper-&gt;numberOfFields = mysql_num_fields(wrapper-&gt;result);
+    wrapper-&gt;dbs = rb_ary_new2(wrapper-&gt;numberOfFields);
+  }
+
+  if ((my_ulonglong)RARRAY_LEN(wrapper-&gt;dbs) != wrapper-&gt;numberOfFields) {
+    for (i=0; i&lt;wrapper-&gt;numberOfFields; i++) {
+      rb_mysql_result_fetch_db(self, i);
+    }
+  }
+
+  return wrapper-&gt;dbs;
+}
+</pre>
+  </div>
+</div>
+</section>
+
 <section class='method_details' id="each-instance_method">
   <h3 class='signature '>
     #<strong>each</strong>(*args)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L1744-L1937'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L1874-L2085'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1744' data-end='1937'></pre>
+  <pre class='lines_num' data-start='1874' data-end='2085'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/mysql2/result.c', line 1744</span></pre>
+<pre><span class='info file'># File 'ext/mysql2/result.c', line 1874</span></pre>
 <pre class='code cpp'>
 
 static VALUE rb_mysql_result_each(int argc, VALUE * argv, VALUE self) {
   result_each_args args;
+  VALUE scratch_holder = 0;
+  VALUE rows;
   VALUE opts, (*fetch_row_func)(VALUE, MYSQL_FIELD *fields, const result_each_args *args);
   ID db_timezone, app_timezone;
   int symbolizeKeys, asArray, castBool, cacheRows;
@@ -347,13 +393,29 @@ static VALUE rb_mysql_result_each(int argc, VALUE * argv, VALUE self) {
    * result_each_args. */
   args.default_internal_enc = rb_default_internal_encoding();
 
+  /* See the field&#39;s comment in result_each_args. A freed result only
+   * replays cached rows (or raises), never fetches, so wrapper-&gt;result is
+   * valid whenever the scratch is allocated -- and the fetch functions only
+   * touch the scratch after their own freed-result guards pass. A raise or
+   * break during iteration skips the ALLOCV_END below and leaks the
+   * heap-allocated form of the buffer until GC reclaims scratch_holder;
+   * that is the standard ALLOCV trade, bounded to one buffer per raised
+   * iteration because the allocation is per-#each, not per-row. */
+  args.rowScratch = NULL;
+  if (asArray &amp;&amp; !wrapper-&gt;resultFreed) {
+    args.rowScratch = ALLOCV_N(VALUE, scratch_holder, mysql_num_fields(wrapper-&gt;result));
+  }
+
   if (wrapper-&gt;stmt_wrapper) {
     fetch_row_func = rb_mysql_result_fetch_row_stmt;
   } else {
     fetch_row_func = rb_mysql_result_fetch_row;
   }
 
-  return rb_mysql_result_each_(self, fetch_row_func, &amp;args);
+  rows = rb_mysql_result_each_(self, fetch_row_func, &amp;args);
+  ALLOCV_END(scratch_holder);
+
+  return rows;
 }
 </pre>
   </div>
@@ -364,11 +426,11 @@ static VALUE rb_mysql_result_each(int argc, VALUE * argv, VALUE self) {
   <h3 class='signature '>
     #<strong>field_types</strong>  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L1572-L1603'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L1702-L1733'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1572' data-end='1603'></pre>
+  <pre class='lines_num' data-start='1702' data-end='1733'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/mysql2/result.c', line 1572</span></pre>
+<pre><span class='info file'># File 'ext/mysql2/result.c', line 1702</span></pre>
 <pre class='code cpp'>
 
 static VALUE rb_mysql_result_fetch_field_types(VALUE self) {
@@ -412,11 +474,11 @@ static VALUE rb_mysql_result_fetch_field_types(VALUE self) {
   <h3 class='signature '>
     #<strong>fields</strong>  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L1535-L1570'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L1627-L1662'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1535' data-end='1570'></pre>
+  <pre class='lines_num' data-start='1627' data-end='1662'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/mysql2/result.c', line 1535</span></pre>
+<pre><span class='info file'># File 'ext/mysql2/result.c', line 1627</span></pre>
 <pre class='code cpp'>
 
 static VALUE rb_mysql_result_fetch_fields(VALUE self) {
@@ -464,11 +526,11 @@ static VALUE rb_mysql_result_fetch_fields(VALUE self) {
   <h3 class='signature '>
     #<strong>free</strong>  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L1622-L1625'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L1752-L1755'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1622' data-end='1625'></pre>
+  <pre class='lines_num' data-start='1752' data-end='1755'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/mysql2/result.c', line 1622</span></pre>
+<pre><span class='info file'># File 'ext/mysql2/result.c', line 1752</span></pre>
 <pre class='code cpp'>
 
 static VALUE rb_mysql_result_free_(VALUE self) {
@@ -484,11 +546,11 @@ static VALUE rb_mysql_result_free_(VALUE self) {
   <h3 class='signature '>
     #<strong>server_flags</strong>  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L1951-L1983'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L2099-L2131'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1951' data-end='1983'></pre>
+  <pre class='lines_num' data-start='2099' data-end='2131'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/mysql2/result.c', line 1951</span></pre>
+<pre><span class='info file'># File 'ext/mysql2/result.c', line 2099</span></pre>
 <pre class='code cpp'>
 
 static VALUE rb_mysql_result_server_flags(VALUE self) {
@@ -534,11 +596,11 @@ static VALUE rb_mysql_result_server_flags(VALUE self) {
     #<strong>size</strong>  
     <span class='aliases'>Also known as: <span class='names'>#count</span></span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L1986-L2005'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L2134-L2153'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1986' data-end='2005'></pre>
+  <pre class='lines_num' data-start='2134' data-end='2153'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/mysql2/result.c', line 1986</span></pre>
+<pre><span class='info file'># File 'ext/mysql2/result.c', line 2134</span></pre>
 <pre class='code cpp'>
 
 static VALUE rb_mysql_result_count(VALUE self) {
@@ -560,6 +622,40 @@ static VALUE rb_mysql_result_count(VALUE self) {
       return ULL2NUM(mysql_num_rows(wrapper-&gt;result));
     }
   }
+}
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="tables-instance_method">
+  <h3 class='signature '>
+    #<strong>tables</strong>  
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/result.c#L1664-L1681'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='1664' data-end='1681'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'ext/mysql2/result.c', line 1664</span></pre>
+<pre class='code cpp'>
+
+static VALUE rb_mysql_result_fetch_tables(VALUE self) {
+  unsigned int i = 0;
+
+  GET_RESULT(self);
+
+  if (wrapper-&gt;tables == Qnil) {
+    wrapper-&gt;numberOfFields = mysql_num_fields(wrapper-&gt;result);
+    wrapper-&gt;tables = rb_ary_new2(wrapper-&gt;numberOfFields);
+  }
+
+  if ((my_ulonglong)RARRAY_LEN(wrapper-&gt;tables) != wrapper-&gt;numberOfFields) {
+    for (i=0; i&lt;wrapper-&gt;numberOfFields; i++) {
+      rb_mysql_result_fetch_table(self, i);
+    }
+  }
+
+  return wrapper-&gt;tables;
 }
 </pre>
   </div>
