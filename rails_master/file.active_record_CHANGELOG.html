@@ -63,6 +63,46 @@
 <div id='content' class='file'>
 <ul>
 <li>
+<p>Let the schema readers answer for many tables at once.</p>
+<p><code>indexes</code>, <code>primary_keys</code>, <code>foreign_keys</code>, <code>check_constraints</code>,
+<code>exclusion_constraints</code> and <code>unique_constraints</code> now accept a list of tables and
+answer for all of them at once:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_connection'>connection</span>.<span class='id identifier rubyid_indexes'>indexes</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_users'>users</span>)            <span class='comment'># =&gt; [IndexDefinition, ...]
+</span><span class='id identifier rubyid_connection'>connection</span>.<span class='id identifier rubyid_indexes'>indexes</span>([<span class='symbeg'>:</span><span class='id identifier rubyid_users'>users</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_posts'>posts</span>])  <span class='comment'># =&gt; { &quot;users&quot; =&gt; [...], &quot;posts&quot; =&gt; [...] }</span></code></pre>
+<p>Adapters that can read a kind of metadata for many tables in one query do so, a
+schema at a time; SQLite, which has no catalog to read them from, reads table by
+table, so every adapter answers.</p>
+<p>Schema dumping asked about each table separately, which meant the number of
+round trips grew with the size of the schema: primary keys, indexes, foreign
+keys and constraints each cost one statement per table, and MySQL spent another
+<code>SHOW TABLE STATUS</code> per table just to read a collation. It now reads each kind
+in one query for the tables it is about to dump. On a schema with a few thousand
+tables that removes about 70% of the statements a dump issues, and the output is
+unchanged.</p>
+<p>An empty list reads nothing, without querying. A blank table name no longer
+raises <code>ArgumentError</code>: MySQL was the only adapter that did, and only from
+<code>foreign_keys</code> and <code>primary_keys</code>. On PostgreSQL, <code>primary_keys</code> for a table
+that does not exist now returns <code>[]</code> instead of raising
+<code>ActiveRecord::StatementInvalid</code>.</p>
+<p>Reading collations from <code>information_schema</code> also fixes MySQL looking them up
+with a <code>LIKE</code> pattern, where a table name containing <code>_</code> or <code>%</code> could match a
+different table.</p>
+<p><em>Ngan Pham</em></p>
+</li>
+<li>
+<p>The database selector middleware treats HTTP QUERY requests
+(<a href='https://www.rfc-editor.org/rfc/rfc10008'>RFC 10008</a>) as reads, routing
+them to the replica like GET and HEAD, subject to the same
+recent-write-window primary fallback.</p>
+<p><em>Jeremy Daer</em></p>
+</li>
+<li>
+<p>Fix performance regression in <code>method_missing</code> for virtual SELECT alias
+attributes.</p>
+<p>Fixes #57183.</p>
+<p><em>Hammad Khan</em></p>
+</li>
+<li>
 <p>Deprecate <a href="ActiveRecord/ConnectionAdapters/DatabaseStatements.html#create-instance_method" title="ActiveRecord::ConnectionAdapters::DatabaseStatements#create (method)">ActiveRecord::ConnectionAdapters::DatabaseStatements#create</a>
 in favor of <code>#insert</code>.</p>
 <p><code>create</code> was an alias of <code>insert</code>, but it reads like a DDL statement
