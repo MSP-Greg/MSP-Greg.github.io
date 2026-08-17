@@ -77,7 +77,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2 o'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/brianmario/mysql2/blob/master/lib/mysql2/statement.rb#L2'>lib/mysql2/statement.rb</a><span class='defines'>,<br /><a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/statement.c#L789'>ext/mysql2/statement.c</a></span>
+      <td class='box_rel'><a class='repo' href='https://github.com/brianmario/mysql2/blob/master/lib/mysql2/statement.rb#L2'>lib/mysql2/statement.rb</a><span class='defines'>,<br /><a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/statement.c#L806'>ext/mysql2/statement.c</a></span>
       </td>
     </tr>
   </tbody>
@@ -173,11 +173,11 @@
     <p>Returns wheter or not the statement have been closed.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/statement.c#L773-L777'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/statement.c#L790-L794'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='773' data-end='777'></pre>
+  <pre class='lines_num' data-start='790' data-end='794'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/mysql2/statement.c', line 773</span></pre>
+<pre><span class='info file'># File 'ext/mysql2/statement.c', line 790</span></pre>
 <pre class='code cpp'>
 
 static VALUE rb_mysql_stmt_closed_p(VALUE self) {
@@ -199,11 +199,11 @@ static VALUE rb_mysql_stmt_closed_p(VALUE self) {
     <p>Executes the current prepared statement, returns <code>result</code>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/statement.c#L340-L646'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/statement.c#L339-L663'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='340' data-end='646'></pre>
+  <pre class='lines_num' data-start='339' data-end='663'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/mysql2/statement.c', line 340</span></pre>
+<pre><span class='info file'># File 'ext/mysql2/statement.c', line 339</span></pre>
 <pre class='code cpp'>
 
 static VALUE rb_mysql_stmt_execute(int argc, VALUE *argv, VALUE self) {
@@ -218,10 +218,16 @@ static VALUE rb_mysql_stmt_execute(int argc, VALUE *argv, VALUE self) {
   VALUE resultObj;
   VALUE *params_enc = NULL;
   int is_streaming;
+  struct nogvl_stmt_execute_args execute_args;
+  double query_start, query_elapsed;
   rb_encoding *conn_enc;
 
   GET_STATEMENT(self);
   GET_CLIENT(stmt_wrapper-&gt;client);
+
+  if (mysql2_forked_without_reconnect(wrapper) &amp;&amp; wrapper-&gt;automatic_close) {
+    mysql2_warn_forked_without_reconnect(wrapper, &quot;execute a statement&quot;);
+  }
 
   /* We&#39;re about to issue a new command on this connection: a safe point to
    * close out any statements that were GC&#39;d while it was last busy, and to
@@ -457,11 +463,23 @@ static VALUE rb_mysql_stmt_execute(int argc, VALUE *argv, VALUE self) {
   // mysql2_enqueue_pending_stmt_close / mysql2_reap_pending_stmt_closes.
   wrapper-&gt;state = MYSQL2_CLIENT_QUERYING;
 
-  if ((VALUE)rb_thread_call_without_gvl(nogvl_stmt_execute, stmt, RUBY_UBF_IO, 0) == Qfalse) {
+  query_start = mysql2_monotonic_now();
+  execute_args.stmt = stmt;
+
+  if ((VALUE)rb_thread_call_without_gvl(nogvl_stmt_execute, &amp;execute_args, RUBY_UBF_IO, 0) == Qfalse) {
     FREE_BINDS;
     wrapper-&gt;state = MYSQL2_CLIENT_IDLE;
     rb_raise_mysql2_stmt_error(stmt_wrapper);
   }
+
+  /* mysql_stmt_execute both writes the command and reads its first
+   * response, so the stamp nogvl_stmt_execute took closes the round-trip
+   * bracket. The metadata and store phases below stay outside it --
+   * Result#query_time measures the server, not local row buffering. A
+   * negative stamp at either end means the clock call itself failed; pass
+   * the sentinel through so the reading is nil, not garbage. */
+  query_elapsed = (query_start &lt; 0 || execute_args.query_end &lt; 0)
+    ? -1 : execute_args.query_end - query_start;
 
   FREE_BINDS;
 
@@ -498,7 +516,7 @@ static VALUE rb_mysql_stmt_execute(int argc, VALUE *argv, VALUE self) {
     wrapper-&gt;state = MYSQL2_CLIENT_STREAMING;
   }
 
-  resultObj = rb_mysql_result_to_obj(stmt_wrapper-&gt;client, wrapper-&gt;encoding, current, metadata, self);
+  resultObj = rb_mysql_result_to_obj(stmt_wrapper-&gt;client, wrapper-&gt;encoding, current, metadata, self, query_elapsed);
 
   /* Track the open cursor so a later command can force-drain it if it&#39;s
    * abandoned instead of exhausted -- see mysql2_abandon_active_stream. */
@@ -526,11 +544,11 @@ static VALUE rb_mysql_stmt_execute(int argc, VALUE *argv, VALUE self) {
     <p>Returns the number of rows changed, deleted, or inserted.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/statement.c#L723-L733'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/statement.c#L740-L750'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='723' data-end='733'></pre>
+  <pre class='lines_num' data-start='740' data-end='750'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/mysql2/statement.c', line 723</span></pre>
+<pre><span class='info file'># File 'ext/mysql2/statement.c', line 740</span></pre>
 <pre class='code cpp'>
 
 static VALUE rb_mysql_stmt_affected_rows(VALUE self) {
@@ -559,11 +577,11 @@ than waiting for the garbage collector. Useful if you're managing your
 own prepared statement cache.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/statement.c#L742-L766'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/statement.c#L759-L783'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='742' data-end='766'></pre>
+  <pre class='lines_num' data-start='759' data-end='783'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/mysql2/statement.c', line 742</span></pre>
+<pre><span class='info file'># File 'ext/mysql2/statement.c', line 759</span></pre>
 <pre class='code cpp'>
 
 static VALUE rb_mysql_stmt_close(VALUE self) {
@@ -625,11 +643,11 @@ static VALUE rb_mysql_stmt_close(VALUE self) {
     <p>Returns the number of fields the prepared statement returns.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/statement.c#L249-L253'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/statement.c#L241-L245'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='249' data-end='253'></pre>
+  <pre class='lines_num' data-start='241' data-end='245'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/mysql2/statement.c', line 249</span></pre>
+<pre><span class='info file'># File 'ext/mysql2/statement.c', line 241</span></pre>
 <pre class='code cpp'>
 
 static VALUE rb_mysql_stmt_field_count(VALUE self) {
@@ -650,11 +668,11 @@ static VALUE rb_mysql_stmt_field_count(VALUE self) {
     <p>Returns a list of fields that will be returned by this statement.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/statement.c#L652-L706'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/statement.c#L669-L723'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='652' data-end='706'></pre>
+  <pre class='lines_num' data-start='669' data-end='723'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/mysql2/statement.c', line 652</span></pre>
+<pre><span class='info file'># File 'ext/mysql2/statement.c', line 669</span></pre>
 <pre class='code cpp'>
 
 static VALUE rb_mysql_stmt_fields(VALUE self) {
@@ -725,11 +743,11 @@ static VALUE rb_mysql_stmt_fields(VALUE self) {
     <p>Returns the AUTO_INCREMENT value from the executed INSERT or UPDATE.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/statement.c#L713-L716'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/statement.c#L730-L733'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='713' data-end='716'></pre>
+  <pre class='lines_num' data-start='730' data-end='733'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/mysql2/statement.c', line 713</span></pre>
+<pre><span class='info file'># File 'ext/mysql2/statement.c', line 730</span></pre>
 <pre class='code cpp'>
 
 static VALUE rb_mysql_stmt_last_id(VALUE self) {
@@ -749,11 +767,11 @@ static VALUE rb_mysql_stmt_last_id(VALUE self) {
     <p>Returns the number of parameters the prepared statement expects.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/statement.c#L239-L243'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/brianmario/mysql2/blob/master/ext/mysql2/statement.c#L231-L235'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='239' data-end='243'></pre>
+  <pre class='lines_num' data-start='231' data-end='235'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/mysql2/statement.c', line 239</span></pre>
+<pre><span class='info file'># File 'ext/mysql2/statement.c', line 231</span></pre>
 <pre class='code cpp'>
 
 static VALUE rb_mysql_stmt_param_count(VALUE self) {
