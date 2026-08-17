@@ -63,22 +63,37 @@
 <div id='content' class='file'>
 <ul>
 <li>
+<p><a href="ActiveRecord/Relation.html#update-instance_method" title="ActiveRecord::Relation#update (method)">ActiveRecord::Relation#update</a> and <code>#update!</code> no longer escape the relation
+when given ids.</p>
+<p>Passing ids used to delegate to the model class, which looks the records up
+with an unscoped <code>find</code>:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_post'>post</span>.<span class='id identifier rubyid_comments'>comments</span>.<span class='id identifier rubyid_update!'>update!</span>(<span class='id identifier rubyid_comment_id'>comment_id</span><span class='comma'>,</span> <span class='label'>body:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>...</span><span class='tstring_end'>&quot;</span></span>) <span class='comment'># could update any comment
+</span><span class='const'>Comment</span>.<span class='id identifier rubyid_where'>where</span>(<span class='label'>id:</span> <span class='int'>1</span>).<span class='id identifier rubyid_update!'>update!</span>(<span class='int'>2</span><span class='comma'>,</span> <span class='label'>body:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>...</span><span class='tstring_end'>&quot;</span></span>)   <span class='comment'># updated comment 2</span></code></pre>
+<p>The records are now looked up through the relation, so an id outside of it
+raises <code>ActiveRecord::RecordNotFound</code> before anything is written. This makes
+<code>update</code>/<code>update!</code> consistent with <code>update_all</code>, <code>#delete</code> and <code>#destroy</code>,
+which have always been scoped, and with <code>update(:all, ...)</code>, which was
+already scoped.</p>
+<p><em>Jean Mendonça</em></p>
+</li>
+<li>
 <p>Let the schema readers answer for many tables at once.</p>
-<p><code>indexes</code>, <code>primary_keys</code>, <code>foreign_keys</code>, <code>check_constraints</code>,
+<p><code>columns</code>, <code>indexes</code>, <code>primary_keys</code>, <code>foreign_keys</code>, <code>check_constraints</code>,
 <code>exclusion_constraints</code> and <code>unique_constraints</code> now accept a list of tables and
 answer for all of them at once:</p>
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_connection'>connection</span>.<span class='id identifier rubyid_indexes'>indexes</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_users'>users</span>)            <span class='comment'># =&gt; [IndexDefinition, ...]
 </span><span class='id identifier rubyid_connection'>connection</span>.<span class='id identifier rubyid_indexes'>indexes</span>([<span class='symbeg'>:</span><span class='id identifier rubyid_users'>users</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_posts'>posts</span>])  <span class='comment'># =&gt; { &quot;users&quot; =&gt; [...], &quot;posts&quot; =&gt; [...] }</span></code></pre>
 <p>Adapters that can read a kind of metadata for many tables in one query do so, a
-schema at a time; SQLite, which has no catalog to read them from, reads table by
-table, so every adapter answers.</p>
+schema at a time: MySQL and MariaDB read columns from
+<code>information_schema.columns</code>, and PostgreSQL filters the queries it already used
+by a list of tables. SQLite reads table by table, so every adapter answers.</p>
 <p>Schema dumping asked about each table separately, which meant the number of
-round trips grew with the size of the schema: primary keys, indexes, foreign
-keys and constraints each cost one statement per table, and MySQL spent another
-<code>SHOW TABLE STATUS</code> per table just to read a collation. It now reads each kind
-in one query for the tables it is about to dump. On a schema with a few thousand
-tables that removes about 70% of the statements a dump issues, and the output is
-unchanged.</p>
+round trips grew with the size of the schema: columns, primary keys, indexes,
+foreign keys and constraints each cost one statement per table, and MySQL spent
+another <code>SHOW TABLE STATUS</code> per table just to read a collation. It now reads each
+kind in one query for the tables it is about to dump. On a schema with a few
+thousand tables that removes about 70% of the statements a dump issues, and the
+output is unchanged.</p>
 <p>An empty list reads nothing, without querying. A blank table name no longer
 raises <code>ArgumentError</code>: MySQL was the only adapter that did, and only from
 <code>foreign_keys</code> and <code>primary_keys</code>. On PostgreSQL, <code>primary_keys</code> for a table
