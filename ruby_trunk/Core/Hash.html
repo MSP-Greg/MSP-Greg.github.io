@@ -87,7 +87,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2 o'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.rb#L1'>hash.rb</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L7479'>hash.c</a></span>
+      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.rb#L1'>hash.rb</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L7555'>hash.c</a></span>
       </td>
     </tr>
   </tbody>
@@ -1092,11 +1092,11 @@ of the above.</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L1881-L1941'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L1917-L1992'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1881' data-end='1941'></pre>
+  <pre class='lines_num' data-start='1917' data-end='1992'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 1881</span></pre>
+<pre><span class='info file'># File 'hash.c', line 1917</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1107,17 +1107,19 @@ rb_hash_s_create(int argc, VALUE *argv, VALUE klass)
     if (argc == 1) {
         tmp = rb_hash_s_try_convert(Qnil, argv[0]);
         if (!NIL_P(tmp)) {
-            if (!RHASH_EMPTY_P(tmp)  &amp;&amp; rb_hash_compare_by_id_p(tmp)) {
+            if (RHASH_EMPTY_P(tmp)) {
+                return hash_new_capa(klass, 0);
+            }
+
+            if (rb_hash_compare_by_id_p(tmp)) {
                 /* hash_copy for non-empty hash will copy compare_by_identity
                    flag, but we don&#39;t want it copied. Work around by
                    converting hash to flattened array and using that. */
                 tmp = rb_hash_to_a(tmp);
             }
             else {
-                hash = hash_alloc(klass);
-                if (!RHASH_EMPTY_P(tmp))
-                    hash_copy(hash, tmp);
-                return hash;
+                hash = hash_alloc_capa(klass, 0, Qnil, RHASH_SIZE(tmp), false);
+                return hash_copy(hash, tmp);
             }
         }
         else {
@@ -1125,9 +1127,11 @@ rb_hash_s_create(int argc, VALUE *argv, VALUE klass)
         }
 
         if (!NIL_P(tmp)) {
-            long i;
+            if (RARRAY_LEN(tmp) == 0) {
+                return hash_new_capa(klass, 0);
+            }
 
-            hash = hash_alloc(klass);
+            long i;
             for (i = 0; i &lt; RARRAY_LEN(tmp); ++i) {
                 VALUE e = RARRAY_AREF(tmp, i);
                 VALUE v = rb_check_array_type(e);
@@ -1137,6 +1141,18 @@ rb_hash_s_create(int argc, VALUE *argv, VALUE klass)
                     rb_raise(rb_eArgError, &quot;wrong element type %s at %ld (expected array)&quot;,
                              rb_builtin_class_name(e), i);
                 }
+
+                if (i == 0) {
+                    switch (RARRAY_LEN(v)) {
+                      case 2:
+                        hash = hash_new_capa(klass, RARRAY_LEN(tmp));
+                        break;
+                      case 1:
+                        hash = hash_new_capa(klass, RARRAY_LEN(tmp) / 1);
+                        break;
+                    }
+                }
+
                 switch (RARRAY_LEN(v)) {
                   default:
                     rb_raise(rb_eArgError, &quot;invalid number of elements (%ld for 1..2)&quot;,
@@ -1155,8 +1171,7 @@ rb_hash_s_create(int argc, VALUE *argv, VALUE klass)
         rb_raise(rb_eArgError, &quot;odd number of arguments for Hash&quot;);
     }
 
-    hash = hash_alloc(klass);
-    rb_hash_bulk_insert(argc, argv, hash);
+    hash = hash_new_with_bulk_insert(klass, argc, argv);
     hash_verify(hash);
     return hash;
 }
@@ -1184,11 +1199,11 @@ some truly necessary cases like deserialization of arguments.</p>
 <span class='id identifier rubyid_foo'>foo</span>(<span class='op'>*</span>[<span class='id identifier rubyid_h'>h</span>]) <span class='comment'>#=&gt; 1 with neither a warning or an error</span></code></pre>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2019-L2029'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2070-L2080'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2019' data-end='2029'></pre>
+  <pre class='lines_num' data-start='2070' data-end='2080'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 2019</span></pre>
+<pre><span class='info file'># File 'hash.c', line 2070</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1226,11 +1241,11 @@ some truly necessary cases like serialization of arguments.</p>
 </span><span class='id identifier rubyid_foo'>foo</span>({<span class='label'>k:</span> <span class='int'>1</span>}) <span class='comment'>#=&gt; false</span></code></pre>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L1993-L1998'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2044-L2049'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1993' data-end='1998'></pre>
+  <pre class='lines_num' data-start='2044' data-end='2049'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 1993</span></pre>
+<pre><span class='info file'># File 'hash.c', line 2044</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1256,11 +1271,11 @@ returns the result if it is a hash, or raises <a href="TypeError.html" title="Ty
 <p>Otherwise if <code>object</code> does not respond to <code>:to_hash</code>, returns <code>nil</code>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L1968-L1972'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2019-L2023'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1968' data-end='1972'></pre>
+  <pre class='lines_num' data-start='2019' data-end='2023'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 1968</span></pre>
+<pre><span class='info file'># File 'hash.c', line 2019</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1296,11 +1311,11 @@ if and only if they are the <em>same</em> object:</p>
 see also <a href='Hash#Methods_for_Comparing'>Methods for Comparing</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L4748-L4788'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L4792-L4832'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='4748' data-end='4788'></pre>
+  <pre class='lines_num' data-start='4792' data-end='4832'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 4748</span></pre>
+<pre><span class='info file'># File 'hash.c', line 4792</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -1363,11 +1378,11 @@ rb_hash_compare_by_id(VALUE hash)
 see also <a href='Hash#Methods_for_Comparing'>Methods for Comparing</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L4805-L4809'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L4849-L4853'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='4805' data-end='4809'></pre>
+  <pre class='lines_num' data-start='4849' data-end='4853'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 4805</span></pre>
+<pre><span class='info file'># File 'hash.c', line 4849</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -1393,11 +1408,11 @@ rb_hash_compare_by_id_p(VALUE hash)
 <span class='id identifier rubyid_h'>h</span>.<span class='id identifier rubyid_default_proc'>default_proc</span>.<span class='id identifier rubyid_class'>class</span> <span class='comment'># =&gt; Proc</span></code></pre>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2340-L2347'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2391-L2398'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2340' data-end='2347'></pre>
+  <pre class='lines_num' data-start='2391' data-end='2398'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 2340</span></pre>
+<pre><span class='info file'># File 'hash.c', line 2391</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1428,11 +1443,11 @@ rb_hash_default_proc(VALUE hash)
 <span class='id identifier rubyid_h'>h</span>.<span class='id identifier rubyid_default_proc'><a href="#default_proc-instance_method" title="Hash#default_proc (method)">default_proc</a></span> <span class='comment'># =&gt; nil</span></code></pre>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2363-L2382'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2414-L2433'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2363' data-end='2382'></pre>
+  <pre class='lines_num' data-start='2414' data-end='2433'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 2363</span></pre>
+<pre><span class='info file'># File 'hash.c', line 2414</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -1471,11 +1486,11 @@ rb_hash_set_default_proc(VALUE hash, VALUE proc)
 <p>Related: see <a href='Hash#Methods_for_Querying'>Methods for Querying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3137-L3141'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3181-L3185'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='3137' data-end='3141'></pre>
+  <pre class='lines_num' data-start='3181' data-end='3185'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 3137</span></pre>
+<pre><span class='info file'># File 'hash.c', line 3181</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -1507,11 +1522,11 @@ rb_hash_empty_p(VALUE hash)
 <p>Related: see <a href='Hash#Methods_for_Comparing'>Methods for Comparing</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L5048-L5054'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L5092-L5098'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='5048' data-end='5054'></pre>
+  <pre class='lines_num' data-start='5092' data-end='5098'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 5048</span></pre>
+<pre><span class='info file'># File 'hash.c', line 5092</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1542,11 +1557,11 @@ rb_hash_lt(VALUE hash, VALUE other)
 <p>Related: see <a href='Hash#Methods_for_Comparing'>Methods for Comparing</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L5020-L5026'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L5064-L5070'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='5020' data-end='5026'></pre>
+  <pre class='lines_num' data-start='5064' data-end='5070'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 5020</span></pre>
+<pre><span class='info file'># File 'hash.c', line 5064</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1583,11 +1598,11 @@ rb_hash_le(VALUE hash, VALUE other)
 <p>Related: see <a href='Hash#Methods_for_Comparing'>Methods for Comparing</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L4112-L4116'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L4156-L4160'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='4112' data-end='4116'></pre>
+  <pre class='lines_num' data-start='4156' data-end='4160'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 4112</span></pre>
+<pre><span class='info file'># File 'hash.c', line 4156</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1618,11 +1633,11 @@ rb_hash_equal(VALUE hash1, VALUE hash2)
 <p>Related: see <a href='Hash#Methods_for_Comparing'>Methods for Comparing</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L5102-L5108'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L5146-L5152'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='5102' data-end='5108'></pre>
+  <pre class='lines_num' data-start='5146' data-end='5152'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 5102</span></pre>
+<pre><span class='info file'># File 'hash.c', line 5146</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1653,11 +1668,11 @@ rb_hash_gt(VALUE hash, VALUE other)
 <p>Related: see <a href='Hash#Methods_for_Comparing'>Methods for Comparing</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L5074-L5080'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L5118-L5124'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='5074' data-end='5080'></pre>
+  <pre class='lines_num' data-start='5118' data-end='5124'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 5074</span></pre>
+<pre><span class='info file'># File 'hash.c', line 5118</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1686,11 +1701,11 @@ see <a href='Hash#Hash_Key_Equivalence'>Hash Key Equivalence</a>.</p>
 <p>Related: <code>#[]=;</code> see also <a href='Hash#Methods_for_Fetching'>Methods for Fetching</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2173-L2184'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2224-L2235'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2173' data-end='2184'></pre>
+  <pre class='lines_num' data-start='2224' data-end='2235'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 2173</span></pre>
+<pre><span class='info file'># File 'hash.c', line 2224</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -1735,11 +1750,11 @@ the new entry is last in the order
 <p>Related: <code>#[];</code> see also <a href='Hash#Methods_for_Assigning'>Methods for Assigning</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3034-L3048'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3085-L3099'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='3034' data-end='3048'></pre>
+  <pre class='lines_num' data-start='3085' data-end='3099'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 3034</span></pre>
+<pre><span class='info file'># File 'hash.c', line 3085</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -1801,11 +1816,11 @@ see also <a href='Hash#Methods_for_Fetching'>Methods for Fetching</a>.</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L4908-L4935'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L4952-L4979'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='4908' data-end='4935'></pre>
+  <pre class='lines_num' data-start='4952' data-end='4979'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 4908</span></pre>
+<pre><span class='info file'># File 'hash.c', line 4952</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1854,11 +1869,11 @@ containing that key and its value:</p>
 <p>Related: see <a href='Hash#Methods_for_Fetching'>Methods for Fetching</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L4501-L4535'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L4545-L4579'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='4501' data-end='4535'></pre>
+  <pre class='lines_num' data-start='4545' data-end='4579'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 4501</span></pre>
+<pre><span class='info file'># File 'hash.c', line 4545</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1910,11 +1925,11 @@ rb_hash_assoc(VALUE hash, VALUE key)
 <p>Related: see <a href='Hash#Methods_for_Deleting'>Methods for Deleting</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2956-L2973'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3007-L3024'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2956' data-end='2973'></pre>
+  <pre class='lines_num' data-start='3007' data-end='3024'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 2956</span></pre>
+<pre><span class='info file'># File 'hash.c', line 3007</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -1951,11 +1966,11 @@ rb_hash_clear(VALUE hash)
 <p>Related: see <a href='Hash#Methods_for_Deleting'>Methods for Deleting</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L4678-L4690'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L4722-L4734'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='4678' data-end='4690'></pre>
+  <pre class='lines_num' data-start='4722' data-end='4734'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 4678</span></pre>
+<pre><span class='info file'># File 'hash.c', line 4722</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1991,11 +2006,11 @@ returns <code>nil</code> otherwise:</p>
 <p>Related: see <a href='Hash#Methods_for_Deleting'>Methods for Deleting</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L4708-L4720'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L4752-L4764'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='4708' data-end='4720'></pre>
+  <pre class='lines_num' data-start='4752' data-end='4764'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 4708</span></pre>
+<pre><span class='info file'># File 'hash.c', line 4752</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2023,11 +2038,11 @@ rb_hash_compact_bang(VALUE hash)
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L5141-L5145'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L5185-L5189'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='5141' data-end='5145'></pre>
+  <pre class='lines_num' data-start='5185' data-end='5189'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 5141</span></pre>
+<pre><span class='info file'># File 'hash.c', line 5185</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2065,11 +2080,11 @@ regardless of whether that key exists:</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2293-L2305'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2344-L2356'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2293' data-end='2305'></pre>
+  <pre class='lines_num' data-start='2344' data-end='2356'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 2293</span></pre>
+<pre><span class='info file'># File 'hash.c', line 2344</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2103,11 +2118,11 @@ rb_hash_default(int argc, VALUE *argv, VALUE hash)
 <p>See <a href='Hash#Hash_Default'>Hash Default</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2320-L2326'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2371-L2377'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2320' data-end='2326'></pre>
+  <pre class='lines_num' data-start='2371' data-end='2377'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 2320</span></pre>
+<pre><span class='info file'># File 'hash.c', line 2371</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -2155,11 +2170,11 @@ calls the block and returns the block's return value:</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2506-L2526'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2557-L2577'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2506' data-end='2526'></pre>
+  <pre class='lines_num' data-start='2557' data-end='2577'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 2506</span></pre>
+<pre><span class='info file'># File 'hash.c', line 2557</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2209,11 +2224,11 @@ and returns <code>self</code>:</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2631-L2641'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2682-L2692'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2631' data-end='2641'></pre>
+  <pre class='lines_num' data-start='2682' data-end='2692'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 2631</span></pre>
+<pre><span class='info file'># File 'hash.c', line 2682</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -2260,11 +2275,11 @@ returns the <a href='Hash#Hash_Default'>hash default</a>:</p>
 <p>Related: <a href='Hash#Methods_for_Fetching'>Methods for Fetching</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L4972-L4980'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L5016-L5024'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='4972' data-end='4980'></pre>
+  <pre class='lines_num' data-start='5016' data-end='5024'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 4972</span></pre>
+<pre><span class='info file'># File 'hash.c', line 5016</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2305,11 +2320,11 @@ rb_hash_dig(int argc, VALUE *argv, VALUE self)
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3250-L3259'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3294-L3303'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='3250' data-end='3259'></pre>
+  <pre class='lines_num' data-start='3294' data-end='3303'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 3250</span></pre>
+<pre><span class='info file'># File 'hash.c', line 3294</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2350,11 +2365,11 @@ rb_hash_each_pair(VALUE hash)
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3204-L3210'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3248-L3254'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='3204' data-end='3210'></pre>
+  <pre class='lines_num' data-start='3248' data-end='3254'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 3204</span></pre>
+<pre><span class='info file'># File 'hash.c', line 3248</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2410,11 +2425,11 @@ rb_hash_each_key(VALUE hash)
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3170-L3176'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3214-L3220'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='3170' data-end='3176'></pre>
+  <pre class='lines_num' data-start='3214' data-end='3220'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 3170</span></pre>
+<pre><span class='info file'># File 'hash.c', line 3214</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2449,11 +2464,11 @@ rb_hash_each_value(VALUE hash)
 <p>Related: see <a href='Hash#Methods_for_Querying'>Methods for Querying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L4139-L4143'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L4183-L4187'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='4139' data-end='4143'></pre>
+  <pre class='lines_num' data-start='4183' data-end='4187'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 4139</span></pre>
+<pre><span class='info file'># File 'hash.c', line 4183</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2479,11 +2494,11 @@ any <a href="#keys-instance_method" title="Hash#keys (method)">#keys</a> that ar
 <p>Related: see <a href='Hash#Methods_for_Deleting'>Methods for Deleting</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2757-L2772'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2808-L2823'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2757' data-end='2772'></pre>
+  <pre class='lines_num' data-start='2808' data-end='2823'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 2757</span></pre>
+<pre><span class='info file'># File 'hash.c', line 2808</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2533,11 +2548,11 @@ or raises <a href="KeyError.html" title="KeyError (class)"><code>::KeyError</cod
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2231-L2265'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2282-L2316'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2231' data-end='2265'></pre>
+  <pre class='lines_num' data-start='2282' data-end='2316'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 2231</span></pre>
+<pre><span class='info file'># File 'hash.c', line 2282</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2606,11 +2621,11 @@ raises <a href="KeyError.html" title="KeyError (class)"><code>::KeyError</code><
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2827-L2837'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2878-L2888'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2827' data-end='2837'></pre>
+  <pre class='lines_num' data-start='2878' data-end='2888'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 2827</span></pre>
+<pre><span class='info file'># File 'hash.c', line 2878</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2650,11 +2665,11 @@ returns a new hash whose entries are those for which the block returns a truthy 
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2865-L2877'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2916-L2928'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2865' data-end='2877'></pre>
+  <pre class='lines_num' data-start='2916' data-end='2928'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 2865</span></pre>
+<pre><span class='info file'># File 'hash.c', line 2916</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2698,11 +2713,11 @@ removes from <code>self</code> each entry for which the block returns <code>fals
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2899-L2911'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2950-L2962'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2899' data-end='2911'></pre>
+  <pre class='lines_num' data-start='2950' data-end='2962'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 2899</span></pre>
+<pre><span class='info file'># File 'hash.c', line 2950</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2753,11 +2768,11 @@ returns the equivalent of <a href="#to_a-instance_method" title="Hash#to_a (meth
 <p>Related: see <a href='Hash#Methods_for_Converting'>Methods for Converting</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L4624-L4655'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L4668-L4699'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='4624' data-end='4655'></pre>
+  <pre class='lines_num' data-start='4668' data-end='4699'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 4624</span></pre>
+<pre><span class='info file'># File 'hash.c', line 4668</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2875,11 +2890,11 @@ rb_hash_freeze(VALUE hash)
 <p>Related: see <a href='Hash#Methods_for_Querying'>Methods for Querying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L4174-L4185'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L4218-L4229'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='4174' data-end='4185'></pre>
+  <pre class='lines_num' data-start='4218' data-end='4229'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 4174</span></pre>
+<pre><span class='info file'># File 'hash.c', line 4218</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2969,11 +2984,11 @@ rb_hash_hash(VALUE hash)
 <p>Related: see <a href='Hash#Methods_for_Transforming_Keys_and_Values'>Methods for Transforming Keys and Values</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L4213-L4220'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L4257-L4264'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='4213' data-end='4220'></pre>
+  <pre class='lines_num' data-start='4257' data-end='4264'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 4213</span></pre>
+<pre><span class='info file'># File 'hash.c', line 4257</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -3010,11 +3025,11 @@ otherwise deletes the entry; returns <code>self</code>:</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2930-L2939'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2981-L2990'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2930' data-end='2939'></pre>
+  <pre class='lines_num' data-start='2981' data-end='2990'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 2930</span></pre>
+<pre><span class='info file'># File 'hash.c', line 2981</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -3046,11 +3061,11 @@ rb_hash_keep_if(VALUE hash)
 <p>Related: see <a href='Hash#Methods_for_Fetching'>Methods for Fetching</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2412-L2423'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2463-L2474'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2412' data-end='2423'></pre>
+  <pre class='lines_num' data-start='2463' data-end='2474'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 2412</span></pre>
+<pre><span class='info file'># File 'hash.c', line 2463</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -3083,11 +3098,11 @@ rb_hash_key(VALUE hash, VALUE value)
 <p>Related: <a href='Hash#Methods_for_Querying'>Methods for Querying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3970-L3974'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L4014-L4018'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='3970' data-end='3974'></pre>
+  <pre class='lines_num' data-start='4014' data-end='4018'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 3970</span></pre>
+<pre><span class='info file'># File 'hash.c', line 4014</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -3111,11 +3126,11 @@ rb_hash_has_key(VALUE hash, VALUE key)
 <p>Related: see <a href='Hash#Methods_for_Fetching'>Methods for Fetching</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3878-L3904'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3922-L3948'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='3878' data-end='3904'></pre>
+  <pre class='lines_num' data-start='3922' data-end='3948'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 3878</span></pre>
+<pre><span class='info file'># File 'hash.c', line 3922</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -3161,11 +3176,11 @@ rb_hash_keys(VALUE hash)
 <p>Related: see <a href='Hash#Methods_for_Querying'>Methods for Querying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3113-L3117'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3157-L3161'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='3113' data-end='3117'></pre>
+  <pre class='lines_num' data-start='3157' data-end='3161'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 3113</span></pre>
+<pre><span class='info file'># File 'hash.c', line 3157</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -3243,11 +3258,11 @@ from both <code>self</code> and <code>other_hash</code>.</li>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L4448-L4452'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L4492-L4496'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='4448' data-end='4452'></pre>
+  <pre class='lines_num' data-start='4492' data-end='4496'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 4448</span></pre>
+<pre><span class='info file'># File 'hash.c', line 4492</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -3312,11 +3327,11 @@ whose position is unchanged:</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L4337-L4351'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L4381-L4395'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='4337' data-end='4351'></pre>
+  <pre class='lines_num' data-start='4381' data-end='4395'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 4337</span></pre>
+<pre><span class='info file'># File 'hash.c', line 4381</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -3353,11 +3368,11 @@ returns <code>nil</code> if not found:</p>
 <p>Related: see <a href='Hash#Methods_for_Fetching'>Methods for Fetching</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L4565-L4574'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L4609-L4618'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='4565' data-end='4574'></pre>
+  <pre class='lines_num' data-start='4609' data-end='4618'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 4565</span></pre>
+<pre><span class='info file'># File 'hash.c', line 4609</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -3388,11 +3403,11 @@ has changed after the entry was created.
 See <a href='Hash#Modifying_an_Active_Hash_Key'>Modifying an Active Hash Key</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2064-L2096'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2115-L2147'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2064' data-end='2096'></pre>
+  <pre class='lines_num' data-start='2115' data-end='2147'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 2064</span></pre>
+<pre><span class='info file'># File 'hash.c', line 2115</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -3456,11 +3471,11 @@ includes it otherwise:</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2695-L2707'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2746-L2758'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2695' data-end='2707'></pre>
+  <pre class='lines_num' data-start='2746' data-end='2758'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 2695</span></pre>
+<pre><span class='info file'># File 'hash.c', line 2746</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -3503,11 +3518,11 @@ removes the entry from <code>self</code> if the block returns a truthy value.</p
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2662-L2674'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2713-L2725'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2662' data-end='2674'></pre>
+  <pre class='lines_num' data-start='2713' data-end='2725'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 2662</span></pre>
+<pre><span class='info file'># File 'hash.c', line 2713</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -3547,11 +3562,11 @@ or proc of <code>other_hash</code>.</p>
 <p>Related: see <a href='Hash#Methods_for_Assigning'>Methods for Assigning</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3071-L3100'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3122-L3144'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='3071' data-end='3100'></pre>
+  <pre class='lines_num' data-start='3122' data-end='3144'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 3071</span></pre>
+<pre><span class='info file'># File 'hash.c', line 3122</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -3568,16 +3583,9 @@ rb_hash_replace(VALUE hash, VALUE hash2)
 
     if (RHASH_AR_TABLE_P(hash)) {
         hash_ar_free_and_clear_table(hash);
-        if (RHASH_SIZE(hash2) &gt; RHASH_AR_TABLE_MAX_SIZE) {
-            RHASH_SET_ST_FLAG(hash);
-        }
     }
     else {
         hash_st_free_and_clear_table(hash);
-    }
-
-    if (RHASH_ST_TABLE_P(hash)) {
-        st_init_existing_table_with_size(RHASH_ST_TABLE(hash), &amp;objhash, RHASH_SIZE(hash2));
     }
 
     hash_copy(hash, hash2);
@@ -3639,11 +3647,11 @@ see <a href='Hash#Entry_Order'>Entry Order</a>:</p>
 <p>Related: see <a href='Hash#Methods_for_Deleting'>Methods for Deleting</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2559-L2596'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2610-L2647'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2559' data-end='2596'></pre>
+  <pre class='lines_num' data-start='2610' data-end='2647'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 2559</span></pre>
+<pre><span class='info file'># File 'hash.c', line 2610</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -3719,11 +3727,11 @@ ignores any keys that are not found:</p>
 <p>Related: see <a href='Hash#Methods_for_Deleting'>Methods for Deleting</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2722-L2741'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2773-L2792'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2722' data-end='2741'></pre>
+  <pre class='lines_num' data-start='2773' data-end='2792'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 2722</span></pre>
+<pre><span class='info file'># File 'hash.c', line 2773</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -3781,11 +3789,11 @@ each nested array contains a key-value pair from <code>self</code>:</p>
 <p>Related: see <a href='Hash#Methods_for_Converting'>Methods for Converting</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3670-L3679'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3714-L3723'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='3670' data-end='3679'></pre>
+  <pre class='lines_num' data-start='3714' data-end='3723'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 3670</span></pre>
+<pre><span class='info file'># File 'hash.c', line 3714</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -3827,11 +3835,11 @@ if <code>self</code> is a subclass of <code>Hash</code>, returns a new hash cont
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3846-L3857'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3890-L3901'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='3846' data-end='3857'></pre>
+  <pre class='lines_num' data-start='3890' data-end='3901'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 3846</span></pre>
+<pre><span class='info file'># File 'hash.c', line 3890</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -3860,11 +3868,11 @@ rb_hash_to_h(VALUE hash)
 <p>Related: see <a href='Hash#Methods_for_Converting'>Methods for Converting</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3787-L3791'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3831-L3835'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='3787' data-end='3791'></pre>
+  <pre class='lines_num' data-start='3831' data-end='3835'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 3787</span></pre>
+<pre><span class='info file'># File 'hash.c', line 3831</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -3894,11 +3902,11 @@ rb_hash_to_hash(VALUE hash)
 <p>Related: see <a href='Hash#Methods_for_Converting'>Methods for Converting</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L5134-L5138'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L5178-L5182'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='5134' data-end='5138'></pre>
+  <pre class='lines_num' data-start='5178' data-end='5182'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 5134</span></pre>
+<pre><span class='info file'># File 'hash.c', line 5178</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -3923,11 +3931,11 @@ rb_hash_to_proc(VALUE hash)
 <p>Related: see <a href='Hash#Methods_for_Converting'>Methods for Converting</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3771-L3777'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3815-L3821'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='3771' data-end='3777'></pre>
+  <pre class='lines_num' data-start='3815' data-end='3821'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 3771</span></pre>
+<pre><span class='info file'># File 'hash.c', line 3815</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -4031,11 +4039,11 @@ a duplicate key overwrites:</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3379-L3405'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3423-L3449'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='3379' data-end='3405'></pre>
+  <pre class='lines_num' data-start='3423' data-end='3449'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 3379</span></pre>
+<pre><span class='info file'># File 'hash.c', line 3423</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -4165,11 +4173,11 @@ a duplicate key overwrites:</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3503-L3549'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3547-L3593'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='3503' data-end='3549'></pre>
+  <pre class='lines_num' data-start='3547' data-end='3593'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 3503</span></pre>
+<pre><span class='info file'># File 'hash.c', line 3547</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -4247,11 +4255,11 @@ adds to <code>new_hash</code> the entry <code>key+/+new_value</code>:</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3599-L3614'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3643-L3658'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='3599' data-end='3614'></pre>
+  <pre class='lines_num' data-start='3643' data-end='3658'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 3599</span></pre>
+<pre><span class='info file'># File 'hash.c', line 3643</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -4299,11 +4307,11 @@ and sets <tt><a href="key">self</a> = new_value</tt>:</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3637-L3648'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3681-L3692'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='3637' data-end='3648'></pre>
+  <pre class='lines_num' data-start='3681' data-end='3692'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 3637</span></pre>
+<pre><span class='info file'># File 'hash.c', line 3681</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -4351,11 +4359,11 @@ rb_hash_transform_values_bang(VALUE hash)
 <p>Related: <a href='Hash#Methods_for_Querying'>Methods for Querying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3997-L4006'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L4041-L4050'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='3997' data-end='4006'></pre>
+  <pre class='lines_num' data-start='4041' data-end='4050'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 3997</span></pre>
+<pre><span class='info file'># File 'hash.c', line 4041</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -4384,11 +4392,11 @@ rb_hash_has_value(VALUE hash, VALUE val)
 <p>Related: see <a href='Hash#Methods_for_Fetching'>Methods for Fetching</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3925-L3955'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L3969-L3999'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='3925' data-end='3955'></pre>
+  <pre class='lines_num' data-start='3969' data-end='3999'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 3925</span></pre>
+<pre><span class='info file'># File 'hash.c', line 3969</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -4441,11 +4449,11 @@ for each key that is not found:</p>
 <p>Related: see <a href='Hash#Methods_for_Fetching'>Methods for Fetching</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2791-L2801'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/hash.c#L2842-L2852'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2791' data-end='2801'></pre>
+  <pre class='lines_num' data-start='2842' data-end='2852'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'hash.c', line 2791</span></pre>
+<pre><span class='info file'># File 'hash.c', line 2842</span></pre>
 <pre class='code cpp'>
 
 static VALUE
