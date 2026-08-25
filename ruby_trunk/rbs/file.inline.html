@@ -137,15 +137,31 @@
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
 <p>This creates the types <code>::API</code>, <code>::API::V1</code>, and <code>::API::V1::Resources</code>.</p>
+<h3 id="code_module_self_code_constraint"><code>module-self</code> constraint</h3>
+<p>The <code>module-self</code> constraint declares which classes or modules the module can be mixed into.</p>
+<pre class="code ruby"><code class="ruby"><span class='comment'># @rbs module-self: _Each[String]
+</span><span class='kw'>module</span> <span class='const'>Enumerable2</span>
+<span class='kw'>end</span></code></pre>
+<p>This is equivalent to <code>module Enumerable2 : _<a href="String">Each</a></code> in RBS, meaning <code>Enumerable2</code> can only be included in classes that satisfy the <code>_<a href="String">Each</a></code> interface.</p>
+<p>Multiple <code>module-self</code> constraints can be declared with separate annotations:</p>
+<pre class="code ruby"><code class="ruby"><span class='comment'># @rbs module-self: _Each[String]
+</span><span class='comment'># @rbs module-self: Comparable
+</span><span class='kw'>module</span> <span class='const'>StringCollection</span>
+<span class='kw'>end</span></code></pre>
+<p>You can add a description after <code>--</code>:</p>
+<pre class="code ruby"><code class="ruby"><span class='comment'># @rbs module-self: Minitest::Test -- depending on assertion methods
+</span><span class='kw'>module</span> <span class='const'>TestHelper</span>
+<span class='kw'>end</span></code></pre>
 <h3 id="Current_Limitations">Current Limitations</h3>
 <ul>
 <li>Generic module definitions are not supported</li>
-<li>Module self-type constraints are not supported</li>
 </ul>
 <h2 id="Method_Definitions">Method Definitions</h2>
 <p>Inline RBS supports methods defined using the <code>def</code> syntax in Ruby.</p>
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Calculator</span>
   <span class='kw'>def</span> <span class='id identifier rubyid_add'>add</span>(<span class='id identifier rubyid_x'>x</span><span class='comma'>,</span> <span class='id identifier rubyid_y'>y</span>) <span class='op'>=</span> <span class='id identifier rubyid_x'>x</span><span class='op'>+</span><span class='id identifier rubyid_y'>y</span>
+
+  <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_zero'>zero</span> <span class='op'>=</span> <span class='int'>0</span>
 <span class='kw'>end</span></code></pre>
 <p>It detects method definitions and allows you to add annotation comments to describe their types.</p>
 <h3 id="Unannotated_method_definition">Unannotated method definition</h3>
@@ -191,6 +207,14 @@
 The <code>@rbs METHOD-TYPE</code> syntax allows overloads with the <code>|</code> operator, just like in RBS files.
 Multiple <code>: METHOD-TYPE</code> declarations are required for overloads.</p>
 </blockquote>
+<p>The <code>#:</code> syntax can also be used as a trailing annotation to declare the return type of a method:</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Calculator</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_add'>add</span>(<span class='id identifier rubyid_x'>x</span><span class='comma'>,</span> <span class='id identifier rubyid_y'>y</span>) <span class='comment'>#: Integer
+</span>    <span class='id identifier rubyid_x'>x</span> <span class='op'>+</span> <span class='id identifier rubyid_y'>y</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_subtract'>subtract</span>(<span class='id identifier rubyid_x'>x</span><span class='comma'>,</span> <span class='id identifier rubyid_y'>y</span>) <span class='op'>=</span> <span class='id identifier rubyid_x'>x</span> <span class='op'>-</span> <span class='id identifier rubyid_y'>y</span> <span class='comment'>#: Integer
+</span><span class='kw'>end</span></code></pre>
 <p>The <code>@rbs METHOD-TYPE</code> syntax allows having <code>...</code> at the last part.</p>
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Calculator2</span> <span class='op'>&lt;</span> <span class='const'>Calculator</span>
   <span class='comment'># @rbs (Float, Float) -&gt; Float | ...
@@ -265,9 +289,10 @@ Multiple <code>: METHOD-TYPE</code> declarations are required for overloads.</p>
 <span class='kw'>end</span></code></pre>
 <h3 id="Current_Limitations">Current Limitations</h3>
 <ul>
-<li>Class methods and singleton methods are not supported</li>
-<li>Only positional and keyword parameters are supported. Splat parameters (<code>*x</code>, <code>**y</code>) and block parameter (<code>&amp;block</code>) are not supported yet.</li>
 <li>Method visibility declaration is not supported yet</li>
+<li>The <code>class &lt;&lt; self</code> syntax is not supported</li>
+<li>Top-level method definitions (outside any class/module) are not supported</li>
+<li>Method definitions with a non-self receiver (e.g. <code>def obj.foo</code>) are not supported</li>
 </ul>
 <h2 id="Attributes">Attributes</h2>
 <p>Inline RBS supports Ruby's attribute methods: <code>attr_reader</code>, <code>attr_writer</code>, and <code>attr_accessor</code>.</p>
@@ -317,6 +342,7 @@ Multiple <code>: METHOD-TYPE</code> declarations are required for overloads.</p>
 <h3 id="Current_Limitations">Current Limitations</h3>
 <ul>
 <li>Attribute visibility is not supported yet. All attributes are <em>public</em></li>
+<li>Top-level attribute definitions (outside any class/module) are not supported</li>
 </ul>
 <h2 id="Mixin">Mixin</h2>
 <p>Inline RBS supports Ruby's mixin methods: <code>include</code>, <code>extend</code>, and <code>prepend</code>.</p>
@@ -386,7 +412,7 @@ Multiple <code>: METHOD-TYPE</code> declarations are required for overloads.</p>
   <span class='kw'>end</span>
 <span class='kw'>end</span></code></pre>
 <p>The <code>@rbs @VAR-NAME: TYPE</code> syntax enclosed in <code>class</code>/<code>module</code> syntax declares instance variables.
-You can add the documentation of the variable followed by two hyphones (<code>--</code>).</p>
+You can add the documentation of the variable followed by two hyphens (<code>--</code>).</p>
 <p>Instance variable declarations must be under the <code>class</code>/<code>module</code> syntax, and they are ignored if written inside method definitions.</p>
 <h3 id="Current_Limitations">Current Limitations</h3>
 <ul>
@@ -410,13 +436,15 @@ You can add the documentation of the variable followed by two hyphones (<code>--
 <li><strong>Floats</strong>: <code>RATE = 3.14</code> → <code>Float</code></li>
 <li><strong>Booleans</strong>: <code>ENABLED = true</code> → <code>bool</code></li>
 <li><strong>Strings</strong>: <code>NAME = &quot;test&quot;</code> → <code>String</code></li>
-<li><strong>Symbols</strong>: <code>STATUS = :ready</code> → <code>:ready</code></li>
+<li><strong>Symbols</strong>: <code>STATUS = :ready</code> → <code>Symbol</code></li>
+<li><strong>Nil</strong>: <code>EMPTY = nil</code> → <code>nil</code></li>
 </ul>
 <pre class="code ruby"><code class="ruby"><span class='const'>MAX_SIZE</span> <span class='op'>=</span> <span class='int'>100</span>           <span class='comment'># Inferred as Integer
 </span><span class='const'>PI</span> <span class='op'>=</span> <span class='float'>3.14159</span>            <span class='comment'># Inferred as Float
 </span><span class='const'>DEBUG</span> <span class='op'>=</span> <span class='kw'>false</span>           <span class='comment'># Inferred as bool
 </span><span class='const'>APP_NAME</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>MyApp</span><span class='tstring_end'>&quot;</span></span>      <span class='comment'># Inferred as String
-</span><span class='const'>DEFAULT_MODE</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_strict'>strict</span>  <span class='comment'># Inferred as :strict</span></code></pre>
+</span><span class='const'>DEFAULT_MODE</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_strict'>strict</span>  <span class='comment'># Inferred as Symbol
+</span><span class='const'>NONE</span> <span class='op'>=</span> <span class='kw'>nil</span>              <span class='comment'># Inferred as nil</span></code></pre>
 <h3 id="Explicit_Type_Annotations">Explicit Type Annotations</h3>
 <p>For more complex types or when you want to override inference, use the <code>#:</code> syntax:</p>
 <pre class="code ruby"><code class="ruby"><span class='const'>ITEMS</span> <span class='op'>=</span> [<span class='int'>1</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>hello</span><span class='tstring_end'>&quot;</span></span>] <span class='comment'>#: [Integer, String]
@@ -439,10 +467,17 @@ You can add the documentation of the variable followed by two hyphones (<code>--
 </span>
 <span class='const'>MyKernel</span> <span class='op'>=</span> <span class='const'>Kernel</span> <span class='comment'>#: module-alias</span></code></pre>
 <p>This creates new type names that refer to the same class or module as the original.</p>
-<p>The annotations can have optional type name to specify the class/module name, for the case it cannot be infered through the right-hand-side of the constant declaration.</p>
+<p>The annotations can have optional type name to specify the class/module name, for the case it cannot be inferred through the right-hand-side of the constant declaration.</p>
 <pre class="code ruby"><code class="ruby"><span class='const'>MyObject</span> <span class='op'>=</span> <span class='id identifier rubyid_object'>object</span> <span class='comment'>#: class-alias Object
 </span>
 <span class='const'>MyKernel</span> <span class='op'>=</span> <span class='id identifier rubyid_kernel'>kernel</span> <span class='comment'>#: module-alias Kernel</span></code></pre>
+<h2 id="Skip_Annotation">Skip Annotation</h2>
+<p>The <code>@rbs skip</code> annotation makes inline RBS ignore the following declaration.</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Calculator</span>
+  <span class='comment'># @rbs skip
+</span>  <span class='kw'>def</span> <span class='id identifier rubyid_debug_internal'>debug_internal</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
 <div id='footer'></div>
 </div> <!-- content  -->
 </div> <!-- y_main   -->

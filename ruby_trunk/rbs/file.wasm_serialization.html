@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen' content='yes'>
+<meta name='mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Wasm Serialization &mdash; rbs  Ruby-master dev</title>
+
+<link rel='stylesheet'  type='text/css' href='../../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "wasm_serialization",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='../.'>Ruby-master</a> &raquo; 
+      <a href='.'>rbs</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Wasm Serialization&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<h1 id="RBS_AST_binary_serialization"><a href="RBS.html" title="RBS (module)"><code>RBS</code></a> AST binary serialization</h1>
+<p>This document describes the binary format used to move a parsed <a href="RBS.html" title="RBS (module)"><code>RBS</code></a> AST out of
+the parser and into Ruby objects without going through the Ruby C API. It exists
+so that <a href="RBS.html" title="RBS (module)"><code>RBS</code></a> can run on Ruby implementations that cannot load the C extension
+(notably JRuby): the parser runs inside WebAssembly, serializes the result with
+this format, and the host rebuilds <a href="RBS/AST.html" title="RBS::AST (module)"><code>::RBS::AST</code></a> objects in pure Ruby.</p>
+<p>The encoder (<code>rbs_serialize_node</code>, <code>src/serialize.c</code>) and the schema that drives
+the decoder (<a href="RBS/WASM/SerializationSchema.html" title="RBS::WASM::SerializationSchema (module)"><code>::RBS::WASM::SerializationSchema</code></a>, <code>lib/rbs/wasm/serialization_schema.rb</code>)
+are both generated from <code>config.yml</code>, so they always agree. The decoder itself
+is <a href="RBS/WASM/Deserializer.html" title="RBS::WASM::Deserializer (class)"><code>::RBS::WASM::Deserializer</code></a>.</p>
+<h2 id="Conventions">Conventions</h2>
+<ul>
+<li>All multi-byte integers are <strong>little-endian</strong>.</li>
+<li><code>u8</code>, <code>u32</code> are unsigned; <code>i32</code> is signed.</li>
+<li><code>str</code> is a <code>u32</code> byte length followed by that many raw bytes (no terminator).</li>
+<li>A value is reconstructed to mirror exactly what <code>ast_translation.c</code> produces,
+including string encodings: string/integer literal nodes are UTF-8, while
+comments, annotations and symbols use the source buffer's encoding.</li>
+</ul>
+<h2 id="Nodes">Nodes</h2>
+<p>Every node begins with a <code>u8</code> <strong>tag</strong>:</p>
+<ul>
+<li><code>0</code> — a NULL node (<code>nil</code> on the Ruby side).</li>
+<li><code>1..N</code> — a node type, in the order they appear in <code>SerializationSchema::SCHEMA</code>.</li>
+<li><code>SYMBOL_TAG</code> (<code>N + 1</code>) — an interned symbol, followed by <code>str</code> (the symbol's
+bytes). Decoded with <code>String#to_sym</code>.</li>
+</ul>
+<p>A few node types are encoded specially, matching their bespoke handling in
+<code>ast_translation.c</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Node</th>
+<th>Payload after tag</th>
+<th>Decoded as</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>RBS::AST::Bool</code></td>
+<td><code>u8</code></td>
+<td><code>true</code> / <code>false</code></td>
+</tr>
+<tr>
+<td><code>RBS::AST::Integer</code></td>
+<td><code>str</code></td>
+<td><code>String#to_i</code></td>
+</tr>
+<tr>
+<td><code>RBS::AST::String</code></td>
+<td><code>str</code></td>
+<td>the string (UTF-8)</td>
+</tr>
+<tr>
+<td><code>RBS::Types::Record::FieldType</code></td>
+<td>node, then <code>u8</code></td>
+<td><code>[type, required]</code></td>
+</tr>
+<tr>
+<td><code>RBS::Signature</code></td>
+<td>node-list, then node-list</td>
+<td><code>[directives, declarations]</code></td>
+</tr>
+<tr>
+<td><a href="RBS/Namespace.html" title="RBS::Namespace (class)"><code>::RBS::Namespace</code></a></td>
+<td>node-list, then <code>u8</code></td>
+<td><code>RBS::Namespace[path, absolute]</code></td>
+</tr>
+<tr>
+<td><a href="RBS/TypeName.html" title="RBS::TypeName (class)"><code>::RBS::TypeName</code></a></td>
+<td>node, then node</td>
+<td><code>RBS::TypeName[namespace, name]</code></td>
+</tr>
+</tbody>
+</table>
+<p>Every other node is encoded generically:</p>
+<ol>
+<li>If the node exposes a location, its <strong>base location</strong> is written (see below),
+followed by one location range per declared child, in order.</li>
+<li>Each field is written in declaration order, encoded by its type (see below).</li>
+</ol>
+<p>The decoder constructs <code>Klass.new(location:, **fields)</code> (omitting <code>location:</code>
+for nodes that do not expose one). For <code>Class</code>, <a href="Module.html" title="Module (class)"><code>Module</code></a>, <code>Interface</code>,
+<code>TypeAlias</code> and <code>MethodType</code>, <a href="RBS/AST/TypeParam.html#resolve_variables-class_method" title="RBS::AST::TypeParam.resolve_variables (method)">RBS::AST::TypeParam.resolve_variables</a> is applied
+to <code>type_params</code> first, exactly as the C translation does.</p>
+<h2 id="Fields">Fields</h2>
+<table>
+<thead>
+<tr>
+<th>Field type</th>
+<th>Encoding</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>node (<code>rbs_node</code>, <code>rbs_type_name</code>, <code>rbs_ast_comment</code>, <code>rbs_ast_symbol</code>, ...)</td>
+<td>a node (recursive; NULL allowed)</td>
+</tr>
+<tr>
+<td><code>rbs_node_list</code></td>
+<td><code>u32</code> count, then that many nodes</td>
+</tr>
+<tr>
+<td><code>rbs_hash</code></td>
+<td><code>u32</code> count, then count × (key node, value node)</td>
+</tr>
+<tr>
+<td><code>rbs_string</code></td>
+<td><code>str</code> (source encoding)</td>
+</tr>
+<tr>
+<td><code>bool</code></td>
+<td><code>u8</code></td>
+</tr>
+<tr>
+<td>enum</td>
+<td><code>u8</code> index into the enum's values (see <code>SCHEMA</code>)</td>
+</tr>
+<tr>
+<td><code>rbs_location_range</code></td>
+<td>a location range</td>
+</tr>
+<tr>
+<td><code>rbs_location_range_list</code></td>
+<td><code>u32</code> count, then that many location ranges</td>
+</tr>
+<tr>
+<td><code>rbs_attr_ivar_name</code></td>
+<td><code>u8</code> tag: <code>0</code> → <code>nil</code>, <code>1</code> → <code>false</code>, <code>2</code> → <code>str</code> → symbol</td>
+</tr>
+</tbody>
+</table>
+<h2 id="Location_ranges">Location ranges</h2>
+<p>A location range is a <code>u8</code> presence flag:</p>
+<ul>
+<li><code>0</code> — null range (<code>nil</code>, or a node with no location).</li>
+<li><code>1</code> — followed by <code>i32</code> start and <code>i32</code> end <strong>character</strong> positions.</li>
+</ul>
+<p>The base location and child ranges together let the decoder rebuild an
+<a href="RBS/Location.html" title="RBS::Location (class)"><code>::RBS::Location</code></a> (with its required/optional children) through the public
+<a href="RBS/Location.html" title="RBS::Location (class)"><code>::RBS::Location</code></a> API, so the same decoder works whether <a href="RBS/Location.html" title="RBS::Location (class)"><code>::RBS::Location</code></a> is backed
+by the C extension or a pure-Ruby implementation.</p>
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>

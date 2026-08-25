@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen' content='yes'>
+<meta name='mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Release &mdash; rbs  Ruby-master dev</title>
+
+<link rel='stylesheet'  type='text/css' href='../../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "release",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='../.'>Ruby-master</a> &raquo; 
+      <a href='.'>rbs</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Release&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<h1 id="Releasing_RBS">Releasing RBS</h1>
+<p>A release is a pull request and one workflow run. Everything that leaves the
+repository — the tag, both gems, and the GitHub release — is produced by the
+<code>Release gems</code> workflow, so nothing has to be built or pushed from a laptop.</p>
+<p>Each release ships <strong>two gems</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Gem</th>
+<th>Platform</th>
+<th>Parser</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rbs-X.Y.Z.gem</code></td>
+<td><code>ruby</code> (MRI)</td>
+<td>C extension, compiled on install</td>
+</tr>
+<tr>
+<td><code>rbs-X.Y.Z-java.gem</code></td>
+<td><code>java</code> (JRuby)</td>
+<td><code>rbs_parser.wasm</code>, built by the workflow</td>
+</tr>
+</tbody>
+</table>
+<p>The <code>-java</code> gem contains no native code — just <code>rbs_parser.wasm</code>. The Chicory/ASM
+jars it needs are not shipped in the gem; they are declared as <code>jar-dependencies</code>
+requirements and fetched from Maven when the gem is installed. So the gem can be
+built once in any environment and runs on every JRuby.</p>
+<p>There are three kinds of release, and they differ in what gets written up:</p>
+<table>
+<thead>
+<tr>
+<th>Version</th>
+<th>CHANGELOG section</th>
+<th>GitHub release</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>X.Y.Z</code></td>
+<td>The whole cycle since the previous release proper, prereleases included</td>
+<td>Published</td>
+</tr>
+<tr>
+<td><code>X.Y.Z.pre.N</code></td>
+<td>What changed since <code>X.Y.Z.pre.N-1</code></td>
+<td>Published, marked as a prerelease</td>
+</tr>
+<tr>
+<td><code>X.Y.Z.dev.N</code></td>
+<td>None</td>
+<td>None</td>
+</tr>
+</tbody>
+</table>
+<p><code>.dev.N</code> releases are cut from the development line for people who need a change
+early, so they are gems and tags and nothing else.</p>
+<h2 id="Prerequisites">Prerequisites</h2>
+<p>Push rights to the <code>rbs</code> gem on RubyGems are <strong>not</strong> needed: the workflow
+authenticates through a trusted publisher registered for this repository and
+<code>release-gems.yml</code>. What is needed is write access to the repository, since that
+is what lets you dispatch the workflow.</p>
+<h2 id="Steps">Steps</h2>
+<p>The release pull request in step 1 is merged by a person who has reviewed it. Its merge commit is
+what step 2 dispatches, tags, and pushes to RubyGems, and none of that can be taken back — so
+prepare that pull request and stop there, rather than merging it and carrying on to step 2.</p>
+<p>The bump that starts a new minor is the only other pull request that sets <a href="RBS.html#VERSION-constant" title="RBS::VERSION (constant)">RBS::VERSION</a>. It
+publishes nothing and another bump undoes it, so one opened on an explicit request can go through
+on its own.</p>
+<h3 id="1_Prepare_the_release">1. Prepare the release</h3>
+<p>Open a pull request that carries everything the release needs:</p>
+<ul>
+<li><code>lib/rbs/version.rb</code> — set <a href="RBS.html#VERSION-constant" title="RBS::VERSION (constant)">RBS::VERSION</a> to the version being released.</li>
+<li><code>Gemfile.lock</code> — run <code>bundle install</code> after the bump; the lockfile records the version too.</li>
+<li><code>CHANGELOG.md</code> — add a section for the new version, directly under the <code># CHANGELOG</code> heading.
+Sections are newest first.</li>
+</ul>
+<p>Label the pull request <code>skip-changelog</code>. It carries no change of its own, and without the label it
+shows up in the next release's list — that is why 4.1.0's changelog contains a <code>Version 4.1.0</code>
+entry.</p>
+<p><code>rake gem:changelog</code> lists the pull requests merged since the last release, already formatted:</p>
+<pre class="code console"><code class="console">$ bundle exec rake gem:changelog | pbcopy
+</code></pre>
+<p>Where it starts follows <a href="RBS.html#VERSION-constant" title="RBS::VERSION (constant)">RBS::VERSION</a>, so bump the version first: a prerelease starts from the
+latest tag, and a release proper skips the prerelease tags and starts from the previous release
+proper. Pass a version to override it (<code>rake 'gem:changelog[4.1.0]'</code>). Only the list goes to
+STDOUT, so it pipes cleanly. Pull requests labeled <code>skip-changelog</code> are left out and reported on
+STDERR, and pull requests that only touch <code>rust/</code> are left out because the crates have their own
+release cycle.</p>
+<p>On a release proper, the <code>X.Y.Z.pre.N</code> sections above the previous release are replaced by the one
+section being written — their pull requests are in it, and the notes they were published with stay
+on their own GitHub releases.</p>
+<p>Sort the list into the sections below. <code>rake gem:changelog:json</code> prints the same pull requests with
+the changed files, labels, and body of each, which is what the sorting is based on.</p>
+<p>Both tasks reach GitHub through <code>gh</code>, which a Claude Code on the web session cannot do. See
+<a href='#Assembling_the_changelog_without_gh_'>Assembling the changelog without <code>gh</code></a>, which runs them on a
+runner instead.</p>
+<pre class="code markdown"><code class="markdown">## {X.Y}.Z (YYYY-MM-DD)
+
+### Signature updates
+
+### Language updates
+
+### Library changes
+
+#### rbs prototype
+
+#### rbs collection
+
+### Miscellaneous
+</code></pre>
+<p>The sections always appear in this order; delete the ones that end up empty, which is most of them
+on a small release. Two things scale with the size of the release:</p>
+<ul>
+<li><strong>Summary paragraphs</strong>, above the first section. A patch release usually has none, 4.1.0 has four
+paragraphs, and 4.0.0 has nine. A prerelease has none whatever its size: the cycle it belongs to
+is summarized once, on the release proper that folds it in.</li>
+<li><strong>A list of the types whose signatures changed</strong>, as the first line of <code>### Signature updates</code>,
+written as <code>**Updated classes/modules/methods:**</code> followed by the names in backticks. Used on
+<code>X.Y.0</code> releases only.</li>
+</ul>
+<p>The date is the day the gem is released, matching the <code>vX.Y.Z</code> tag — not the day this pull request
+is opened. Fix it up before step 2 if the pull request sat for a few days.</p>
+<h3 id="2_Run_the_code_Release_gems_code_workflow">2. Run the <code>Release gems</code> workflow</h3>
+<p>Once the pull request is merged, dispatch
+<a href='.github/workflows/release-gems.yml'><code>release-gems.yml</code>&lt;/a&gt; from the Actions tab with two inputs:</p>
+<table>
+<thead>
+<tr>
+<th>Input</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>commit</code></td>
+<td>The full 40-character SHA of the merge commit, taken from the merged pull request</td>
+</tr>
+<tr>
+<td><code>version</code></td>
+<td><code>X.Y.Z</code>, without the leading <code>v</code></td>
+</tr>
+</tbody>
+</table>
+<p>The ref selector picks which copy of the workflow file runs, not what gets released — leave it on
+<code>master</code>. Everything is built from <code>commit</code>, so the run is unaffected by whatever lands on <code>master</code>
+in the meantime, and a patch release cut from a release branch is dispatched the same way as any
+other: the workflow does not care which branch the commit is on.</p>
+<p>The two inputs say the same thing twice, once as a commit and once as a name, and the run stops
+before anything is built unless they agree with each other and with the repository:</p>
+<ul>
+<li><code>commit</code> has to be a full SHA that some branch contains,</li>
+<li><code>version</code> has to be the <a href="RBS.html#VERSION-constant" title="RBS::VERSION (constant)">RBS::VERSION</a> that commit declares,</li>
+<li><code>CHANGELOG.md</code> has to start with a section for <code>version</code> (skipped for <code>.dev.N</code>, which is not
+written up),</li>
+<li><code>vX.Y.Z</code> must not exist yet.</li>
+</ul>
+<p>It then:</p>
+<ul>
+<li>builds <code>rbs-X.Y.Z.gem</code>,</li>
+<li>compiles <code>rbs_parser.wasm</code> and builds <code>rbs-X.Y.Z-java.gem</code>,</li>
+<li>checks both: platforms, the C extension on one and its absence on the other, and that the wasm
+module made it into the <code>java</code> gem,</li>
+<li>installs the <code>java</code> gem on JRuby and parses with it, so the WebAssembly runtime is exercised
+before anything is published,</li>
+<li>uploads both gems as an artifact,</li>
+<li>tags <code>commit</code> as <code>vX.Y.Z</code> and pushes the tag,</li>
+<li>pushes both gems to RubyGems through trusted publishing,</li>
+<li>publishes the GitHub release with the notes from <code>CHANGELOG.md</code>, skipping this last step for
+<code>.dev.N</code> versions.</li>
+</ul>
+<p>The tag is created once both gems are known to build and run, and before anything is published: a
+tag can be deleted, while a version pushed to RubyGems can only be yanked.</p>
+<p>Checking the <code>dry_run</code> box runs everything up to the artifact and stops — no tag, no gems pushed,
+no release — which is how the build is exercised without releasing. <code>version</code> still has to match
+the commit, so a dry run is also how a release is rehearsed before it is cut.</p>
+<h2 id="The_version_on_master_">The version on <code>master</code></h2>
+<p><a href="RBS.html#VERSION-constant" title="RBS::VERSION (constant)">RBS::VERSION</a> on <code>master</code> is read one of two ways, told apart by how the version ends:</p>
+<table>
+<thead>
+<tr>
+<th>On <code>master</code></th>
+<th>Means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>X.Y.0.dev</code> — a bare <code>.dev</code></td>
+<td><code>X.Y.0</code> is being developed</td>
+</tr>
+<tr>
+<td>A complete version — <code>X.Y.Z</code>, <code>X.Y.Z.pre.N</code>, <code>X.Y.Z.dev.N</code></td>
+<td>The version <em>after</em> the one named is being developed</td>
+</tr>
+</tbody>
+</table>
+<p>So <code>4.1.1</code> on <code>master</code> is not a claim that <code>master</code> is 4.1.1. It says 4.1.1 has shipped and what
+comes after it is being worked on. <code>4.1.2.dev.1</code> says the same thing about itself: that release is
+out, and the line continues towards 4.1.2.</p>
+<p>Both become true the moment the release is tagged, so <strong>nothing has to be done to <code>master</code> after a
+release</strong>. <code>4.0.1</code> was followed by <code>4.0.2</code> with no version change in between, and <code>4.1.2.dev.1</code> is
+what <code>master</code> carries today.</p>
+<p>The bare <code>X.Y.0.dev</code> is the exception because it is the one version that names a target rather than
+a predecessor: a new minor is developed towards <code>X.Y.0</code> for a long time, before it is known whether
+the next thing to ship is <code>X.Y.0.pre.1</code> or <code>X.Y.0</code> itself. Setting it is the only version change
+that has to be made deliberately.</p>
+<p><code>rake gem:changelog</code> reads <a href="RBS.html#VERSION-constant" title="RBS::VERSION (constant)">RBS::VERSION</a> too, to decide where the next changelog starts — but the
+version is set to the one being released before the changelog is generated, so it sees that rather
+than whatever <code>master</code> was carrying.</p>
+<h2 id="Starting_a_new_minor">Starting a new minor</h2>
+<p><code>master</code> is the development line of one minor at a time. Moving it from <code>X.Y</code> to <code>X.(Y+1)</code> is not
+part of any one release — it is the decision that the <code>X.Y</code> line is done, taken whenever that
+becomes true — and it is the one moment the version on <code>master</code> is changed by hand. Two changes, in
+opposite places:</p>
+<ol>
+<li>
+<p><strong>Branch the line being left behind</strong>, from the last <code>master</code> commit that belongs to it:</p>
+<pre class="code console"><code class="console">$ git switch --create aaa-X.Y.x &lt;that commit&gt;
+$ git push -u origin aaa-X.Y.x
+</code></pre>
+<p>Branch from the commit <em>before</em> the bump below, so the branch keeps the version its line was
+released under. Patch releases of <code>X.Y</code> are cut from here from now on, with their changes
+cherry-picked from <code>master</code> — see <a href='#Backports'>Backports</a>. The <code>aaa-</code> prefix carries no meaning
+beyond sorting the release branches to the top of the branch list.</p>
+<p>The branch carries its own release tooling, since that is read from the ref rather than from
+<code>master</code>: the <code>gem:</code> tasks, and <code>changelog.yml</code> for the changelog. Branching from <code>master</code>
+brings both along; what needs watching is a later change to either, which reaches this line
+only if it is cherry-picked here too.</p>
+</li>
+<li>
+<p><strong>Bump <code>master</code></strong> to <code>X.(Y+1).0.dev</code>, in a pull request with <code>Gemfile.lock</code> regenerated and
+labeled <code>skip-changelog</code> like the release pull request itself. <code>4.1</code> was started exactly this
+way: <code>aaa-4.0.x</code> was branched at the commit before <code>Start 4.1 development</code>, which set
+<code>RBS::VERSION</code> to <code>4.1.0.dev</code>.</p>
+</li>
+</ol>
+<p>Two loose ends that are easy to forget:</p>
+<ul>
+<li><strong>The release note of the new line.</strong> <code>rake gem:gh_release</code> links every published release to
+<code>https://github.com/ruby/rbs/wiki/Release-Note-X.Y</code>, built from the version number without
+checking that the page is there. Nothing has to be written when the line starts — the page comes
+together as the first release proper of the line comes into view — but it does have to exist by
+the time that release is published, or its notes link to an empty page.</li>
+<li><strong>Release branches that are done.</strong> A branch is worth keeping only while its line might still
+get a patch. The ones that exist do not cover every line that ever had one — <code>3.8.1</code> shipped and
+there is no <code>aaa-3.8.x</code> — so this is housekeeping rather than a rule, but starting a new minor is
+the natural moment to look at the bottom of the branch list and delete what has been superseded.</li>
+</ul>
+<h2 id="Backports">Backports</h2>
+<p>A patch release is cut from a release branch (<code>aaa-X.Y.x</code>), and what it carries beyond the previous
+release is cherry-picked from the development line. Cherry-pick with <code>-x</code>:</p>
+<pre class="code console"><code class="console">$ git cherry-pick -x &lt;commit&gt;
+</code></pre>
+<p><code>-x</code> records the commit the change was copied from, and that recorded line is what <code>rake gem:changelog</code> follows to reach the pull request the change was written and reviewed in. Without
+it, the only pull request a backported commit is associated with is the one that carried the
+backport, which says nothing about the change and is the same for every commit it brought over —
+that is why the 4.0.3 changelog credits its three entries to the same pull request.</p>
+<p>The entry names that pull request and adds the one that carried the backport:</p>
+<pre class="code markdown"><code class="markdown">* {title} (&lt;a href=&#39;https://github.com/ruby/rbs/pull/{backport}&#39;&gt;#{original}](https://github.com/ruby/rbs/pull/{original}), Backported in [#{backport}&lt;/a&gt;)
+</code></pre>
+<p><code>gem:changelog</code> prints this form on its own, from the same <code>-x</code> trailer: the origin it resolves is
+the first link, and the pull request of the cherry-pick in front of it is the second. On the
+development line nothing is a cherry-pick, so entries there keep the plain single link.</p>
+<p>The second link is what keeps the entry from reading as a mistake. The original pull request is
+against <code>master</code>, so it is listed again when the development line ships — and with nothing to tell
+the two apart, the same link under two version headings looks like a change written into the wrong
+section. <code>#1923</code> is the pair to look at: plain under 3.6.0.pre.1, annotated under 3.5.2, which
+backported it.</p>
+<h2 id="Assembling_the_changelog_without_gh_">Assembling the changelog without <code>gh</code></h2>
+<p><code>gem:changelog</code> and <code>gem:changelog:json</code> reach GitHub through <code>gh</code>, so they cannot run from a
+Claude Code on the web session. <code>api.github.com</code> refuses anything the shell does there, and the
+refusal is keyed on the session rather than on the client, so installing <code>gh</code> does not help:</p>
+<pre class="code console"><code class="console">$ curl -s -o /dev/null -w &#39;%{http_code}&#39; https://api.github.com/repos/ruby/rbs
+403
+</code></pre>
+<p>Nothing else about the release is affected. <code>gem:check_release</code> and <code>gem:tag</code> read git and the
+working tree, <code>gem:gh_release</code> runs on a runner, and git itself reaches github.com normally —
+clone, fetch and push all work.</p>
+<p>So the task is run where it does work. Dispatch
+<a href='.github/workflows/changelog.yml'><code>changelog.yml</code>&lt;/a&gt;, which runs it on a runner, and read the list
+from the run summary, the log, or the <code>changelog</code> artifact.</p>
+<table>
+<thead>
+<tr>
+<th>Input</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The ref selector</td>
+<td>The branch the changelog is for: <code>aaa-X.Y.x</code> for a patch release, <code>master</code> otherwise</td>
+</tr>
+<tr>
+<td><code>version</code></td>
+<td>Where the changelog starts, when that should not follow <a href="RBS.html#VERSION-constant" title="RBS::VERSION (constant)">RBS::VERSION</a>. It names the release before the one being written, so <code>4.1.2</code> produces the 4.1.3 changelog</td>
+</tr>
+<tr>
+<td><code>format</code></td>
+<td><code>list</code> for the template, <code>json</code> for the pull request details the sections are sorted from</td>
+</tr>
+</tbody>
+</table>
+<p>The ref is not incidental the way it is for <code>release-gems.yml</code>: it picks the history being
+described <em>and</em> the copy of the task that describes it. So a release branch needs <code>changelog.yml</code>
+on it, the same way it needs the release tasks — dispatching on a ref without the file fails with
+<code>Workflow does not have 'workflow_dispatch' trigger</code>, since the trigger is read from the ref.</p>
+<h2 id="Notes">Notes</h2>
+<ul>
+<li>Prereleases (<code>X.Y.Z.pre.N</code>) are only installed with <code>gem install rbs --pre</code>;
+a plain <code>gem install rbs</code> is unaffected. On JRuby, <code>gem install rbs [--pre]</code>
+resolves to the <code>-java</code> gem automatically.</li>
+<li>The WASI SDK version is pinned in <code>wasm.yml</code>, <code>jruby.yml</code>, <code>release-gems.yml</code>, and
+<code>Dockerfile.jruby</code>, each carrying its own copy. Keep them in sync when bumping. The
+Chicory/ASM versions are not duplicated: they are the <code>jar</code> requirements in
+<code>rbs.gemspec</code>, which is where the workflow, <code>Dockerfile.jruby</code> and <code>gem install</code> all
+read them from.</li>
+<li><code>rake 'gem:check_<a href="X.Y.Z">release</a>'</code> and <code>rake gem:tag</code> are what the workflow runs to
+check the release and to create the tag. Both work locally, which is the fallback
+if the tag ever has to be created by hand.</li>
+<li>Those two tasks and <code>rake gem:gh_release</code> come from the Rakefile of the commit
+being released, not from the branch the workflow was dispatched from. Releasing
+from a release branch (<code>aaa-X.Y.x</code>) therefore needs the release tooling on that
+branch as well; without it the run fails on the missing task, before publishing
+anything.</li>
+</ul>
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>
