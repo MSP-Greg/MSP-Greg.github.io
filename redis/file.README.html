@@ -338,6 +338,73 @@ one checkout (<code>pool.with { |redis| ... }</code>), ideally as one pipelined 
 reply per node; <code>himport_set</code> routes by key. With <code>Redis::Cluster</code>, the same
 commands fan out to every master node and return a single aggregated reply,
 matching the standalone API.</p>
+<h2 id="Keyspace_Notifications">Keyspace Notifications</h2>
+<p>Redis can publish an event on pub/sub for every change to the dataset
+(<code>__keyspace@0__:&lt;key&gt;</code> / <code>__keyevent@0__:<event></code> channels; Redis 8.8 adds
+subkey-level channels for hash fields). The feature must be enabled on the
+<strong>server</strong> via the <code>notify-keyspace-events</code> config — this gem deliberately does
+not set it for you (<code>CONFIG</code> is often restricted, and runtime changes don't
+survive restarts or reach new nodes):</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_redis'>redis</span><span class='op'>-</span><span class='id identifier rubyid_cli'>cli</span> <span class='id identifier rubyid_config'>config</span> <span class='id identifier rubyid_set'>set</span> <span class='id identifier rubyid_notify'>notify</span><span class='op'>-</span><span class='id identifier rubyid_keyspace'>keyspace</span><span class='op'>-</span><span class='id identifier rubyid_events'>events</span> <span class='const'>KEA</span>      <span class='comment'># or KEASTIV for Redis 8.8 subkey events</span></code></pre>
+<p>The simplest way to consume notifications is the manager, which owns a
+dedicated connection and background thread and dispatches typed notifications
+to handlers:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_manager'>manager</span> <span class='op'>=</span> <span class='id identifier rubyid_redis'>redis</span>.<span class='id identifier rubyid_keyspace_notifications'>keyspace_notifications</span>
+
+<span class='id identifier rubyid_manager'>manager</span>.<span class='id identifier rubyid_subscribe_keyevent'>subscribe_keyevent</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>expired</span><span class='tstring_end'>&quot;</span></span>) { <span class='op'>|</span><span class='id identifier rubyid_n'>n</span><span class='op'>|</span> <span class='id identifier rubyid_cache'>cache</span>.<span class='id identifier rubyid_delete'>delete</span>(<span class='id identifier rubyid_n'>n</span>.<span class='id identifier rubyid_key'>key</span>) }
+<span class='id identifier rubyid_manager'>manager</span>.<span class='id identifier rubyid_subscribe_keyspace'>subscribe_keyspace</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>user:*</span><span class='tstring_end'>&quot;</span></span>)  { <span class='op'>|</span><span class='id identifier rubyid_n'>n</span><span class='op'>|</span> <span class='id identifier rubyid_puts'>puts</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_n'>n</span>.<span class='id identifier rubyid_event'>event</span><span class='embexpr_end'>}</span><span class='tstring_content'> on </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_n'>n</span>.<span class='id identifier rubyid_key'>key</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span> }
+<span class='id identifier rubyid_manager'>manager</span>.<span class='id identifier rubyid_subscribe_subkeyspace'>subscribe_subkeyspace</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>session:*</span><span class='tstring_end'>&quot;</span></span>) { <span class='op'>|</span><span class='id identifier rubyid_n'>n</span><span class='op'>|</span> <span class='id identifier rubyid_p'>p</span> <span class='id identifier rubyid_n'>n</span>.<span class='id identifier rubyid_subkeys'>subkeys</span> } <span class='comment'># Redis 8.8+
+</span><span class='id identifier rubyid_manager'>manager</span>.<span class='id identifier rubyid_on_reconnect'>on_reconnect</span> { <span class='id identifier rubyid_cache'>cache</span>.<span class='id identifier rubyid_clear'>clear</span> } <span class='comment'># delivery is fire-and-forget; reconcile after gaps
+</span>
+<span class='id identifier rubyid_manager'>manager</span>.<span class='id identifier rubyid_close'>close</span></code></pre>
+<p>Channel builders (<a href="Redis/KeyspaceNotifications/Channels.html" title="Redis::KeyspaceNotifications::Channels (module)"><code>::Redis::KeyspaceNotifications::Channels</code></a>) and a binary-safe
+parser (<code>Redis::KeyspaceNotifications::Parser.parse(channel, payload)</code>) are
+also usable directly with the plain <code>subscribe</code>/<code>psubscribe</code> API.</p>
+<h3 id="Subkey_notifications_Redis_8_8_">Subkey notifications (Redis 8.8+)</h3>
+<p>Classic notifications only say <em>which key</em> changed. Redis 8.8 adds four subkey
+channel families that also carry <em>which elements inside the value</em> changed —
+hash fields today, with the model designed to extend to other types. Parsed
+notifications expose them as <code>subkeys</code>: an ordered list (duplicates preserved)
+whose meaning is determined by the event (<code>hset</code> → hash fields):</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_manager'>manager</span>.<span class='id identifier rubyid_subscribe_subkeyspace'>subscribe_subkeyspace</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>session:*</span><span class='tstring_end'>&quot;</span></span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_n'>n</span><span class='op'>|</span>
+  <span class='comment'># HSET session:1 token abc ttl 30  =&gt;  event=&quot;hset&quot;, key=&quot;session:1&quot;, subkeys=[&quot;token&quot;, &quot;ttl&quot;]
+</span>  <span class='id identifier rubyid_n'>n</span>.<span class='id identifier rubyid_subkeys'>subkeys</span>.<span class='id identifier rubyid_each'>each</span> { <span class='op'>|</span><span class='id identifier rubyid_field'>field</span><span class='op'>|</span> <span class='id identifier rubyid_invalidate'>invalidate</span>(<span class='id identifier rubyid_n'>n</span>.<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_field'>field</span>) }
+<span class='kw'>end</span>
+
+<span class='comment'># Watch one exact key + field pair (server-side filtering):
+</span><span class='id identifier rubyid_manager'>manager</span>.<span class='id identifier rubyid_subscribe_subkeyspaceitem'>subscribe_subkeyspaceitem</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>session:1</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>token</span><span class='tstring_end'>&quot;</span></span>) { <span class='op'>|</span><span class='id identifier rubyid_n'>n</span><span class='op'>|</span> <span class='id identifier rubyid_p'>p</span> <span class='id identifier rubyid_n'>n</span>.<span class='id identifier rubyid_event'>event</span> }
+
+<span class='comment'># Or by event, with a key pattern:
+</span><span class='id identifier rubyid_manager'>manager</span>.<span class='id identifier rubyid_subscribe_subkeyspaceevent'>subscribe_subkeyspaceevent</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>hexpire</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>session:*</span><span class='tstring_end'>&quot;</span></span>) { <span class='op'>|</span><span class='id identifier rubyid_n'>n</span><span class='op'>|</span> <span class='id identifier rubyid_p'>p</span> <span class='id identifier rubyid_n'>n</span>.<span class='id identifier rubyid_subkeys'>subkeys</span> }</code></pre>
+<p>Subkey families are gated by their own <code>notify-keyspace-events</code> flags — <code>S</code>
+(subkeyspace), <code>T</code> (subkeyevent), <code>I</code> (subkeyspaceitem), <code>V</code> (subkeyspaceevent) —
+<strong>and additionally require the data-type flag</strong>: <code>STIV</code> alone emits nothing for
+hashes; use <code>STIVh</code>, or <code>KEASTIV</code> to combine with the classic channels. Keys and
+subkeys may contain arbitrary bytes, so the wire payloads are length-prefixed
+and the parser is binary-safe — <code>key</code>/<code>subkeys</code> are returned as BINARY-encoded
+strings.</p>
+<p><strong>Connection pooling:</strong> create <strong>one manager per process</strong>, not per pooled
+connection — pub/sub is a broadcast, so N managers means every event is
+delivered and handled N times, not load-shared. The manager is not a pooled
+resource: it owns a private connection duplicated from the client's options, so
+<code>pool.with { |redis| redis.keyspace_notifications }</code> is safe (nothing of the
+checked-out client is retained) and the manager outlives the checkout. Handlers
+may briefly check pool connections out for Redis work; in forking servers
+(Puma, Sidekiq), create the manager in an after-fork hook, one per worker. See
+<code>examples/keyspace_notifications_pool.rb</code>.</p>
+<p><strong>Cluster:</strong> notifications are node-local — a plain <code>subscribe</code> on a
+<code>Redis::Cluster</code> reaches one node and silently misses the rest. Use
+<code>cluster.keyspace_notifications</code>, which subscribes on every primary and
+reconciles reactively on connection errors (call <code>#refresh</code> after adding
+primaries). <code>on_reconnect { |node_key| ... }</code> fires after a node's
+subscriptions were re-established — events it emitted during the gap are lost,
+so reconcile there. Remember to enable <code>notify-keyspace-events</code> on <strong>every
+node, replicas included</strong> — a promoted replica keeps its own config.</p>
+<p>Never <code>PUBLISH</code> to notification channels yourself; the server owns them.
+See <a href='file.keyspace-notifications/user-guide.html'>specs/keyspace-notifications/user-guide.md</a>
+for wire formats, threading/lifecycle semantics and the full API, and
+<code>examples/keyspace_notifications.rb</code> for a runnable demo. <a href="Redis/Distributed.html" title="Redis::Distributed (class)"><code>::Redis::Distributed</code></a>
+is not supported.</p>
 <h2 id="Error_Handling">Error Handling</h2>
 <p>In general, if something goes wrong you'll get an exception. For example, if
 it can't connect to the server a <a href="Redis/CannotConnectError.html" title="Redis::CannotConnectError (class)"><code>::Redis::CannotConnectError</code></a> error will be raised.</p>

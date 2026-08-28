@@ -82,6 +82,23 @@
   </tbody>
 </table>
 </div>
+<h2 id='t2_cnst' class='h2_sum'>Constant Summary</h2>
+<div>
+<ul class='constants summary full'>
+  <li>
+    <span id='READ_SLICE-constant' class='summary_signature priv'>READ_SLICE =</span>
+    <span class='note title private'>private</span>
+    <div class='docstring'>
+  <div class='discussion'>
+    <p>Upper bound on each guarded read (see #next_event) — and therefore on how
+long a cross-thread write can wait for the monitor.</p>
+  </div>
+</div>
+    <a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/subscribe.rb#L7-L7'># File 'lib/redis/subscribe.rb', line 7</a>    <pre class='code ruby'><span class='float'>0.05</span></pre>
+  </li>
+</ul>
+</div>
+
 <h2 class='h2_sum' id='class_method_summary'>Class Method Summary</h2>
 <div class='div_sum'>
 <ul class='summary full'>
@@ -154,9 +171,33 @@
   </li>
   <li>
     <span class='summary_signature prot'>
+      <a href="#guarded_read-instance_method" title="#guarded_read (instance method)">#<strong>guarded_read</strong>(slice)  </a>
+    </span>
+    <span class='note title protected'>protected</span>
+  </li>
+  <li>
+    <span class='summary_signature prot'>
+      <a href="#next_event-instance_method" title="#next_event (instance method)">#<strong>next_event</strong>(timeout)  </a>
+    </span>
+    <span class='note title protected'>protected</span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Reads the next subscription event in short monitor-guarded slices rather than one indefinite read: on a connection error the driver's read path disconnects the connection object in place (hiredis nulls its native context), so an unguarded read racing a cross-thread write or #close is a native use-after-free.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature prot'>
       <a href="#subscription-instance_method" title="#subscription (instance method)">#<strong>subscription</strong>(start, stop, channels, block, timeout = 0)  </a>
     </span>
     <span class='note title protected'>protected</span>
+  </li>
+  <li>
+    <span class='summary_signature prot'>
+      <a href="#writer_priority_wait-instance_method" title="#writer_priority_wait (instance method)">#<strong>writer_priority_wait</strong>  </a>
+    </span>
+    <span class='note title protected'>protected</span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Bounded writer priority: a queued writer gets the monitor before the next read slice.</p></div>
+    </div>
   </li>
 </ul>
 </div>  <!-- instance_method_summary -->
@@ -174,16 +215,24 @@
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/subscribe.rb#L5-L8'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/subscribe.rb#L10-L21'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='5' data-end='8'></pre>
+  <pre class='lines_num' data-start='10' data-end='21'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/redis/subscribe.rb', line 5</span></pre>
+<pre><span class='info file'># File 'lib/redis/subscribe.rb', line 10</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span>(<span class='id identifier rubyid_client'>client</span>)
   <span class='ivar'>@client</span> <span class='op'>=</span> <span class='id identifier rubyid_client'>client</span>
   <span class='ivar'>@write_monitor</span> <span class='op'>=</span> <span class='const'>Monitor</span>.<span class='id identifier rubyid_new'>new</span>
+  <span class='comment'># Count of writers waiting for (or holding) the monitor; mutations under
+</span>  <span class='comment'># their own lock so it cannot drift. The read loop deschedules while
+</span>  <span class='comment'># writers are queued — MRI mutexes barge, and on MRI 3.2 a writer can
+</span>  <span class='comment'># otherwise starve behind consecutive read slices (Thread.pass is not a
+</span>  <span class='comment'># handoff there).
+</span>  <span class='ivar'>@pending_writes</span> <span class='op'>=</span> <span class='int'>0</span>
+  <span class='ivar'>@pending_writes_lock</span> <span class='op'>=</span> <span class='const'>Mutex</span>.<span class='id identifier rubyid_new'>new</span>
+  <span class='ivar'>@closed</span> <span class='op'>=</span> <span class='kw'>false</span>
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -195,17 +244,25 @@
   <h3 class='signature  first'>
     #<strong>call_v</strong>(command)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/subscribe.rb#L10-L14'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/subscribe.rb#L23-L35'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='10' data-end='14'></pre>
+  <pre class='lines_num' data-start='23' data-end='35'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/redis/subscribe.rb', line 10</span></pre>
+<pre><span class='info file'># File 'lib/redis/subscribe.rb', line 23</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_call_v'>call_v</span>(<span class='id identifier rubyid_command'>command</span>)
+  <span class='ivar'>@pending_writes_lock</span>.<span class='id identifier rubyid_synchronize'><a href="../Redis.html#synchronize-instance_method" title="Redis#synchronize (method)">synchronize</a></span> { <span class='ivar'>@pending_writes</span> <span class='op'>+=</span> <span class='int'>1</span> }
   <span class='ivar'>@write_monitor</span>.<span class='id identifier rubyid_synchronize'><a href="../Redis.html#synchronize-instance_method" title="Redis#synchronize (method)">synchronize</a></span> <span class='kw'>do</span>
+    <span class='comment'># A write must never reach a connection whose teardown is freeing it:
+</span>    <span class='comment'># on the hiredis driver that is a native use-after-free (SIGSEGV), not
+</span>    <span class='comment'># a rescuable exception.
+</span>    <span class='id identifier rubyid_raise'>raise</span> <span class='const'><a href="SubscriptionError.html" title="Redis::SubscriptionError (class)">SubscriptionError</a></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>This client is closed</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>if</span> <span class='ivar'>@closed</span>
+
     <span class='ivar'>@client</span>.<span class='id identifier rubyid_call_v'>call_v</span>(<span class='id identifier rubyid_command'>command</span>)
   <span class='kw'>end</span>
+<span class='kw'>ensure</span>
+  <span class='ivar'>@pending_writes_lock</span>.<span class='id identifier rubyid_synchronize'><a href="../Redis.html#synchronize-instance_method" title="Redis#synchronize (method)">synchronize</a></span> { <span class='ivar'>@pending_writes</span> <span class='op'>-=</span> <span class='int'>1</span> }
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -216,15 +273,94 @@
   <h3 class='signature '>
     #<strong>close</strong>  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/subscribe.rb#L52-L54'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/subscribe.rb#L73-L83'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='52' data-end='54'></pre>
+  <pre class='lines_num' data-start='73' data-end='83'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/redis/subscribe.rb', line 52</span></pre>
+<pre><span class='info file'># File 'lib/redis/subscribe.rb', line 73</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_close'>close</span>
-  <span class='ivar'>@client</span>.<span class='id identifier rubyid_close'>close</span>
+  <span class='comment'># Serialized with every write and guarded read: freeing the connection
+</span>  <span class='comment'># under either crashes the process on the hiredis driver.
+</span>  <span class='ivar'>@pending_writes_lock</span>.<span class='id identifier rubyid_synchronize'><a href="../Redis.html#synchronize-instance_method" title="Redis#synchronize (method)">synchronize</a></span> { <span class='ivar'>@pending_writes</span> <span class='op'>+=</span> <span class='int'>1</span> }
+  <span class='ivar'>@write_monitor</span>.<span class='id identifier rubyid_synchronize'><a href="../Redis.html#synchronize-instance_method" title="Redis#synchronize (method)">synchronize</a></span> <span class='kw'>do</span>
+    <span class='ivar'>@closed</span> <span class='op'>=</span> <span class='kw'>true</span>
+    <span class='ivar'>@client</span>.<span class='id identifier rubyid_close'>close</span>
+  <span class='kw'>end</span>
+<span class='kw'>ensure</span>
+  <span class='ivar'>@pending_writes_lock</span>.<span class='id identifier rubyid_synchronize'><a href="../Redis.html#synchronize-instance_method" title="Redis#synchronize (method)">synchronize</a></span> { <span class='ivar'>@pending_writes</span> <span class='op'>-=</span> <span class='int'>1</span> }
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="guarded_read-instance_method">
+  <h3 class='signature prot'>
+    #<strong>guarded_read</strong>(slice)   <span class="extras">(<span class='prot'>protected</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/subscribe.rb#L139-L145'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='139' data-end='145'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/redis/subscribe.rb', line 139</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_guarded_read'>guarded_read</span>(<span class='id identifier rubyid_slice'>slice</span>)
+  <span class='ivar'>@write_monitor</span>.<span class='id identifier rubyid_synchronize'><a href="../Redis.html#synchronize-instance_method" title="Redis#synchronize (method)">synchronize</a></span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_raise'>raise</span> <span class='const'><a href="SubscriptionError.html" title="Redis::SubscriptionError (class)">SubscriptionError</a></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>This client is closed</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>if</span> <span class='ivar'>@closed</span>
+
+    <span class='ivar'>@client</span>.<span class='id identifier rubyid_next_event'><a href="#next_event-instance_method" title="Redis::SubscribedClient#next_event (method)">next_event</a></span>(<span class='id identifier rubyid_slice'>slice</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="next_event-instance_method">
+  <h3 class='signature prot'>
+    #<strong>next_event</strong>(timeout)   <span class="extras">(<span class='prot'>protected</span>)</span>
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    <p>Reads the next subscription event in short monitor-guarded slices rather
+than one indefinite read: on a connection error the driver's read path
+disconnects the connection object in place (hiredis nulls its native
+context), so an unguarded read racing a cross-thread write or #close is a
+native use-after-free. Slicing under the writers' monitor means reads,
+writes and close never overlap; a writer waits at most one slice.
+Blocking semantics are preserved (a slice timeout just reads again); the
+timed form keeps the caller's overall deadline, nil meaning &quot;no event
+within the requested timeout&quot;.</p>
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/subscribe.rb#L119-L137'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='119' data-end='137'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/redis/subscribe.rb', line 119</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_next_event'>next_event</span>(<span class='id identifier rubyid_timeout'>timeout</span>)
+  <span class='kw'>if</span> <span class='id identifier rubyid_timeout'>timeout</span> <span class='op'>&gt;</span> <span class='int'>0</span>
+    <span class='id identifier rubyid_deadline'>deadline</span> <span class='op'>=</span> <span class='const'>Process</span>.<span class='id identifier rubyid_clock_gettime'>clock_gettime</span>(<span class='const'>Process</span><span class='op'>::</span><span class='const'>CLOCK_MONOTONIC</span>) <span class='op'>+</span> <span class='id identifier rubyid_timeout'>timeout</span>
+    <span class='id identifier rubyid_loop'>loop</span> <span class='kw'>do</span>
+      <span class='id identifier rubyid_writer_priority_wait'><a href="#writer_priority_wait-instance_method" title="Redis::SubscribedClient#writer_priority_wait (method)">writer_priority_wait</a></span>
+      <span class='id identifier rubyid_remaining'>remaining</span> <span class='op'>=</span> <span class='id identifier rubyid_deadline'>deadline</span> <span class='op'>-</span> <span class='const'>Process</span>.<span class='id identifier rubyid_clock_gettime'>clock_gettime</span>(<span class='const'>Process</span><span class='op'>::</span><span class='const'>CLOCK_MONOTONIC</span>)
+      <span class='kw'>return</span> <span class='kw'>nil</span> <span class='kw'>if</span> <span class='id identifier rubyid_remaining'>remaining</span> <span class='op'>&lt;=</span> <span class='int'>0</span>
+
+      <span class='id identifier rubyid_event'>event</span> <span class='op'>=</span> <span class='id identifier rubyid_guarded_read'><a href="#guarded_read-instance_method" title="Redis::SubscribedClient#guarded_read (method)">guarded_read</a></span>([<span class='id identifier rubyid_remaining'>remaining</span><span class='comma'>,</span> <span class='const'><a href="#READ_SLICE-constant" title="Redis::SubscribedClient::READ_SLICE (constant)">READ_SLICE</a></span>].<span class='id identifier rubyid_min'>min</span>)
+      <span class='kw'>return</span> <span class='id identifier rubyid_event'>event</span> <span class='kw'>if</span> <span class='id identifier rubyid_event'>event</span>
+    <span class='kw'>end</span>
+  <span class='kw'>else</span>
+    <span class='id identifier rubyid_loop'>loop</span> <span class='kw'>do</span>
+      <span class='id identifier rubyid_writer_priority_wait'><a href="#writer_priority_wait-instance_method" title="Redis::SubscribedClient#writer_priority_wait (method)">writer_priority_wait</a></span>
+      <span class='id identifier rubyid_event'>event</span> <span class='op'>=</span> <span class='id identifier rubyid_guarded_read'><a href="#guarded_read-instance_method" title="Redis::SubscribedClient#guarded_read (method)">guarded_read</a></span>(<span class='const'><a href="#READ_SLICE-constant" title="Redis::SubscribedClient::READ_SLICE (constant)">READ_SLICE</a></span>)
+      <span class='kw'>return</span> <span class='id identifier rubyid_event'>event</span> <span class='kw'>if</span> <span class='id identifier rubyid_event'>event</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -235,11 +371,11 @@
   <h3 class='signature '>
     #<strong>psubscribe</strong>(*channels, &amp;block)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/subscribe.rb#L24-L26'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/subscribe.rb#L45-L47'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='24' data-end='26'></pre>
+  <pre class='lines_num' data-start='45' data-end='47'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/redis/subscribe.rb', line 24</span></pre>
+<pre><span class='info file'># File 'lib/redis/subscribe.rb', line 45</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_psubscribe'>psubscribe</span>(<span class='op'>*</span><span class='id identifier rubyid_channels'>channels</span><span class='comma'>,</span> <span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span>)
@@ -254,11 +390,11 @@
   <h3 class='signature '>
     #<strong>psubscribe_with_timeout</strong>(timeout, *channels, &amp;block)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/subscribe.rb#L28-L30'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/subscribe.rb#L49-L51'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='28' data-end='30'></pre>
+  <pre class='lines_num' data-start='49' data-end='51'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/redis/subscribe.rb', line 28</span></pre>
+<pre><span class='info file'># File 'lib/redis/subscribe.rb', line 49</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_psubscribe_with_timeout'>psubscribe_with_timeout</span>(<span class='id identifier rubyid_timeout'>timeout</span><span class='comma'>,</span> <span class='op'>*</span><span class='id identifier rubyid_channels'>channels</span><span class='comma'>,</span> <span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span>)
@@ -273,11 +409,11 @@
   <h3 class='signature '>
     #<strong>punsubscribe</strong>(*channels)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/subscribe.rb#L44-L46'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/subscribe.rb#L65-L67'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='44' data-end='46'></pre>
+  <pre class='lines_num' data-start='65' data-end='67'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/redis/subscribe.rb', line 44</span></pre>
+<pre><span class='info file'># File 'lib/redis/subscribe.rb', line 65</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_punsubscribe'>punsubscribe</span>(<span class='op'>*</span><span class='id identifier rubyid_channels'>channels</span>)
@@ -292,11 +428,11 @@
   <h3 class='signature '>
     #<strong>ssubscribe</strong>(*channels, &amp;block)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/subscribe.rb#L32-L34'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/subscribe.rb#L53-L55'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='32' data-end='34'></pre>
+  <pre class='lines_num' data-start='53' data-end='55'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/redis/subscribe.rb', line 32</span></pre>
+<pre><span class='info file'># File 'lib/redis/subscribe.rb', line 53</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_ssubscribe'>ssubscribe</span>(<span class='op'>*</span><span class='id identifier rubyid_channels'>channels</span><span class='comma'>,</span> <span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span>)
@@ -311,11 +447,11 @@
   <h3 class='signature '>
     #<strong>ssubscribe_with_timeout</strong>(timeout, *channels, &amp;block)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/subscribe.rb#L36-L38'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/subscribe.rb#L57-L59'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='36' data-end='38'></pre>
+  <pre class='lines_num' data-start='57' data-end='59'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/redis/subscribe.rb', line 36</span></pre>
+<pre><span class='info file'># File 'lib/redis/subscribe.rb', line 57</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_ssubscribe_with_timeout'>ssubscribe_with_timeout</span>(<span class='id identifier rubyid_timeout'>timeout</span><span class='comma'>,</span> <span class='op'>*</span><span class='id identifier rubyid_channels'>channels</span><span class='comma'>,</span> <span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span>)
@@ -330,11 +466,11 @@
   <h3 class='signature '>
     #<strong>subscribe</strong>(*channels, &amp;block)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/subscribe.rb#L16-L18'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/subscribe.rb#L37-L39'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='16' data-end='18'></pre>
+  <pre class='lines_num' data-start='37' data-end='39'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/redis/subscribe.rb', line 16</span></pre>
+<pre><span class='info file'># File 'lib/redis/subscribe.rb', line 37</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_subscribe'>subscribe</span>(<span class='op'>*</span><span class='id identifier rubyid_channels'>channels</span><span class='comma'>,</span> <span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span>)
@@ -349,11 +485,11 @@
   <h3 class='signature '>
     #<strong>subscribe_with_timeout</strong>(timeout, *channels, &amp;block)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/subscribe.rb#L20-L22'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/subscribe.rb#L41-L43'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='20' data-end='22'></pre>
+  <pre class='lines_num' data-start='41' data-end='43'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/redis/subscribe.rb', line 20</span></pre>
+<pre><span class='info file'># File 'lib/redis/subscribe.rb', line 41</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_subscribe_with_timeout'>subscribe_with_timeout</span>(<span class='id identifier rubyid_timeout'>timeout</span><span class='comma'>,</span> <span class='op'>*</span><span class='id identifier rubyid_channels'>channels</span><span class='comma'>,</span> <span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span>)
@@ -368,11 +504,11 @@
   <h3 class='signature prot'>
     #<strong>subscription</strong>(start, stop, channels, block, timeout = 0)   <span class="extras">(<span class='prot'>protected</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/subscribe.rb#L58-L79'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/subscribe.rb#L87-L108'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='58' data-end='79'></pre>
+  <pre class='lines_num' data-start='87' data-end='108'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/redis/subscribe.rb', line 58</span></pre>
+<pre><span class='info file'># File 'lib/redis/subscribe.rb', line 87</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_subscription'>subscription</span>(<span class='id identifier rubyid_start'>start</span><span class='comma'>,</span> <span class='id identifier rubyid_stop'>stop</span><span class='comma'>,</span> <span class='id identifier rubyid_channels'>channels</span><span class='comma'>,</span> <span class='id identifier rubyid_block'>block</span><span class='comma'>,</span> <span class='id identifier rubyid_timeout'>timeout</span> <span class='op'>=</span> <span class='int'>0</span>)
@@ -383,7 +519,7 @@
 </span>  <span class='kw'>else</span> <span class='id identifier rubyid_call_v'><a href="#call_v-instance_method" title="Redis::SubscribedClient#call_v (method)">call_v</a></span>([<span class='id identifier rubyid_start'>start</span><span class='comma'>,</span> <span class='op'>*</span><span class='id identifier rubyid_channels'>channels</span>])
   <span class='kw'>end</span>
 
-  <span class='kw'>while</span> <span class='id identifier rubyid_event'>event</span> <span class='op'>=</span> <span class='ivar'>@client</span>.<span class='id identifier rubyid_next_event'>next_event</span>(<span class='id identifier rubyid_timeout'>timeout</span>)
+  <span class='kw'>while</span> <span class='id identifier rubyid_event'>event</span> <span class='op'>=</span> <span class='id identifier rubyid_next_event'><a href="#next_event-instance_method" title="Redis::SubscribedClient#next_event (method)">next_event</a></span>(<span class='id identifier rubyid_timeout'>timeout</span>)
     <span class='kw'>if</span> <span class='id identifier rubyid_event'>event</span>.<span class='id identifier rubyid_is_a?'>is_a?</span>(<span class='op'>::</span><span class='const'>RedisClient</span><span class='op'>::</span><span class='const'><a href="CommandError.html" title="Redis::CommandError (class)">CommandError</a></span>)
       <span class='id identifier rubyid_raise'>raise</span> <span class='const'><a href="Client.html" title="Redis::Client (class)">Client</a></span><span class='op'>::</span><span class='const'><a href="Client.html#ERROR_MAPPING-constant" title="Redis::Client::ERROR_MAPPING (constant)">ERROR_MAPPING</a></span>.<span class='id identifier rubyid_fetch'>fetch</span>(<span class='id identifier rubyid_event'>event</span>.<span class='id identifier rubyid_class'>class</span>)<span class='comma'>,</span> <span class='id identifier rubyid_event'>event</span>.<span class='id identifier rubyid_message'>message</span>
     <span class='kw'>end</span>
@@ -406,11 +542,11 @@
   <h3 class='signature '>
     #<strong>sunsubscribe</strong>(*channels)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/subscribe.rb#L48-L50'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/subscribe.rb#L69-L71'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='48' data-end='50'></pre>
+  <pre class='lines_num' data-start='69' data-end='71'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/redis/subscribe.rb', line 48</span></pre>
+<pre><span class='info file'># File 'lib/redis/subscribe.rb', line 69</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_sunsubscribe'>sunsubscribe</span>(<span class='op'>*</span><span class='id identifier rubyid_channels'>channels</span>)
@@ -425,15 +561,46 @@
   <h3 class='signature '>
     #<strong>unsubscribe</strong>(*channels)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/subscribe.rb#L40-L42'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/subscribe.rb#L61-L63'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='40' data-end='42'></pre>
+  <pre class='lines_num' data-start='61' data-end='63'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/redis/subscribe.rb', line 40</span></pre>
+<pre><span class='info file'># File 'lib/redis/subscribe.rb', line 61</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_unsubscribe'>unsubscribe</span>(<span class='op'>*</span><span class='id identifier rubyid_channels'>channels</span>)
   <span class='id identifier rubyid_call_v'><a href="#call_v-instance_method" title="Redis::SubscribedClient#call_v (method)">call_v</a></span>([<span class='symbeg'>:</span><span class='id identifier rubyid_unsubscribe'>unsubscribe</span><span class='comma'>,</span> <span class='op'>*</span><span class='id identifier rubyid_channels'>channels</span>])
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="writer_priority_wait-instance_method">
+  <h3 class='signature prot'>
+    #<strong>writer_priority_wait</strong>   <span class="extras">(<span class='prot'>protected</span>)</span>
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    <p>Bounded writer priority: a queued writer gets the monitor before the next
+read slice. sleep deterministically deschedules this thread (Thread.pass
+is a hint MRI 3.2 ignores in favor of the barging re-acquirer); the bound
+means a counter defect could only throttle reads, never stop them.</p>
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/redis/redis-rb/blob/master/lib/redis/subscribe.rb#L151-L157'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='151' data-end='157'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/redis/subscribe.rb', line 151</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_writer_priority_wait'>writer_priority_wait</span>
+  <span class='int'>50</span>.<span class='id identifier rubyid_times'>times</span> <span class='kw'>do</span>
+    <span class='kw'>break</span> <span class='kw'>if</span> <span class='ivar'>@pending_writes</span>.<span class='id identifier rubyid_zero?'>zero?</span>
+
+    <span class='id identifier rubyid_sleep'>sleep</span> <span class='float'>0.001</span>
+  <span class='kw'>end</span>
 <span class='kw'>end</span>
 </pre>
   </div>
