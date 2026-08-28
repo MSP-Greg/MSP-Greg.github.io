@@ -1185,9 +1185,9 @@ dependencies file are not used.  See <a href="Installer.html" title="Gem::Instal
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/request_set.rb#L339-L394'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/request_set.rb#L339-L422'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='339' data-end='394'></pre>
+  <pre class='lines_num' data-start='339' data-end='422'></pre>
   <div class='lines_code'>
 <pre><span class='info file'># File 'lib/rubygems/request_set.rb', line 339</span></pre>
 <pre class='code ruby'>
@@ -1202,17 +1202,32 @@ dependencies file are not used.  See <a href="Installer.html" title="Gem::Instal
 </span>  <span class='comment'># `gem install -g` lockfile can be parsed without a Bundler environment.
 </span>  <span class='id identifier rubyid_previous_root'>previous_root</span> <span class='op'>=</span> <span class='const'>Bundler</span>.<span class='id identifier rubyid_instance_variable_get'>instance_variable_get</span>(<span class='symbeg'>:</span><span class='ivar'>@root</span>)
   <span class='const'>Bundler</span>.<span class='id identifier rubyid_instance_variable_set'>instance_variable_set</span>(<span class='symbeg'>:</span><span class='ivar'>@root</span><span class='comma'>,</span> <span class='const'>Pathname</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Gem::RequestSet.new (method)">new</a></span>(<span class='const'>File</span>.<span class='id identifier rubyid_expand_path'>expand_path</span>(<span class='const'>File</span>.<span class='id identifier rubyid_dirname'>dirname</span>(<span class='id identifier rubyid_lock_file'>lock_file</span>))))
+  <span class='id identifier rubyid_root_swapped'>root_swapped</span> <span class='op'>=</span> <span class='kw'>true</span>
+
+  <span class='comment'># A PLUGIN SOURCE section otherwise sends Bundler::Plugin.from_lock looking
+</span>  <span class='comment'># for the plugin that handles it, which loads and runs that plugin&#39;s
+</span>  <span class='comment'># `plugins.rb`. Nothing here can use a plugin source anyway, so borrow the
+</span>  <span class='comment'># flag Bundler itself uses to keep lockfile parsing inert.
+</span>  <span class='id identifier rubyid_previous_gemfile_parse'>previous_gemfile_parse</span> <span class='op'>=</span> <span class='const'>Bundler</span><span class='op'>::</span><span class='const'>Plugin</span>.<span class='id identifier rubyid_instance_variable_get'>instance_variable_get</span>(<span class='symbeg'>:</span><span class='ivar'>@gemfile_parse</span>)
+  <span class='const'>Bundler</span><span class='op'>::</span><span class='const'>Plugin</span>.<span class='id identifier rubyid_instance_variable_set'>instance_variable_set</span>(<span class='symbeg'>:</span><span class='ivar'>@gemfile_parse</span><span class='comma'>,</span> <span class='kw'>true</span>)
+  <span class='id identifier rubyid_gemfile_parse_swapped'>gemfile_parse_swapped</span> <span class='op'>=</span> <span class='kw'>true</span>
 
   <span class='id identifier rubyid_parser'>parser</span> <span class='op'>=</span> <span class='const'>Bundler</span><span class='op'>::</span><span class='const'>LockfileParser</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="Gem::RequestSet.new (method)">new</a></span>(<span class='const'>File</span>.<span class='id identifier rubyid_read'>read</span>(<span class='id identifier rubyid_lock_file'>lock_file</span>)<span class='comma'>,</span> <span class='label'>lockfile_path:</span> <span class='id identifier rubyid_lock_file'>lock_file</span>)
+
+  <span class='id identifier rubyid_locked_versions'>locked_versions</span> <span class='op'>=</span> {}
 
   <span class='id identifier rubyid_parser'>parser</span>.<span class='id identifier rubyid_specs'><a href="#specs-instance_method" title="Gem::RequestSet#specs (method)">specs</a></span>.<span class='id identifier rubyid_group_by'>group_by</span>(<span class='op'>&amp;</span><span class='symbeg'>:</span><span class='id identifier rubyid_source'>source</span>).<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_source'>source</span><span class='comma'>,</span> <span class='id identifier rubyid_specs'><a href="#specs-instance_method" title="Gem::RequestSet#specs (method)">specs</a></span><span class='op'>|</span>
     <span class='kw'>case</span> <span class='id identifier rubyid_source'>source</span>
     <span class='kw'>when</span> <span class='const'>Bundler</span><span class='op'>::</span><span class='const'><a href="Source.html" title="Gem::Source (class)">Source</a></span><span class='op'>::</span><span class='const'>Rubygems</span>
-      <span class='id identifier rubyid_remotes'>remotes</span> <span class='op'>=</span> <span class='id identifier rubyid_source'>source</span>.<span class='id identifier rubyid_remotes'>remotes</span>.<span class='id identifier rubyid_map'>map</span> {<span class='op'>|</span><span class='id identifier rubyid_remote'><a href="#remote-instance_method" title="Gem::RequestSet#remote (method)">remote</a></span><span class='op'>|</span> <span class='const'><a href="../Gem.html" title="Gem (module)">Gem</a></span><span class='op'>::</span><span class='const'><a href="Source.html" title="Gem::Source (class)">Source</a></span>.<span class='id identifier rubyid_new'><a href="Source.html#new-class_method" title="Gem::Source.new (method)">new</a></span>(<span class='id identifier rubyid_remote'><a href="#remote-instance_method" title="Gem::RequestSet#remote (method)">remote</a></span>.<span class='id identifier rubyid_to_s'>to_s</span>) }
+      <span class='comment'># Bundler::Source::Rubygems stores remotes in reverse of the lockfile
+</span>      <span class='comment'># order (Bundler::Source::Rubygems#to_lock reverses them back), so
+</span>      <span class='comment'># restore the lockfile order here.
+</span>      <span class='id identifier rubyid_remotes'>remotes</span> <span class='op'>=</span> <span class='id identifier rubyid_source'>source</span>.<span class='id identifier rubyid_remotes'>remotes</span>.<span class='id identifier rubyid_reverse'>reverse</span>.<span class='id identifier rubyid_map'>map</span> {<span class='op'>|</span><span class='id identifier rubyid_remote'><a href="#remote-instance_method" title="Gem::RequestSet#remote (method)">remote</a></span><span class='op'>|</span> <span class='const'><a href="../Gem.html" title="Gem (module)">Gem</a></span><span class='op'>::</span><span class='const'><a href="Source.html" title="Gem::Source (class)">Source</a></span>.<span class='id identifier rubyid_new'><a href="Source.html#new-class_method" title="Gem::Source.new (method)">new</a></span>(<span class='id identifier rubyid_remote'><a href="#remote-instance_method" title="Gem::RequestSet#remote (method)">remote</a></span>.<span class='id identifier rubyid_to_s'>to_s</span>) }
       <span class='id identifier rubyid_remotes'>remotes</span> <span class='op'>&lt;&lt;</span> <span class='const'><a href="../Gem.html" title="Gem (module)">Gem</a></span><span class='op'>::</span><span class='const'><a href="Source.html" title="Gem::Source (class)">Source</a></span>.<span class='id identifier rubyid_new'><a href="Source.html#new-class_method" title="Gem::Source.new (method)">new</a></span>(<span class='const'><a href="../Gem.html" title="Gem (module)">Gem</a></span><span class='op'>::</span><span class='const'><a href="../Gem.html#DEFAULT_HOST-constant" title="Gem::DEFAULT_HOST (constant)">DEFAULT_HOST</a></span>) <span class='kw'>if</span> <span class='id identifier rubyid_remotes'>remotes</span>.<span class='id identifier rubyid_empty?'>empty?</span>
       <span class='id identifier rubyid_lock_set'>lock_set</span> <span class='op'>=</span> <span class='const'><a href="../Gem.html" title="Gem (module)">Gem</a></span><span class='op'>::</span><span class='const'><a href="Resolver.html" title="Gem::Resolver (class)">Resolver</a></span><span class='op'>::</span><span class='const'><a href="Resolver/LockSet.html" title="Gem::Resolver::LockSet (class)">LockSet</a></span>.<span class='id identifier rubyid_new'><a href="Resolver/LockSet.html#new-class_method" title="Gem::Resolver::LockSet.new (method)">new</a></span>(<span class='id identifier rubyid_remotes'>remotes</span>)
       <span class='id identifier rubyid_specs'><a href="#specs-instance_method" title="Gem::RequestSet#specs (method)">specs</a></span>.<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_spec'>spec</span><span class='op'>|</span>
         <span class='id identifier rubyid_added'>added</span> <span class='op'>=</span> <span class='id identifier rubyid_lock_set'>lock_set</span>.<span class='id identifier rubyid_add'>add</span>(<span class='id identifier rubyid_spec'>spec</span>.<span class='id identifier rubyid_name'>name</span><span class='comma'>,</span> <span class='id identifier rubyid_spec'>spec</span>.<span class='id identifier rubyid_version'>version</span>.<span class='id identifier rubyid_to_s'>to_s</span><span class='comma'>,</span> <span class='id identifier rubyid_spec'>spec</span>.<span class='id identifier rubyid_platform'>platform</span>)
+        <span class='id identifier rubyid_locked_versions'>locked_versions</span>[<span class='id identifier rubyid_spec'>spec</span>.<span class='id identifier rubyid_name'>name</span>] <span class='op'>||=</span> <span class='id identifier rubyid_spec'>spec</span>.<span class='id identifier rubyid_version'>version</span>
         <span class='id identifier rubyid_spec'>spec</span>.<span class='id identifier rubyid_dependencies'><a href="#dependencies-instance_method" title="Gem::RequestSet#dependencies (method)">dependencies</a></span>.<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_dep'>dep</span><span class='op'>|</span>
           <span class='id identifier rubyid_added'>added</span>.<span class='id identifier rubyid_each'>each</span> {<span class='op'>|</span><span class='id identifier rubyid_s'>s</span><span class='op'>|</span> <span class='id identifier rubyid_s'>s</span>.<span class='id identifier rubyid_add_dependency'>add_dependency</span> <span class='id identifier rubyid_dep'>dep</span> }
         <span class='kw'>end</span>
@@ -1229,6 +1244,7 @@ dependencies file are not used.  See <a href="Installer.html" title="Gem::Instal
           <span class='id identifier rubyid_source'>source</span>.<span class='id identifier rubyid_revision'>revision</span><span class='comma'>,</span>
           <span class='id identifier rubyid_source'>source</span>.<span class='id identifier rubyid_submodules'>submodules</span> <span class='op'>||</span> <span class='kw'>false</span>
         )
+        <span class='id identifier rubyid_locked_versions'>locked_versions</span>[<span class='id identifier rubyid_spec'>spec</span>.<span class='id identifier rubyid_name'>name</span>] <span class='op'>||=</span> <span class='id identifier rubyid_spec'>spec</span>.<span class='id identifier rubyid_version'>version</span>
         <span class='id identifier rubyid_spec'>spec</span>.<span class='id identifier rubyid_dependencies'><a href="#dependencies-instance_method" title="Gem::RequestSet#dependencies (method)">dependencies</a></span>.<span class='id identifier rubyid_each'>each</span> {<span class='op'>|</span><span class='id identifier rubyid_dep'>dep</span><span class='op'>|</span> <span class='id identifier rubyid_git_spec'>git_spec</span>.<span class='id identifier rubyid_add_dependency'>add_dependency</span> <span class='id identifier rubyid_dep'>dep</span> }
       <span class='kw'>end</span>
       <span class='ivar'>@sets</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_git_set'><a href="#git_set-instance_method" title="Gem::RequestSet#git_set (method)">git_set</a></span>
@@ -1236,6 +1252,7 @@ dependencies file are not used.  See <a href="Installer.html" title="Gem::Instal
       <span class='id identifier rubyid_vendor_set'><a href="#vendor_set-instance_method" title="Gem::RequestSet#vendor_set (method)">vendor_set</a></span> <span class='op'>=</span> <span class='const'><a href="../Gem.html" title="Gem (module)">Gem</a></span><span class='op'>::</span><span class='const'><a href="Resolver.html" title="Gem::Resolver (class)">Resolver</a></span><span class='op'>::</span><span class='const'><a href="Resolver/VendorSet.html" title="Gem::Resolver::VendorSet (class)">VendorSet</a></span>.<span class='id identifier rubyid_new'><a href="Resolver/VendorSet.html#new-class_method" title="Gem::Resolver::VendorSet.new (method)">new</a></span>
       <span class='id identifier rubyid_specs'><a href="#specs-instance_method" title="Gem::RequestSet#specs (method)">specs</a></span>.<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_spec'>spec</span><span class='op'>|</span>
         <span class='id identifier rubyid_loaded'>loaded</span> <span class='op'>=</span> <span class='id identifier rubyid_vendor_set'><a href="#vendor_set-instance_method" title="Gem::RequestSet#vendor_set (method)">vendor_set</a></span>.<span class='id identifier rubyid_add_vendor_gem'>add_vendor_gem</span>(<span class='id identifier rubyid_spec'>spec</span>.<span class='id identifier rubyid_name'>name</span><span class='comma'>,</span> <span class='id identifier rubyid_source'>source</span>.<span class='id identifier rubyid_path'><a href="../Gem.html#path-class_method" title="Gem.path (method)">path</a></span>.<span class='id identifier rubyid_to_s'>to_s</span>)
+        <span class='id identifier rubyid_locked_versions'>locked_versions</span>[<span class='id identifier rubyid_spec'>spec</span>.<span class='id identifier rubyid_name'>name</span>] <span class='op'>||=</span> <span class='id identifier rubyid_loaded'>loaded</span>.<span class='id identifier rubyid_version'>version</span>
         <span class='id identifier rubyid_spec'>spec</span>.<span class='id identifier rubyid_dependencies'><a href="#dependencies-instance_method" title="Gem::RequestSet#dependencies (method)">dependencies</a></span>.<span class='id identifier rubyid_each'>each</span> {<span class='op'>|</span><span class='id identifier rubyid_dep'>dep</span><span class='op'>|</span> <span class='id identifier rubyid_loaded'>loaded</span>.<span class='id identifier rubyid_dependencies'><a href="#dependencies-instance_method" title="Gem::RequestSet#dependencies (method)">dependencies</a></span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_dep'>dep</span> }
       <span class='kw'>end</span>
       <span class='ivar'>@sets</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_vendor_set'><a href="#vendor_set-instance_method" title="Gem::RequestSet#vendor_set (method)">vendor_set</a></span>
@@ -1243,10 +1260,21 @@ dependencies file are not used.  See <a href="Installer.html" title="Gem::Instal
   <span class='kw'>end</span>
 
   <span class='id identifier rubyid_parser'>parser</span>.<span class='id identifier rubyid_dependencies'><a href="#dependencies-instance_method" title="Gem::RequestSet#dependencies (method)">dependencies</a></span>.<span class='id identifier rubyid_each_value'>each_value</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_dep'>dep</span><span class='op'>|</span>
-    <span class='id identifier rubyid_gem'><a href="#gem-instance_method" title="Gem::RequestSet#gem (method)">gem</a></span> <span class='id identifier rubyid_dep'>dep</span>.<span class='id identifier rubyid_name'>name</span><span class='comma'>,</span> <span class='op'>*</span><span class='id identifier rubyid_dep'>dep</span>.<span class='id identifier rubyid_requirement'>requirement</span>.<span class='id identifier rubyid_as_list'>as_list</span>
+    <span class='id identifier rubyid_requirements'>requirements</span> <span class='op'>=</span> <span class='id identifier rubyid_dep'>dep</span>.<span class='id identifier rubyid_requirement'>requirement</span>.<span class='id identifier rubyid_as_list'>as_list</span>
+
+    <span class='comment'># A dependency the lockfile ties to a source replaces whatever it asks
+</span>    <span class='comment'># for with the version that source resolved, the way the parser this
+</span>    <span class='comment'># replaced did. For a PATH section that is the version of the gemspec on
+</span>    <span class='comment'># disk, not the one the lockfile records.
+</span>    <span class='kw'>if</span> <span class='id identifier rubyid_dep'>dep</span>.<span class='id identifier rubyid_source'>source</span> <span class='op'>&amp;&amp;</span> (<span class='id identifier rubyid_version'>version</span> <span class='op'>=</span> <span class='id identifier rubyid_locked_versions'>locked_versions</span>[<span class='id identifier rubyid_dep'>dep</span>.<span class='id identifier rubyid_name'>name</span>])
+      <span class='id identifier rubyid_requirements'>requirements</span> <span class='op'>=</span> [<span class='id identifier rubyid_version'>version</span>]
+    <span class='kw'>end</span>
+
+    <span class='id identifier rubyid_gem'><a href="#gem-instance_method" title="Gem::RequestSet#gem (method)">gem</a></span> <span class='id identifier rubyid_dep'>dep</span>.<span class='id identifier rubyid_name'>name</span><span class='comma'>,</span> <span class='op'>*</span><span class='id identifier rubyid_requirements'>requirements</span>
   <span class='kw'>end</span>
 <span class='kw'>ensure</span>
-  <span class='const'>Bundler</span>.<span class='id identifier rubyid_instance_variable_set'>instance_variable_set</span>(<span class='symbeg'>:</span><span class='ivar'>@root</span><span class='comma'>,</span> <span class='id identifier rubyid_previous_root'>previous_root</span>) <span class='kw'>if</span> <span class='kw'>defined?</span>(<span class='id identifier rubyid_previous_root'>previous_root</span>)
+  <span class='const'>Bundler</span>.<span class='id identifier rubyid_instance_variable_set'>instance_variable_set</span>(<span class='symbeg'>:</span><span class='ivar'>@root</span><span class='comma'>,</span> <span class='id identifier rubyid_previous_root'>previous_root</span>) <span class='kw'>if</span> <span class='id identifier rubyid_root_swapped'>root_swapped</span>
+  <span class='const'>Bundler</span><span class='op'>::</span><span class='const'>Plugin</span>.<span class='id identifier rubyid_instance_variable_set'>instance_variable_set</span>(<span class='symbeg'>:</span><span class='ivar'>@gemfile_parse</span><span class='comma'>,</span> <span class='id identifier rubyid_previous_gemfile_parse'>previous_gemfile_parse</span>) <span class='kw'>if</span> <span class='id identifier rubyid_gemfile_parse_swapped'>gemfile_parse_swapped</span>
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -1260,11 +1288,11 @@ dependencies file are not used.  See <a href="Installer.html" title="Gem::Instal
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/request_set.rb#L396-L436'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/request_set.rb#L424-L464'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='396' data-end='436'></pre>
+  <pre class='lines_num' data-start='424' data-end='464'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/request_set.rb', line 396</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/request_set.rb', line 424</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_pretty_print'>pretty_print</span>(<span class='id identifier rubyid_q'>q</span>) <span class='comment'># :nodoc:
@@ -1323,11 +1351,11 @@ dependencies file are not used.  See <a href="Installer.html" title="Gem::Instal
 objects to be activated.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/request_set.rb#L442-L474'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/request_set.rb#L470-L502'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='442' data-end='474'></pre>
+  <pre class='lines_num' data-start='470' data-end='502'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/request_set.rb', line 442</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/request_set.rb', line 470</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_resolve'>resolve</span>(<span class='id identifier rubyid_set'>set</span> <span class='op'>=</span> <span class='const'><a href="../Gem.html" title="Gem (module)">Gem</a></span><span class='op'>::</span><span class='const'><a href="Resolver.html" title="Gem::Resolver (class)">Resolver</a></span><span class='op'>::</span><span class='const'><a href="Resolver/BestSet.html" title="Gem::Resolver::BestSet (class)">BestSet</a></span>.<span class='id identifier rubyid_new'><a href="Resolver/BestSet.html#new-class_method" title="Gem::Resolver::BestSet.new (method)">new</a></span>)
@@ -1378,11 +1406,11 @@ objects to be activated.</p>
 and return an Array of <a href="Specification.html" title="Gem::Specification (class)"><code>Specification</code></a> objects to be activated.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/request_set.rb#L480-L482'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/request_set.rb#L508-L510'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='480' data-end='482'></pre>
+  <pre class='lines_num' data-start='508' data-end='510'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/request_set.rb', line 480</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/request_set.rb', line 508</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_resolve_current'>resolve_current</span>
@@ -1397,11 +1425,11 @@ and return an Array of <a href="Specification.html" title="Gem::Specification (c
   <h3 class='signature '>
     #<strong>sorted_requests</strong>  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/request_set.rb#L484-L486'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/request_set.rb#L512-L514'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='484' data-end='486'></pre>
+  <pre class='lines_num' data-start='512' data-end='514'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/request_set.rb', line 484</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/request_set.rb', line 512</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_sorted_requests'>sorted_requests</span>
@@ -1416,11 +1444,11 @@ and return an Array of <a href="Specification.html" title="Gem::Specification (c
   <h3 class='signature '>
     #<strong>specs</strong>  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/request_set.rb#L488-L490'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/request_set.rb#L516-L518'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='488' data-end='490'></pre>
+  <pre class='lines_num' data-start='516' data-end='518'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/request_set.rb', line 488</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/request_set.rb', line 516</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_specs'>specs</span>
@@ -1435,11 +1463,11 @@ and return an Array of <a href="Specification.html" title="Gem::Specification (c
   <h3 class='signature '>
     #<strong>specs_in</strong>(dir)  
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/request_set.rb#L492-L496'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/request_set.rb#L520-L524'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='492' data-end='496'></pre>
+  <pre class='lines_num' data-start='520' data-end='524'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/request_set.rb', line 492</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/request_set.rb', line 520</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_specs_in'>specs_in</span>(<span class='id identifier rubyid_dir'><a href="../Gem.html#dir-class_method" title="Gem.dir (method)">dir</a></span>)
@@ -1459,11 +1487,11 @@ and return an Array of <a href="Specification.html" title="Gem::Specification (c
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/request_set.rb#L502-L519'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/request_set.rb#L530-L547'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='502' data-end='519'></pre>
+  <pre class='lines_num' data-start='530' data-end='547'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/request_set.rb', line 502</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/request_set.rb', line 530</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_tsort_each_child'>tsort_each_child</span>(<span class='id identifier rubyid_node'>node</span>) <span class='comment'># :nodoc:
@@ -1496,11 +1524,11 @@ and return an Array of <a href="Specification.html" title="Gem::Specification (c
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/request_set.rb#L498-L500'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/request_set.rb#L526-L528'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='498' data-end='500'></pre>
+  <pre class='lines_num' data-start='526' data-end='528'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/request_set.rb', line 498</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/request_set.rb', line 526</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_tsort_each_node'>tsort_each_node</span>(<span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span>) <span class='comment'># :nodoc:
