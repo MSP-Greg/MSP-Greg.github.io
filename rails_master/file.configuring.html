@@ -1781,6 +1781,30 @@ on the relation, and the model does not have any order columns (<code>implicit_o
 </tr>
 </tbody>
 </table>
+<h4 id="code_config_active_record_shuffle_unordered_selects_code_"><code>config.active_record.shuffle_unordered_selects</code></h4>
+<p>Shuffles the rows of every <code>SELECT</code> Active Record generates that has no <code>ORDER BY</code> clause.</p>
+<p>The order of such a query is not specified: the database is free to return the rows in any order, and that
+order can change when an index is added, when the data grows, or when the query planner changes its mind.
+Enabling this option makes the lack of order explicit, so code and tests that accidentally depend on the
+order a particular database happens to return today fail immediately instead of breaking later.</p>
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/environments/test.rb
+</span><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_active_record'>active_record</span>.<span class='id identifier rubyid_shuffle_unordered_selects'>shuffle_unordered_selects</span> <span class='op'>=</span> <span class='kw'>true</span></code></pre>
+<p>The order is fully random and drawn again on every execution, so a query cannot accidentally settle into an
+order that an assertion keeps passing against.</p>
+<p>The option is best effort, and two things bound what it can surface.</p>
+<p>The first is that Active Record has to recognise the query, which it does from the Arel it built. A query that
+reaches it as already-compiled SQL is left alone: SQL you wrote yourself, and association loading, <code>find</code> and
+<code>find_by</code>, which are served from a precompiled statement by <a href="ActiveRecord/StatementCache.html" title="ActiveRecord::StatementCache (class)"><code>::ActiveRecord::StatementCache</code></a>. Relations, <code>pluck</code>,
+calculations and eager loading are covered, inside a query cache block or out.</p>
+<p>The second is that rows are shuffled after the database has returned them, so the option cannot change <em>which</em>
+rows come back. Queries ending in <code>LIMIT 1</code> are unaffected — <code>find</code>, <code>find_by</code>, <code>take</code>, <code>pick</code>, <code>exists?</code>,
+<code>has_one</code> and <code>belongs_to</code> — which makes this weaker than SQLite's <code>reverse_unordered_selects</code> pragma. A query
+with an <code>ORDER BY</code> is never shuffled even when that ordering is not a total order, so ties on a non-unique
+column stay hidden. And the SQL in your log is the SQL that was sent, so replaying it by hand will not
+reproduce the order your application saw.</p>
+<p>This is a development aid intended for the test or development environments, and it is never enabled by
+<code>config.load_defaults</code>.</p>
+<p>The default value is <code>false</code>.</p>
 <h3 id="Configuring_Action_Controller">Configuring Action Controller</h3>
 <p><code>config.action_controller</code> includes a number of configuration settings:</p>
 <h4 id="code_config_action_controller_asset_host_code_"><code>config.action_controller.asset_host</code></h4>
