@@ -152,6 +152,10 @@ features.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Major</strong></p></td>
 </tr>
 <tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Changing what an existing cop reports or corrects, behind <code>Preview</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Minor</p></td>
+</tr>
+<tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Removing cops without a replacement</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Major</strong></p></td>
 </tr>
@@ -189,6 +193,145 @@ RuboCop supporting their Ruby runtime.
 Prior to RuboCop 1.0 bumps of the minor (second) version number
 were considered major releases and always included new features and/or
 changes to existing features.
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_preview">Preview</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Some changes cannot ship as a pending cop. A cop that starts reporting a case it
+used to miss, or corrects one differently, changes results for everybody who has
+that cop enabled - so historically such changes have had to wait for a major
+release, whatever their merit.</p>
+</div>
+<div class="paragraph">
+<p><code>Preview</code> is the channel for those changes. It is off by default:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-yaml" data-lang="yaml">AllCops:
+  Preview: true</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>or &lt;code&gt;--preview&lt;/code&gt; on the command line, which overrides the configuration either way
+(<code>--no-preview</code> turns it back off).</p>
+</div>
+<div class="paragraph">
+<p>It gates two things:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Behavior changes to existing cops.</strong> A cop can put an unstable change behind
+<code>preview?</code> and ship it in a minor release. Nothing changes for anyone who has
+not opted in.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_on_send'>on_send</span>(<span class='id identifier rubyid_node'>node</span>)
+  <span class='kw'>return</span> <span class='kw'>unless</span> <span class='id identifier rubyid_offense?'>offense?</span>(<span class='id identifier rubyid_node'>node</span>)
+  <span class='comment'># Reporting the safe-navigation form is new, and not everyone will agree.
+</span>  <span class='kw'>return</span> <span class='kw'>if</span> <span class='id identifier rubyid_node'>node</span>.<span class='id identifier rubyid_csend_type?'>csend_type?</span> <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='id identifier rubyid_preview?'>preview?</span>
+
+  <span class='id identifier rubyid_add_offense'>add_offense</span>(<span class='id identifier rubyid_node'>node</span>)
+<span class='kw'>end</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p><strong>Cops that are not ready to be <code>pending</code> yet</strong>, marked &lt;code&gt;Enabled: preview&lt;/code&gt;.
+Unlike pending cops, they are not reported as needing a decision - opting in is
+the whole point, so there is nothing to nag about.</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-yaml" data-lang="yaml">Style/SomethingExperimental:
+  Enabled: preview</code></pre>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_preview_or_pending">Preview or Pending?</h3>
+<div class="paragraph">
+<p>Both settings mean "not on by default", so the line between them matters:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>If we already know something should become the default, it is <code>pending</code>. That
+is a heads-up about a decision already made, which is why pending cops are
+announced: deciding early beats being surprised at the next major release.</p>
+</li>
+<li>
+<p>If we are asking users to help us find out, it is <code>preview</code>. There is no plan
+to commit to yet, so there is nothing to announce.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The intended lifecycle for a new cop is <code>preview</code> (for the brave) to <code>pending</code>
+(on for anyone with <code>NewCops: enable</code>) to enabled by default in the next major
+release. Not every cop needs the first step.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_interaction_with_other_settings">Interaction With Other Settings</h3>
+<div class="paragraph">
+<p>The two halves of preview do not answer to the same switches, which is worth
+keeping straight.</p>
+</div>
+<div class="paragraph">
+<p>A cop marked &lt;code&gt;Enabled: preview&lt;/code&gt; behaves like any other cop that is off:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>&lt;code&gt;NewCops: enable&lt;/code&gt; does not turn it on. Pending and preview are independent
+channels, and opting in to one says nothing about the other.</p>
+</li>
+<li>
+<p>&lt;code&gt;--only&lt;/code&gt; runs it by name, whether or not preview is on.</p>
+</li>
+<li>
+<p>&lt;code&gt;--enable-all-cops&lt;/code&gt;, &lt;code&gt;AllCops: EnabledByDefault&lt;/code&gt; and
+<code>AllCops: DisabledByDefault</code> rewrite the <strong>defaults</strong>, so they cover a cop that
+ships as <code>Enabled: preview</code> in RuboCop&#8217;s own configuration. An
+<code>Enabled: preview</code> you wrote in your own config is an explicit choice and wins
+over them, exactly as an explicit <code>Enabled: false</code> does.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Behavior gated behind <code>preview?</code> answers to the <code>Preview</code> setting and nothing
+else. Neither &lt;code&gt;--only&lt;/code&gt; nor &lt;code&gt;--enable-all-cops&lt;/code&gt; reaches inside a cop to switch it
+on, so a cop running under &lt;code&gt;--only&lt;/code&gt; still reports its stable behavior unless
+preview is also on.</p>
+</div>
+<div class="paragraph">
+<p>Trying preview on a project is one flag, which makes it cheap to report back on
+a change before it becomes the default:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sh" data-lang="sh">$ rubocop --preview</code></pre>
+</div>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">
+Preview behavior is unstable by definition. It can change or be withdrawn
+in any release, which is exactly what the flag buys us: a way to get a change in
+front of users early without committing to it.
 </td>
 </tr>
 </table>
