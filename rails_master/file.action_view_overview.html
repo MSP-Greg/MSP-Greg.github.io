@@ -123,18 +123,14 @@ directory. The name and the location of the file are both important.</p>
 the ERB file may reference. In the rest of this guide, you will find more
 details about each of the three components: <code>Templates</code>, <code>Partials</code>, <code>Layouts</code>.</p>
 <h2 id="Templates">Templates</h2>
-<p>Action View templates can be written in different formats. If the template file
-has a <code>.erb</code> extension, it uses embedded Ruby to build an HTML response. If the
-template has a <code>.jbuilder</code> extension, it uses the
-<a href='https://github.com/rails/jbuilder'>Jbuilder</a> gem to build a JSON response. And
-a template with a <code>.builder</code> extension uses the
-<a href='https://github.com/rails/builder'><code>Builder::XmlMarkup</code>&lt;/a&gt; library to build an XML
-response.</p>
-<p>Rails uses the file extension to distinguish among multiple template systems.
-For example, an HTML file using the ERB template system will have <code>.html.erb</code> as
-a file extension, and a JSON file using the Jbuilder template system will have
-the <code>.json.jbuilder</code> file extension. Other libraries may add other template
-types and file extensions as well.</p>
+<p>Action View templates can be written in different formats. Rails uses the file
+extension to determine the view's format and templating system.</p>
+<p>For example, a file with a <code>.html.erb</code> extension uses ERB to build an
+HTML response. <a href='https://github.com/rails/jbuilder'>Jbuilder</a> templates
+that generate JSON will have the extension <code>.json.jbuilder</code>. And an XML
+template using <a href='https://github.com/rails/builder'><code>Builder</code>&lt;/a&gt; would
+use <code>.xml.builder</code>.</p>
+<p>Other libraries may add more templating engines and formats.</p>
 <h3 id="ERB">ERB</h3>
 <p>An ERB template is a way to sprinkle Ruby code within static HTML using special
 ERB tags like <code>&lt;% %&gt;</code> and <code>&lt;%= %&gt;</code>.</p>
@@ -230,14 +226,22 @@ method within the view:</p>
 <pre class="code xml"><code class="xml">&lt;%= render &quot;product&quot; %&gt;
 </code></pre>
 <p>This will look for a file named <code>_product.html.erb</code> in the same folder to render
-within that view. Partial file names start with leading underscore character by
+within that view. If no such file exists, Rails will look for it under the
+<code>app/view/application/</code> folder. This makes <code>app/views/application/</code> a great
+place for your shared partials.</p>
+<p>NOTE: Rails doesn't automatically create <code>app/views/application/</code>. You'll
+need to create this folder yourself.</p>
+<p>NOTE: Refer to the
+<a href='file.layouts_and_rendering.html#Layouts_and_Rendering_guide'>Layouts and Rendering guide</a>
+for further information on the lookup hierarchy of partials and template.</p>
+<p>Partial file names start with leading underscore character by
 convention. The file name distinguishes partials from regular views. However, no
 underscore is used when referring to partials for rendering within a view. This
 is true even when you reference a partial from another directory:</p>
-<pre class="code xml"><code class="xml">&lt;%= render &quot;application/product&quot; %&gt;
+<pre class="code xml"><code class="xml">&lt;%= render &quot;admin/control_panel&quot; %&gt;
 </code></pre>
-<p>That code will look for and display a partial file named <code>_product.html.erb</code> in
-<code>app/views/application/</code>.</p>
+<p>That code will look for and render a partial named <code>_control_panel.html.erb</code> in
+<code>app/views/admin/</code>.</p>
 <h3 id="Using_Partials_to_Simplify_Views">Using Partials to Simplify Views</h3>
 <p>One way to use partials is to treat them as the equivalent of methods. A way to
 move details out of a view so that you can grasp what's going on more easily.
@@ -339,6 +343,9 @@ these are the only options you need to use, you can skip the keys, <code>partial
 </code></pre>
 <p>This will look for a partial named <code>_product.html.erb</code> in <code>app/views/products/</code>,
 as well as pass a local named <code>product</code> set to the value <code>@product</code>.</p>
+<p>NOTE: Under the hood, Rails calls <code>to_partial_path</code> on the model to determine
+which partial to render. You can override this method to customize the
+partial if required.</p>
 <h3 id="The_as_and_object_Options">The <code>as</code> and <code>object</code> Options</h3>
 <p>By default, objects passed to the template are in a local variable with the same
 name as the template. So, given:</p>
@@ -385,16 +392,32 @@ partial have access to the member of the collection being rendered via a
 variable named after the partial. In this case, since the partial is
 <code>_product.html.erb</code>, you can use <code>product</code> to refer to the collection member
 that is being rendered.</p>
-<p>You can also use the following conventions based shorthand syntax for rendering
-collections.</p>
+<p>When the collection you wish to render contains objects that respond
+to <code>to_partial_path</code>, such as Active Record and Active Model instances,
+you can use the following shorthand:</p>
 <pre class="code xml"><code class="xml">&lt;%= render @products %&gt;
 </code></pre>
-<p>The above assumes that <code>@products</code> is a collection of <code>Product</code> instances. Rails
-uses naming conventions to determine the name of the partial to use by looking
-at the model name in the collection, <code>Product</code> in this case. In fact, you can
-even render a collection made up of instances of different models using this
-shorthand, and Rails will choose the proper partial for each member of the
-collection.</p>
+<p>Rails determines the partial for each object by calling <code>to_partial_path</code> on it.
+Conventionally, for Active Record objects, this is the name of the model:
+<code>products/_product.html.erb</code> for <code>Product</code>.</p>
+<p>A collection can be composed of different types of objects and Rails will render
+the corresponding partial for each one.</p>
+<pre class="code xml"><code class="xml">&lt;%# customers/_customer.html.erb -%&gt;
+&lt;p&gt;Customer: &lt;%= customer.name %&gt;&lt;/p&gt;
+
+&lt;%# employees/_employee.html.erb -%&gt;
+&lt;p&gt;Employee: &lt;%= employee.name %&gt;&lt;/p&gt;
+</code></pre>
+<pre class="code xml"><code class="xml">&lt;%# index.html.erb -%&gt;
+&lt;h1&gt;Contacts&lt;/h1&gt;
+
+&lt;%# Rails will render the matching partial for customer and employee objects -%&gt;
+&lt;%= render [customer1, employee1, customer2, employee2] %&gt;
+</code></pre>
+<p>If the collection is empty, <code>render</code> will return nil so you can define a fallback.</p>
+<pre class="code xml"><code class="xml">&lt;h1&gt;Products&lt;/h1&gt;
+&lt;%= render(@products) || &quot;There are no products available.&quot; %&gt;
+</code></pre>
 <h3 id="Spacer_Templates">Spacer Templates</h3>
 <p>You can also specify a second partial to be rendered between instances of the
 main partial by using the <code>:spacer_template</code> option:</p>
@@ -402,23 +425,27 @@ main partial by using the <code>:spacer_template</code> option:</p>
 </code></pre>
 <p>Rails will render the <code>_product_ruler.html.erb</code> partial (with no data passed to
 it) between each pair of <code>_product.html.erb</code> partials.</p>
-<h3 id="Counter_Variables">Counter Variables</h3>
-<p>Rails also makes a counter variable available within a partial called by the
-collection. The variable is named after the title of the partial followed by
-<code>_counter</code>. For example, when rendering a collection <code>@products</code> the partial
-<code>_product.html.erb</code> can access the variable <code>product_counter</code>. The variable
-indexes the number of times the partial has been rendered within the enclosing
-view, starting with a value of <code>0</code> on the first render.</p>
-<pre class="code xml"><code class="xml">&lt;%# index.html.erb %&gt;
-&lt;%= render partial: &quot;product&quot;, collection: @products %&gt;
+<h3 id="Iteration_Variables">Iteration Variables</h3>
+<p>Rails injects two additional variables into each partial when rendering
+a collection: <code><object>_counter</code> and <code><object>_iteration</code>.</p>
+<pre class="code xml"><code class="xml">&lt;%# app/views/products/index.html.erb -%&gt;
+&lt;%= render @products %&gt;
+
+&lt;%# app/views/products/_product.html.erb -%&gt;
+&lt;ul&gt;
+  &lt;li&gt;Counter: &lt;%= product_counter %&gt;&lt;/li&gt;
+  &lt;li&gt;Iteration: &lt;%= product_iteration %&gt;&lt;/li&gt;
+&lt;/ul&gt;
 </code></pre>
-<pre class="code erb"><code class="erb">&lt;%# _product.html.erb %&gt;
-&lt;%= product_counter %&gt; # 0 for the first product, 1 for the second product...
-</code></pre>
-<p>This also works when the local variable name is changed using the <code>as:</code> option.
-So if you did <code>as: :item</code>, the counter variable would be <code>item_counter</code>.</p>
-<p>NOTE: When rendering collections with instances of different models, the counter variable increments for each partial, regardless of the class of the model being rendered.</p>
-<p>Note: The following two sections, <a href='#Strict_Locals'>Strict Locals</a> and <a href="#local-assigns-with-pattern-matching">Local
+<p>The <code>product_counter</code> is the index of the element being rendered within the collection.
+The <code>product_iteration</code> is an instance of
+<a href='https://api.rubyonrails.org/classes/ActionView/PartialIteration.html'><code>ActionView::PartialIteration</code>&lt;/a&gt;
+which can be used to determine if it's the first or last element in
+the collection.</p>
+<p>When using the <code>as:</code> option, these variable names will also change.
+For example, using <code>as: :item</code> will create variables
+called <code>item_counter</code> and <code>item_iteration</code>.</p>
+<p>NOTE: The following two sections, <a href='#Strict_Locals'>Strict Locals</a> and <a href="#local-assigns-with-pattern-matching">Local
 Assigns with Pattern Matching</a> are more
 advanced features of using partials, included here for completeness.</p>
 <h3 id="local_assigns_with_Pattern_Matching"><code>local_assigns</code> with Pattern Matching</h3>
@@ -476,9 +503,11 @@ enables compact partial-local default variable assignments:</p>
 </code></pre>
 <h3 id="Strict_Locals">Strict Locals</h3>
 <p>Action View partials are compiled into regular Ruby methods under the hood.
-Because it is impossible in Ruby to dynamically create local variables, every single combination of <code>locals</code> passed to
-a partial requires compiling another version:</p>
+Because it is impossible in Ruby to dynamically create local variables,
+every single combination of <code>locals</code> passed to a partial requires
+compiling another version:</p>
 <pre class="code xml"><code class="xml">&lt;%# app/views/articles/show.html.erb %&gt;
+
 &lt;%= render partial: &quot;article&quot;, layout: &quot;box&quot;, locals: { article: @article } %&gt;
 &lt;%= render partial: &quot;article&quot;, layout: &quot;box&quot;, locals: { article: @article, theme: &quot;dark&quot; } %&gt;
 </code></pre>
@@ -524,7 +553,7 @@ set in the <code>locals:</code> signature:</p>
 <span class='comment'># =&gt; ActionView::Template::Error: unknown local: :unknown_local for app/views/messages/_message.html.erb</span></code></pre>
 <p>You can allow optional local variable arguments with the double splat <code>**</code>
 operator:</p>
-<pre class="code erb"><code class="erb">&lt;%# app/views/messages/_message.html.erb %&gt;
+<pre class="code xml"><code class="xml">&lt;%# app/views/messages/_message.html.erb %&gt;
 
 &lt;%# locals: (message: &quot;Hello, world!&quot;, **attributes) -%&gt;
 &lt;%= tag.p(message, **attributes) %&gt;
@@ -538,6 +567,12 @@ operator:</p>
 exception:</p>
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_render'>render</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>messages/message</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>unknown_local:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>will raise</span><span class='tstring_end'>&quot;</span></span>
 <span class='comment'># =&gt; ActionView::Template::Error: no locals accepted for app/views/messages/_message.html.erb</span></code></pre>
+<p>WARNING: When using strict locals with collection rendering, you need to
+explicity allow the <code><object>_counter</code> and <code><object>_iteration</code> variables or
+they will not be set: <code>&lt;%# locals: (product_counter: nil, product_iteration: nil)</code>.
+The <code>nil</code> default values are needed so the partial doesn't break
+when rendered outside of collections, where these two variables will
+not be set.</p>
 <p>Action View will process the <code>locals:</code> signature in any templating engine
 that supports <code>#</code>-prefixed comments, and will read the signature from any
 line in the partial.</p>
@@ -565,7 +600,7 @@ file in <code>app/views/layouts</code> with the same base name as the controller
 example, rendering actions from the <code>ProductsController</code> class will use
 <code>app/views/layouts/products.html.erb</code>.</p>
 <p>Rails will use <code>app/views/layouts/application.html.erb</code> if a controller-specific layout does not exist.</p>
-<p>Here is an example of a simple layout in <code>application.html.erb</code> file:</p>
+<p>Here is an example of a basic layout in <code>application.html.erb</code> file:</p>
 <pre class="code xml"><code class="xml">&lt;!DOCTYPE html&gt;
 &lt;html&gt;
 &lt;head&gt;
@@ -581,7 +616,7 @@ example, rendering actions from the <code>ProductsController</code> class will u
   &lt;ul&gt;
     &lt;li&gt;&lt;%= link_to &quot;Home&quot;, root_path %&gt;&lt;/li&gt;
     &lt;li&gt;&lt;%= link_to &quot;Products&quot;, products_path %&gt;&lt;/li&gt;
-    &lt;!-- Additional navigation links here --&gt;
+    &lt;%# Additional navigation links here %&gt;
   &lt;/ul&gt;
 &lt;/nav&gt;
 
@@ -592,9 +627,142 @@ example, rendering actions from the <code>ProductsController</code> class will u
 &lt;/footer&gt;
 </code></pre>
 <p>In the above example layout, view content will be rendered in place of <code>&lt;%= yield %&gt;</code>, and surrounded by the same <code><head></code>, <code><nav></code>, and <code><footer></code> content.</p>
-<p>Rails provides more ways to assign specific layouts to individual controllers
-and actions. You can learn more about layouts in general in the <a href="layouts_and_rendering.html">Layouts and
-Rendering in Rails</a> guide.</p>
+<p>To learn more about controller-specific layouts, see the <a href="layouts_and_rendering.html#setting_layouts_in_controllers">Layouts and
+Rendering in Rails</a>
+guide.</p>
+<h3 id="Structuring_Layouts">Structuring Layouts</h3>
+<p>Layouts can provide one or more slots into which views can render content.
+They can also incorporate partials just like regular views to offer
+better structure.</p>
+<p>Slots can be defined using <code>yield</code> and [<code>content_for</code>][].</p>
+<h4 id="Understanding_yield_">Understanding <code>yield</code></h4>
+<p>Within a layout, <code>yield</code> provides the slot where content from the view
+should be inserted.</p>
+<pre class="code xml"><code class="xml">&lt;html&gt;
+  &lt;head&gt;
+  &lt;/head&gt;
+  &lt;body&gt;
+    &lt;%= yield %&gt;
+  &lt;/body&gt;
+&lt;/html&gt;
+</code></pre>
+<p>You can also create a layout with multiple yielding regions:</p>
+<pre class="code xml"><code class="xml">&lt;html&gt;
+  &lt;head&gt;
+    &lt;%= yield :head %&gt;
+  &lt;/head&gt;
+  &lt;body&gt;
+    &lt;%= yield %&gt;
+  &lt;/body&gt;
+&lt;/html&gt;
+</code></pre>
+<p>The main body of the view will always render into the unnamed <code>yield</code>. To
+render content into a named <code>yield</code>, call <code>content_for</code> with the same
+argument as the named <code>yield</code>.</p>
+<h4 id="Slotting_Content_with_content_for_">Slotting Content with <code>content_for</code></h4>
+<p>The [<code>content_for</code>][] method allows you to insert content into a named
+<code>yield</code> block in your layout. For example, consider the following layout
+and view:</p>
+<pre class="code xml"><code class="xml">&lt;html&gt;
+  &lt;head&gt;
+    &lt;title&gt;The page title&lt;/title&gt;
+  &lt;/head&gt;
+  &lt;body&gt;
+    &lt;header&gt;
+      &lt;%= yield :header %&gt;
+    &lt;/header&gt;
+
+    &lt;main&gt;
+      &lt;%= yield %&gt;
+    &lt;/main&gt;
+  &lt;/body&gt;
+&lt;/html&gt;
+</code></pre>
+<pre class="code xml"><code class="xml">&lt;% content_for :header do %&gt;
+  &lt;h1&gt;A simple page&lt;/h1&gt;
+&lt;% end %&gt;
+
+&lt;p&gt;Hello, Rails!&lt;/p&gt;
+</code></pre>
+<p>This will render out:</p>
+<pre class="code xml"><code class="xml">&lt;html&gt;
+  &lt;head&gt;
+    &lt;title&gt;The page title&lt;/title&gt;
+  &lt;/head&gt;
+  &lt;body&gt;
+    &lt;header&gt;
+      &lt;h1&gt;A simple page&lt;/h1&gt;
+    &lt;/header&gt;
+    &lt;main&gt;
+      &lt;p&gt;Hello, Rails!&lt;/p&gt;
+    &lt;/main&gt;
+  &lt;/body&gt;
+&lt;/html&gt;
+</code></pre>
+<p>You can also use <code>content_for</code> in the layout instead of <code>yield</code>, along
+with an optional check to inquire whether content for that particular
+slot was provided:</p>
+<pre class="code xml"><code class="xml">&lt;html&gt;
+  &lt;head&gt;
+    &lt;title&gt;The page title&lt;/title&gt;
+  &lt;/head&gt;
+  &lt;body&gt;
+    &lt;header&gt;
+      &lt;%= content_for :header if content_for?(:header) %&gt;
+    &lt;/header&gt;
+
+    &lt;main&gt;
+      &lt;%= yield %&gt;
+    &lt;/main&gt;
+  &lt;/body&gt;
+&lt;/html&gt;
+</code></pre>
+<p>This example is functionally equivalent to the previous one where we
+used <code>yield :head</code>.</p>
+<p>TIP: The <code>content_for</code> method is very helpful when your layout contains
+distinct regions such as sidebars and footers that should get their own
+blocks of content inserted. It's also useful for inserting page-specific
+JavaScript and CSS, context-specific <code><meta></code> elements, or any other elements
+into an otherwise generic layout.</p>
+<h4 id="Nested_Layouts">Nested Layouts</h4>
+<p>Layouts can inherit from other layouts when you need to make minor changes
+for certain controllers. Let's say your application has an <em>admin</em> area
+which displays an extra <em>admin panel</em> but the rest of the layout is
+the same.</p>
+<p>Instead of duplicating your <code>application.html.erb</code> layout with the
+addition of the admin panel, you can create an <code>admin.html.erb</code> layout
+which inherits from <code>application.html.erb</code>.</p>
+<pre class="code xml"><code class="xml">&lt;%# app/views/layouts/application.html.erb -%&gt;
+
+&lt;html&gt;
+  &lt;%# ... -%&gt;
+  &lt;body&gt;
+    &lt;header&gt;
+      &lt;nav&gt;Navigation menu items here&lt;/nav&gt;
+    &lt;/header&gt;
+
+    &lt;main&gt;
+      &lt;% if content_for(:main) -%&gt;
+        &lt;%= yield :content %&gt;
+      &lt;% else %&gt;
+        &lt;%= yield %&gt;
+      &lt;% end %&gt;
+    &lt;/main&gt;
+  &lt;/body&gt;
+&lt;/html&gt;
+</code></pre>
+<pre class="code xml"><code class="xml">&lt;%# app/views/layouts/admin.html.erb -%&gt;
+
+&lt;% content_for :main do %&gt;
+  &lt;aside&gt;Admin panel goes here&lt;/aside&gt;
+
+  &lt;%= yield %&gt;
+&lt;% end %&gt;
+
+&lt;%= render template: &quot;layouts/application&quot; %&gt;
+</code></pre>
+<p>You can then set all the controllers serving the <em>admin area</em> of the
+application to layout using <code>admin.html.erb</code>, and your view code remains DRY.</p>
 <h3 id="Partial_Layouts">Partial Layouts</h3>
 <p>Partials can have their own layouts applied to them. These layouts are different
 from those applied to a controller action, but they work in a similar fashion.</p>
