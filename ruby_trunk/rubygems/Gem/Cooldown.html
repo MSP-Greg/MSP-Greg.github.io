@@ -78,7 +78,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/cooldown.rb#L16'>lib/rubygems/cooldown.rb</a>      </td>
+      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/cooldown.rb#L19'>lib/rubygems/cooldown.rb</a>      </td>
     </tr>
   </tbody>
 </table>
@@ -93,8 +93,10 @@ published within the last N days are not considered for installation or
 update.  Versions whose publish time is unknown are never excluded, so
 sources that do not provide publish times keep working.</p>
 <p>The cooldown period comes from the <tt>--cooldown DAYS</tt> option when
-given, falling back to the <tt>:cooldown:</tt> setting in the gemrc file.
-A value of 0 disables the cooldown.</p>
+given, and 0 there disables the cooldown.  Without the option the
+<tt>:cooldown:</tt> setting in the gemrc file and Bundler's own cooldown
+setting both apply and the longer of the two wins, so a 0 in either of them
+disables nothing while the other names a period.</p>
   </div>
 </div>
 </div>
@@ -112,7 +114,7 @@ A value of 0 disables the cooldown.</p>
 away overflows the Float arithmetic behind <a href="#remaining_days-instance_method" title="Gem::Cooldown#remaining_days (method)">#remaining_days</a>.</p>
   </div>
 </div>
-    <a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/cooldown.rb#L100-L100'># File 'lib/rubygems/cooldown.rb', line 100</a>    <pre class='code ruby'><span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>\A\d{4}-</span><span class='regexp_end'>/</span></span></pre>
+    <a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/cooldown.rb#L110-L110'># File 'lib/rubygems/cooldown.rb', line 110</a>    <pre class='code ruby'><span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>\A\d{4}-</span><span class='regexp_end'>/</span></span></pre>
   </li>
   <li>
     <span id='TIME_ZONE_SUFFIX-constant' class='summary_signature priv nodoc'>TIME_ZONE_SUFFIX =</span>
@@ -123,7 +125,7 @@ away overflows the Float arithmetic behind <a href="#remaining_days-instance_met
     <p>Matches an ISO 8601 time zone designator at the end of a timestamp.</p>
   </div>
 </div>
-    <a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/cooldown.rb#L94-L94'># File 'lib/rubygems/cooldown.rb', line 94</a>    <pre class='code ruby'><span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>(?:Z|z|[+-]\d{2}(?::?\d{2})?)\z</span><span class='regexp_end'>/</span></span></pre>
+    <a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/cooldown.rb#L104-L104'># File 'lib/rubygems/cooldown.rb', line 104</a>    <pre class='code ruby'><span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>(?:Z|z|[+-]\d{2}(?::?\d{2})?)\z</span><span class='regexp_end'>/</span></span></pre>
   </li>
 </ul>
 </div>
@@ -136,7 +138,7 @@ away overflows the Float arithmetic behind <a href="#remaining_days-instance_met
       <a href="#from_options-class_method" title=".from_options (class method)">.<strong>from_options</strong>(options)  </a>
     </span>
     <div class='summary_desc'>
-      <div class='inline'><p>Creates a <code>Cooldown</code> from the command line <code>options</code>, preferring the --cooldown option over the :cooldown: gemrc setting.</p></div>
+      <div class='inline'><p>Creates a <code>Cooldown</code> from the command line <code>options</code>.</p></div>
     </div>
   </li>
   <li>
@@ -183,11 +185,20 @@ away overflows the Float arithmetic behind <a href="#remaining_days-instance_met
   </li>
   <li>
     <span class='summary_signature nodoc'>
-      <a href="#warn_invalid_days-class_method" title=".warn_invalid_days (class method)">.<strong>warn_invalid_days</strong>(value)  </a>
+      <a href="#warn_invalid_days-class_method" title=".warn_invalid_days (class method)">.<strong>warn_invalid_days</strong>(value, source)  </a>
     </span>
     <span class='nodoc note title'>Internal use only</span>
     <div class='summary_desc'>
-      <div class='inline'><p>Warns once per process that a configured cooldown value cannot be read as a non-negative integer, which leaves the cooldown disabled.</p></div>
+      <div class='inline'><p>Warns that a configured cooldown value cannot be read as a non-negative integer, so it does not apply.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature nodoc'>
+      <a href="#warn_unless_valid-class_method" title=".warn_unless_valid (class method)">.<strong>warn_unless_valid</strong>(value, source)  </a>
+    </span>
+    <span class='nodoc note title'>Internal use only</span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Returns <code>value</code>, warning first when it is configured but cannot be read as a number of days.</p></div>
     </div>
   </li>
 </ul>
@@ -236,12 +247,6 @@ away overflows the Float arithmetic behind <a href="#remaining_days-instance_met
       <div class='inline'><p>True when a gem version published at <code>created_at</code> must not be considered.</p></div>
     </div>
   </li>
-  <li>
-    <span class='summary_signature priv'>
-      <a href="#valid_days%3F-instance_method" title="#valid_days? (instance method)">#<strong>valid_days?</strong>(value)  &#x21d2; Boolean </a>
-    </span>
-    <span class='note title private'>private</span>
-  </li>
 </ul>
 </div>  <!-- instance_method_summary -->
 <h2 id='Constructor_Details' class='y_details'>Constructor Details</h2>
@@ -258,23 +263,20 @@ away overflows the Float arithmetic behind <a href="#remaining_days-instance_met
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/cooldown.rb#L30-L40'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/cooldown.rb#L43-L50'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='30' data-end='40'></pre>
+  <pre class='lines_num' data-start='43' data-end='50'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/cooldown.rb', line 30</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/cooldown.rb', line 43</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span>(<span class='id identifier rubyid_days'><a href="#days-instance_method" title="Gem::Cooldown#days (method)">days</a></span><span class='comma'>,</span> <span class='label'>now:</span> <span class='const'>Time</span>.<span class='id identifier rubyid_now'>now</span>)
-  <span class='comment'># A gemrc value is arbitrary YAML, so it can be any type at all. Anything
-</span>  <span class='comment'># that cannot be read as a non-negative integer leaves the cooldown
-</span>  <span class='comment'># disabled rather than raising out of an unrelated command.
-</span>  <span class='id identifier rubyid_valid'>valid</span> <span class='op'>=</span> <span class='id identifier rubyid_valid_days?'><a href="#valid_days%3F-instance_method" title="Gem::Cooldown#valid_days? (method)">valid_days?</a></span>(<span class='id identifier rubyid_days'><a href="#days-instance_method" title="Gem::Cooldown#days (method)">days</a></span>)
+  <span class='id identifier rubyid_invalid'>invalid</span> <span class='op'>=</span> <span class='const'><a href="../Gem.html" title="Gem (module)">Gem</a></span><span class='op'>::</span><span class='const'><a href="CooldownSettings.html" title="Gem::CooldownSettings (module)">CooldownSettings</a></span>.<span class='id identifier rubyid_invalid?'><a href="CooldownSettings.html#invalid%3F-class_method" title="Gem::CooldownSettings.invalid? (method)">invalid?</a></span>(<span class='id identifier rubyid_days'><a href="#days-instance_method" title="Gem::Cooldown#days (method)">days</a></span>)
 
-  <span class='ivar'>@days</span> <span class='op'>=</span> <span class='id identifier rubyid_valid'>valid</span> <span class='op'>?</span> <span class='id identifier rubyid_days'><a href="#days-instance_method" title="Gem::Cooldown#days (method)">days</a></span>.<span class='id identifier rubyid_to_i'>to_i</span> <span class='op'>:</span> <span class='int'>0</span>
+  <span class='ivar'>@days</span> <span class='op'>=</span> <span class='const'><a href="../Gem.html" title="Gem (module)">Gem</a></span><span class='op'>::</span><span class='const'><a href="CooldownSettings.html" title="Gem::CooldownSettings (module)">CooldownSettings</a></span>.<span class='id identifier rubyid_days'><a href="CooldownSettings.html#days-class_method" title="Gem::CooldownSettings.days (method)">days</a></span>(<span class='id identifier rubyid_days'><a href="#days-instance_method" title="Gem::Cooldown#days (method)">days</a></span>) <span class='op'>||</span> <span class='int'>0</span>
   <span class='ivar'>@now</span> <span class='op'>=</span> <span class='id identifier rubyid_now'>now</span>
 
-  <span class='const'><a href="../Gem.html" title="Gem (module)">Gem</a></span><span class='op'>::</span><span class='const'>Cooldown</span>.<span class='id identifier rubyid_warn_invalid_days'><a href="#warn_invalid_days-class_method" title="Gem::Cooldown.warn_invalid_days (method)">warn_invalid_days</a></span>(<span class='id identifier rubyid_days'><a href="#days-instance_method" title="Gem::Cooldown#days (method)">days</a></span>) <span class='kw'>unless</span> <span class='id identifier rubyid_valid'>valid</span> <span class='op'>||</span> <span class='id identifier rubyid_days'><a href="#days-instance_method" title="Gem::Cooldown#days (method)">days</a></span>.<span class='id identifier rubyid_nil?'>nil?</span>
+  <span class='const'><a href="../Gem.html" title="Gem (module)">Gem</a></span><span class='op'>::</span><span class='const'>Cooldown</span>.<span class='id identifier rubyid_warn_invalid_days'><a href="#warn_invalid_days-class_method" title="Gem::Cooldown.warn_invalid_days (method)">warn_invalid_days</a></span>(<span class='id identifier rubyid_days'><a href="#days-instance_method" title="Gem::Cooldown#days (method)">days</a></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>the cooldown setting</span><span class='tstring_end'>&quot;</span></span>) <span class='kw'>if</span> <span class='id identifier rubyid_invalid'>invalid</span>
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -288,19 +290,29 @@ away overflows the Float arithmetic behind <a href="#remaining_days-instance_met
   </h3>
 <div class='docstring'>
   <div class='discussion'>
-    <p>Creates a <code>Cooldown</code> from the command line <code>options</code>, preferring the
---cooldown option over the :cooldown: gemrc setting.</p>
+    <p>Creates a <code>Cooldown</code> from the command line <code>options</code>.  The --cooldown
+option wins outright, so <tt>--cooldown 0</tt> bypasses the cooldown
+however the two tools are configured.  Without it the :cooldown: gemrc
+setting and Bundler's cooldown setting are both read and the longer of
+the two applies, so a cooldown configured for only one of them still
+covers gem commands.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/cooldown.rb#L26-L28'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/cooldown.rb#L33-L41'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='26' data-end='28'></pre>
+  <pre class='lines_num' data-start='33' data-end='41'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/cooldown.rb', line 26</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/cooldown.rb', line 33</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_from_options'>from_options</span>(<span class='id identifier rubyid_options'>options</span>)
-  <span class='id identifier rubyid_new'><a href="#new-class_method" title="Gem::Cooldown.new (method)">new</a></span>(<span class='id identifier rubyid_options'>options</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_cooldown'>cooldown</span>] <span class='op'>||</span> <span class='const'><a href="../Gem.html" title="Gem (module)">Gem</a></span>.<span class='id identifier rubyid_configuration'><a href="../Gem.html#configuration-class_method" title="Gem.configuration (method)">configuration</a></span>.<span class='id identifier rubyid_cooldown'>cooldown</span>)
+  <span class='id identifier rubyid_days'><a href="#days-instance_method" title="Gem::Cooldown#days (method)">days</a></span> <span class='op'>=</span> <span class='id identifier rubyid_options'>options</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_cooldown'>cooldown</span>]
+  <span class='kw'>return</span> <span class='id identifier rubyid_new'><a href="#new-class_method" title="Gem::Cooldown.new (method)">new</a></span>(<span class='id identifier rubyid_days'><a href="#days-instance_method" title="Gem::Cooldown#days (method)">days</a></span>) <span class='kw'>unless</span> <span class='id identifier rubyid_days'><a href="#days-instance_method" title="Gem::Cooldown#days (method)">days</a></span>.<span class='id identifier rubyid_nil?'>nil?</span>
+
+  <span class='id identifier rubyid_require_relative'>require_relative</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>bundler_settings</span><span class='tstring_end'>&quot;</span></span>
+
+  <span class='id identifier rubyid_new'><a href="#new-class_method" title="Gem::Cooldown.new (method)">new</a></span> <span class='const'><a href="../Gem.html" title="Gem (module)">Gem</a></span><span class='op'>::</span><span class='const'><a href="CooldownSettings.html" title="Gem::CooldownSettings (module)">CooldownSettings</a></span>.<span class='id identifier rubyid_combine'><a href="CooldownSettings.html#combine-class_method" title="Gem::CooldownSettings.combine (method)">combine</a></span>(<span class='id identifier rubyid_warn_unless_valid'><a href="#warn_unless_valid-class_method" title="Gem::Cooldown.warn_unless_valid (method)">warn_unless_valid</a></span>(<span class='const'><a href="../Gem.html" title="Gem (module)">Gem</a></span>.<span class='id identifier rubyid_configuration'><a href="../Gem.html#configuration-class_method" title="Gem.configuration (method)">configuration</a></span>.<span class='id identifier rubyid_cooldown'>cooldown</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>the gemrc file</span><span class='tstring_end'>&quot;</span></span>)<span class='comma'>,</span>
+                                    <span class='id identifier rubyid_warn_unless_valid'><a href="#warn_unless_valid-class_method" title="Gem::Cooldown.warn_unless_valid (method)">warn_unless_valid</a></span>(<span class='const'><a href="../Gem.html" title="Gem (module)">Gem</a></span><span class='op'>::</span><span class='const'><a href="BundlerSettings.html" title="Gem::BundlerSettings (module)">BundlerSettings</a></span>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>cooldown</span><span class='tstring_end'>&quot;</span></span>]<span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Bundler&#39;s configuration</span><span class='tstring_end'>&quot;</span></span>))
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -319,11 +331,11 @@ completed installation or update.  <code>entries</code> are hashes with <code>:n
 name the same gem only the newest version is shown.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/cooldown.rb#L76-L91'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/cooldown.rb#L86-L101'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='76' data-end='91'></pre>
+  <pre class='lines_num' data-start='86' data-end='101'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/cooldown.rb', line 76</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/cooldown.rb', line 86</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_output_skipped_summary'>output_skipped_summary</span>(<span class='id identifier rubyid_entries'>entries</span>)
@@ -360,11 +372,11 @@ Returns nil for anything unparsable, including a year outside four
 digits, so the cooldown fails open.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/cooldown.rb#L110-L119'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/cooldown.rb#L120-L129'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='110' data-end='119'></pre>
+  <pre class='lines_num' data-start='120' data-end='129'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/cooldown.rb', line 110</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/cooldown.rb', line 120</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_parse_created_at'>parse_created_at</span>(<span class='id identifier rubyid_value'>value</span>)
@@ -389,11 +401,11 @@ digits, so the cooldown fails open.</p>
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/cooldown.rb#L151-L153'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/cooldown.rb#L170-L172'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='151' data-end='153'></pre>
+  <pre class='lines_num' data-start='170' data-end='172'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/cooldown.rb', line 151</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/cooldown.rb', line 170</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_reset_warned_invalid_days'>reset_warned_invalid_days</span> <span class='comment'># :nodoc:
@@ -411,11 +423,11 @@ digits, so the cooldown fails open.</p>
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/cooldown.rb#L133-L135'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/cooldown.rb#L143-L145'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='133' data-end='135'></pre>
+  <pre class='lines_num' data-start='143' data-end='145'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/cooldown.rb', line 133</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/cooldown.rb', line 143</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_reset_warned_missing_created_at'>reset_warned_missing_created_at</span> <span class='comment'># :nodoc:
@@ -428,33 +440,33 @@ digits, so the cooldown fails open.</p>
 
 <section class='method_details' id="warn_invalid_days-class_method">
   <h3 class='signature nodoc'>
-    .<strong>warn_invalid_days</strong>(value)  
+    .<strong>warn_invalid_days</strong>(value, source)  
   </h3>
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
 <div class='docstring'>
   <div class='discussion'>
-    <p>Warns once per process that a configured cooldown value cannot be read
-as a non-negative integer, which leaves the cooldown disabled.  The
---cooldown option is validated by the option parser; this catches the
-gemrc path.</p>
+    <p>Warns that a configured cooldown value cannot be read as a non-negative
+integer, so it does not apply.  The --cooldown option is validated by the
+option parser; this catches the config file paths.  Both the gemrc and
+Bundler settings feed one resolution, so each source gets its own warning
+rather than the first one silencing the other.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/cooldown.rb#L142-L149'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/cooldown.rb#L162-L168'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='142' data-end='149'></pre>
+  <pre class='lines_num' data-start='162' data-end='168'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/cooldown.rb', line 142</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/cooldown.rb', line 162</span></pre>
 <pre class='code ruby'>
 
-<span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_warn_invalid_days'>warn_invalid_days</span>(<span class='id identifier rubyid_value'>value</span>) <span class='comment'># :nodoc:
-</span>  <span class='kw'>return</span> <span class='kw'>if</span> <span class='ivar'>@warned_invalid_days</span>
-  <span class='ivar'>@warned_invalid_days</span> <span class='op'>=</span> <span class='kw'>true</span>
+<span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_warn_invalid_days'>warn_invalid_days</span>(<span class='id identifier rubyid_value'>value</span><span class='comma'>,</span> <span class='id identifier rubyid_source'>source</span>) <span class='comment'># :nodoc:
+</span>  <span class='ivar'>@warned_invalid_days</span> <span class='op'>||=</span> []
+  <span class='kw'>return</span> <span class='kw'>if</span> <span class='ivar'>@warned_invalid_days</span>.<span class='id identifier rubyid_include?'>include?</span>(<span class='id identifier rubyid_source'>source</span>)
+  <span class='ivar'>@warned_invalid_days</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_source'>source</span>
 
-  <span class='const'><a href="../Gem.html" title="Gem (module)">Gem</a></span><span class='op'>::</span><span class='const'><a href="DefaultUserInteraction.html" title="Gem::DefaultUserInteraction (module)">DefaultUserInteraction</a></span>.<span class='id identifier rubyid_ui'><a href="DefaultUserInteraction.html#ui-class_method" title="Gem::DefaultUserInteraction.ui (method)">ui</a></span>.<span class='id identifier rubyid_alert_warning'>alert_warning</span> \
-    <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Invalid cooldown value </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_value'>value</span>.<span class='id identifier rubyid_inspect'>inspect</span><span class='embexpr_end'>}</span><span class='tstring_content'>, so the cooldown is disabled. </span><span class='tstring_end'>&quot;</span></span> \
-    <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Expected a non-negative integer number of days.</span><span class='tstring_end'>&quot;</span></span>
+  <span class='const'><a href="../Gem.html" title="Gem (module)">Gem</a></span><span class='op'>::</span><span class='const'><a href="DefaultUserInteraction.html" title="Gem::DefaultUserInteraction (module)">DefaultUserInteraction</a></span>.<span class='id identifier rubyid_ui'><a href="DefaultUserInteraction.html#ui-class_method" title="Gem::DefaultUserInteraction.ui (method)">ui</a></span>.<span class='id identifier rubyid_alert_warning'>alert_warning</span> <span class='const'><a href="../Gem.html" title="Gem (module)">Gem</a></span><span class='op'>::</span><span class='const'><a href="CooldownSettings.html" title="Gem::CooldownSettings (module)">CooldownSettings</a></span>.<span class='id identifier rubyid_invalid_message'><a href="CooldownSettings.html#invalid_message-class_method" title="Gem::CooldownSettings.invalid_message (method)">invalid_message</a></span>(<span class='id identifier rubyid_value'>value</span><span class='comma'>,</span> <span class='id identifier rubyid_source'>source</span>)
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -471,11 +483,11 @@ gemrc path.</p>
 the cooldown cannot be applied to gems from it.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/cooldown.rb#L125-L131'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/cooldown.rb#L135-L141'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='125' data-end='131'></pre>
+  <pre class='lines_num' data-start='135' data-end='141'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/cooldown.rb', line 125</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/cooldown.rb', line 135</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_warn_missing_created_at'>warn_missing_created_at</span>(<span class='id identifier rubyid_source'>source</span>)
@@ -484,6 +496,36 @@ the cooldown cannot be applied to gems from it.</p>
 
   <span class='const'><a href="../Gem.html" title="Gem (module)">Gem</a></span><span class='op'>::</span><span class='const'><a href="DefaultUserInteraction.html" title="Gem::DefaultUserInteraction (module)">DefaultUserInteraction</a></span>.<span class='id identifier rubyid_ui'><a href="DefaultUserInteraction.html#ui-class_method" title="Gem::DefaultUserInteraction.ui (method)">ui</a></span>.<span class='id identifier rubyid_alert_warning'>alert_warning</span> \
     <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_source'>source</span>.<span class='id identifier rubyid_uri'>uri</span><span class='embexpr_end'>}</span><span class='tstring_content'> does not provide gem publish times, the cooldown period does not apply to gems from this source</span><span class='tstring_end'>&quot;</span></span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="warn_unless_valid-class_method">
+  <h3 class='signature nodoc'>
+    .<strong>warn_unless_valid</strong>(value, source)  
+  </h3>
+  <div class='note nodoc inline-block'>
+    <strong>This method is for internal use only.</strong>
+  </div><div></div>
+<div class='docstring'>
+  <div class='discussion'>
+    <p>Returns <code>value</code>, warning first when it is configured but cannot be read
+as a number of days.</p>
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/cooldown.rb#L150-L154'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='150' data-end='154'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/rubygems/cooldown.rb', line 150</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_warn_unless_valid'>warn_unless_valid</span>(<span class='id identifier rubyid_value'>value</span><span class='comma'>,</span> <span class='id identifier rubyid_source'>source</span>) <span class='comment'># :nodoc:
+</span>  <span class='id identifier rubyid_warn_invalid_days'><a href="#warn_invalid_days-class_method" title="Gem::Cooldown.warn_invalid_days (method)">warn_invalid_days</a></span>(<span class='id identifier rubyid_value'>value</span><span class='comma'>,</span> <span class='id identifier rubyid_source'>source</span>) <span class='kw'>if</span> <span class='const'><a href="../Gem.html" title="Gem (module)">Gem</a></span><span class='op'>::</span><span class='const'><a href="CooldownSettings.html" title="Gem::CooldownSettings (module)">CooldownSettings</a></span>.<span class='id identifier rubyid_invalid?'><a href="CooldownSettings.html#invalid%3F-class_method" title="Gem::CooldownSettings.invalid? (method)">invalid?</a></span>(<span class='id identifier rubyid_value'>value</span>)
+
+  <span class='id identifier rubyid_value'>value</span>
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -503,11 +545,11 @@ the cooldown cannot be applied to gems from it.</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/cooldown.rb#L45-L47'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/cooldown.rb#L55-L57'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='45' data-end='47'></pre>
+  <pre class='lines_num' data-start='55' data-end='57'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/cooldown.rb', line 45</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/cooldown.rb', line 55</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_active?'>active?</span>
@@ -527,11 +569,11 @@ the cooldown cannot be applied to gems from it.</p>
     <p>The cooldown period in days.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/cooldown.rb#L20-L20'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/cooldown.rb#L23-L23'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='20' data-end='20'></pre>
+  <pre class='lines_num' data-start='23' data-end='23'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/cooldown.rb', line 20</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/cooldown.rb', line 23</span></pre>
 <pre class='code ruby'>
 
 <span class='id identifier rubyid_attr_reader'>attr_reader</span> <span class='symbeg'>:</span><span class='id identifier rubyid_days'>days</span>
@@ -551,11 +593,11 @@ the cooldown cannot be applied to gems from it.</p>
 the cooldown period, rounded up and at least 1.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/cooldown.rb#L64-L68'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/cooldown.rb#L74-L78'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='64' data-end='68'></pre>
+  <pre class='lines_num' data-start='74' data-end='78'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/cooldown.rb', line 64</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/cooldown.rb', line 74</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_remaining_days'>remaining_days</span>(<span class='id identifier rubyid_created_at'>created_at</span>)
@@ -581,11 +623,11 @@ considered.  Versions with an unknown publish time (<code>nil</code>) are kept.<
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/cooldown.rb#L53-L58'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/cooldown.rb#L63-L68'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='53' data-end='58'></pre>
+  <pre class='lines_num' data-start='63' data-end='68'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/cooldown.rb', line 53</span></pre>
+<pre><span class='info file'># File 'lib/rubygems/cooldown.rb', line 63</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_skip?'>skip?</span>(<span class='id identifier rubyid_created_at'>created_at</span>)
@@ -593,35 +635,6 @@ considered.  Versions with an unknown publish time (<code>nil</code>) are kept.<
   <span class='kw'>return</span> <span class='kw'>false</span> <span class='kw'>unless</span> <span class='id identifier rubyid_created_at'>created_at</span>
 
   (<span class='ivar'>@now</span> <span class='op'>-</span> <span class='id identifier rubyid_created_at'>created_at</span>) <span class='op'>&lt;</span> <span class='ivar'>@days</span> <span class='op'>*</span> <span class='int'>86_400</span>
-<span class='kw'>end</span>
-</pre>
-  </div>
-</div>
-</section>
-
-<section class='method_details' id="valid_days?-instance_method">
-  <h3 class='signature priv'>
-    #<strong>valid_days?</strong>(value)  &#x21d2; <code>Boolean</code>  <span class="extras">(<span class='priv'>private</span>)</span>
-  </h3>
-<div class='docstring'>
-  <div class='discussion'>
-    
-  </div>
-</div>
-<div class='tags'>
-  
-</div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/rubygems/cooldown.rb#L157-L161'>GitHub</a>&#8202;]</span>
-<div class='source_code h'>
-  <pre class='lines_num' data-start='157' data-end='161'></pre>
-  <div class='lines_code'>
-<pre><span class='info file'># File 'lib/rubygems/cooldown.rb', line 157</span></pre>
-<pre class='code ruby'>
-
-<span class='kw'>def</span> <span class='id identifier rubyid_valid_days?'>valid_days?</span>(<span class='id identifier rubyid_value'>value</span>)
-  <span class='id identifier rubyid_days'><a href="#days-instance_method" title="Gem::Cooldown#days (method)">days</a></span> <span class='op'>=</span> <span class='const'>Integer</span>(<span class='id identifier rubyid_value'>value</span>.<span class='id identifier rubyid_to_s'>to_s</span><span class='comma'>,</span> <span class='label'>exception:</span> <span class='kw'>false</span>)
-
-  <span class='op'>!</span><span class='id identifier rubyid_days'><a href="#days-instance_method" title="Gem::Cooldown#days (method)">days</a></span>.<span class='id identifier rubyid_nil?'>nil?</span> <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='id identifier rubyid_days'><a href="#days-instance_method" title="Gem::Cooldown#days (method)">days</a></span>.<span class='id identifier rubyid_negative?'>negative?</span>
 <span class='kw'>end</span>
 </pre>
   </div>
