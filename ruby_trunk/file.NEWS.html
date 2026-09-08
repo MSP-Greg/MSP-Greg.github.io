@@ -258,7 +258,7 @@ releases.</p>
 <li>1.2.8 to [v1.2.9][ipaddr-v1.2.9]</li>
 </ul>
 </li>
-<li>json 3.0.0
+<li>json 3.0.1
 <ul>
 <li>2.18.0 to [v2.18.1][json-v2.18.1], [v2.19.0][json-v2.19.0], [v2.19.1][json-v2.19.1], [v2.19.2][json-v2.19.2], [v2.19.3][json-v2.19.3], [v2.19.4][json-v2.19.4], [v2.19.5][json-v2.19.5], [v2.19.6][json-v2.19.6], [v2.19.7][json-v2.19.7], [v2.19.8][json-v2.19.8], [v2.19.9][json-v2.19.9], [v2.20.0][json-v2.20.0], [v2.21.0][json-v2.21.0], [v2.21.2][json-v2.21.2], [v3.0.0.rc1][json-v3.0.0.rc1], [v3.0.0][json-v3.0.0]</li>
 </ul>
@@ -518,6 +518,97 @@ covers everything).</p>
 <li>
 <p><code>ObjectSpace.define_finalizer</code> on another Ractor's object raises
 <code>Ractor::IsolationError</code>.</p>
+</li>
+</ul>
+<h3 id="M_N_thread_scheduler">M:N thread scheduler</h3>
+<ul>
+<li>
+<p>The scheduler scales with the number of waiters and of Ractors, where it
+used to walk a list or take one lock for all of them:</p>
+</li>
+<li>
+<p>A timed wait sits in a hierarchical timer wheel rather than on a list
+sorted by deadline, which was inserted into by a linear scan.</p>
+</li>
+<li>
+<p>An fd stays armed in the backend between waits, instead of being added
+before each wait and removed after each wake.</p>
+</li>
+<li>
+<p>The io-wait bookkeeping is sharded by fd, rather than serialized on one
+lock across every fd.</p>
+</li>
+<li>
+<p>A timed wait on an fd rides the scheduler instead of going to a blocking
+region, which cost a native thread handoff per wait.</p>
+</li>
+<li>
+<p>A context switch, and leaving or rejoining the shared pool, no longer take
+the scheduler's global lock.</p>
+</li>
+<li>
+<p>The <code>RUBY_MN_THREADS</code> environment variable now runs from no M:N scheduling
+at all to all of it.  <code>-1</code> is new: a Ractor's threads have been M:N since
+the scheduler was added, with no way to turn that off.  <code>0</code> and <code>1</code> are
+unchanged.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>main thread</th>
+<th>the main Ractor's other threads</th>
+<th>a Ractor's threads</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-1</code></td>
+<td>1:1</td>
+<td>1:1</td>
+<td>1:1</td>
+</tr>
+<tr>
+<td><code>0</code> or unset</td>
+<td>1:1</td>
+<td>1:1</td>
+<td>M:N</td>
+</tr>
+<tr>
+<td><code>1</code></td>
+<td>1:1</td>
+<td>M:N</td>
+<td>M:N</td>
+</tr>
+<tr>
+<td><code>2</code></td>
+<td>M:N</td>
+<td>M:N</td>
+<td>M:N</td>
+</tr>
+</tbody>
+</table>
+</li>
+<li>
+<p><code>RUBY_MN_THREADS=2</code> is new.  The main thread is resumed like any other M:N
+thread rather than woken on a native thread of its own, which costs an order
+of magnitude more.  It pays off when the main thread drives the work, and
+does nothing for one that only starts other threads and waits.</p>
+<p>The main thread is then no longer bound to one OS thread, which is what the
+M:N scheduler already meant for every other thread:</p>
+</li>
+<li>
+<p>A C extension that keeps state per OS thread has to call
+<code>rb_thread_lock_native_thread()</code>.</p>
+</li>
+<li>
+<p>What must run on the process's initial thread does not work at all,
+pinning included: macOS AppKit and CFRunLoop, and hosts that embed Ruby
+and return into their own main loop.</p>
+</li>
+<li>
+<p>The OS thread name is no longer set from the Ruby thread for M:N threads:
+one native thread runs many of them over its life.  <code>Thread#name=</code> was
+already skipped for the same reason.</p>
 </li>
 </ul>
 <h2 id="JIT">JIT</h2>
