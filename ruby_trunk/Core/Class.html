@@ -101,7 +101,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2 o'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/object.c#L4165'>object.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/class.c#L1341'>class.c</a></span>
+      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/object.c#L4165'>object.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/class.c#L1342'>class.c</a></span>
       </td>
     </tr>
   </tbody>
@@ -724,6 +724,8 @@ rb_class_alloc(VALUE klass)
   <div class='discussion'>
     <p>Returns the object for which the receiver is the singleton class.</p>
 <p>Raises an <a href="TypeError.html" title="TypeError (class)"><code>::TypeError</code></a> if the class is not a singleton class.</p>
+<p>Raises a <a href="Ractor/IsolationError.html" title="Ractor::IsolationError (class)"><code>::Ractor::IsolationError</code></a> if the attached object is not shareable and
+belongs to another <a href="Ractor.html" title="Ractor (class)"><code>::Ractor</code></a>.</p>
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Foo</span><span class='semicolon'>;</span> <span class='kw'>end</span>
 
 <span class='const'>Foo</span>.<span class='id identifier rubyid_singleton_class'>singleton_class</span>.<span class='id identifier rubyid_attached_object'>attached_object</span>        <span class='comment'>#=&gt; Foo
@@ -733,11 +735,11 @@ rb_class_alloc(VALUE klass)
 </span><span class='const'><a href="NilClass.html" title="NilClass (class)">NilClass</a></span>.<span class='id identifier rubyid_attached_object'>attached_object</span>                   <span class='comment'>#=&gt; TypeError: `NilClass&#39; is not a singleton class</span></code></pre>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/class.c#L2273-L2281'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/class.c#L2277-L2296'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2273' data-end='2281'></pre>
+  <pre class='lines_num' data-start='2277' data-end='2296'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'class.c', line 2273</span></pre>
+<pre><span class='info file'># File 'class.c', line 2277</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -747,7 +749,18 @@ rb_class_attached_object(VALUE klass)
         rb_raise(rb_eTypeError, &quot;&#39;%&quot;PRIsVALUE&quot;&#39; is not a singleton class&quot;, klass);
     }
 
-    return RCLASS_ATTACHED_OBJECT(klass);
+    const VALUE obj = RCLASS_ATTACHED_OBJECT(klass);
+
+    /* A singleton class is shareable whatever it is attached to, so another Ractor can
+     * hold one attached to an unshareable object.  Returning it would share it. */
+    if (rb_objspace_foreign_object_p(obj) &amp;&amp; !RB_OBJ_SHAREABLE_P(obj)) {
+        /* No klass in the message: naming a singleton class inspects the very object we
+         * must not touch from here. */
+        rb_raise(rb_eRactorIsolationError,
+                 &quot;can not get an unshareable attached object from another Ractor&quot;);
+    }
+
+    return obj;
 }
 </pre>
   </div>
@@ -849,11 +862,11 @@ to it are dropped:</p>
 </span><span class='comment'># ...depending on whether garbage collector was run</span></code></pre>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/class.c#L2129-L2133'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/class.c#L2130-L2134'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2129' data-end='2133'></pre>
+  <pre class='lines_num' data-start='2130' data-end='2134'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'class.c', line 2129</span></pre>
+<pre><span class='info file'># File 'class.c', line 2130</span></pre>
 <pre class='code cpp'>
 
 VALUE

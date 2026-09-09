@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen' content='yes'>
+<meta name='mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Efficient Extensions &mdash; Ruby-master</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "efficient_extensions",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>Ruby-master</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Efficient Extensions&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="file_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<h1 id="Tips_for_updating_Ruby_C_extensions_for_efficiently_using_Ruby_4_VM_APIs">Tips for updating Ruby C extensions for efficiently using Ruby 4 VM APIs</h1>
+<h2 id="Why_">Why?</h2>
+<p>The Ruby VM has evolved a lot from Ruby 2 to Ruby 4. While this evolution was reflected in Ruby's C APIs, great care was taken to provide backwards compatibility. Old gems work with little change on Ruby 4, ensuring apps don't get stuck on old versions just because some dependency has not been updated.</p>
+<p>Yet, C extensions that keep using old APIs and design patterns are leaving performance and safety advances &quot;on the table&quot; not only for the extensions themselves, but also silently disabling or hindering major Ruby VM optimizations, getting in the way of GC, Ractors, observability, etc.</p>
+<p>As much as possible, C extensions should have &quot;mechanical sympathy&quot; for the Ruby VM.
+When C extensions use old APIs or do things incorrectly, Ruby needs to fall back to safer behaviors, which means the whole application runs more slowly because of those C extensions.</p>
+<h2 id="The_elephant_in_the_room">The &quot;elephant&quot; in the room</h2>
+<h3 id="Tip_Avoid_native_extensions_if_you_can_">Tip: 🟧 <em>Avoid native extensions if you can</em></h3>
+<p>Can you avoid doing the thing in native code at all? See <a href="https://railsatscale.com/2023-08-29-ruby-outperforms-c/">https://railsatscale.com/2023-08-29-ruby-outperforms-c/</a> and <a href="https://jpcamara.com/2024/12/01/speeding-up-ruby.html">https://jpcamara.com/2024/12/01/speeding-up-ruby.html</a>. Can you use<a href='https://github.com/ffi/ffi'>ffi</a> instead?</p>
+<h2 id="Arrays">Arrays</h2>
+<h3 id="Tip_Never_use_RARRAY_PTR_">Tip: 🟥 <em>Never use <code>RARRAY_PTR</code></em></h3>
+<p>Impact: <em>Slows down GC forever (while the object lives)</em></p>
+<p>Why:</p>
+<ol>
+<li>It &quot;wb unprotects&quot; the object forever. Aka object is permanently in young generation, GC always needs to scan it forever even if it's not changing</li>
+<li>The impact applies even if you only read from the array once; Ruby doesn't know it and is conservative forever</li>
+<li>You can accidentally write to a frozen array</li>
+<li>No bounds checking, you can accidentally corrupt memory</li>
+</ol>
+<p>Do instead:</p>
+<ol>
+<li>Use <code>rb_ary_entry</code> to read</li>
+<li>Use <code>rb_ary_store</code> to write</li>
+<li>If an API requires a contiguous <code>VALUE</code> pointer, use <code>RARRAY_PTR_USE</code> to keep raw-pointer access scoped</li>
+</ol>
+<h3 id="Tip_Avoid_using_RARRAY_AREF_to_read_an_array_">Tip: 🟧 <em>Avoid using <code>RARRAY_AREF</code> to read an array</em></h3>
+<p>Impact: <em>No bounds checking (unsafe)</em></p>
+<p>Why:</p>
+<ol>
+<li>Using <code>RARRAY_AREF(array, 12345)</code> will always try to read, even if array is not that long, potentially leading to subtle bugs</li>
+<li>If you call back into Ruby code while operating on an array, it's possible a different thread will get to run and update the array, so the length may change unexpectedly</li>
+</ol>
+<p>Do instead:</p>
+<ol>
+<li>Use <code>rb_ary_entry</code>, it checks the array is long enough to contain the entry requested</li>
+</ol>
+<h3 id="Tip_Use_rb_ary_store_to_write_to_an_array_">Tip: 🟩 <em>Use <code>rb_ary_store</code> to write to an array</em></h3>
+<p>Impact: <em>GC faster, and respects frozen</em></p>
+<p>Why:</p>
+<ol>
+<li>It checks if an array is frozen before writing to it</li>
+<li>It does not &quot;write barrier unprotect&quot; the object</li>
+<li>It correctly implements the (very cheap) write barrier only if needed -- and this only affects the next GC, not all GC forever</li>
+</ol>
+<h2 id="Hashes">Hashes</h2>
+<h3 id="Tip_Never_use_RHASH_TBL_">Tip: 🟥 <em>Never use <code>RHASH_TBL</code></em></h3>
+<p>Impact: <em>Slows down GC forever (while the object lives), no bounds/frozen checking</em></p>
+<p>Why:</p>
+<ol>
+<li>It &quot;wb unprotects&quot; the object forever. Aka object is permanently in young generation, GC always needs to scan it forever even if it's not changing</li>
+<li>The impact applies even if you only read from the hash once; Ruby doesn't know it and is conservative forever</li>
+</ol>
+<p>(You might recognize the points above as &quot;same downsides as <code>RARRAY_PTR</code>&quot;, but for hashes)</p>
+<ol start="3">
+<li>Forces &quot;ar table&quot; to &quot;st table&quot; conversion =&gt; Ruby has a special compact representation for small hashes and this forces the non-compact representation always</li>
+</ol>
+<p>Do instead:</p>
+<ul>
+<li>Use <code>rb_hash_...</code> functions</li>
+</ul>
+<h2 id="Strings">Strings</h2>
+<h3 id="Tip_Use_fstrings_for_repeated_long_lived_strings_">Tip: 🟩 <em>Use fstrings for repeated/long-lived strings</em></h3>
+<p>Impact: <em>Lower app memory use, faster hash lookups, slightly slower creation</em></p>
+<p>Quick detour: What are fstrings?</p>
+<ul>
+<li>TL;DR Global deduplicated frozen strings</li>
+<li>Same as <code>String#dedup</code>/<code>String#-@</code> but directly from C</li>
+</ul>
+<pre class="code ruby"><code class="ruby"><span class='const'>VALUE</span> <span class='id identifier rubyid_v1'>v1</span> <span class='op'>=</span> <span class='id identifier rubyid_rb_interned_str_cstr'>rb_interned_str_cstr</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>hello</span><span class='tstring_end'>&quot;</span></span>)<span class='semicolon'>;</span>
+<span class='const'>VALUE</span> <span class='id identifier rubyid_v2'>v2</span> <span class='op'>=</span> <span class='id identifier rubyid_rb_interned_str_cstr'>rb_interned_str_cstr</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>hello</span><span class='tstring_end'>&quot;</span></span>)<span class='semicolon'>;</span></code></pre>
+<p><code>v1 == v2</code> in C (same object!)</p>
+<p>(Very similar behavior to symbols!)</p>
+<p>Why:</p>
+<ol>
+<li>It lowers memory use since only one copy of string data is kept</li>
+<li>It speeds up hash inserts with string keys, since a non-frozen String key gets fstring-deduplicated on insert anyway -- passing an fstring avoids that extra work</li>
+</ol>
+<h2 id="Memory">Memory</h2>
+<h3 id="Tip_Use_ruby_xmalloc_ruby_xfree_ruby_x_to_manage_memory_">Tip: 🟩 <em>Use <code>ruby_xmalloc</code>/<code>ruby_xfree</code>/<code>ruby_x</code>... to manage memory</em></h3>
+<p>Impact: <em>Improved low memory handling, improved GC behavior, safer</em></p>
+<p>Why:</p>
+<ol>
+<li>Ruby will automatically GC if the app runs out of memory to try to recover</li>
+<li>Ruby will trigger GC after some amount of allocations to avoid fragmentation and high memory usage</li>
+<li>No need to error check -- it always returns memory or raises an exception directly</li>
+<li>Maybe MMTk will be able to optimize it further in the future? ;)</li>
+</ol>
+<p>(mmtk.c)</p>
+<pre class="code c"><code class="c">// Malloc
+void *
+rb_gc_impl_malloc(void *objspace_ptr, size_t size, bool gc_allowed)
+{
+    // TODO: don&#39;t use system malloc
+    return malloc(size);
+}
+</code></pre>
+<h3 id="Tip_Be_careful_about_making_objects_immortal_">Tip: 🟧 <em>Be careful about making objects &quot;immortal&quot;</em></h3>
+<p>Impact: <em>Higher memory use</em></p>
+<p>Why:</p>
+<ol>
+<li>APIs such as <code>rb_gc_register_mark_object</code> and <code>rb_define_class</code>/<code>rb_define_module</code> cause objects to become immortal -- they can never be garbage collected nor can the garbage collector move them during compaction</li>
+</ol>
+<p>Do instead (*sometimes?):</p>
+<ol>
+<li><code>rb_global_variable</code> prevents an object referenced from being garbage collected and moved, but once the variable stops pointing at the object the effect disappears</li>
+</ol>
+<h3 id="Tip_Use_sized_bulk_APIs_to_avoid_unnecessary_resizing_of_Arrays_Hashes_Strings_">Tip: 🟩 <em>Use sized/bulk APIs to avoid unnecessary resizing of Arrays, Hashes, Strings</em></h3>
+<p>When creating Arrays, Hashes, and Strings, you can often provide sizes and perform operations in bulk.</p>
+<p>Look for APIs such as:</p>
+<ul>
+<li>Arrays: <code>rb_ary_new_capa(size)</code> / <code>rb_ary_new_from_args(size, ...)</code> / <code>rb_ary_new_from_values(size, ...)</code> / <code>rb_ary_cat(...)</code></li>
+<li>Hashes: <code>rb_hash_new_capa</code> / <code>rb_hash_bulk_insert</code></li>
+<li>Strings: <code>rb_str_buf_new(capa)</code></li>
+</ul>
+<p>Impact: <em>Faster performance, reduced memory usage</em></p>
+<p>Why:</p>
+<ol>
+<li>When Ruby knows the size of objects, it can take advantage of Variable Width Allocation to find a size pool that can contain the entire object, keeping all the data together in memory and saving the overhead of extra allocations</li>
+<li>When performing mutations in bulk, Ruby can resize the object once to fit all the changes, rather than needing to incrementally grow</li>
+<li>Calling into Ruby once with all the changes is often faster than calling many times to feed each change (as there are checks that need to be done on every call, for instance)</li>
+</ol>
+<h2 id="Ractors">Ractors</h2>
+<h3 id="Tip_If_your_extension_is_Ractor_safe_remember_to_tell_Ruby_about_it_with_rb_ext_ractor_safe_">Tip: 🟩 <em>If your extension is Ractor-safe, remember to tell Ruby about it with <code>rb_ext_ractor_safe</code></em></h3>
+<p>Impact: <em>Faster performance! (Even very slightly with a single Ractor)</em></p>
+<p>Why:</p>
+<ol>
+<li>Allow Ruby app to take advantage of true parallelism</li>
+<li>When an extension doesn't declare itself Ractor-safe, Ruby wraps every method call with the equivalent of</li>
+</ol>
+<pre class="code c"><code class="c">VALUE call_cfunc(...) {
+    if (!rb_ractor_main_p()) {
+        rb_raise(rb_eRactorUnsafeError, &quot;ractor unsafe method called from not main ractor&quot;);
+    }
+    return call_original_function(...)
+}
+</code></pre>
+<p>Note: <code>rb_ext_ractor_safe(true)</code> must be called <strong>before</strong> the <code>rb_define_method</code> calls for the methods you want optimized.
+It changes the invoker used for methods defined <em>afterward</em>; calling it later does not retrofit already-defined methods.
+Whenever possible, consider doing it in the extension's <code>Init_...</code> function.</p>
+<h2 id="TypedData">TypedData</h2>
+<p>What is TypedData? It allows a Ruby object to wrap a C struct or similar native memory.</p>
+<pre class="code c"><code class="c">struct SimpleSomeStruct {
+    int internal_info;
+};
+VALUE obj = TypedData_Make_Struct(klass, struct SimpleSomeStruct, &amp;some_typed_data_type, ptr); // &lt;-- Wraps struct with Ruby object
+</code></pre>
+<p>But a TypedData object has one key very powerful feature -- it can hold <strong>references</strong> to Ruby objects. That is, you can use it to implement your own custom instance variables, arrays, hashes, etc that reference Ruby objects.</p>
+<pre class="code c"><code class="c">struct SomeStruct {
+    int internal_info;
+    VALUE some_reference; // &lt;-- Here we can keep a reference to another ruby object! Like a C &quot;instance variable&quot;
+};
+VALUE obj = ...;
+</code></pre>
+<p>BUT holding references to Ruby objects means TypedData must coordinate with the Ruby garbage collector.
+And the Ruby garbage collector has evolved quite a bit from Ruby 2 to 4 to get the most performance out of your applications, and this evolution often cannot be hidden/abstracted away from TypedData objects.
+TypedData + Ruby references is the ultimate in &quot;mechanical sympathy&quot;.</p>
+<p><strong>Running example.</strong> We'll use this <code>SomeStruct</code> as the basis for a <code>SomeClass</code> that we'll carry through the rest of the section.</p>
+<pre class="code c"><code class="c">static void some_struct_mark(void *ptr) {
+    struct SomeStruct *data = ptr;
+    rb_gc_mark(data-&gt;some_reference);   // pins the reference, see tip on `dcompact` below
+}
+
+static const rb_data_type_t some_typed_data_type = {
+    .wrap_struct_name = &quot;SomeStruct&quot;,
+    .function = {
+        .dmark = some_struct_mark,
+        .dfree = RUBY_TYPED_DEFAULT_FREE,   // = ruby_xfree
+        // .dsize omitted -- see tip on `dsize` below
+        // .dcompact omitted -- see tip on `dcompact` below
+    },
+    // .flags omitted -- see tips below
+};
+
+static VALUE some_class_set_some_reference(VALUE self, VALUE reference) {
+    struct SomeStruct *data;
+    TypedData_Get_Struct(self, struct SomeStruct, &amp;some_typed_data_type, data);
+    data-&gt;some_reference = reference;    // no write barrier -- see tip on it below
+    return reference;
+}
+</code></pre>
+<h3 id="Tip_Avoid_using_TypedData_especially_for_referencing_Ruby_objects_if_you_can_">Tip: 🟧 <em>Avoid using TypedData, especially for referencing Ruby objects if you can!</em></h3>
+<p>Impact: <em>Simplicity and correctness (sanity?)</em></p>
+<p>Why:</p>
+<ol>
+<li>As we'll see, implementing all of the TypedData features is quite complex</li>
+<li>If you can store your extension's data in a regular Ruby array or Ruby hash, consider doing that! Those are extremely optimized already!</li>
+<li>You'll be able to ignore ALL of the tips that follow!</li>
+</ol>
+<h3 id="Tip_Use_declarative_marking_">Tip: 🟩 <em>Use declarative marking</em></h3>
+<p>Impact: <em>Lower memory usage, and easier to maintain</em></p>
+<p>Why:</p>
+<ol>
+<li>GC compaction enables Ruby to move objects together, improving performance and reducing memory usage (including across forks)</li>
+<li>Declarative marking avoids having separate mark and compact functions that need to be kept in-sync</li>
+</ol>
+<p>Applied to the running example -- delete the hand-written <code>some_struct_mark</code>, declare the offsets, flip the flag:</p>
+<pre class="code c"><code class="c">RUBY_REFERENCES(some_struct_refs) = {
+    RUBY_REF_EDGE(struct SomeStruct, some_reference),
+    RUBY_REF_END,
+};
+
+static const rb_data_type_t some_typed_data_type = {
+    .wrap_struct_name = &quot;SomeStruct&quot;,
+    .function = {
+        .dmark = RUBY_REFS_LIST_PTR(some_struct_refs), // refs go in dmark, not data!
+        .dfree = RUBY_TYPED_DEFAULT_FREE,
+    },
+    .flags = RUBY_TYPED_DECL_MARKING,
+};
+</code></pre>
+<p>No <code>dmark</code> function, no <code>dcompact</code> function -- the GC walks the offset list for both marking and compaction.
+If you later add a new <code>VALUE</code> member to <code>struct SomeStruct</code>, remember to add a matching <code>RUBY_REF_EDGE</code> and that's it!</p>
+<h3 id="Tip_Always_provide_a_dcompact_function_when_referencing_Ruby_objects_">Tip: 🟥 <em>Always provide a dcompact function when referencing Ruby objects</em></h3>
+<p>(*UNLESS you're using declarative marking)</p>
+<p>Impact: <em>Pins referenced objects, preventing them from being compacted</em></p>
+<p>Why:</p>
+<ol>
+<li>A dcompact allows Ruby to still do GC compaction, even when not using declarative marking</li>
+<li>Without it, objects referenced by a TypedData object are &quot;pinned&quot; in place, unable to ever move</li>
+</ol>
+<p>Applied to the running example -- change <code>rb_gc_mark</code> to <code>rb_gc_mark_movable</code> and add a compact callback:</p>
+<pre class="code c"><code class="c">static void some_struct_mark(void *ptr) {
+    struct SomeStruct *data = ptr;
+    rb_gc_mark_movable(data-&gt;some_reference);   // was rb_gc_mark -&gt; pinned
+}
+
+static void some_struct_compact(void *ptr) {
+    struct SomeStruct *data = ptr;
+    VALUE ref = rb_gc_location(data-&gt;some_reference);
+    if (ref != data-&gt;some_reference) { // Copy-on-write friendly check, don&#39;t rewrite unless it changed
+        data-&gt;some_reference = ref;
+    }
+}
+
+static const rb_data_type_t some_typed_data_type = {
+    .wrap_struct_name = &quot;SomeStruct&quot;,
+    .function = {
+        .dmark    = some_struct_mark,
+        .dfree    = RUBY_TYPED_DEFAULT_FREE,
+        .dcompact = some_struct_compact,        // NEW
+    },
+};
+</code></pre>
+<p><code>rb_gc_location</code> returns the (possibly new) address of an object that was marked movable.
+If the object wasn't moved, it returns the same <code>VALUE</code> unchanged -- so it's always safe to assign back.</p>
+<h3 id="Tip_Do_not_use_TypedData_without_RUBY_TYPED_WB_PROTECTED_">Tip: 🟥 <em>Do not use TypedData without <code>RUBY_TYPED_WB_PROTECTED</code></em></h3>
+<p>Impact: <em>Slows down GC</em></p>
+<p>Why:</p>
+<ol>
+<li>It &quot;wb unprotects&quot; the object forever. Aka object is permanently in young generation, GC always needs to scan it forever even if it's not changing</li>
+</ol>
+<p>Do instead:</p>
+<ol>
+<li>Declare TypedData as <code>RUBY_TYPED_WB_PROTECTED</code></li>
+<li>Whenever a reference is written, you must use <code>RB_OBJ_WRITE</code> -- don't forget!</li>
+</ol>
+<p>Applied to the running example -- set the flag AND route every <code>VALUE</code> store through <code>RB_OBJ_WRITE</code>:</p>
+<pre class="code c"><code class="c">static VALUE some_class_set_some_reference(VALUE self, VALUE reference) {
+    struct SomeStruct *data;
+    TypedData_Get_Struct(self, struct SomeStruct, &amp;some_typed_data_type, data);
+    RB_OBJ_WRITE(self, &amp;data-&gt;some_reference, reference);   // was: data-&gt;some_reference = reference;
+    return reference;
+}
+
+static const rb_data_type_t some_typed_data_type = {
+    .wrap_struct_name = &quot;SomeStruct&quot;,
+    .function = { ... },
+    .flags = RUBY_TYPED_WB_PROTECTED,   // NEW
+};
+</code></pre>
+<h3 id="Tip_Implement_dsize_">Tip: 🟩 <em>Implement dsize</em></h3>
+<p>Impact: <em>Accurate memory information</em></p>
+<p>Why:</p>
+<ol>
+<li>This exposes correct memory accounting to <code>ObjectSpace</code> APIs (<code>memsize_of</code>, <code>count_objects_size</code>, <code>dump</code>, <code>dump_all</code>)</li>
+<li>Otherwise Ruby will only count the Ruby size of the object, not the C size</li>
+</ol>
+<p>Do:</p>
+<ol>
+<li>Write a dsize! ;)</li>
+</ol>
+<p>Applied to the running example -- add a size reporter:</p>
+<pre class="code c"><code class="c">static size_t some_struct_dsize(const void *ptr) {
+    return sizeof(struct SomeStruct);
+}
+
+static const rb_data_type_t some_typed_data_type = {
+    .wrap_struct_name = &quot;SomeStruct&quot;,
+    .function = {
+        .dmark = some_struct_mark,
+        .dfree = RUBY_TYPED_DEFAULT_FREE,
+        .dsize = some_struct_dsize,   // NEW
+    },
+    ...
+};
+</code></pre>
+<p>If <code>struct SomeStruct</code> later owns heap-allocated memory (e.g. malloc and the like), include their sizes in the return value too.</p>
+<h3 id="Tip_If_possible_use_RUBY_TYPED_FREE_IMMEDIATELY_">Tip: 🟧 <em>If possible, use <code>RUBY_TYPED_FREE_IMMEDIATELY</code></em></h3>
+<p>Impact: <em>Faster garbage collection and earlier memory reclamation</em></p>
+<p>Why:</p>
+<ol>
+<li>When <code>RUBY_TYPED_FREE_IMMEDIATELY</code> is set, you are &quot;promising&quot; to Ruby that it's safe to call dfree immediately, during GC. To make your function safe, you should never call into Ruby APIs (like trying to release the GVL) and ideally avoid any kind of blocking or I/O. A function that just calls xfree/free on things is one example of something free to call immediately. With this &quot;promise&quot;, Ruby is able to call the dfree immediately during object sweeping, thus freeing up the memory immediately.</li>
+<li>Without it -- that is, for a custom <code>dfree</code> callback that hasn't opted in -- Ruby keeps the object as a &quot;zombie&quot;, then needs to add it to a list of pages to finalize, then needs to do extra work to go through the page, etc... Hard to avoid in some situations. This deferred handling applies specifically to custom <code>dfree</code> functions; <code>RUBY_TYPED_DEFAULT_FREE</code> (used in our example) is already recognized and safely executed immediately during sweeping regardless of this flag, since Ruby knows in advance that it's just a plain <code>xfree</code>.</li>
+</ol>
+<p>Applied to the running example -- our <code>dfree</code> is just <code>ruby_xfree</code> (never touches the GVL, never blocks), so the flag is safe to add:</p>
+<pre class="code c"><code class="c">static const rb_data_type_t some_typed_data_type = {
+    ...
+    .flags = RUBY_TYPED_WB_PROTECTED | RUBY_TYPED_FREE_IMMEDIATELY,   // + FREE_IMMEDIATELY
+};
+</code></pre>
+<h3 id="Tip_Consider_using_RUBY_TYPED_THREAD_SAFE_FREE_">Tip: 🟧 <em>Consider using <code>RUBY_TYPED_THREAD_SAFE_FREE</code></em></h3>
+<p>Impact: <em>Faster GC when multiple Ractors are running</em></p>
+<p>Why:</p>
+<ol>
+<li><code>RUBY_TYPED_THREAD_SAFE_FREE</code> (new in Ruby 4.1) tells Ruby it's safe to call your <code>dfree</code> function from multiple Ractors in parallel, letting Ractor-local GC sweep objects of this type without deferring</li>
+<li>Without it, once more than one Ractor is running, Ruby doesn't know if it's safe to call <code>dfree</code> concurrently, so it defers freeing those objects to a later time</li>
+<li>Having no <code>dfree</code> function, or using <code>RUBY_TYPED_DEFAULT_FREE</code> (as in our running example), is already automatically safe to sweep in parallel -- this flag only matters if you have a custom <code>dfree</code></li>
+</ol>
+<p>Do make sure your <code>dfree</code> is genuinely thread-safe (doesn't mutate global/shared state) before adding this flag.</p>
+<h3 id="Tip_Consider_using_RUBY_TYPED_EMBEDDABLE_">Tip: 🟧 <em>Consider using <code>RUBY_TYPED_EMBEDDABLE</code></em></h3>
+<p>Impact: <em>Faster GC, fewer memory allocations, better code performance (trade off with complexity)</em></p>
+<p>Why:</p>
+<ol>
+<li>By embedding the struct directly inside the Ruby object, we avoid having the classic split of TypedData objects into two parts</li>
+<li>Which means the second part does not need a separate malloc -&gt; less work AND means the second part does not need a separate free -&gt; less work</li>
+<li>Which means less pointer chasing by the cpu, and better cache use (reading the object will bring the rest into the cache)</li>
+<li>Proven track record of improving performance for core types</li>
+</ol>
+<p>But be careful -- see the latest Ruby docs on <a href="https://docs.ruby-lang.org/en/master/extension_rdoc.html#appendix-g-embedded-typeddata">https://docs.ruby-lang.org/en/master/extension_rdoc.html#appendix-g-embedded-typeddata</a> and the discussion on <a href="https://bugs.ruby-lang.org/issues/21853">https://bugs.ruby-lang.org/issues/21853</a>, especially around the use of <code>RB_GC_GUARD</code>, not storing pointers to/into the C structure, how <code>dfree</code>/<code>dsize</code> need to be changed, and <code>RUBY_TYPED_FREE_IMMEDIATELY</code> being required.</p>
+<p>This is kind-of an advanced use case, so I recommend it only as an optimization for objects accessed very often, or created in large numbers. &quot;With great power comes great responsibility&quot; kinda feature.</p>
+<p>As per <a href="https://bugs.ruby-lang.org/issues/21853">https://bugs.ruby-lang.org/issues/21853</a>, this is a Ruby 4.1+ feature &quot;officially&quot;, but you can use it as far back as Ruby 3.3...
+I think? I didn't find any reason <em>not</em> to use it, do let me know if I missed it.</p>
+<p>Applied to the running example -- <code>struct SomeStruct</code> is tiny (one int + one <code>VALUE</code>), so it's a strong candidate for embedding directly in the Ruby object slot:</p>
+<pre class="code c"><code class="c">static size_t some_struct_dsize(const void *ptr) {
+    return 0; // struct now embedded in the Ruby object slot, so Ruby
+              // already accounts for its size -- report only auxiliary
+              // heap allocations here
+}
+
+static const rb_data_type_t some_typed_data_type = {
+    ...
+    .function = {
+        ...
+        .dsize = some_struct_dsize,   // CHANGED: no longer counts sizeof(struct SomeStruct)
+    },
+    .flags = RUBY_TYPED_WB_PROTECTED | RUBY_TYPED_FREE_IMMEDIATELY | RUBY_TYPED_EMBEDDABLE,
+};
+</code></pre>
+<p>Note that it requires <code>RUBY_TYPED_FREE_IMMEDIATELY</code>.</p>
+<p>Also note that <code>dsize</code> must be revisited: once the struct is embedded, its memory is already part of the Ruby object slot, so <code>dsize</code> returning <code>sizeof(struct SomeStruct)</code> (as in the earlier tip) would double-count it in <code>ObjectSpace</code> accounting. <code>dsize</code> should report only auxiliary heap allocations owned by the struct (e.g. malloc'd buffers) -- zero if there are none, as here.</p>
+<h3 id="Tip_Consider_using_mass_marking_compacting_functions_">Tip: 🟧 <em>Consider using mass marking/compacting functions</em></h3>
+<p>Ruby provides a number of &quot;mark all/compact all&quot; reference functions:</p>
+<ul>
+<li>
+<code>rb_gc_mark_locations(const VALUE *start, const VALUE *end)</code>
+<ul>
+<li>Conservatively (maybe) mark + pin everything between two pointers</li>
+</ul>
+</li>
+<li>
+<code>rb_mark_hash(struct st_table *tbl)</code>
+<ul>
+<li>For an <code>st_table</code> with <code>VALUE</code> keys and values</li>
+<li>Exact mark + pin every key and value</li>
+</ul>
+</li>
+<li>
+<code>rb_mark_set(struct st_table *tbl)</code>
+<ul>
+<li>For an <code>st_table</code> with <code>VALUE</code> keys</li>
+<li>Exact mark + pin every key</li>
+</ul>
+</li>
+<li>
+<code>rb_mark_tbl(struct st_table *tbl)</code>
+<ul>
+<li>For an <code>st_table</code> with <code>VALUE</code> values</li>
+<li>Exact mark + pin every value</li>
+<li>(Doesn't do anything with the keys)</li>
+</ul>
+</li>
+<li>
+<code>rb_mark_tbl_no_pin(struct st_table *tbl)</code>
+<ul>
+<li>For an <code>st_table</code> with <code>VALUE</code> values</li>
+<li>Exact mark + <strong>does not pin</strong> every value</li>
+<li>(Doesn't do anything with the keys)</li>
+<li>During <code>dcompact</code>, you need to update values with <code>rb_gc_location</code></li>
+<li>I advise against using <code>rb_gc_update_tbl_refs</code> as the documentation is incorrect -- see <a href="https://bugs.ruby-lang.org/issues/21993">https://bugs.ruby-lang.org/issues/21993</a></li>
+</ul>
+</li>
+</ul>
+<p>And there's a few more variants that are available but hidden:</p>
+<ul>
+<li>
+<code>rb_gc_mark_values(long n, const VALUE *values)</code>
+<ul>
+<li>Similar in spirit to <code>rb_gc_mark_locations</code> but exact mark + <strong>no pin</strong></li>
+<li><code>rb_gc_update_values(long n, VALUE *values)</code> should be used in <code>dcompact</code></li>
+</ul>
+</li>
+<li>
+<code>rb_gc_mark_vm_stack_values(long n, const VALUE *values)</code>
+<ul>
+<li>Similar in spirit to <code>rb_gc_mark_locations</code> but exact mark + <strong>pin</strong></li>
+</ul>
+</li>
+</ul>
+<p>In practice, there's a combination of:</p>
+<ul>
+<li>Kind/shape of data structure (st_table, begin/end pointers, beginning + length)</li>
+<li>Conservative (maybe) mark vs exact mark</li>
+<li>Pin vs no-pin</li>
+<li>Availability of <code>dcompact</code> counterpart</li>
+</ul>
+<p>that aren't available. Would it be useful for gems to support more?</p>
+<p>Impact: <em>Maybe (?) faster GC, simplification</em></p>
+<p>Why:</p>
+<ol>
+<li>As with any low-level vs high-level API, it's much better if you can tell Ruby &quot;I want to mark all of this&quot; vs going one by one</li>
+<li>...Although Ruby right now maps this to &quot;one-by-one&quot; so... the gain is more on expressiveness than speed (and maybe future MMTk optimization?)</li>
+</ol>
+<h3 id="Tip_Prefer_TypedData_Make_Struct_over_TypedData_Wrap_Struct_">Tip: 🟩 <em>Prefer <code>TypedData_Make_Struct</code> over <code>TypedData_Wrap_Struct</code></em></h3>
+<p>Impact: <em>Avoids memory leaks on the error path</em></p>
+<p>Why:</p>
+<ol>
+<li><code>TypedData_Wrap_Struct</code> takes a struct pointer you allocated yourself. If wrapping raises (e.g. out-of-memory when allocating the Ruby object), the struct leaks.</li>
+<li><code>TypedData_Make_Struct</code> allocates both the Ruby object and the struct as a single operation -- nothing to clean up on failure.</li>
+</ol>
+<p>Sharp edge: if struct allocation inside <code>Make_Struct</code> fails, you can end up with a Ruby object whose data pointer is <code>NULL</code>. Still usually better than the leak. Reach for <code>Wrap_Struct</code> only when you already have a pre-existing struct pointer you can't recreate.</p>
+<h3 id="Tip_Set_RUBY_TYPED_FROZEN_SHAREABLE_if_you_want_frozen_TypedData_to_cross_Ractors_">Tip: 🟧 <em>Set <code>RUBY_TYPED_FROZEN_SHAREABLE</code> if you want frozen TypedData to cross Ractors</em></h3>
+<p>Impact: <em>Allows frozen instances to be shared across Ractors without copying</em></p>
+<p>Why:</p>
+<ol>
+<li>Without the flag, <code>Ractor.make_shareable(obj)</code> raises for your type.</li>
+<li>With the flag (plus freezing + <code>Ractor.make_shareable</code>), the object can be read from any Ractor.</li>
+</ol>
+<p>Do make sure that your object and C code are able to correctly run across many Ractors with no thread safety issues.</p>
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>
