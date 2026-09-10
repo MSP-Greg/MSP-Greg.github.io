@@ -344,6 +344,48 @@ If the source ractor uses the moved object (for example, calls a method like <co
 <h2 id="Language_changes_to_limit_sharing_between_Ractors">Language changes to limit sharing between Ractors</h2>
 <p>To isolate unshareable objects across ractors, we introduced additional language semantics for multi-ractor Ruby programs.</p>
 <p>Note that when not using ractors, these additional semantics are not needed (100% compatible with Ruby 2).</p>
+<h3 id="Class_and_module_ownership">Class and module ownership</h3>
+<p>Every class/module records the Ractor that created it as its <em>owner</em>. Only the owner Ractor can modify the class/module:</p>
+<ul>
+<li>defining, removing or undefining methods, <code>alias</code>, and changing method visibility</li>
+<li><code>include</code>/<code>prepend</code> into the class/module, and refining it with <a href="Module.html#refine-instance_method" title="Module#refine (method)">Module#refine</a></li>
+<li>defining or removing constants, and registering <code>autoload</code></li>
+<li>setting instance variables of the class/module object</li>
+<li>setting and removing class variables stored in the class/module</li>
+<li><a href="Module.html#freeze-instance_method" title="Module#freeze (method)">Module#freeze</a> and <a href="Module.html#set_temporary_name-instance_method" title="Module#set_temporary_name (method)">Module#set_temporary_name</a></li>
+</ul>
+<p>Reading (calling methods, instantiating, reading constants and instance variables, subclassing, and so on) is allowed from any Ractor as before.</p>
+<p>Ownership bounds <em>who may write</em> a class/module, not <em>what readers may see</em>. Reads are not synchronized and a class modification is not atomic, so a non-owner Ractor can still observe a class/module while its owner is modifying it: after the first <code>def</code> of a <code>class ... end</code> body but before the second, or while <code>include</code>/<code>prepend</code> is rewiring the ancestor chain. What ownership guarantees is a single writer per class/module, not a consistent view for readers.</p>
+<p>That single writer is not always the class's own owner. <code>M.include(N)</code> and <code>M.prepend(N)</code> rewire the ancestor chain of every class that already includes <code>M</code>, whoever owns those classes: modifying <code>M</code> is <code>M</code>'s owner's right, and a class which includes a module created by another Ractor accepts that. So a class is written by its own owner and by the owners of the modules it includes.</p>
+<p>All classes/modules defined at boot or by code run by the main Ractor (including <code>require</code>d libraries) are owned by the main Ractor, so non-main ractors can not monkey-patch them:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'><a href="Ractor.html" title="Ractor (class)">Ractor</a></span>.<span class='id identifier rubyid_new'><a href="Ractor.html#new-class_method" title="Ractor.new (method)">new</a></span> <span class='kw'>do</span>
+  <span class='kw'>class</span> <span class='const'><a href="String.html" title="String (class)">String</a></span>            <span class='comment'># reopening itself is harmless, but...
+</span>    <span class='kw'>def</span> <span class='id identifier rubyid_foo'>foo</span><span class='semicolon'>;</span> <span class='kw'>end</span>          <span class='comment'># ...defining a method on a class created by
+</span>  <span class='kw'>end</span>                     <span class='comment'># another Ractor raises
+</span><span class='kw'>end</span>
+<span class='kw'>begin</span>
+  <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_join'>join</span>
+<span class='kw'>rescue</span> <span class='const'><a href="Ractor.html" title="Ractor (class)">Ractor</a></span><span class='op'>::</span><span class='const'><a href="Ractor/RemoteError.html" title="Ractor::RemoteError (class)">RemoteError</a></span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
+  <span class='id identifier rubyid_e'>e</span>.<span class='id identifier rubyid_cause'>cause</span>.<span class='id identifier rubyid_message'>message</span> <span class='comment'>#=&gt; &quot;can not modify String because it is created by another Ractor&quot;
+</span><span class='kw'>end</span></code></pre>
+<p>In exchange, a Ractor can fully use the classes/modules it created itself, including things which were previously allowed only on the main Ractor:</p>
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Ractor.html" title="Ractor (class)">Ractor</a></span>.<span class='id identifier rubyid_new'><a href="Ractor.html#new-class_method" title="Ractor.new (method)">new</a></span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_k'>k</span> <span class='op'>=</span> <span class='const'><a href="Class.html" title="Class (class)">Class</a></span>.<span class='id identifier rubyid_new'><a href="Class.html#new-class_method" title="Class.new (method)">new</a></span> <span class='kw'>do</span>
+    <span class='kw'>def</span> <span class='id identifier rubyid_hello'>hello</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>hello</span><span class='tstring_end'>&quot;</span></span>
+  <span class='kw'>end</span>
+  <span class='id identifier rubyid_k'>k</span>.<span class='id identifier rubyid_const_set'>const_set</span>(<span class='symbeg'>:</span><span class='const'>CONST</span><span class='comma'>,</span> [<span class='int'>1</span><span class='comma'>,</span> <span class='int'>2</span><span class='comma'>,</span> <span class='int'>3</span>])       <span class='comment'># even unshareable constant values
+</span>  <span class='id identifier rubyid_k'>k</span>.<span class='id identifier rubyid_instance_variable_set'>instance_variable_set</span>(<span class='symbeg'>:</span><span class='ivar'>@iv</span><span class='comma'>,</span> [<span class='int'>4</span><span class='comma'>,</span> <span class='int'>5</span>]) <span class='comment'># even unshareable ivar values
+</span>  <span class='id identifier rubyid_k'>k</span>.<span class='id identifier rubyid_new'>new</span>.<span class='id identifier rubyid_hello'>hello</span>
+<span class='kw'>end</span>.<span class='id identifier rubyid_value'>value</span> <span class='comment'>#=&gt; &quot;hello&quot;</span></code></pre>
+<p>Notes:</p>
+<ul>
+<li>A singleton class (and a metaclass) is owned by the owner of the object it is attached to, not by the Ractor which happened to trigger its lazy creation. So <code>def C.foo</code> is allowed exactly for the owner of <code>C</code>. A shareable object belongs to no single Ractor, so the singleton class of one is owned by the main Ractor.</li>
+<li>Classes/modules whose owner Ractor has terminated become permanently read-only for every Ractor.</li>
+<li>Since defining a constant in a class/module created by another Ractor is prohibited, a non-main Ractor can not define a top-level class name (it would write a constant into <a href="Object.html" title="Object (class)"><code>Object</code></a>). Define classes under your own namespace instead: <code>m = {Module.new;} m.const_set(:Foo, {Class.new})</code>.</li>
+<li>Copying a class/module created by another Ractor with <code>Class#dup</code>/<code>Object#clone</code> creates a copy owned by the copying Ractor; it raises <a href="Ractor/IsolationError.html" title="Ractor::IsolationError (class)"><code>::Ractor::IsolationError</code></a> if the source's constants or instance variables refer to unshareable objects.</li>
+<li><code>Ractor#send(obj, move: true)</code> hands a materialized singleton class over with its object, so the receiver can go on defining singleton methods on it. The move is refused if that singleton class holds unshareable constants or variables, which would stay reachable by the sender.</li>
+<li><code>require</code> runs on the main Ractor whichever Ractor calls it, so a library defines its classes as the main Ractor's. <code>load</code> does not: loading a file which defines a top-level name from a non-main Ractor raises <a href="Ractor/IsolationError.html" title="Ractor::IsolationError (class)"><code>::Ractor::IsolationError</code></a>, like writing that constant directly.</li>
+</ul>
 <h3 id="Global_variables">Global variables</h3>
 <p>Only the main Ractor can access global variables.</p>
 <pre class="code ruby"><code class="ruby"><span class='gvar'>$gv</span> <span class='op'>=</span> <span class='int'>1</span>
@@ -358,7 +400,7 @@ If the source ractor uses the moved object (for example, calls a method like <co
 </span><span class='kw'>end</span></code></pre>
 <p>Note that some special global variables, such as <code>$stdin</code>, <code>$stdout</code> and <code>$stderr</code> are local to each ractor. See<a href='https://bugs.ruby-lang.org/issues/17268'>[Bug <code>#17268]</a></code> for more details.</p>
 <h3 id="Instance_variables_of_shareable_objects">Instance variables of shareable objects</h3>
-<p>Instance variables of classes/modules can be accessed from non-main ractors only if their values are shareable objects.</p>
+<p>Instance variables of classes/modules can be accessed from non-owner ractors only if their values are shareable objects.</p>
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>C</span>
   <span class='ivar'>@iv</span> <span class='op'>=</span> <span class='int'>1</span>
 <span class='kw'>end</span>
@@ -368,7 +410,7 @@ If the source ractor uses the moved object (for example, calls a method like <co
      <span class='ivar'>@iv</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span>.<span class='id identifier rubyid_value'>value</span> <span class='comment'>#=&gt; 1</span></code></pre>
-<p>Otherwise, only the main Ractor can access instance variables of shareable objects.</p>
+<p>Otherwise, only the owner Ractor can access instance variables of classes/modules. Setting them is prohibited for non-owner ractors regardless of the value.</p>
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>C</span>
   <span class='ivar'>@iv</span> <span class='op'>=</span> [] <span class='comment'># unshareable object
 </span><span class='kw'>end</span>
@@ -379,14 +421,14 @@ If the source ractor uses the moved object (for example, calls a method like <co
       <span class='id identifier rubyid_p'>p</span> <span class='ivar'>@iv</span>
     <span class='kw'>rescue</span> <span class='const'><a href="Ractor.html" title="Ractor (class)">Ractor</a></span><span class='op'>::</span><span class='const'><a href="Ractor/IsolationError.html" title="Ractor::IsolationError (class)">IsolationError</a></span>
       <span class='id identifier rubyid_p'>p</span> <span class='gvar'>$!</span>.<span class='id identifier rubyid_message'>message</span>
-      <span class='comment'>#=&gt; &quot;can not get unshareable values from instance variables of classes/modules from non-main Ractors&quot;
+      <span class='comment'>#=&gt; &quot;can not get unshareable values from instance variables of classes/modules created by another Ractor (@iv from C)&quot;
 </span>    <span class='kw'>end</span>
 
     <span class='kw'>begin</span>
       <span class='ivar'>@iv</span> <span class='op'>=</span> <span class='int'>42</span>
     <span class='kw'>rescue</span> <span class='const'><a href="Ractor.html" title="Ractor (class)">Ractor</a></span><span class='op'>::</span><span class='const'><a href="Ractor/IsolationError.html" title="Ractor::IsolationError (class)">IsolationError</a></span>
       <span class='id identifier rubyid_p'>p</span> <span class='gvar'>$!</span>.<span class='id identifier rubyid_message'>message</span>
-      <span class='comment'>#=&gt; &quot;can not set instance variables of classes/modules by non-main Ractors&quot;
+      <span class='comment'>#=&gt; &quot;can not set instance variables of classes/modules created by another Ractor&quot;
 </span>    <span class='kw'>end</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span>.<span class='id identifier rubyid_join'>join</span></code></pre>
@@ -403,25 +445,29 @@ If the source ractor uses the moved object (for example, calls a method like <co
   <span class='id identifier rubyid_e'>e</span>.<span class='id identifier rubyid_cause'>cause</span>.<span class='id identifier rubyid_message'>message</span> <span class='comment'>#=&gt; can not access instance variables of shareable objects from non-main Ractors (Ractor::IsolationError)
 </span><span class='kw'>end</span></code></pre>
 <h3 id="Class_variables">Class variables</h3>
-<p>Only the main Ractor can access class variables.</p>
+<p>A class variable is shared across the whole inheritance chain, and the class it is actually stored in can change over time (a subclass's definition can be taken over by an ancestor). The Ractor that decides access is therefore the owner of the class the variable is <em>stored in</em>, not of the receiver it was looked up through. Only that Ractor can write the variable, and only that Ractor can read a value which is not shareable.</p>
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>C</span>
-  <span class='cvar'>@@cv</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>str</span><span class='tstring_end'>&#39;</span></span>
-<span class='kw'>end</span>
+  <span class='cvar'>@@cv</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>str</span><span class='tstring_end'>&#39;</span></span> <span class='comment'># unshareable object
+</span><span class='kw'>end</span>
 
-<span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'><a href="Ractor.html" title="Ractor (class)">Ractor</a></span>.<span class='id identifier rubyid_new'><a href="Ractor.html#new-class_method" title="Ractor.new (method)">new</a></span> <span class='kw'>do</span>
+<span class='const'><a href="Ractor.html" title="Ractor (class)">Ractor</a></span>.<span class='id identifier rubyid_new'><a href="Ractor.html#new-class_method" title="Ractor.new (method)">new</a></span> <span class='kw'>do</span>
   <span class='kw'>class</span> <span class='const'>C</span>
-    <span class='id identifier rubyid_p'>p</span> <span class='cvar'>@@cv</span>
+    <span class='kw'>begin</span>
+      <span class='id identifier rubyid_p'>p</span> <span class='cvar'>@@cv</span> <span class='comment'># stored in C, which is owned by the main Ractor
+</span>    <span class='kw'>rescue</span> <span class='const'><a href="Ractor.html" title="Ractor (class)">Ractor</a></span><span class='op'>::</span><span class='const'><a href="Ractor/IsolationError.html" title="Ractor::IsolationError (class)">IsolationError</a></span>
+      <span class='id identifier rubyid_p'>p</span> <span class='gvar'>$!</span>.<span class='id identifier rubyid_message'>message</span>
+      <span class='comment'>#=&gt; &quot;can not read non-shareable class variable @@cv of C, which was created by another Ractor&quot;
+</span>    <span class='kw'>end</span>
   <span class='kw'>end</span>
-<span class='kw'>end</span>
-
-
-<span class='kw'>begin</span>
-  <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_join'>join</span>
-<span class='kw'>rescue</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
-  <span class='id identifier rubyid_e'>e</span>.<span class='id identifier rubyid_class'>class</span> <span class='comment'>#=&gt; Ractor::IsolationError
-</span><span class='kw'>end</span></code></pre>
+<span class='kw'>end</span>.<span class='id identifier rubyid_join'>join</span></code></pre>
+<p>A Ractor has full use of the class variables of the classes it created itself:</p>
+<pre class="code ruby"><code class="ruby"><span class='const'><a href="Ractor.html" title="Ractor (class)">Ractor</a></span>.<span class='id identifier rubyid_new'><a href="Ractor.html#new-class_method" title="Ractor.new (method)">new</a></span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_k'>k</span> <span class='op'>=</span> <span class='const'><a href="Class.html" title="Class (class)">Class</a></span>.<span class='id identifier rubyid_new'><a href="Class.html#new-class_method" title="Class.new (method)">new</a></span>
+  <span class='id identifier rubyid_k'>k</span>.<span class='id identifier rubyid_class_variable_set'>class_variable_set</span>(<span class='symbeg'>:</span><span class='cvar'>@@count</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>not shareable</span><span class='tstring_end'>&#39;</span></span>)
+  <span class='id identifier rubyid_k'>k</span>.<span class='id identifier rubyid_class_variable_get'>class_variable_get</span>(<span class='symbeg'>:</span><span class='cvar'>@@count</span>)
+<span class='kw'>end</span>.<span class='id identifier rubyid_value'>value</span> <span class='comment'>#=&gt; &quot;not shareable&quot;</span></code></pre>
 <h3 id="Constants">Constants</h3>
-<p>Only the main Ractor can read constants which refer to an unshareable object.</p>
+<p>Only the owner Ractor of the class/module the constant is defined in can read constants which refer to an unshareable object.</p>
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>C</span>
   <span class='const'>CONST</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>str</span><span class='tstring_end'>&#39;</span></span>.<span class='id identifier rubyid_dup'>dup</span>
 <span class='kw'>end</span>
@@ -433,7 +479,7 @@ If the source ractor uses the moved object (for example, calls a method like <co
 <span class='kw'>rescue</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
   <span class='id identifier rubyid_e'>e</span>.<span class='id identifier rubyid_class'>class</span> <span class='comment'>#=&gt; Ractor::IsolationError
 </span><span class='kw'>end</span></code></pre>
-<p>Only the main Ractor can define constants which refer to an unshareable object.</p>
+<p>Defining constants in a class/module created by another Ractor is prohibited, regardless of the value. The owner can define constants with any values, but constants which refer to unshareable objects can only be read back by the owner.</p>
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>C</span>
 <span class='kw'>end</span>
 <span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'><a href="Ractor.html" title="Ractor (class)">Ractor</a></span>.<span class='id identifier rubyid_new'><a href="Ractor.html#new-class_method" title="Ractor.new (method)">new</a></span> <span class='kw'>do</span>
