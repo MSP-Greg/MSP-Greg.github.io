@@ -199,6 +199,11 @@ never called.</span></code></pre>
 <pre class="code ruby"><code class="ruby"><span class='op'>*</span> <span class='backtick'>`</span><span class='tstring_content'>Symbol#to_s</span><span class='tstring_end'>`</span></span> <span class='id identifier rubyid_now'>now</span> <span class='id identifier rubyid_returns'>returns</span> <span class='id identifier rubyid_a'>a</span> <span class='id identifier rubyid_frozen'>frozen</span> <span class='id identifier rubyid_string'>string</span>. [[<span class='const'>Feature</span> <span class='comment'>#22137]]</span></code></pre>
 </li>
 <li>
+<p>Thread</p>
+<pre class="code ruby"><code class="ruby"><span class='op'>*</span> <span class='const'>Assigning</span> <span class='backtick'>`</span><span class='tstring_content'>nil</span><span class='tstring_end'>`</span></span> <span class='id identifier rubyid_with'>with</span> <span class='backtick'>`</span><span class='tstring_content'>Thread#thread_variable_set</span><span class='tstring_end'>`</span></span> <span class='id identifier rubyid_now'>now</span> <span class='id identifier rubyid_deletes'>deletes</span> <span class='id identifier rubyid_the'>the</span>
+<span class='id identifier rubyid_thread'>thread</span><span class='op'>-</span><span class='id identifier rubyid_local'>local</span> <span class='id identifier rubyid_variable'>variable</span>. [[<span class='const'>Feature</span> <span class='comment'>#19333]]</span></code></pre>
+</li>
+<li>
 <p><code>Thread::Backtrace::Location</code></p>
 <pre class="code ruby"><code class="ruby"><span class='op'>*</span> <span class='backtick'>`</span><span class='tstring_content'>Thread::Backtrace::Location#source_range</span><span class='tstring_end'>`</span></span> <span class='id identifier rubyid_is'>is</span> <span class='id identifier rubyid_added'>added</span>. <span class='const'>It</span> <span class='id identifier rubyid_returns'>returns</span> <span class='id identifier rubyid_a'>a</span>
 <span class='backtick'>`</span><span class='tstring_content'>Ruby::SourceRange</span><span class='tstring_end'>`</span></span> <span class='kw'>for</span> <span class='id identifier rubyid_the'>the</span> <span class='const'>Ruby</span> <span class='id identifier rubyid_expression'>expression</span> <span class='id identifier rubyid_associated'>associated</span> <span class='id identifier rubyid_with'>with</span> <span class='id identifier rubyid_the'>the</span> <span class='id identifier rubyid_frame'>frame</span>.</code></pre>
@@ -255,6 +260,7 @@ releases.</p>
 <li>0.8.2 to [v0.9.0][io-console-v0.9.0], [v0.9.1][io-console-v0.9.1], [v0.9.2][io-console-v0.9.2]</li>
 </ul>
 </li>
+<li>io-wait 999.999.999</li>
 <li>ipaddr 1.2.9
 <ul>
 <li>1.2.8 to [v1.2.9][ipaddr-v1.2.9]</li>
@@ -338,7 +344,7 @@ releases.</p>
 </li>
 <li>net-imap 0.6.7
 <ul>
-<li>0.6.2 to [v0.6.3][net-imap-v0.6.3], [v0.6.4][net-imap-v0.6.4], [v0.6.4.1][net-imap-v0.6.4.1], [v0.6.5][net-imap-v0.6.5], [v0.6.6][net-imap-v0.6.6]</li>
+<li>0.6.2 to [v0.6.3][net-imap-v0.6.3], [v0.6.4][net-imap-v0.6.4], [v0.6.4.1][net-imap-v0.6.4.1], [v0.6.5][net-imap-v0.6.5], [v0.6.6][net-imap-v0.6.6], [v0.6.7][net-imap-v0.6.7]</li>
 </ul>
 </li>
 <li>rbs 4.2.0
@@ -348,7 +354,7 @@ releases.</p>
 </li>
 <li>typeprof 0.33.1</li>
 <li>mutex_m 0.3.0</li>
-<li>bigdecimal 4.1.2
+<li>bigdecimal 4.1.3
 <ul>
 <li>4.0.1 to [v4.1.0][bigdecimal-v4.1.0], [v4.1.1][bigdecimal-v4.1.1], [v4.1.2][bigdecimal-v4.1.2]</li>
 </ul>
@@ -552,6 +558,26 @@ covers everything).</p>
 <li>
 <p><code>ObjectSpace.define_finalizer</code> on another Ractor's object raises
 <code>Ractor::IsolationError</code>.</p>
+</li>
+<li>
+<p><code>Ractor#monitor</code> now sends an Array naming the Ractor and what happened to
+it, <code>[ractor, :exited]</code> or <code>[ractor, :aborted]</code>, where it used to send the
+bare Symbol <code>:exited</code> or <code>:aborted</code>.  Several Ractors can then report to one
+port and the receiver still knows which one finished.  The Array is built for
+the receiving Ractor, so watching many Ractors leaves no shareable objects
+behind.</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_r'>r</span> <span class='op'>=</span> <span class='const'>Ractor</span>.<span class='id identifier rubyid_new'>new</span> { <span class='symbeg'>:</span><span class='id identifier rubyid_ok'>ok</span> }
+<span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_monitor'>monitor</span>(<span class='id identifier rubyid_port'>port</span> <span class='op'>=</span> <span class='const'>Ractor</span><span class='op'>::</span><span class='const'>Port</span>.<span class='id identifier rubyid_new'>new</span>)
+<span class='id identifier rubyid_port'>port</span>.<span class='id identifier rubyid_receive'>receive</span> <span class='comment'>#=&gt; [r, :exited]</span></code></pre>
+<p>One port can therefore watch a whole group, which is all a supervisor
+needs:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_workers'>workers</span>.<span class='id identifier rubyid_each'>each</span> { <span class='op'>|</span><span class='id identifier rubyid_r'>r</span><span class='op'>|</span> <span class='id identifier rubyid_r'>r</span>.<span class='id identifier rubyid_monitor'>monitor</span> <span class='id identifier rubyid_port'>port</span> }
+
+<span class='kw'>until</span> <span class='id identifier rubyid_workers'>workers</span>.<span class='id identifier rubyid_empty?'>empty?</span>
+  <span class='id identifier rubyid_r'>r</span><span class='comma'>,</span> <span class='id identifier rubyid_status'>status</span> <span class='op'>=</span> <span class='id identifier rubyid_port'>port</span>.<span class='id identifier rubyid_receive'>receive</span>
+  <span class='id identifier rubyid_workers'>workers</span>.<span class='id identifier rubyid_delete'>delete</span>(<span class='id identifier rubyid_r'>r</span>)
+  <span class='id identifier rubyid_workers'>workers</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_restart'>restart</span>(<span class='id identifier rubyid_r'>r</span>) <span class='kw'>if</span> <span class='id identifier rubyid_status'>status</span> <span class='op'>==</span> <span class='symbeg'>:</span><span class='id identifier rubyid_aborted'>aborted</span>
+<span class='kw'>end</span></code></pre>
 </li>
 </ul>
 <h3 id="M_N_thread_scheduler">M:N thread scheduler</h3>
@@ -762,6 +788,7 @@ already skipped for the same reason.</p>
 [net-imap-v0.6.4.1]: <a href="https://github.com/ruby/net-imap/releases/tag/v0.6.4.1">https://github.com/ruby/net-imap/releases/tag/v0.6.4.1</a>
 [net-imap-v0.6.5]: <a href="https://github.com/ruby/net-imap/releases/tag/v0.6.5">https://github.com/ruby/net-imap/releases/tag/v0.6.5</a>
 [net-imap-v0.6.6]: <a href="https://github.com/ruby/net-imap/releases/tag/v0.6.6">https://github.com/ruby/net-imap/releases/tag/v0.6.6</a>
+[net-imap-v0.6.7]: <a href="https://github.com/ruby/net-imap/releases/tag/v0.6.7">https://github.com/ruby/net-imap/releases/tag/v0.6.7</a>
 [rbs-v3.10.1]: <a href="https://github.com/ruby/rbs/releases/tag/v3.10.1">https://github.com/ruby/rbs/releases/tag/v3.10.1</a>
 [rbs-v3.10.2]: <a href="https://github.com/ruby/rbs/releases/tag/v3.10.2">https://github.com/ruby/rbs/releases/tag/v3.10.2</a>
 [rbs-v3.10.3]: <a href="https://github.com/ruby/rbs/releases/tag/v3.10.3">https://github.com/ruby/rbs/releases/tag/v3.10.3</a>
