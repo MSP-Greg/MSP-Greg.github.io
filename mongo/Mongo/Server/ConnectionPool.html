@@ -350,6 +350,15 @@ thus anything over 15 seconds is potentially dangerous.</p>
   </li>
   <li>
     <span class='summary_signature '>
+      <a href="#check_in_if_checked_out-instance_method" title="#check_in_if_checked_out (instance method)">#<strong>check_in_if_checked_out</strong>(connection)  </a>
+    </span>
+    <span class='nodoc note title'>Internal use only</span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Check a connection back into the pool only if this pool still holds it as checked out and no other owner has claimed it.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
       <a href="#check_out-instance_method" title="#check_out (instance method)">#<strong>check_out</strong>(connection_global_id: nil, context: nil)  &#x21d2; Mongo::Server::Connection </a>
     </span>
     <div class='summary_desc'>
@@ -529,6 +538,15 @@ thus anything over 15 seconds is potentially dangerous.</p>
     </span>
     <div class='summary_desc'>
       <div class='inline'><p>Yield the block to a connection, while handling check in/check out logic.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
+      <a href="#with_cursor_connection-instance_method" title="#with_cursor_connection (instance method)">#<strong>with_cursor_connection</strong>(context:)  &#x21d2; Object </a>
+    </span>
+    <span class='nodoc note title'>Internal use only</span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Check out a connection for the initial command of a cursor-returning operation in load-balanced topology and yield it to the block.</p></div>
     </div>
   </li>
   <li>
@@ -1044,11 +1062,11 @@ close.</p></div>        </li>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L854-L870'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L905-L921'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='854' data-end='870'></pre>
+  <pre class='lines_num' data-start='905' data-end='921'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 854</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 905</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_finalize'>finalize</span>(<span class='id identifier rubyid_available_connections'>available_connections</span><span class='comma'>,</span> <span class='id identifier rubyid_pending_connections'>pending_connections</span><span class='comma'>,</span> <span class='id identifier rubyid__populator'>_populator</span>)
@@ -1502,6 +1520,61 @@ to wake up the populator</p>
 </div>
 </section>
 
+<section class='method_details' id="check_in_if_checked_out-instance_method">
+  <h3 class='signature '>
+    #<strong>check_in_if_checked_out</strong>(connection)  
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    <p>Check a connection back into the pool only if this pool still holds
+it as checked out and no other owner has claimed it.</p>
+<p>Unlike #check_in, this method is safe to call when the connection may
+have been checked in already (e.g. by Session#unpin while handling a
+transient transaction error) or may be pinned to a transaction or
+cursor that will check it in later; in both cases it does nothing.</p>
+  </div>
+</div>
+<div class='tags'>
+  <p class='tag_title'>Parameters:</p>
+<ul class='param'>
+  <li>
+    <span class='name'>connection</span>
+    <span class='type'>(<a href="Connection.html" title="Mongo::Server::Connection (class)">Mongo::Server::Connection</a>)</span>
+&mdash;    <div class='inline'><p>The connection.</p></div>
+  </li>
+</ul>
+<p class='tag_title'>Since:</p>
+<ul class='since'>
+  <li>
+    <div class='inline'><p>2.0.0, largely rewritten in 2.9.0</p></div>
+  </li>
+</ul>
+
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L446-L457'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='446' data-end='457'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 446</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_check_in_if_checked_out'>check_in_if_checked_out</span>(<span class='id identifier rubyid_connection'>connection</span>)
+  <span class='id identifier rubyid_check_invariants'><a href="#check_invariants-instance_method" title="Mongo::Server::ConnectionPool#check_invariants (method)">check_invariants</a></span>
+
+  <span class='ivar'>@lock</span>.<span class='id identifier rubyid_synchronize'>synchronize</span> <span class='kw'>do</span>
+    <span class='kw'>return</span> <span class='kw'>if</span> <span class='id identifier rubyid_connection'>connection</span>.<span class='id identifier rubyid_pinned?'>pinned?</span>
+    <span class='kw'>return</span> <span class='kw'>unless</span> <span class='ivar'>@checked_out_connections</span>.<span class='id identifier rubyid_include?'>include?</span>(<span class='id identifier rubyid_connection'>connection</span>)
+
+    <span class='id identifier rubyid_do_check_in'><a href="#do_check_in-instance_method" title="Mongo::Server::ConnectionPool#do_check_in (method)">do_check_in</a></span>(<span class='id identifier rubyid_connection'>connection</span>)
+  <span class='kw'>end</span>
+<span class='kw'>ensure</span>
+  <span class='id identifier rubyid_check_invariants'><a href="#check_invariants-instance_method" title="Mongo::Server::ConnectionPool#check_invariants (method)">check_invariants</a></span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
 <section class='method_details' id="check_invariants-instance_method">
   <h3 class='signature priv'>
     #<strong>check_invariants</strong>   <span class="extras">(<span class='priv'>private</span>)</span>
@@ -1520,11 +1593,11 @@ to wake up the populator</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1072-L1092'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1123-L1143'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1072' data-end='1092'></pre>
+  <pre class='lines_num' data-start='1123' data-end='1143'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1072</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1123</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_check_invariants'>check_invariants</span>
@@ -1763,11 +1836,11 @@ the specified service id only.</p></div>        </li>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L545-L553'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L569-L577'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='545' data-end='553'></pre>
+  <pre class='lines_num' data-start='569' data-end='577'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 545</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 569</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_clear'>clear</span>(<span class='id identifier rubyid_options'><a href="#options-instance_method" title="Mongo::Server::ConnectionPool#options (method)">options</a></span> <span class='op'>=</span> <span class='kw'>nil</span>)
@@ -1802,11 +1875,11 @@ the specified service id only.</p></div>        </li>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1134-L1140'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1185-L1191'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1134' data-end='1140'></pre>
+  <pre class='lines_num' data-start='1185' data-end='1191'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1134</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1185</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_clear_pending_connections'>clear_pending_connections</span>
@@ -1872,11 +1945,11 @@ only. Whether or not to mark the pool as closed.</p></div>        </li>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L667-L705'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L691-L729'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='667' data-end='705'></pre>
+  <pre class='lines_num' data-start='691' data-end='729'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 667</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 691</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_close'>close</span>(<span class='id identifier rubyid_options'><a href="#options-instance_method" title="Mongo::Server::ConnectionPool#options (method)">options</a></span> <span class='op'>=</span> <span class='kw'>nil</span>)
@@ -1954,11 +2027,11 @@ only. Whether or not to mark the pool as closed.</p></div>        </li>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1098-L1120'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1149-L1171'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1098' data-end='1120'></pre>
+  <pre class='lines_num' data-start='1149' data-end='1171'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1098</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1149</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_close_available_connections'>close_available_connections</span>(<span class='id identifier rubyid_service_id'>service_id</span>)
@@ -2008,11 +2081,11 @@ if the option is set.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L777-L794'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L828-L845'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='777' data-end='794'></pre>
+  <pre class='lines_num' data-start='828' data-end='845'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 777</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 828</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_close_idle_sockets'>close_idle_sockets</span>
@@ -2057,11 +2130,11 @@ encountered, closes the connection and raises the error.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1045-L1070'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1096-L1121'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1045' data-end='1070'></pre>
+  <pre class='lines_num' data-start='1096' data-end='1121'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1045</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1096</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_connect_connection'>connect_connection</span>(<span class='id identifier rubyid_connection'>connection</span><span class='comma'>,</span> <span class='id identifier rubyid_context'>context</span> <span class='op'>=</span> <span class='kw'>nil</span>)
@@ -2116,11 +2189,11 @@ and condition variables are updated.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1441-L1458'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1492-L1509'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1441' data-end='1458'></pre>
+  <pre class='lines_num' data-start='1492' data-end='1509'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1441</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1492</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_connect_or_raise'>connect_or_raise</span>(<span class='id identifier rubyid_connection'>connection</span><span class='comma'>,</span> <span class='id identifier rubyid_context'>context</span>)
@@ -2179,11 +2252,11 @@ and condition variables are updated.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1010-L1013'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1061-L1064'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1010' data-end='1013'></pre>
+  <pre class='lines_num' data-start='1061' data-end='1064'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1010</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1061</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_connection_stale_unlocked?'>connection_stale_unlocked?</span>(<span class='id identifier rubyid_connection'>connection</span>)
@@ -2229,11 +2302,11 @@ added to the pool, false otherwise</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L925-L961'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L976-L1012'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='925' data-end='961'></pre>
+  <pre class='lines_num' data-start='976' data-end='1012'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 925</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 976</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_create_and_add_connection'>create_and_add_connection</span>
@@ -2296,11 +2369,11 @@ added to the pool, false otherwise</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L907-L917'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L958-L968'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='907' data-end='917'></pre>
+  <pre class='lines_num' data-start='958' data-end='968'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 907</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 958</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_create_connection'>create_connection</span>
@@ -2338,11 +2411,11 @@ variables that the number of unavailable connections has decreased.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1462-L1466'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1513-L1517'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1462' data-end='1466'></pre>
+  <pre class='lines_num' data-start='1513' data-end='1517'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1462</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1513</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_decrement_connection_requests_and_signal'>decrement_connection_requests_and_signal</span>
@@ -2375,11 +2448,11 @@ this method does nothing but <a href="#clear-instance_method" title="Mongo::Serv
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L562-L568'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L586-L592'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='562' data-end='568'></pre>
+  <pre class='lines_num' data-start='586' data-end='592'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 562</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 586</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_disconnect!'>disconnect!</span>(<span class='id identifier rubyid_options'><a href="#options-instance_method" title="Mongo::Server::ConnectionPool#options (method)">options</a></span> <span class='op'>=</span> <span class='kw'>nil</span>)
@@ -2420,11 +2493,11 @@ this method does nothing but <a href="#clear-instance_method" title="Mongo::Serv
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L438-L500'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L462-L524'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='438' data-end='500'></pre>
+  <pre class='lines_num' data-start='462' data-end='524'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 438</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 462</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_do_check_in'>do_check_in</span>(<span class='id identifier rubyid_connection'>connection</span>)
@@ -2513,11 +2586,11 @@ this method does nothing but <a href="#clear-instance_method" title="Mongo::Serv
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L570-L613'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L594-L637'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='570' data-end='613'></pre>
+  <pre class='lines_num' data-start='594' data-end='637'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 570</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 594</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_do_clear'>do_clear</span>(<span class='id identifier rubyid_options'><a href="#options-instance_method" title="Mongo::Server::ConnectionPool#options (method)">options</a></span> <span class='op'>=</span> <span class='kw'>nil</span>)
@@ -2587,11 +2660,11 @@ this method does nothing but <a href="#clear-instance_method" title="Mongo::Serv
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L518-L526'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L542-L550'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='518' data-end='526'></pre>
+  <pre class='lines_num' data-start='542' data-end='550'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 518</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 542</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_do_pause'>do_pause</span>
@@ -2661,11 +2734,11 @@ and remains so for longer than the wait timeout.</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1262-L1306'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1313-L1357'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1262' data-end='1306'></pre>
+  <pre class='lines_num' data-start='1313' data-end='1357'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1262</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1313</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_get_connection'>get_connection</span>(<span class='id identifier rubyid_pid'>pid</span><span class='comma'>,</span> <span class='id identifier rubyid_connection_global_id'>connection_global_id</span>)
@@ -2748,11 +2821,11 @@ and remains so for longer than the wait timeout.</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L715-L726'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L739-L750'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='715' data-end='726'></pre>
+  <pre class='lines_num' data-start='739' data-end='750'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 715</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 739</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_inspect'>inspect</span>
@@ -2893,11 +2966,11 @@ if the connection was interrupted, the original error if not.</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1034-L1041'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1085-L1092'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1034' data-end='1041'></pre>
+  <pre class='lines_num' data-start='1085' data-end='1092'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1034</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1085</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_maybe_raise_pool_cleared!'>maybe_raise_pool_cleared!</span>(<span class='id identifier rubyid_connection'>connection</span><span class='comma'>,</span> <span class='id identifier rubyid_e'>e</span>)
@@ -2973,11 +3046,11 @@ returns nil.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L893-L905'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L944-L956'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='893' data-end='905'></pre>
+  <pre class='lines_num' data-start='944' data-end='956'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 893</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 944</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_next_available_connection'>next_available_connection</span>(<span class='id identifier rubyid_connection_global_id'>connection_global_id</span>)
@@ -3016,11 +3089,11 @@ returns nil.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L503-L513'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L527-L537'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='503' data-end='513'></pre>
+  <pre class='lines_num' data-start='527' data-end='537'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 503</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 527</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_pause'>pause</span>
@@ -3082,11 +3155,11 @@ to create more connections.</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L833-L845'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L884-L896'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='833' data-end='845'></pre>
+  <pre class='lines_num' data-start='884' data-end='896'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 833</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 884</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_populate'>populate</span>
@@ -3131,11 +3204,11 @@ to create more connections.</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1143-L1167'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1194-L1218'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1143' data-end='1167'></pre>
+  <pre class='lines_num' data-start='1194' data-end='1218'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1143</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1194</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_raise_check_out_timeout!'>raise_check_out_timeout!</span>(<span class='id identifier rubyid_connection_global_id'>connection_global_id</span>)
@@ -3193,11 +3266,11 @@ to create more connections.</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1020-L1024'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1071-L1075'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1020' data-end='1024'></pre>
+  <pre class='lines_num' data-start='1071' data-end='1075'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1020</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1071</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_raise_if_closed!'>raise_if_closed!</span>
@@ -3228,11 +3301,11 @@ to create more connections.</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1204-L1208'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1255-L1259'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1204' data-end='1208'></pre>
+  <pre class='lines_num' data-start='1255' data-end='1259'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1204</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1255</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_raise_if_not_ready!'>raise_if_not_ready!</span>
@@ -3269,11 +3342,11 @@ to create more connections.</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1169-L1179'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1220-L1230'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1169' data-end='1179'></pre>
+  <pre class='lines_num' data-start='1220' data-end='1230'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1169</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1220</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_raise_if_pool_closed!'>raise_if_pool_closed!</span>
@@ -3316,11 +3389,11 @@ to create more connections.</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1181-L1195'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1232-L1246'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1181' data-end='1195'></pre>
+  <pre class='lines_num' data-start='1232' data-end='1246'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1181</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1232</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_raise_if_pool_paused!'>raise_if_pool_paused!</span>
@@ -3361,11 +3434,11 @@ to create more connections.</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1197-L1201'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1248-L1252'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1197' data-end='1201'></pre>
+  <pre class='lines_num' data-start='1248' data-end='1252'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1197</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1248</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_raise_if_pool_paused_locked!'>raise_if_pool_paused_locked!</span>
@@ -3402,11 +3475,11 @@ to create more connections.</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1210-L1214'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1261-L1265'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1210' data-end='1214'></pre>
+  <pre class='lines_num' data-start='1261' data-end='1265'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1210</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1261</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_raise_unless_locked!'>raise_unless_locked!</span>
@@ -3437,11 +3510,11 @@ to create more connections.</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L616-L651'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L640-L675'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='616' data-end='651'></pre>
+  <pre class='lines_num' data-start='640' data-end='675'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 616</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 640</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_ready'>ready</span>
@@ -3503,11 +3576,11 @@ to create more connections.</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L973-L1003'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1024-L1054'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='973' data-end='1003'></pre>
+  <pre class='lines_num' data-start='1024' data-end='1054'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 973</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1024</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_remove_interrupted_connections'>remove_interrupted_connections</span>
@@ -3564,11 +3637,11 @@ to create more connections.</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L964-L970'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1015-L1021'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='964' data-end='970'></pre>
+  <pre class='lines_num' data-start='1015' data-end='1021'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 964</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1015</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_remove_stale_connection'>remove_stale_connection</span>
@@ -3636,11 +3709,11 @@ and remains so for longer than the wait timeout.</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1320-L1377'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1371-L1428'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1320' data-end='1377'></pre>
+  <pre class='lines_num' data-start='1371' data-end='1428'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1320</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1371</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_retrieve_and_connect_connection'>retrieve_and_connect_connection</span>(<span class='id identifier rubyid_connection_global_id'>connection_global_id</span><span class='comma'>,</span> <span class='id identifier rubyid_context'>context</span> <span class='op'>=</span> <span class='kw'>nil</span>)
@@ -3737,11 +3810,11 @@ and remains so for longer than the wait timeout.</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1126-L1131'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1177-L1182'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1126' data-end='1131'></pre>
+  <pre class='lines_num' data-start='1177' data-end='1182'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1126</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1177</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_schedule_for_interruption'>schedule_for_interruption</span>(<span class='id identifier rubyid_connections'>connections</span><span class='comma'>,</span> <span class='id identifier rubyid_service_id'>service_id</span>)
@@ -3826,11 +3899,11 @@ primarily for testing and debugging purposes.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L878-L886'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L929-L937'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='878' data-end='886'></pre>
+  <pre class='lines_num' data-start='929' data-end='937'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 878</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 929</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_state'>state</span>
@@ -3870,11 +3943,11 @@ by the check_out method.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L805-L815'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L856-L866'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='805' data-end='815'></pre>
+  <pre class='lines_num' data-start='856' data-end='866'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 805</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 856</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_stop_populator'>stop_populator</span>
@@ -4037,11 +4110,11 @@ lock to acquire this lock again.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1216-L1247'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1267-L1298'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1216' data-end='1247'></pre>
+  <pre class='lines_num' data-start='1267' data-end='1298'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1216</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1267</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_valid_available_connection?'>valid_available_connection?</span>(<span class='id identifier rubyid_connection'>connection</span><span class='comma'>,</span> <span class='id identifier rubyid_pid'>pid</span><span class='comma'>,</span> <span class='id identifier rubyid__connection_global_id'>_connection_global_id</span>)
@@ -4121,11 +4194,11 @@ connection to check out.</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1386-L1435'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L1437-L1486'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1386' data-end='1435'></pre>
+  <pre class='lines_num' data-start='1437' data-end='1486'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1386</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 1437</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_wait_for_connection'>wait_for_connection</span>(<span class='id identifier rubyid_connection_global_id'>connection_global_id</span><span class='comma'>,</span> <span class='id identifier rubyid_deadline'>deadline</span>)
@@ -4269,11 +4342,11 @@ the connection is requested for, if any.</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L738-L771'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L762-L790'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='738' data-end='771'></pre>
+  <pre class='lines_num' data-start='762' data-end='790'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 738</span></pre>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 762</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_with_connection'>with_connection</span>(<span class='label'>connection_global_id:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>context:</span> <span class='kw'>nil</span>)
@@ -4299,16 +4372,78 @@ the connection is requested for, if any.</p></div>
 <span class='kw'>rescue</span> <span class='const'><a href="../Error.html" title="Mongo::Error (class)">Error</a></span><span class='op'>::</span><span class='const'><a href="../Error/SocketError.html" title="Mongo::Error::SocketError (class)">SocketError</a></span><span class='comma'>,</span> <span class='const'><a href="../Error.html" title="Mongo::Error (class)">Error</a></span><span class='op'>::</span><span class='const'><a href="../Error/SocketTimeoutError.html" title="Mongo::Error::SocketTimeoutError (class)">SocketTimeoutError</a></span><span class='comma'>,</span> <span class='const'><a href="../Error.html" title="Mongo::Error (class)">Error</a></span><span class='op'>::</span><span class='const'><a href="../Error/ConnectionPerished.html" title="Mongo::Error::ConnectionPerished (class)">ConnectionPerished</a></span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
   <span class='id identifier rubyid_maybe_raise_pool_cleared!'><a href="#maybe_raise_pool_cleared!-instance_method" title="Mongo::Server::ConnectionPool#maybe_raise_pool_cleared! (method)">maybe_raise_pool_cleared!</a></span>(<span class='id identifier rubyid_connection'>connection</span><span class='comma'>,</span> <span class='id identifier rubyid_e'>e</span>)
 <span class='kw'>ensure</span>
-  <span class='kw'>if</span> <span class='id identifier rubyid_connection'>connection</span> <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='id identifier rubyid_connection'>connection</span>.<span class='id identifier rubyid_pinned?'>pinned?</span>
-    <span class='comment'># Do not check in if the connection is pinned (the session or cursor
-</span>    <span class='comment'># owns it and will check it in later when unpinning). Also skip
-</span>    <span class='comment'># check-in if the connection was already checked in during the block
-</span>    <span class='comment'># (e.g. by Session#unpin after an error on the first operation).
-</span>    <span class='id identifier rubyid_checked_out'>checked_out</span> <span class='op'>=</span> <span class='ivar'>@lock</span>.<span class='id identifier rubyid_synchronize'>synchronize</span> <span class='kw'>do</span>
-      <span class='ivar'>@checked_out_connections</span>.<span class='id identifier rubyid_include?'>include?</span>(<span class='id identifier rubyid_connection'>connection</span>)
-    <span class='kw'>end</span>
-    <span class='id identifier rubyid_check_in'><a href="#check_in-instance_method" title="Mongo::Server::ConnectionPool#check_in (method)">check_in</a></span>(<span class='id identifier rubyid_connection'>connection</span>) <span class='kw'>if</span> <span class='id identifier rubyid_checked_out'>checked_out</span>
+  <span class='comment'># Do not check in if the connection is pinned (the session or cursor
+</span>  <span class='comment'># owns it and will check it in later when unpinning) or was already
+</span>  <span class='comment'># checked in during the block (e.g. by Session#unpin after an error
+</span>  <span class='comment'># on the first operation).
+</span>  <span class='id identifier rubyid_check_in_if_checked_out'><a href="#check_in_if_checked_out-instance_method" title="Mongo::Server::ConnectionPool#check_in_if_checked_out (method)">check_in_if_checked_out</a></span>(<span class='id identifier rubyid_connection'>connection</span>) <span class='kw'>if</span> <span class='id identifier rubyid_connection'>connection</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="with_cursor_connection-instance_method">
+  <h3 class='signature '>
+    #<strong>with_cursor_connection</strong>(context:)  &#x21d2; <code>Object</code> 
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    <p>Check out a connection for the initial command of a cursor-returning
+operation in load-balanced topology and yield it to the block.</p>
+<p>On success the connection remains checked out: the cursor assumes
+ownership and checks it in when drained or closed. If the block
+raises, no cursor exists to do that, so the connection is checked
+back in here before the error propagates, unless another owner
+already claimed it (it is pinned to a transaction, or Session#unpin
+checked it in while handling a transient transaction error).</p>
+<p>If the operation context is pinned to a connection (e.g. inside a
+transaction), the pinned connection is reused.</p>
+  </div>
+</div>
+<div class='tags'>
+  <p class='tag_title'>Parameters:</p>
+<ul class='param'>
+  <li>
+    <span class='name'>:context</span>
+    <span class='type'>(<a href="../Operation/Context.html" title="Mongo::Operation::Context (class)">Mongo::Operation::Context</a> | <code>nil</code>)</span>
+&mdash;    <div class='inline'><p>Context of the
+operation the connection is requested for, if any.</p></div>
+  </li>
+</ul>
+<p class='tag_title'>Returns:</p>
+<ul class='return'>
+  <li>
+    <span class='type'>(<code>Object</code>)</span>
+&mdash;    <div class='inline'><p>The result of the block.</p></div>
+  </li>
+</ul>
+<p class='tag_title'>Since:</p>
+<ul class='since'>
+  <li>
+    <div class='inline'><p>2.0.0, largely rewritten in 2.9.0</p></div>
+  </li>
+</ul>
+
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/server/connection_pool.rb#L811-L822'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='811' data-end='822'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/mongo/server/connection_pool.rb', line 811</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_with_cursor_connection'>with_cursor_connection</span>(<span class='label'>context:</span>)
+  <span class='kw'>if</span> <span class='id identifier rubyid_context'>context</span><span class='op'>&amp;.</span><span class='id identifier rubyid_connection_global_id'>connection_global_id</span>
+    <span class='id identifier rubyid_connection'>connection</span> <span class='op'>=</span> <span class='id identifier rubyid_check_out_pinned_connection'><a href="#check_out_pinned_connection-instance_method" title="Mongo::Server::ConnectionPool#check_out_pinned_connection (method)">check_out_pinned_connection</a></span>(<span class='id identifier rubyid_context'>context</span>.<span class='id identifier rubyid_connection_global_id'>connection_global_id</span>)
   <span class='kw'>end</span>
+  <span class='id identifier rubyid_connection'>connection</span> <span class='op'>||=</span> <span class='id identifier rubyid_check_out'><a href="#check_out-instance_method" title="Mongo::Server::ConnectionPool#check_out (method)">check_out</a></span>(<span class='label'>context:</span> <span class='id identifier rubyid_context'>context</span>)
+  <span class='id identifier rubyid_succeeded'>succeeded</span> <span class='op'>=</span> <span class='kw'>false</span>
+  <span class='id identifier rubyid_result'>result</span> <span class='op'>=</span> <span class='kw'>yield</span>(<span class='id identifier rubyid_connection'>connection</span>)
+  <span class='id identifier rubyid_succeeded'>succeeded</span> <span class='op'>=</span> <span class='kw'>true</span>
+  <span class='id identifier rubyid_result'>result</span>
+<span class='kw'>ensure</span>
+  <span class='id identifier rubyid_check_in_if_checked_out'><a href="#check_in_if_checked_out-instance_method" title="Mongo::Server::ConnectionPool#check_in_if_checked_out (method)">check_in_if_checked_out</a></span>(<span class='id identifier rubyid_connection'>connection</span>) <span class='kw'>if</span> <span class='id identifier rubyid_connection'>connection</span> <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='id identifier rubyid_succeeded'>succeeded</span>
 <span class='kw'>end</span>
 </pre>
   </div>
