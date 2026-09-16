@@ -751,14 +751,120 @@
 <ul class='summary full'>
   <li>
     <span class='summary_signature '>
+      <a href="#replace_file_contents-class_method" title=".replace_file_contents (class method)">.<strong>replace_file_contents</strong>(path, contents)  </a>
+    </span>
+    <div class='summary_desc'>
+      <div class='inline'><div class="paragraph"><p>Replaces the contents of <code>path</code> without a window in which the file is truncated but not yet rewritten, so that an interrupted run or a full disk cannot lose the original: the new contents are written next to the file and renamed over it, like <a href="ResultCache.html#save-instance_method" title="RuboCop::ResultCache#save (method)">ResultCache#save</a>.</p></div></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature '>
       <a href="#silence_warnings-class_method" title=".silence_warnings (class method)">.<strong>silence_warnings</strong>  </a>
     </span>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
+      <a href="#replace_via_temporary_file-class_method" title=".replace_via_temporary_file (class method)">.<strong>replace_via_temporary_file</strong>(path, temp_path, contents)  </a>
+    </span>
+    <span class='note title private'>private</span>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
+      <a href="#write_temporary_file-class_method" title=".write_temporary_file (class method)">.<strong>write_temporary_file</strong>(temp_path, contents)  </a>
+    </span>
+    <span class='note title private'>private</span>
+    <div class='summary_desc'>
+      <div class='inline'><div class="paragraph"><p>Space errors such as <code>ENOSPC</code> must propagate: a direct write would then truncate the file and fail, which is exactly the loss being avoided.</p></div></div>
+    </div>
   </li>
 </ul>
 </div>  <!-- class_method_summary -->
 <h2 class='y_details'>Class Method Details</h2>
-<section class='method_details first' id="silence_warnings-class_method">
+<section class='method_details first' id="replace_file_contents-class_method">
   <h3 class='signature  first'>
+    .<strong>replace_file_contents</strong>(path, contents)  
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    <div class="paragraph">
+<p>Replaces the contents of <code>path</code> without a window in which the file is truncated
+but not yet rewritten, so that an interrupted run or a full disk cannot lose
+the original: the new contents are written next to the file and renamed over it,
+like <a href="ResultCache.html#save-instance_method" title="RuboCop::ResultCache#save (method)">ResultCache#save</a>. <code>File.write</code> is used for the temporary file so text-mode
+semantics (the CRLF conversion on Windows) stay identical to a direct write.
+Where the temporary file cannot be created or renamed for lack of permission,
+a direct write is used as before.</p>
+</div>
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/util.rb#L23-L42'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='23' data-end='42'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/rubocop/util.rb', line 23</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_replace_file_contents'>replace_file_contents</span>(<span class='id identifier rubyid_path'>path</span><span class='comma'>,</span> <span class='id identifier rubyid_contents'>contents</span>)
+  <span class='comment'># Write through symlinks so that the rename replaces the real file and
+</span>  <span class='comment'># the symlink survives.
+</span>  <span class='id identifier rubyid_path'>path</span> <span class='op'>=</span> <span class='const'>File</span>.<span class='id identifier rubyid_realpath'>realpath</span>(<span class='id identifier rubyid_path'>path</span>)
+
+  <span class='comment'># Opening a read-only file fails without truncating it, keeping the behavior
+</span>  <span class='comment'># a direct write always had.
+</span>  <span class='kw'>return</span> <span class='const'>File</span>.<span class='id identifier rubyid_write'>write</span>(<span class='id identifier rubyid_path'>path</span><span class='comma'>,</span> <span class='id identifier rubyid_contents'>contents</span>) <span class='kw'>unless</span> <span class='const'>File</span>.<span class='id identifier rubyid_writable?'>writable?</span>(<span class='id identifier rubyid_path'>path</span>)
+
+  <span class='id identifier rubyid_temp_path'>temp_path</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_path'>path</span><span class='embexpr_end'>}</span><span class='tstring_content'>.</span><span class='embexpr_beg'>#{</span><span class='const'>Process</span>.<span class='id identifier rubyid_pid'>pid</span><span class='embexpr_end'>}</span><span class='tstring_content'>.</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_rand'>rand</span>(<span class='int'>1_000_000_000</span>)<span class='embexpr_end'>}</span><span class='tstring_content'>.rubocop.tmp</span><span class='tstring_end'>&quot;</span></span>
+  <span class='kw'>begin</span>
+    <span class='id identifier rubyid_replace_via_temporary_file'><a href="#replace_via_temporary_file-class_method" title="RuboCop::Util.replace_via_temporary_file (method)">replace_via_temporary_file</a></span>(<span class='id identifier rubyid_path'>path</span><span class='comma'>,</span> <span class='id identifier rubyid_temp_path'>temp_path</span><span class='comma'>,</span> <span class='id identifier rubyid_contents'>contents</span>)
+  <span class='kw'>ensure</span>
+    <span class='const'>FileUtils</span>.<span class='id identifier rubyid_rm_f'>rm_f</span>(<span class='id identifier rubyid_temp_path'>temp_path</span>)
+  <span class='kw'>end</span>
+<span class='kw'>rescue</span> <span class='const'>Errno</span><span class='op'>::</span><span class='const'>ENOENT</span>
+  <span class='comment'># The file vanished mid-run or is a dangling symlink: recreate it the way
+</span>  <span class='comment'># a direct write always has.
+</span>  <span class='const'>File</span>.<span class='id identifier rubyid_write'>write</span>(<span class='id identifier rubyid_path'>path</span><span class='comma'>,</span> <span class='id identifier rubyid_contents'>contents</span>)
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="replace_via_temporary_file-class_method">
+  <h3 class='signature priv'>
+    .<strong>replace_via_temporary_file</strong>(path, temp_path, contents)   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/util.rb#L44-L61'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='44' data-end='61'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/rubocop/util.rb', line 44</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_replace_via_temporary_file'>replace_via_temporary_file</span>(<span class='id identifier rubyid_path'>path</span><span class='comma'>,</span> <span class='id identifier rubyid_temp_path'>temp_path</span><span class='comma'>,</span> <span class='id identifier rubyid_contents'>contents</span>)
+  <span class='comment'># The directory refuses new files even though the file itself is writable,
+</span>  <span class='comment'># so a direct write is the only option left.
+</span>  <span class='kw'>return</span> <span class='const'>File</span>.<span class='id identifier rubyid_write'>write</span>(<span class='id identifier rubyid_path'>path</span><span class='comma'>,</span> <span class='id identifier rubyid_contents'>contents</span>) <span class='kw'>unless</span> <span class='id identifier rubyid_write_temporary_file'><a href="#write_temporary_file-class_method" title="RuboCop::Util.write_temporary_file (method)">write_temporary_file</a></span>(<span class='id identifier rubyid_temp_path'>temp_path</span><span class='comma'>,</span> <span class='id identifier rubyid_contents'>contents</span>)
+
+  <span class='kw'>begin</span>
+    <span class='comment'># A fresh file would get umask-default permissions on rename;
+</span>    <span class='comment'># keep the original&#39;s.
+</span>    <span class='const'>File</span>.<span class='id identifier rubyid_chmod'>chmod</span>(<span class='const'>File</span>.<span class='id identifier rubyid_stat'>stat</span>(<span class='id identifier rubyid_path'>path</span>).<span class='id identifier rubyid_mode'>mode</span><span class='comma'>,</span> <span class='id identifier rubyid_temp_path'>temp_path</span>)
+    <span class='const'>File</span>.<span class='id identifier rubyid_rename'>rename</span>(<span class='id identifier rubyid_temp_path'>temp_path</span><span class='comma'>,</span> <span class='id identifier rubyid_path'>path</span>)
+  <span class='kw'>rescue</span> <span class='const'>SystemCallError</span>
+    <span class='comment'># The replacement was refused, e.g. the file is open in another process on Windows.
+</span>    <span class='comment'># The contents already fit on disk, so a direct write is safe once the temporary copy
+</span>    <span class='comment'># no longer takes up that space.
+</span>    <span class='const'>FileUtils</span>.<span class='id identifier rubyid_rm_f'>rm_f</span>(<span class='id identifier rubyid_temp_path'>temp_path</span>)
+    <span class='const'>File</span>.<span class='id identifier rubyid_write'>write</span>(<span class='id identifier rubyid_path'>path</span><span class='comma'>,</span> <span class='id identifier rubyid_contents'>contents</span>)
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="silence_warnings-class_method">
+  <h3 class='signature '>
     .<strong>silence_warnings</strong>  
   </h3>
   <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/util.rb#L6-L14'>GitHub</a>&#8202;]</span>
@@ -776,6 +882,36 @@
   <span class='kw'>yield</span>
 <span class='kw'>ensure</span>
   <span class='gvar'>$VERBOSE</span> <span class='op'>=</span> <span class='id identifier rubyid_old_verbose'>old_verbose</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="write_temporary_file-class_method">
+  <h3 class='signature priv'>
+    .<strong>write_temporary_file</strong>(temp_path, contents)   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    <div class="paragraph">
+<p>Space errors such as <code>ENOSPC</code> must propagate: a direct write would then
+truncate the file and fail, which is exactly the loss being avoided.</p>
+</div>
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rubocop/rubocop/blob/master/lib/rubocop/util.rb#L66-L71'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='66' data-end='71'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/rubocop/util.rb', line 66</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='kw'>self</span>.<span class='id identifier rubyid_write_temporary_file'>write_temporary_file</span>(<span class='id identifier rubyid_temp_path'>temp_path</span><span class='comma'>,</span> <span class='id identifier rubyid_contents'>contents</span>)
+  <span class='const'>File</span>.<span class='id identifier rubyid_write'>write</span>(<span class='id identifier rubyid_temp_path'>temp_path</span><span class='comma'>,</span> <span class='id identifier rubyid_contents'>contents</span>)
+  <span class='kw'>true</span>
+<span class='kw'>rescue</span> <span class='const'>Errno</span><span class='op'>::</span><span class='const'>EACCES</span><span class='comma'>,</span> <span class='const'>Errno</span><span class='op'>::</span><span class='const'>EPERM</span>
+  <span class='kw'>false</span>
 <span class='kw'>end</span>
 </pre>
   </div>
