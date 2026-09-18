@@ -544,6 +544,15 @@ documents on the opposite-side collection which must be loaded.</p>
   </li>
   <li>
     <span class='summary_signature priv'>
+      <a href="#remove_all_bounded-instance_method" title="#remove_all_bounded (instance method)">#<strong>remove_all_bounded</strong>(selector, method, limit)  &#x21d2; Integer </a>
+    </span>
+    <span class='note title private'>private</span>
+    <div class='summary_desc'>
+      <div class='inline'><p>Deletes all related documents matching a selector that carries a regular expression, with the whole scan under one regexp budget.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
       <a href="#remove_not_in-instance_method" title="#remove_not_in (instance method)">#<strong>remove_not_in</strong>(ids)  </a>
     </span>
     <span class='note title private'>private</span>
@@ -2015,21 +2024,160 @@ conditions.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongoid/blob/master/lib/mongoid/association/referenced/has_many/proxy.rb#L539-L548'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongoid/blob/master/lib/mongoid/association/referenced/has_many/proxy.rb#L539-L577'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='539' data-end='548'></pre>
+  <pre class='lines_num' data-start='539' data-end='577'></pre>
   <div class='lines_code'>
 <pre><span class='info file'># File 'lib/mongoid/association/referenced/has_many/proxy.rb', line 539</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_remove_all'>remove_all</span>(<span class='id identifier rubyid_conditions'>conditions</span> <span class='op'>=</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='id identifier rubyid_method'>method</span> <span class='op'>=</span> <span class='symbeg'>:</span><span class='id identifier rubyid_delete_all'><a href="#delete_all-instance_method" title="Mongoid::Association::Referenced::HasMany::Proxy#delete_all (method)">delete_all</a></span>)
   <span class='id identifier rubyid_selector'>selector</span> <span class='op'>=</span> <span class='id identifier rubyid_conditions'>conditions</span> <span class='op'>||</span> {}
-  <span class='id identifier rubyid_removed'>removed</span> <span class='op'>=</span> <span class='id identifier rubyid_klass'>klass</span>.<span class='id identifier rubyid_send'>send</span>(<span class='id identifier rubyid_method'>method</span><span class='comma'>,</span> <span class='id identifier rubyid_selector'>selector</span>.<span class='id identifier rubyid_merge!'>merge!</span>(<span class='id identifier rubyid_criteria'><a href="#criteria-instance_method" title="Mongoid::Association::Referenced::HasMany::Proxy#criteria (method)">criteria</a></span>.<span class='id identifier rubyid_selector'>selector</span>))
-  <span class='id identifier rubyid__target'>_target</span>.<span class='id identifier rubyid_delete_if'>delete_if</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_doc'>doc</span><span class='op'>|</span>
+  <span class='id identifier rubyid_selector'>selector</span>.<span class='id identifier rubyid_merge!'>merge!</span>(<span class='id identifier rubyid_criteria'><a href="#criteria-instance_method" title="Mongoid::Association::Referenced::HasMany::Proxy#criteria (method)">criteria</a></span>.<span class='id identifier rubyid_selector'>selector</span>)
+
+  <span class='comment'># Scanning before the delete means scanning only what is already in
+</span>  <span class='comment'># memory, so it is only done where there is a pattern whose cost has
+</span>  <span class='comment'># to be bounded. Everywhere else the delete comes first and the scan
+</span>  <span class='comment'># sees the survivors, which is what this association has always
+</span>  <span class='comment'># done.
+</span>  <span class='comment'>#
+</span>  <span class='comment'># The limit is read once and carried into whichever branch is taken.
+</span>  <span class='comment'># Letting the branch below ask again would read it a second time,
+</span>  <span class='comment'># across a server round trip, and a limit that had become positive
+</span>  <span class='comment'># in the meantime would put a deadline on the delete_if -- a query,
+</span>  <span class='comment'># and an unbind of every match -- which is the arrangement this
+</span>  <span class='comment'># branch exists to avoid.
+</span>  <span class='id identifier rubyid_limit'>limit</span> <span class='op'>=</span> <span class='const'><a href="../../../Matcher.html" title="Mongoid::Matcher (module)">Matcher</a></span><span class='op'>::</span><span class='const'><a href="../../../Matcher/RegexpBudget.html" title="Mongoid::Matcher::RegexpBudget (module)">RegexpBudget</a></span>.<span class='id identifier rubyid_limit_for'><a href="../../../Matcher/RegexpBudget.html#limit_for-class_method" title="Mongoid::Matcher::RegexpBudget.limit_for (method)">limit_for</a></span>(<span class='id identifier rubyid_selector'>selector</span>)
+  <span class='kw'>return</span> <span class='id identifier rubyid_remove_all_bounded'><a href="#remove_all_bounded-instance_method" title="Mongoid::Association::Referenced::HasMany::Proxy#remove_all_bounded (method)">remove_all_bounded</a></span>(<span class='id identifier rubyid_selector'>selector</span><span class='comma'>,</span> <span class='id identifier rubyid_method'>method</span><span class='comma'>,</span> <span class='id identifier rubyid_limit'>limit</span>) <span class='kw'>if</span> <span class='id identifier rubyid_limit'>limit</span>
+
+  <span class='id identifier rubyid_removed'>removed</span> <span class='op'>=</span> <span class='id identifier rubyid_klass'>klass</span>.<span class='id identifier rubyid_send'>send</span>(<span class='id identifier rubyid_method'>method</span><span class='comma'>,</span> <span class='id identifier rubyid_selector'>selector</span>)
+
+  <span class='comment'># No scope around this. The scan runs after the delete, so the
+</span>  <span class='comment'># association this loads comes back holding only what the delete did
+</span>  <span class='comment'># not match, and there is no pattern here to bound in any case.
+</span>  <span class='comment'># Opening a scope would save _matches? from deciding once per
+</span>  <span class='comment'># document -- 0.48us against 1.74us for the match itself -- but a
+</span>  <span class='comment'># scope with nothing to bound suppresses that decision for
+</span>  <span class='comment'># everything nested inside it, and loading the association runs
+</span>  <span class='comment'># find callbacks. A pattern in a selector one of those evaluates
+</span>  <span class='comment'># would go unguarded, which costs more than the saving is worth on a
+</span>  <span class='comment'># path that has just made two round trips.
+</span>  <span class='id identifier rubyid__target'>_target</span>.<span class='id identifier rubyid_delete_if'>delete_if</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_doc'>doc</span><span class='op'>|</span>
     <span class='id identifier rubyid_doc'>doc</span>.<span class='id identifier rubyid__matches?'>_matches?</span>(<span class='id identifier rubyid_selector'>selector</span>).<span class='id identifier rubyid_tap'>tap</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_b'>b</span><span class='op'>|</span>
       <span class='id identifier rubyid_unbind_one'>unbind_one</span>(<span class='id identifier rubyid_doc'>doc</span>) <span class='kw'>if</span> <span class='id identifier rubyid_b'>b</span>
     <span class='kw'>end</span>
   <span class='kw'>end</span>
+
+  <span class='id identifier rubyid_removed'>removed</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="remove_all_bounded-instance_method">
+  <h3 class='signature priv'>
+    #<strong>remove_all_bounded</strong>(selector, method, limit)  &#x21d2; <a href="../../../../Integer.html" title="Integer (class)">Integer</a>  <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    <p>Deletes all related documents matching a selector that carries a
+regular expression, with the whole scan under one regexp budget.</p>
+<p>The scan runs before anything is deleted, so a budget that runs out
+leaves both the database and the association untouched rather than
+reporting a failure for a delete that has already happened. It also
+means the budget is closed by the time the association is mutated,
+so where the budget is enforced with Timeout there is no window for
+the exception to land in the middle of an unbind.</p>
+  </div>
+</div>
+<div class='tags'>
+  <p class='tag_title'>Parameters:</p>
+<ul class='param'>
+  <li>
+    <span class='name'>selector</span>
+    <span class='type'>(<a href="../../../../Hash.html" title="Hash (class)">Hash</a>)</span>
+&mdash;    <div class='inline'><p>The selector to delete with.</p></div>
+  </li>
+  <li>
+    <span class='name'>method</span>
+    <span class='type'>(<a href="../../../../Symbol.html" title="Symbol (class)">Symbol</a>)</span>
+&mdash;    <div class='inline'><p>The deletion method to call.</p></div>
+  </li>
+  <li>
+    <span class='name'>limit</span>
+    <span class='type'>(<a href="../../../../Float.html" title="Float (class)">Float</a>)</span>
+&mdash;    <div class='inline'><p>The seconds the scan may spend, as read by
+the caller when it chose this path.</p></div>
+  </li>
+</ul>
+<p class='tag_title'>Returns:</p>
+<ul class='return'>
+  <li>
+    <span class='type'>(<a href="../../../../Integer.html" title="Integer (class)">Integer</a>)</span>
+&mdash;    <div class='inline'><p>The number of documents deleted.</p></div>
+  </li>
+</ul>
+
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongoid/blob/master/lib/mongoid/association/referenced/has_many/proxy.rb#L595-L647'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='595' data-end='647'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/mongoid/association/referenced/has_many/proxy.rb', line 595</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_remove_all_bounded'>remove_all_bounded</span>(<span class='id identifier rubyid_selector'>selector</span><span class='comma'>,</span> <span class='id identifier rubyid_method'>method</span><span class='comma'>,</span> <span class='id identifier rubyid_limit'>limit</span>)
+  <span class='comment'># Only what the association already holds. Iterating it instead
+</span>  <span class='comment'># would load the whole association before the delete, and for a
+</span>  <span class='comment'># broad pattern that is every document the association has: /.*/ is
+</span>  <span class='comment'># both the cheapest pattern an attacker can supply and the one that
+</span>  <span class='comment'># matches everything, so bounding the cost of the matching would
+</span>  <span class='comment'># have been paid for with an unbounded amount of memory. Nothing is
+</span>  <span class='comment'># missed by not loading, because the server evaluates the same
+</span>  <span class='comment'># selector for the delete itself.
+</span>  <span class='comment'>#
+</span>  <span class='comment'># It also means the scan runs no query, so no deadline of ours can
+</span>  <span class='comment'># land on one. Where the budget is enforced with Timeout, covering
+</span>  <span class='comment'># a query would report a slow network as a regexp timeout and could
+</span>  <span class='comment'># deliver the asynchronous exception inside the driver&#39;s socket
+</span>  <span class='comment'># read.
+</span>  <span class='id identifier rubyid_documents'>documents</span> <span class='op'>=</span> <span class='id identifier rubyid__target'>_target</span>.<span class='id identifier rubyid_in_memory'>in_memory</span>
+
+  <span class='id identifier rubyid_matching'>matching</span> <span class='op'>=</span> <span class='const'><a href="../../../Matcher.html" title="Mongoid::Matcher (module)">Matcher</a></span><span class='op'>::</span><span class='const'><a href="../../../Matcher/RegexpBudget.html" title="Mongoid::Matcher::RegexpBudget (module)">RegexpBudget</a></span>.<span class='id identifier rubyid_open_with'><a href="../../../Matcher/RegexpBudget.html#open_with-class_method" title="Mongoid::Matcher::RegexpBudget.open_with (method)">open_with</a></span>(<span class='id identifier rubyid_limit'>limit</span>) <span class='kw'>do</span>
+    <span class='id identifier rubyid_documents'>documents</span>.<span class='id identifier rubyid_select'>select</span> { <span class='op'>|</span><span class='id identifier rubyid_doc'>doc</span><span class='op'>|</span> <span class='id identifier rubyid_doc'>doc</span>.<span class='id identifier rubyid__matches?'>_matches?</span>(<span class='id identifier rubyid_selector'>selector</span>) }
+  <span class='kw'>end</span>
+
+  <span class='id identifier rubyid_removed'>removed</span> <span class='op'>=</span> <span class='id identifier rubyid_klass'>klass</span>.<span class='id identifier rubyid_send'>send</span>(<span class='id identifier rubyid_method'>method</span><span class='comma'>,</span> <span class='id identifier rubyid_selector'>selector</span>)
+
+  <span class='comment'># The ids are already known to be in memory, so the loaded and added
+</span>  <span class='comment'># documents can be dropped directly. Enumerable#delete would look
+</span>  <span class='comment'># each one up by id and stop at the first hash that has it, which
+</span>  <span class='comment'># removes the wrong instance when both hashes hold one for the same
+</span>  <span class='comment'># id. Enumerable#delete_if drops it from both, as this does, but
+</span>  <span class='comment'># only after load_all!, which is the load this scan exists to avoid.
+</span>  <span class='comment'>#
+</span>  <span class='comment'># Which documents get unbound has always depended on which ones
+</span>  <span class='comment'># happened to be in memory, and scanning only what is in memory
+</span>  <span class='comment'># keeps that. It matters for has_and_belongs_to_many, whose
+</span>  <span class='comment'># unbind_one pulls the id out of the foreign key array on _base and
+</span>  <span class='comment'># marks it dirty; the scan used to run after the delete, against an
+</span>  <span class='comment'># association that a cold proxy had just reloaded as holding only
+</span>  <span class='comment'># the survivors, so nothing matched and nothing was unbound.
+</span>  <span class='comment'>#
+</span>  <span class='comment'># TODO: unbinding should not depend on what was in memory. Every
+</span>  <span class='comment'># matched document leaves the association, so every one of them
+</span>  <span class='comment'># should be unbound, which would also stop _base&#39;s foreign key
+</span>  <span class='comment'># array from keeping ids that no longer resolve. That is a
+</span>  <span class='comment'># behaviour change for has_and_belongs_to_many and belongs in a
+</span>  <span class='comment'># ticket of its own, with a release note; it should not ride along
+</span>  <span class='comment'># on this one.
+</span>  <span class='id identifier rubyid_matching'>matching</span>.<span class='id identifier rubyid_each'><a href="#each-instance_method" title="Mongoid::Association::Referenced::HasMany::Proxy#each (method)">each</a></span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_doc'>doc</span><span class='op'>|</span>
+    <span class='id identifier rubyid_unbind_one'>unbind_one</span>(<span class='id identifier rubyid_doc'>doc</span>)
+    <span class='id identifier rubyid__target'>_target</span>.<span class='id identifier rubyid__loaded'>_loaded</span>.<span class='id identifier rubyid_delete'><a href="#delete-instance_method" title="Mongoid::Association::Referenced::HasMany::Proxy#delete (method)">delete</a></span>(<span class='id identifier rubyid_doc'>doc</span>.<span class='id identifier rubyid__id'>_id</span>)
+    <span class='id identifier rubyid__target'>_target</span>.<span class='id identifier rubyid__added'>_added</span>.<span class='id identifier rubyid_delete'><a href="#delete-instance_method" title="Mongoid::Association::Referenced::HasMany::Proxy#delete (method)">delete</a></span>(<span class='id identifier rubyid_doc'>doc</span>.<span class='id identifier rubyid__id'>_id</span>)
+  <span class='kw'>end</span>
+
   <span class='id identifier rubyid_removed'>removed</span>
 <span class='kw'>end</span>
 </pre>
@@ -2063,11 +2211,11 @@ ids.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongoid/blob/master/lib/mongoid/association/referenced/has_many/proxy.rb#L557-L569'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongoid/blob/master/lib/mongoid/association/referenced/has_many/proxy.rb#L656-L668'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='557' data-end='569'></pre>
+  <pre class='lines_num' data-start='656' data-end='668'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongoid/association/referenced/has_many/proxy.rb', line 557</span></pre>
+<pre><span class='info file'># File 'lib/mongoid/association/referenced/has_many/proxy.rb', line 656</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_remove_not_in'>remove_not_in</span>(<span class='id identifier rubyid_ids'>ids</span>)
@@ -2119,11 +2267,11 @@ batch insert.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongoid/blob/master/lib/mongoid/association/referenced/has_many/proxy.rb#L594-L602'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongoid/blob/master/lib/mongoid/association/referenced/has_many/proxy.rb#L693-L701'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='594' data-end='602'></pre>
+  <pre class='lines_num' data-start='693' data-end='701'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongoid/association/referenced/has_many/proxy.rb', line 594</span></pre>
+<pre><span class='info file'># File 'lib/mongoid/association/referenced/has_many/proxy.rb', line 693</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_save_or_delay'>save_or_delay</span>(<span class='id identifier rubyid_doc'>doc</span><span class='comma'>,</span> <span class='id identifier rubyid_docs'>docs</span><span class='comma'>,</span> <span class='id identifier rubyid_inserts'>inserts</span>)
@@ -2262,11 +2410,11 @@ remove.</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongoid/blob/master/lib/mongoid/association/referenced/has_many/proxy.rb#L576-L582'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongoid/blob/master/lib/mongoid/association/referenced/has_many/proxy.rb#L675-L681'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='576' data-end='582'></pre>
+  <pre class='lines_num' data-start='675' data-end='681'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongoid/association/referenced/has_many/proxy.rb', line 576</span></pre>
+<pre><span class='info file'># File 'lib/mongoid/association/referenced/has_many/proxy.rb', line 675</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_update_or_delete_all'>update_or_delete_all</span>(<span class='id identifier rubyid_removed'>removed</span>)
