@@ -337,6 +337,32 @@ one checkout (<code>pool.with { |redis| ... }</code>), ideally as one pipelined 
 reply per node; <code>himport_set</code> routes by key. With <code>Redis::Cluster</code>, the same
 commands fan out to every master node and return a single aggregated reply,
 matching the standalone API.</p>
+<h2 id="Compare_and_set_CAS_CAD_">Compare-and-set (CAS/CAD)</h2>
+<p>Redis 8.4 adds atomic compare-and-set to <code>SET</code> and a new compare-and-delete command,
+<code>DELEX</code>, so operations like &quot;extend my lock if I still hold it&quot; or &quot;release my lock only if
+it's still mine&quot; no longer need <code>WATCH</code>/<code>GET</code>/<code>MULTI</code>/<code>EXEC</code> or Lua:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_token'>token</span> <span class='op'>=</span> <span class='const'>SecureRandom</span>.<span class='id identifier rubyid_uuid'>uuid</span>
+<span class='id identifier rubyid_redis'>redis</span>.<span class='id identifier rubyid_set'>set</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>lock:my-resource</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_token'>token</span><span class='comma'>,</span> <span class='label'>nx:</span> <span class='kw'>true</span><span class='comma'>,</span> <span class='label'>ex:</span> <span class='int'>30</span>) <span class='comment'># acquire
+</span>
+<span class='id identifier rubyid_redis'>redis</span>.<span class='id identifier rubyid_set'>set</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>lock:my-resource</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_token'>token</span><span class='comma'>,</span> <span class='label'>ex:</span> <span class='int'>30</span><span class='comma'>,</span> <span class='label'>ifeq:</span> <span class='id identifier rubyid_token'>token</span>) <span class='comment'># extend, only if still held
+</span><span class='id identifier rubyid_redis'>redis</span>.<span class='id identifier rubyid_delex'>delex</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>lock:my-resource</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>ifeq:</span> <span class='id identifier rubyid_token'>token</span>)              <span class='comment'># release, only if still held</span></code></pre>
+<p><code>:ifeq</code>/<code>:ifne</code> compare against the key's current value directly; <code>:ifdeq</code>/<code>:ifdne</code> compare
+against a digest instead, useful when the value itself is large and you'd rather not transmit
+it twice. Fetch a digest from the server with <code>DIGEST</code>:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_digest'>digest</span> <span class='op'>=</span> <span class='id identifier rubyid_redis'>redis</span>.<span class='id identifier rubyid_digest'>digest</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>mykey</span><span class='tstring_end'>&quot;</span></span>)
+<span class='id identifier rubyid_redis'>redis</span>.<span class='id identifier rubyid_set'>set</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>mykey</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>new value</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>ifdeq:</span> <span class='id identifier rubyid_digest'>digest</span>)</code></pre>
+<p><code>:nx</code>, <code>:xx</code>, <code>:ifeq</code>, <code>:ifne</code>, <code>:ifdeq</code>, and <code>:ifdne</code> are all mutually exclusive.</p>
+<h3 id="Computing_a_digest_locally">Computing a digest locally</h3>
+<p><a href="Redis/XXH3.html#hexdigest-class_method" title="Redis::XXH3.hexdigest (method)">Redis::XXH3.hexdigest</a> computes the same XXH3-64 digest <code>DIGEST</code> returns, without a round
+trip — useful when you already have the value on the client and just need a digest to compare
+against:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>redis/xxh3</span><span class='tstring_end'>&quot;</span></span>
+
+<span class='id identifier rubyid_digest'>digest</span> <span class='op'>=</span> <span class='const'><a href="Redis.html" title="Redis (class)">Redis</a></span><span class='op'>::</span><span class='const'><a href="Redis/XXH3.html" title="Redis::XXH3 (module)">XXH3</a></span>.<span class='id identifier rubyid_hexdigest'><a href="Redis/XXH3.html#hexdigest-class_method" title="Redis::XXH3.hexdigest (method)">hexdigest</a></span>(<span class='id identifier rubyid_value'>value</span>)
+<span class='id identifier rubyid_redis'>redis</span>.<span class='id identifier rubyid_set'>set</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>mykey</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_value'>value</span><span class='comma'>,</span> <span class='label'>ifdeq:</span> <span class='id identifier rubyid_digest'>digest</span>) <span class='comment'># only writes if the current value still hashes to digest</span></code></pre>
+<p>It's a pure-Ruby port of the same reference xxHash algorithm the Redis server itself uses, so a
+digest computed this way and one fetched via <code>DIGEST</code> for the same value are always
+byte-identical. No native extension, no build step — it's always available.</p>
 <h2 id="Keyspace_Notifications">Keyspace Notifications</h2>
 <p>Redis can publish an event on pub/sub for every change to the dataset
 (<code>__keyspace@0__:&lt;key&gt;</code> / <code>__keyevent@0__:<event></code> channels; Redis 8.8 adds
