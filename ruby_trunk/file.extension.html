@@ -1009,6 +1009,19 @@ but are not exported to the Ruby world.  You need to protect them by</p>
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_void'>void</span> <span class='id identifier rubyid_rb_global_variable'>rb_global_variable</span>(<span class='const'>VALUE</span> <span class='op'>*</span><span class='id identifier rubyid_var'>var</span>)</code></pre>
 <p>or the objects themselves by</p>
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_void'>void</span> <span class='id identifier rubyid_rb_gc_register_mark_object'>rb_gc_register_mark_object</span>(<span class='const'>VALUE</span> <span class='id identifier rubyid_object'>object</span>)</code></pre>
+<p>Registration is scoped to the calling Ractor. Any Ractor may register an
+address. The stored value must be a special constant, a shareable object,
+or an unshareable object owned by the registering Ractor. If the address
+holds another Ractor's unshareable object, the owning Ractor's GC cannot
+see the registration and can free the stored object while the registered
+address still refers to it. This can cause a use-after-free if the
+registering Ractor attempts to use the Object stored.</p>
+<p>If the address has process lifetime (a <code>static VALUE</code>), either register it
+from the main Ractor or keep the stored values shareable.</p>
+<p>Calling {Ractor#value} on a Ractor moves its registrations to the calling
+Ractor; otherwise they move to the main Ractor once the dead Ractor is
+collected. If you rely on a Ractor inheriting another Ractor's registered
+globals, call {Ractor#value}.</p>
 <h3 id="Prepare_extconf_rb">Prepare extconf.rb</h3>
 <p>If the file named extconf.rb exists, it will be executed to generate
 Makefile.</p>
@@ -1541,7 +1554,10 @@ The <em>getter</em> is called as</p>
 <dt><tt>void rb_global_variable(VALUE *var)</tt> </dt>
 <dd></dd>
 </dl>
-<p>Tells GC to protect C global variable, which holds Ruby value to be marked.</p>
+<p>Tells GC to protect C global variable, which holds Ruby value to be marked.
+The registration belongs to the calling Ractor: the stored value must be
+a special constant, a shareable object, or an unshareable object owned by
+the registering Ractor.</p>
 <dl>
 <dt><tt>void rb_gc_register_mark_object(VALUE object)</tt> </dt>
 <dd></dd>
