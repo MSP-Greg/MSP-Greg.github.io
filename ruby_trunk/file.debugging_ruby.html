@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen' content='yes'>
+<meta name='mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Debugging Ruby &mdash; Ruby-master</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "debugging_ruby",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>Ruby-master</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Debugging Ruby&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="file_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<h1 id="Debugging_Ruby">Debugging Ruby</h1>
+<p>You can use either lldb or gdb for debugging. Before debugging, you need to
+create a <code>test.rb</code> with the Ruby script you'd like to run. You can use the
+following make targets:</p>
+<ul>
+<li><code>make run</code>: Runs <code>test.rb</code> using Miniruby</li>
+<li><code>make lldb</code>: Runs <code>test.rb</code> using Miniruby in lldb</li>
+<li><code>make gdb</code>: Runs <code>test.rb</code> using Miniruby in gdb</li>
+<li><code>make runruby</code>: Runs <code>test.rb</code> using Ruby</li>
+<li><code>make lldb-ruby</code>: Runs <code>test.rb</code> using Ruby in lldb</li>
+<li><code>make gdb-ruby</code>: Runs <code>test.rb</code> using Ruby in gdb</li>
+</ul>
+<p>For VS Code users, you can set up editor-based debugging experience by running:</p>
+<pre class="code shell"><code class="shell">cp -r misc/.vscode {.vscode}
+</code></pre>
+<p>This will add launch configurations for debugging Ruby itself by running <code>test.rb</code> with <code>lldb</code>.</p>
+<p><strong>Note</strong>: if you build Ruby under the <code>./build</code> folder, you'll need to update <code>.vscode/launch.json</code>'s program entry accordingly to: <code>&quot;${workspaceFolder}/build/ruby&quot;</code></p>
+<h2 id="Compiling_for_Debugging">Compiling for Debugging</h2>
+<p>You can compile Ruby with the <code>RUBY_DEBUG</code> macro to enable debugging on some
+features. One example is debugging object shapes in Ruby with
+<code>RubyVM::Shape.of(object)</code>.</p>
+<p>Additionally Ruby can be compiled to support the <code>RUBY_DEBUG</code> environment
+variable to enable debugging on some features. An example is using
+<code>RUBY_DEBUG=gc_stress</code> to debug GC-related issues.</p>
+<p>There is also support for the <code>RUBY_DEBUG_LOG</code> environment variable to log a
+lot of information about what the VM is doing, via the <code>USE_RUBY_DEBUG_LOG</code>
+macro.</p>
+<p>You should also configure Ruby without optimization and other flags that may
+interfere with debugging by changing the optimization flags.</p>
+<p>Bringing it all together:</p>
+<pre class="code sh"><code class="sh">./configure cppflags=&quot;-DRUBY_DEBUG=1 -DUSE_RUBY_DEBUG_LOG=1&quot; --enable-debug-env optflags=&quot;-O0 -fno-omit-frame-pointer&quot;
+</code></pre>
+<h2 id="Building_with_Address_Sanitizer">Building with Address Sanitizer</h2>
+<p>Using the address sanitizer (ASAN) is a great way to detect memory issues. It
+can detect memory safety issues in Ruby itself, and also in any C extensions
+compiled with and loaded into a Ruby compiled with ASAN.</p>
+<pre class="code sh"><code class="sh">./autogen.sh
+mkdir build &amp;&amp; cd build
+../configure CC=clang-18 cflags=&quot;-fsanitize=address -fno-omit-frame-pointer -DUSE_MN_THREADS=0&quot; # and any other options you might like
+make
+</code></pre>
+<p>The compiled Ruby will now automatically crash with a report and a backtrace
+if ASAN detects a memory safety issue. To run Ruby's test suite under ASAN,
+issue the following command. Note that this will take quite a long time (over
+two hours on my laptop); the <code>RUBY_TEST_TIMEOUT_SCALE</code> and
+<code>SYNTAX_SUGGEST_TIMEOUT</code> variables are required to make sure tests don't
+spuriously fail with timeouts when in fact they're just slow.</p>
+<pre class="code sh"><code class="sh">RUBY_TEST_TIMEOUT_SCALE=5 SYNTAX_SUGGEST_TIMEOUT=600 make check
+</code></pre>
+<p>Please note, however, the following caveats!</p>
+<ul>
+<li>Due to [Bug <code>#20243]</code>, Clang generates code for threadlocal variables which
+doesn't work with M:N threading. Thus, it's necessary to disable M:N
+threading support at build time for now (with the <code>-DUSE_MN_THREADS=0</code>
+configure argument).</li>
+<li>ASAN will only work when using Clang version 18 or later - it requires
+[llvm/llvm-project#75290] related to multithreaded <code>fork</code>.</li>
+<li>ASAN has only been tested so far with Clang on Linux. It may or may not work
+with other compilers or on other platforms - please file an issue on
+[Ruby Issue Tracking System] if you run into problems with such configurations
+(or, to report that they actually work properly!)</li>
+<li>In particular, although I have not yet tried it, I have reason to believe
+ASAN will <em>not</em> work properly on macOS yet - the fix for the multithreaded
+fork issue was actually reverted for macOS (see [llvm/llvm-project#75659]).
+Please open an issue on [Ruby Issue Tracking System] if this is a problem for
+you.</li>
+</ul>
+<p>[Bug <code>#20243]</code>: <a href="https://bugs.ruby-lang.org/issues/20243">https://bugs.ruby-lang.org/issues/20243</a>
+[llvm/llvm-project#75290]: <a href="https://github.com/llvm/llvm-project/pull/75290">https://github.com/llvm/llvm-project/pull/75290</a>
+[llvm/llvm-project#75659]: <a href="https://github.com/llvm/llvm-project/pull/75659#issuecomment-1861584777">https://github.com/llvm/llvm-project/pull/75659#issuecomment-1861584777</a>
+[Ruby Issue Tracking System]: <a href="https://bugs.ruby-lang.org">https://bugs.ruby-lang.org</a></p>
+<h2 id="Crash_dumps">Crash dumps</h2>
+<p>A <code>[BUG]</code> report shows the backtrace of the crashing thread, but not the other threads or the memory, and some crashes leave no report at all, such as one in a thread other than the main one on Windows. A crash dump keeps that state for a debugger.</p>
+<h3 id="Getting_a_dump">Getting a dump</h3>
+<h4 id="Locally">Locally</h4>
+<p>On Linux, the <code>abort()</code> after a <code>[BUG]</code> report writes a core file when <code>ulimit -c</code> allows. <code>/proc/sys/kernel/core_pattern</code> decides where it goes, and <code>coredumpctl</code> retrieves it if the pattern pipes to systemd-coredump. To write it into the current directory, as the CI does:</p>
+<pre class="code sh"><code class="sh">ulimit -c unlimited
+echo &quot;$PWD/core.%p&quot; | sudo tee /proc/sys/kernel/core_pattern
+</code></pre>
+<p>On macOS, the kernel writes no core for the ad-hoc signed <code>ruby</code>. Instead, lldb can attach and save one through <code>RUBY_ON_BUG</code>, a command that Ruby runs with its pid appended when it reaches <code>[BUG]</code> (<code>make runruby</code> uses it for gdb):</p>
+<pre class="code sh"><code class="sh">RUBY_ON_BUG=&#39;lldb --batch -o &quot;process save-core -s modified-memory /tmp/ruby.core&quot; -p&#39; ./ruby test.rb
+</code></pre>
+<p>On Windows, <code>RUBY_DEBUG=wer</code> leaves the crashes that bypass the <code>[BUG]</code> report to Windows Error Reporting, which writes a dump once <code>LocalDumps</code> is set in the registry as an administrator. <code>RUBY_DEBUG</code> needs <code>--enable-debug-env</code> at configure:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_reg'>reg</span> <span class='id identifier rubyid_add'>add</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>HKLM\SOFTWARE</span><span class='tstring_content'>\Mi</span><span class='tstring_content'>crosoft\Windows\Windows Error Reporting\LocalDumps</span><span class='tstring_end'>&quot;</span></span> <span class='op'>/</span><span class='id identifier rubyid_v'>v</span> <span class='const'>DumpFolder</span> <span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>t REG_EXPAND_SZ </span><span class='regexp_end'>/d</span></span> <span class='const'>C</span><span class='symbeg'>:</span><span class='CHAR'>\</span><span class='id identifier rubyid_dumps'>dumps</span> <span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>f
+set RUBY_DEBUG=wer</span></code></pre>
+<h4 id="From_CI">From CI</h4>
+<p>When a Ruby process crashes in the tests on GitHub Actions, these workflows upload an artifact with the dumps and what is needed to read them:</p>
+<ul>
+<li>Windows (<code>windows.yml</code>), as <code>crashdumps-OS-TASK</code>, or <code>crashdumps-OS-x86-TASK</code> for the x86 job</li>
+<li>Ubuntu (<code>ubuntu.yml</code>, except the ppc64le and s390x jobs), YJIT Ubuntu (<code>yjit-ubuntu.yml</code>) and ZJIT Ubuntu (<code>zjit-ubuntu.yml</code>), as <code>crashdumps-JOB-INDEX</code></li>
+<li>macOS (<code>macos.yml</code>), YJIT macOS (<code>yjit-macos.yml</code>) and ZJIT macOS (<code>zjit-macos.yml</code>), as <code>crashdumps-JOB-INDEX</code></li>
+</ul>
+<p><code>JOB-INDEX</code> is the job name and its position in the matrix, such as <code>crashdumps-make-3</code>. The other workflows collect no dumps. The artifact is listed under &quot;Artifacts&quot; on the run's summary page for 7 days, and each dump is named after the pid in the <code>pid N killed by SIG...</code> line of the test output.</p>
+<pre class="code sh"><code class="sh">gh run download RUN_ID -R ruby/ruby -n ARTIFACT_NAME -D artifact
+cd artifact
+</code></pre>
+<h3 id="Reading_a_dump">Reading a dump</h3>
+<p>Below, <code>~/src/ruby</code> is a checkout of the commit that crashed.</p>
+<h4 id="Linux_and_macOS">Linux and macOS</h4>
+<p>A local dump opens with the binary that wrote it, as in <code>gdb ./ruby core.PID</code> or <code>lldb -c /tmp/ruby.core ./ruby</code>.</p>
+<p>For a Linux dump from CI, <code>file core.PID</code> tells which executable crashed, and every file the process mapped is under <code>sysroot/</code> at its original path. gdb finds the libraries there by their sonames:</p>
+<pre class="code sh"><code class="sh">gdb -q -ex &#39;set sysroot sysroot&#39; -ex &quot;set solib-search-path $(find sysroot/usr -name libc.so.6 -printf &#39;%h&#39;)&quot; -ex &#39;set substitute-path /home/runner/work/ruby/ruby/src ~/src/ruby&#39; -ex &#39;file sysroot/home/runner/work/ruby/ruby/build/ruby&#39; -ex &#39;core-file core.PID&#39;
+</code></pre>
+<p>lldb on macOS reads these cores too, with <code>target.exec-search-paths</code> set before <code>target create</code> (<code>aarch64-linux-gnu</code> for an arm64 job):</p>
+<pre class="code sh"><code class="sh">lldb -o &#39;settings set target.exec-search-paths sysroot/usr/lib/x86_64-linux-gnu&#39; -o &#39;platform select remote-linux --sysroot sysroot&#39; -o &#39;target create --core core.PID sysroot/home/runner/work/ruby/ruby/build/ruby&#39;
+</code></pre>
+<p>A macOS dump from CI comes with <code>core.PID.lldb</code>, which loads the binaries and dSYMs under <code>sysroot/</code> first. If a dump is missing, see <code>lldb.PID.log</code>.</p>
+<pre class="code sh"><code class="sh">lldb -s core.PID.lldb -o &#39;settings set target.source-map /Users/runner/work/ruby/ruby/src ~/src/ruby&#39; -o &#39;bt all&#39;
+</code></pre>
+<p>The backtrace starts in the signal handler. The faulting instruction is found from the <code>sigsegv</code> frame, with <code>__rip</code> for <code>__pc</code> on x86_64:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_image'>image</span> <span class='id identifier rubyid_lookup'>lookup</span> <span class='op'>-</span><span class='id identifier rubyid_a'>a</span> <span class='op'>&lt;</span><span class='id identifier rubyid_code'>code</span><span class='op'>&gt;</span>((<span class='id identifier rubyid_ucontext_t'>ucontext_t</span> <span class='op'>*</span>)<span class='id identifier rubyid_ctx'>ctx</span>)<span class='tlambda'>-&gt;</span><span class='id identifier rubyid_uc_mcontext'>uc_mcontext</span><span class='tlambda'>-&gt;</span><span class='id identifier rubyid___ss'>__ss</span>.<span class='id identifier rubyid___pc'>__pc</span><span class='op'>&lt;</span><span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>code&gt;</span></code></pre>
+<h4 id="Windows">Windows</h4>
+<p>In an artifact from CI, the dumps <code>ruby.exe.PID.dmp</code> are under <code>crashdumps/</code>, the binaries and PDBs under <code>build/</code> (those of extension libraries under <code>build/ext/NAME/</code>), and the vcpkg libraries under <code>src/vcpkg_installed/TRIPLET/bin/</code>. WinDbg reads a dump with these directories in the symbol path.</p>
+<p>Elsewhere, lldb prints the frames as module offsets, which <code>llvm-symbolizer</code> resolves with the PDB:</p>
+<pre class="code sh"><code class="sh">lldb --batch -c crashdumps/ruby.exe.PID.dmp -o &#39;image list&#39; -o &#39;bt all&#39;
+llvm-symbolizer --obj=build/arm64-vcruntime140-ruby410.dll --relative-address --inlining 0x15d7c
+</code></pre>
+<p>The offset is the frame address minus the module base in <code>image list</code>. <code>llvm-symbolizer</code> looks for a PDB only next to the binary, so link those of extension and vcpkg libraries there first.</p>
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>
