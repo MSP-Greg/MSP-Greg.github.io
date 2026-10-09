@@ -63,6 +63,45 @@
 <div id='content' class='file'>
 <ul>
 <li>
+<p>Fix <code>where</code> with a <a href="Range.html" title="Range (class)"><code>Range</code></a> of value objects on a single-mapping <code>composed_of</code>
+attribute.</p>
+<p>Range endpoints now go through the mapping, like single values and arrays do.
+Before, they were used as-is, so both ends became <code>NULL</code>:</p>
+<pre class="code ruby"><code class="ruby"><span class='const'>Customer</span>.<span class='id identifier rubyid_where'>where</span>(<span class='label'>balance:</span> <span class='const'>Money</span>.<span class='id identifier rubyid_new'>new</span>(<span class='int'>150</span>)<span class='op'>..</span><span class='const'>Money</span>.<span class='id identifier rubyid_new'>new</span>(<span class='int'>250</span>))
+<span class='comment'># before: ... WHERE &quot;customers&quot;.&quot;balance&quot; BETWEEN NULL AND NULL
+</span><span class='comment'># after:  ... WHERE &quot;customers&quot;.&quot;balance&quot; BETWEEN 150 AND 250</span></code></pre>
+<p><em>Kushagra Singh</em></p>
+</li>
+<li>
+<p>Combine constraint operations into the single <code>ALTER TABLE</code> statement emitted by
+<code>change_table</code> with <code>bulk: true</code>.</p>
+<p><code>add_foreign_key</code>, <code>remove_foreign_key</code>, <code>add_check_constraint</code> and
+<code>remove_check_constraint</code> are now combinable on every adapter that supports
+bulk alter (MySQL and PostgreSQL), as are <code>add_unique_constraint</code>,
+<code>remove_unique_constraint</code>, <code>add_exclusion_constraint</code> and
+<code>remove_exclusion_constraint</code> on PostgreSQL.</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_change_table'>change_table</span> <span class='symbeg'>:</span><span class='id identifier rubyid_posts'>posts</span><span class='comma'>,</span> <span class='label'>bulk:</span> <span class='kw'>true</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_t'>t</span><span class='op'>|</span>
+  <span class='id identifier rubyid_t'>t</span>.<span class='id identifier rubyid_bigint'>bigint</span> <span class='symbeg'>:</span><span class='id identifier rubyid_reviewer_id'>reviewer_id</span>
+  <span class='id identifier rubyid_t'>t</span>.<span class='id identifier rubyid_foreign_key'>foreign_key</span> <span class='symbeg'>:</span><span class='id identifier rubyid_authors'>authors</span><span class='comma'>,</span> <span class='label'>column:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_reviewer_id'>reviewer_id</span>
+  <span class='id identifier rubyid_t'>t</span>.<span class='id identifier rubyid_check_constraint'>check_constraint</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>views &gt;= 0</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>name:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>views_check</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_t'>t</span>.<span class='id identifier rubyid_remove_foreign_key'>remove_foreign_key</span> <span class='symbeg'>:</span><span class='id identifier rubyid_authors'>authors</span><span class='comma'>,</span> <span class='label'>column:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_editor_id'>editor_id</span>
+<span class='kw'>end</span></code></pre>
+<p>Before, each constraint flushed the pending <code>ALTER TABLE</code> and ran on its own.
+Now all four operations are applied in one statement.</p>
+<p><em>Ryuta Kamizono</em></p>
+</li>
+<li>
+<p>Stop <code>connected_to</code> from changing the role and shard of a thread that shares
+the execution state.</p>
+<p><code>ActionController::Live</code> copies the request's execution state into the
+streaming thread, but both threads kept using the same <code>connected_to</code> stack.
+When the request thread left a <code>connected_to</code> block, for example the one
+opened by the shard selector middleware, the streaming thread lost its shard
+and role too. The stack is now replaced instead of modified in place.</p>
+<p>Fixes #58870.</p>
+<p><em>Suliman Abdulrazzaq</em></p>
+</li>
+<li>
 <p>Fix <code>change_column</code> in migrations declaring version 5.1 or earlier to honor
 <code>table_name_prefix</code> and <code>table_name_suffix</code> for <code>:default</code>, <code>:null</code>, and
 <code>:comment</code> on PostgreSQL.</p>
