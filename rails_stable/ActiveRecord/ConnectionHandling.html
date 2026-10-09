@@ -299,6 +299,15 @@
       <a href="#append_to_connected_to_stack-instance_method" title="#append_to_connected_to_stack (instance method)">#<strong>append_to_connected_to_stack</strong>(entry)  </a>
     </span>
     <span class='note title private'>private</span>
+    <div class='summary_desc'>
+      <div class='inline'><p>The stack can be shared with another thread or fiber through <a href="../ActiveSupport/IsolatedExecutionState.html#share_with-class_method" title="ActiveSupport::IsolatedExecutionState.share_with (method)">ActiveSupport::IsolatedExecutionState.share_with</a> (ActionController::Live does this for the streaming thread), so it is never modified in place.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
+      <a href="#pop_connected_to_stack-instance_method" title="#pop_connected_to_stack (instance method)">#<strong>pop_connected_to_stack</strong>  </a>
+    </span>
+    <span class='note title private'>private</span>
   </li>
   <li>
     <span class='summary_signature priv'>
@@ -499,11 +508,20 @@
   <h3 class='signature priv'>
     #<strong>append_to_connected_to_stack</strong>(entry)   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/8-1-stable/activerecord/lib/active_record/connection_handling.rb#L410-L416'>GitHub</a>&#8202;]</span>
+<div class='docstring'>
+  <div class='discussion'>
+    <p>The stack can be shared with another thread or fiber through
+<a href="../ActiveSupport/IsolatedExecutionState.html#share_with-class_method" title="ActiveSupport::IsolatedExecutionState.share_with (method)">ActiveSupport::IsolatedExecutionState.share_with</a> (ActionController::Live
+does this for the streaming thread), so it is never modified in place.
+A modified copy replaces it instead, leaving the stack seen by the other
+execution context untouched.</p>
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/8-1-stable/activerecord/lib/active_record/connection_handling.rb#L415-L423'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='410' data-end='416'></pre>
+  <pre class='lines_num' data-start='415' data-end='423'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'activerecord/lib/active_record/connection_handling.rb', line 410</span></pre>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_handling.rb', line 415</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_append_to_connected_to_stack'>append_to_connected_to_stack</span>(<span class='id identifier rubyid_entry'>entry</span>)
@@ -511,7 +529,9 @@
     <span class='id identifier rubyid_raise'>raise</span> <span class='const'>ArgumentError</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>cannot swap `shard` while shard swapping is prohibited.</span><span class='tstring_end'>&quot;</span></span>
   <span class='kw'>end</span>
 
-  <span class='id identifier rubyid_connected_to_stack'>connected_to_stack</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_entry'>entry</span>
+  <span class='id identifier rubyid_stack'>stack</span> <span class='op'>=</span> <span class='id identifier rubyid_connected_to_stack'>connected_to_stack</span>.<span class='id identifier rubyid_dup'>dup</span>
+  <span class='id identifier rubyid_stack'>stack</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_entry'>entry</span>
+  <span class='const'><a href="../ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="../ActiveSupport/IsolatedExecutionState.html" title="ActiveSupport::IsolatedExecutionState (module)">IsolatedExecutionState</a></span>[<span class='symbeg'>:</span><span class='id identifier rubyid_active_record_connected_to_stack'>active_record_connected_to_stack</span>] <span class='op'>=</span> <span class='id identifier rubyid_stack'>stack</span>
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -729,7 +749,7 @@ can be passed to block writes on a connection. <code>reading</code> will automat
   <span class='kw'>begin</span>
     <span class='kw'>yield</span>
   <span class='kw'>ensure</span>
-    <span class='id identifier rubyid_connected_to_stack'>connected_to_stack</span>.<span class='id identifier rubyid_pop'>pop</span>
+    <span class='id identifier rubyid_pop_connected_to_stack'><a href="#pop_connected_to_stack-instance_method" title="ActiveRecord::ConnectionHandling#pop_connected_to_stack (method)">pop_connected_to_stack</a></span>
   <span class='kw'>end</span>
 <span class='kw'>end</span>
 </pre>
@@ -1019,6 +1039,27 @@ or job, or until <a href="#release_connection-instance_method" title="ActiveReco
 </div>
 </section>
 
+<section class='method_details' id="pop_connected_to_stack-instance_method">
+  <h3 class='signature priv'>
+    #<strong>pop_connected_to_stack</strong>   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/rails/rails/blob/8-1-stable/activerecord/lib/active_record/connection_handling.rb#L425-L429'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='425' data-end='429'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'activerecord/lib/active_record/connection_handling.rb', line 425</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_pop_connected_to_stack'>pop_connected_to_stack</span>
+  <span class='id identifier rubyid_stack'>stack</span> <span class='op'>=</span> <span class='id identifier rubyid_connected_to_stack'>connected_to_stack</span>.<span class='id identifier rubyid_dup'>dup</span>
+  <span class='id identifier rubyid_stack'>stack</span>.<span class='id identifier rubyid_pop'>pop</span>
+  <span class='const'><a href="../ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="../ActiveSupport/IsolatedExecutionState.html" title="ActiveSupport::IsolatedExecutionState (module)">IsolatedExecutionState</a></span>[<span class='symbeg'>:</span><span class='id identifier rubyid_active_record_connected_to_stack'>active_record_connected_to_stack</span>] <span class='op'>=</span> <span class='id identifier rubyid_stack'>stack</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
 <section class='method_details' id="prohibit_shard_swapping-instance_method">
   <h3 class='signature '>
     #<strong>prohibit_shard_swapping</strong>(enabled = true)  
@@ -1268,7 +1309,7 @@ unless the <code>prevent_permanent_checkout</code> argument is set to <code>true
     <span class='id identifier rubyid_return_value'>return_value</span>.<span class='id identifier rubyid_load'>load</span> <span class='kw'>if</span> <span class='id identifier rubyid_return_value'>return_value</span>.<span class='id identifier rubyid_is_a?'>is_a?</span> <span class='const'><a href="../ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="Relation.html" title="ActiveRecord::Relation (class)">Relation</a></span>
     <span class='id identifier rubyid_return_value'>return_value</span>
   <span class='kw'>ensure</span>
-    <span class='kw'>self</span>.<span class='id identifier rubyid_connected_to_stack'>connected_to_stack</span>.<span class='id identifier rubyid_pop'>pop</span>
+    <span class='id identifier rubyid_pop_connected_to_stack'><a href="#pop_connected_to_stack-instance_method" title="ActiveRecord::ConnectionHandling#pop_connected_to_stack (method)">pop_connected_to_stack</a></span>
   <span class='kw'>end</span>
 <span class='kw'>end</span>
 </pre>
