@@ -5823,7 +5823,7 @@ cops located on the directive lines themselves resurface.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Yes</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Always</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">0.82</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">1.90</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1.92</p></td>
 </tr>
 </tbody>
 </table>
@@ -5861,7 +5861,8 @@ than a decision someone should be asked to justify.</p>
 a &lt;code&gt;--&lt;/code&gt; trailing justification comment is allowed, so a team can require
 every disable to be documented instead of banning them outright. Enable
 directives are not checked in this mode, since they end a suppression
-rather than start one.</p>
+rather than start one. Offenses in this mode are not autocorrected,
+since only a human can supply the missing justification.</p>
 </div>
 <div class="paragraph">
 <p>This cop cannot be disabled via directive comments when it is explicitly
@@ -8377,13 +8378,18 @@ can be used.</p>
 <div class="paragraph">
 <p>Checks for exact regexp match inside <code>Regexp</code> literals.</p>
 </div>
+<div class="paragraph">
+<p><code>=~</code> returns an index and <code>match</code> returns <code>MatchData</code>, so they are only
+autocorrected when their value is used as a condition. The same goes for
+safe navigation calls, which return <code>nil</code> for a <code>nil</code> receiver.</p>
+</div>
 <div class="sect2">
 <h3 id="examples-styleexactregexpmatch">Examples</h3>
 <div class="listingblock">
 <div class="content">
 <pre class="code ruby"><code class="ruby"><span class='comment'># bad
 </span><span class='id identifier rubyid_string'>string</span> <span class='op'>=~</span> <span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>\Astring\z</span><span class='regexp_end'>/</span></span>
-<span class='id identifier rubyid_string'>string</span> <span class='op'>===</span> <span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>\Astring\z</span><span class='regexp_end'>/</span></span>
+<span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>\Astring\z</span><span class='regexp_end'>/</span></span> <span class='op'>===</span> <span class='id identifier rubyid_string'>string</span>
 <span class='id identifier rubyid_string'>string</span>.<span class='id identifier rubyid_match'>match</span>(<span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>\Astring\z</span><span class='regexp_end'>/</span></span>)
 <span class='id identifier rubyid_string'>string</span>.<span class='id identifier rubyid_match?'>match?</span>(<span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>\Astring\z</span><span class='regexp_end'>/</span></span>)
 
@@ -11483,7 +11489,10 @@ or responds to the replacement method.</p>
 </span><span class='id identifier rubyid_hash'>hash</span>.<span class='id identifier rubyid_fetch'>fetch</span>(<span class='id identifier rubyid_key'>key</span><span class='comma'>,</span> <span class='id identifier rubyid_default'>default</span>)
 
 <span class='comment'># good - fetch with block is allowed
-</span><span class='id identifier rubyid_hash'>hash</span>.<span class='id identifier rubyid_fetch'>fetch</span>(<span class='id identifier rubyid_key'>key</span>) { <span class='id identifier rubyid_default'>default</span> }</code></pre>
+</span><span class='id identifier rubyid_hash'>hash</span>.<span class='id identifier rubyid_fetch'>fetch</span>(<span class='id identifier rubyid_key'>key</span>) { <span class='id identifier rubyid_default'>default</span> }
+
+<span class='comment'># good - {ENV.fetch} is left to &lt;code&gt;Style/FetchEnvVar&lt;/code&gt; when it is enabled
+</span>{<span class='const'>ENV</span>.<span class='id identifier rubyid_fetch'>fetch</span>}(<span class='id identifier rubyid_key'>key</span>)</code></pre>
 </div>
 </div>
 </div>
@@ -16972,7 +16981,8 @@ Requires Ruby version 2.7
 <td class="content">
 &lt;code&gt;return if &#8230;&#8203; else &#8230;&#8203; end&lt;/code&gt; is syntax error. If <code>return</code> is used before
 multiline ternary operator expression, it will be autocorrected to single-line
-ternary operator. The same is true for <code>break</code>, <code>next</code>, and method call.
+ternary operator. The same is true for <code>break</code>, <code>next</code>, <code>yield</code>, <code>super</code>,
+<code>defined?</code> without parentheses, and method call.
 </td>
 </tr>
 </table>
@@ -17935,10 +17945,10 @@ without else are considered. There are three different styles:</p>
 <tbody>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Pending</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Yes</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Always</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">No</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Always (Unsafe)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">1.84</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">-</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1.92</p></td>
 </tr>
 </tbody>
 </table>
@@ -17951,6 +17961,16 @@ Also handles range patterns like &lt;code&gt;arr[0..(arr.length - n)]&lt;/code&g
 <p>The cop recognizes preserving methods (<code>sort</code>, <code>reverse</code>, <code>shuffle</code>, <code>rotate</code>)
 and their combinations, allowing safe replacement when the receiver matches.
 It works with variables, instance variables, class variables, and constants.</p>
+</div>
+<div class="sect2">
+<h3 id="safety-stylenegativearrayindex">Safety</h3>
+<div class="paragraph">
+<p>This cop is unsafe because the receiver may not be an Array. For a Hash,
+&lt;code&gt;hash[hash.size - 1]&lt;/code&gt; looks up the key &lt;code&gt;hash.size - 1&lt;/code&gt;, which &lt;code&gt;hash[-1]&lt;/code&gt;
+does not. Even for an Array, &lt;code&gt;arr[arr.length - n]&lt;/code&gt; wraps around to an
+element from the end when <code>n</code> exceeds the length, while &lt;code&gt;arr[-n]&lt;/code&gt;
+returns <code>nil</code>.</p>
+</div>
 </div>
 <div class="sect2">
 <h3 id="examples-stylenegativearrayindex">Examples</h3>
