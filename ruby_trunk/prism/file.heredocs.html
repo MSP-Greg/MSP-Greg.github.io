@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen' content='yes'>
+<meta name='mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Heredocs &mdash; prism  Ruby-master dev</title>
+
+<link rel='stylesheet'  type='text/css' href='../../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "heredocs",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='../.'>Ruby-master</a> &raquo; 
+      <a href='.'>prism</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Heredocs&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<h1 id="Heredocs">Heredocs</h1>
+<p>Heredocs are one of the most complicated pieces of this parser. There are many different forms, there can be multiple open at the same time, and they can be nested. In order to support parsing them, we keep track of a lot of metadata. Below is a basic overview of how it works.</p>
+<h2 id="1_Lexing_the_identifier">1. Lexing the identifier</h2>
+<p>When a heredoc identifier is encountered in the regular process of lexing, we push the <code>PM_LEX_HEREDOC</code> mode onto the stack with the following metadata:</p>
+<ul>
+<li><code>ident_start</code>: A pointer to the start of the identifier for the heredoc. We need this to match against the end of the heredoc.</li>
+<li><code>ident_length</code>: The length of the identifier for the heredoc. We also need this to match.</li>
+<li><code>next_start</code>: A pointer to the place in source that the parser should resume lexing once it has completed this heredoc.</li>
+</ul>
+<p>We also set the special <code>parser.next_start</code> field which is a pointer to the place in the source where we should start lexing the next token. This is set to the pointer of the character immediately following the next newline.</p>
+<p>Note that if the <code>parser.heredoc_end</code> field is already set, then it means we have already encountered a heredoc on this line. In that case the <code>parser.next_start</code> field will be set to the <code>parser.heredoc_end</code> field. This is because we want to skip past the previous heredocs on this line and instead lex the body of this heredoc.</p>
+<h2 id="2_Lexing_the_body">2. Lexing the body</h2>
+<p>The next time the lexer is asked for a token, it will be in the <code>PM_LEX_HEREDOC</code> mode. In this mode we are lexing the body of the heredoc. It will start by checking if the <code>next_start</code> field is set. If it is, then this is the first token within the body of the heredoc so we'll start lexing from there. Otherwise we'll start lexing from the end of the previous token.</p>
+<p>Lexing these fields is extremely similar to lexing an interpolated string. The only difference is that we also do an additional check at the beginning of each line to check if we have hit the terminator.</p>
+<h2 id="3_Lexing_the_terminator">3. Lexing the terminator</h2>
+<p>On every newline within the body of a heredoc, we check to see if it matches the terminator followed by a newline or a carriage return and a newline. If it does, then we pop the lex mode off the stack and set a couple of fields on the parser:</p>
+<ul>
+<li><code>next_start</code>: This is set to the value that we previously stored on the heredoc to indicate where the lexer should resume lexing when it is done with this heredoc.</li>
+<li><code>heredoc_end</code>: This is set to the end of the heredoc. When a newline character is found, this indicates that the lexer should skip past to this next point.</li>
+</ul>
+<h2 id="4_Lexing_the_rest_of_the_line">4. Lexing the rest of the line</h2>
+<p>Once the heredoc has been lexed, the lexer will resume lexing from the <code>next_start</code> field. Lexing will continue until the next newline character. When the next newline character is found, it will check to see if the <code>heredoc_end</code> field is set. If it is it will skip to that point, unset the field, and continue lexing.</p>
+<h2 id="Compatibility_with_Ripper">Compatibility with Ripper</h2>
+<p>The order in which tokens are emitted is different from that of <a href="#Ripper-constant" title="Ripper (constant)">Ripper</a>. <a href="#Ripper-constant" title="Ripper (constant)">Ripper</a> emits each token in the file in the order in which it appears. prism instead will emit the tokens that makes the most sense for the lexer, using the process described above. Therefore to line things up, <a href="Prism.html#lex_compat-class_method" title="Prism.lex_compat (method)">Prism.lex_compat</a> will shuffle the tokens around to match Ripper's output.</p>
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>

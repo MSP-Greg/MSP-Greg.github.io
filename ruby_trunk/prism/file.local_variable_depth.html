@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen' content='yes'>
+<meta name='mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Local variable depth &mdash; prism  Ruby-master dev</title>
+
+<link rel='stylesheet'  type='text/css' href='../../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "local_variable_depth",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='../.'>Ruby-master</a> &raquo; 
+      <a href='.'>prism</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Local variable depth&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<h1 id="Local_variable_depth">Local variable depth</h1>
+<p>One feature of <a href="Prism.html" title="Prism (module)"><code>Prism</code></a> is that it resolves local variables as it parses. It's necessary to do this because of ambiguities in the grammar. For example, consider the following code:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_foo'>foo</span> <span class='op'>/</span> <span class='id identifier rubyid_bar'>bar</span><span class='comment'>#/</span></code></pre>
+<p>If <code>foo</code> is a local variable, this is a call to <code>/</code> with <code>bar</code> as an argument, followed by a comment. If it's not a local variable, this is a method call to <code>foo</code> with a regular expression argument.</p>
+<p>&quot;Depth&quot; refers to the number of visible scopes that Prism has to go up to find the declaration of a local variable.
+Note that this follows the same scoping rules as Ruby, so a local variable is only visible in the scope it is declared in and in blocks nested in that scope.
+The rules for calculating the depth are very important to understand because they may differ from individual Ruby implementations since they are not specified by the language.</p>
+<p>Prism uses the minimum number of scopes, i.e., it only creates scopes when necessary semantically, in other words when there must be distinct scopes (which can be observed through <code>binding.local_variables</code>).
+That are no &quot;transparent/invisible&quot; scopes in Prism.
+Some Ruby implementations use those for some language constructs and need to adjust by maintaining a depth offset.</p>
+<p>Below are the places where a local variable can be written/targeted, along with how the depth is calculated at that point.</p>
+<h2 id="General">General</h2>
+<p>In the course of general Ruby code when reading a local variable, the depth is equal to the number of scopes to go up to find the declaration of that variable. For example:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_foo'>foo</span> <span class='op'>=</span> <span class='int'>1</span>
+<span class='id identifier rubyid_bar'>bar</span> <span class='op'>=</span> <span class='int'>2</span>
+<span class='id identifier rubyid_baz'>baz</span> <span class='op'>=</span> <span class='int'>3</span>
+
+<span class='id identifier rubyid_foo'>foo</span> <span class='comment'># depth 0
+</span><span class='id identifier rubyid_tap'>tap</span> { <span class='id identifier rubyid_bar'>bar</span> } <span class='comment'># depth 1
+</span><span class='id identifier rubyid_tap'>tap</span> { <span class='id identifier rubyid_tap'>tap</span> { <span class='id identifier rubyid_baz'>baz</span> } } <span class='comment'># depth 2</span></code></pre>
+<p>This also includes writing to a local variable, which could be writing to a local variable that is already declared. For example:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_foo'>foo</span> <span class='op'>=</span> <span class='int'>1</span>
+<span class='id identifier rubyid_bar'>bar</span> <span class='op'>=</span> <span class='int'>2</span>
+
+<span class='id identifier rubyid_foo'>foo</span> <span class='op'>=</span> <span class='int'>3</span> <span class='comment'># depth 0
+</span><span class='id identifier rubyid_tap'>tap</span> { <span class='id identifier rubyid_bar'>bar</span> <span class='op'>=</span> <span class='int'>4</span> } <span class='comment'># depth 1</span></code></pre>
+<p>This includes multiple assignment, where the same principle applies. For example:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_foo'>foo</span> <span class='op'>=</span> <span class='int'>1</span>
+<span class='id identifier rubyid_bar'>bar</span> <span class='op'>=</span> <span class='int'>2</span>
+
+<span class='id identifier rubyid_foo'>foo</span><span class='comma'>,</span> <span class='id identifier rubyid_bar'>bar</span> <span class='op'>=</span> <span class='int'>3</span><span class='comma'>,</span> <span class='int'>4</span> <span class='comment'># depth 0
+</span><span class='id identifier rubyid_tap'>tap</span> { <span class='id identifier rubyid_foo'>foo</span><span class='comma'>,</span> <span class='id identifier rubyid_bar'>bar</span> <span class='op'>=</span> <span class='int'>5</span><span class='comma'>,</span> <span class='int'>6</span> } <span class='comment'># depth 1</span></code></pre>
+<h2 id="for_loops"><code>for</code> loops</h2>
+<p><code>for</code> loops in Ruby break down to calls to <code>.each</code> with a block.
+However in that case local variable reads and writes within the block will be in the same scope as the scope surrounding the <code>for</code> and not in a deeper/separate scope (surprising, but this is Ruby semantics).
+For example:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_foo'>foo</span> <span class='op'>=</span> <span class='int'>1</span>
+
+<span class='kw'>for</span> <span class='id identifier rubyid_e'>e</span> <span class='kw'>in</span> <span class='id identifier rubyid_baz'>baz</span>
+  <span class='id identifier rubyid_foo'>foo</span> <span class='comment'># depth 0
+</span>  <span class='id identifier rubyid_bar'>bar</span> <span class='op'>=</span> <span class='int'>2</span> <span class='comment'># depth 0
+</span><span class='kw'>end</span>
+
+<span class='id identifier rubyid_p'>p</span> <span class='id identifier rubyid_bar'>bar</span> <span class='comment'># depth 0, prints 2</span></code></pre>
+<p>The local variable(s) used for the index of the <code>for</code> are also at the same depth (as variables inside and outside the <code>for</code>):</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>for</span> <span class='id identifier rubyid_e'>e</span> <span class='kw'>in</span> [<span class='int'>1</span><span class='comma'>,</span> <span class='int'>2</span>] <span class='comment'># depth 0
+</span>  <span class='id identifier rubyid_e'>e</span> <span class='comment'># depth 0
+</span><span class='kw'>end</span>
+
+<span class='id identifier rubyid_p'>p</span> <span class='id identifier rubyid_e'>e</span> <span class='comment'># depth 0, prints 2</span></code></pre>
+<h2 id="Pattern_matching_captures">Pattern matching captures</h2>
+<p>You can target a local variable in a pattern matching expression using capture syntax. Using this syntax, you can target local variables in the current scope or in visible parent scopes. For example:</p>
+<pre class="code ruby"><code class="ruby"><span class='int'>42</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_bar'>bar</span> <span class='comment'># depth 0</span></code></pre>
+<p>The example above writes to a local variable in the current scope. If the variable is already declared in a higher visible scope, it will be written to that scope instead. For example:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_foo'>foo</span> <span class='op'>=</span> <span class='int'>1</span>
+<span class='id identifier rubyid_tap'>tap</span> { <span class='int'>42</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_foo'>foo</span> } <span class='comment'># depth 1</span></code></pre>
+<h2 id="Named_capture_groups">Named capture groups</h2>
+<p>You can target local variables through named capture groups in regular expressions if they are used on the left-hand side of a <code>=~</code> operator. For example:</p>
+<pre class="code ruby"><code class="ruby"><span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>(?&lt;foo&gt;\d+)</span><span class='regexp_end'>/</span></span> <span class='op'>=~</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>42</span><span class='tstring_end'>&quot;</span></span> <span class='comment'># depth 0</span></code></pre>
+<p>This will write to a <code>foo</code> local variable. If the variable is already declared in a higher visible scope, it will be written to that scope instead. For example:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_foo'>foo</span> <span class='op'>=</span> <span class='int'>1</span>
+<span class='id identifier rubyid_tap'>tap</span> { <span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>(?&lt;foo&gt;\d+)</span><span class='regexp_end'>/</span></span> <span class='op'>=~</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>42</span><span class='tstring_end'>&quot;</span></span> } <span class='comment'># depth 1</span></code></pre>
+<h2 id="interpolated_once_regular_expressions">&quot;interpolated once&quot; regular expressions</h2>
+<p>Regular expressions that interpolate local variables (unrelated to capture group local variables) and have the <code>o</code> flag will only interpolate the local variables once for the runtime of the program.
+In CRuby, this is implemented by compiling the regular expression within a nested instruction sequence, which means CRuby thinks the depth is one more than prism does. For example:</p>
+<pre class="code ruby"><code class="ruby"><span class='gvar'>$ </span><span class='id identifier rubyid_ruby'>ruby</span> <span class='op'>-</span><span class='op'>-</span><span class='id identifier rubyid_dump'>dump</span><span class='op'>=</span><span class='id identifier rubyid_insns'>insns</span> <span class='op'>-</span><span class='id identifier rubyid_e'>e</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>foo = 1; /#{foo}/o</span><span class='tstring_end'>&#39;</span></span>
+<span class='op'>==</span> <span class='id identifier rubyid_disasm'>disasm</span><span class='op'>:</span> {<span class='comment'>#&lt;}ISeq:&lt;main&gt;@-e:1 (1,0)-(1,18)&gt; (catch: false)
+</span><span class='id identifier rubyid_local'>local</span> <span class='id identifier rubyid_table'>table</span> (<span class='label'>size:</span> <span class='int'>1</span><span class='comma'>,</span> <span class='label'>argc:</span> <span class='int'>0</span> [<span class='label'>opts:</span> <span class='int'>0</span><span class='comma'>,</span> <span class='label'>rest:</span> <span class='op'>-</span><span class='int'>1</span><span class='comma'>,</span> <span class='label'>post:</span> <span class='int'>0</span><span class='comma'>,</span> <span class='label'>block:</span> <span class='op'>-</span><span class='int'>1</span><span class='comma'>,</span> <span class='label'>kw:</span> <span class='op'>-</span><span class='int'>1</span><span class='ivar'>@</span><span class='op'>-</span><span class='int'>1</span><span class='comma'>,</span> <span class='label'>kwrest:</span> <span class='op'>-</span><span class='int'>1</span>])
+[ <span class='int'>1</span>] <span class='id identifier rubyid_foo'>foo</span><span class='ivar'>@</span><span class='int'>0</span>
+<span class='int'>0000</span> <span class='id identifier rubyid_putobject_INT2FIX_1_'>putobject_INT2FIX_1_</span>                                             (   <span class='int'>1</span>)[<span class='const'>Li</span>]
+<span class='int'>0001</span> <span class='id identifier rubyid_setlocal_WC_0'>setlocal_WC_0</span>                          <span class='id identifier rubyid_foo'>foo</span><span class='ivar'>@</span><span class='int'>0</span>
+<span class='int'>0003</span> <span class='id identifier rubyid_once'>once</span>                                   <span class='id identifier rubyid_block'>block</span> <span class='kw'>in</span> <span class='op'>&lt;</span><span class='id identifier rubyid_main'>main</span><span class='op'>&gt;</span><span class='comma'>,</span> <span class='op'>&lt;</span><span class='id identifier rubyid_is'>is</span><span class='symbeg'>:</span><span class='int'>0</span><span class='op'>&gt;</span>
+<span class='int'>0006</span> <span class='id identifier rubyid_leave'>leave</span>
+
+<span class='op'>==</span> <span class='id identifier rubyid_disasm'>disasm</span><span class='op'>:</span> {<span class='comment'>#&lt;}ISeq:block in &lt;main&gt;@-e:1 (1,9)-(1,18)&gt; (catch: false)
+</span><span class='int'>0000</span> <span class='id identifier rubyid_putobject'>putobject</span>                              <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_end'>&quot;</span></span>                        (   <span class='int'>1</span>)
+<span class='int'>0002</span> <span class='id identifier rubyid_getlocal_WC_1'>getlocal_WC_1</span>                          <span class='id identifier rubyid_foo'>foo</span><span class='ivar'>@</span><span class='int'>0</span>
+<span class='int'>0004</span> <span class='id identifier rubyid_dup'>dup</span>
+<span class='int'>0005</span> <span class='id identifier rubyid_objtostring'>objtostring</span>                            <span class='op'>&lt;</span><span class='id identifier rubyid_calldata!'>calldata!</span><span class='label'>mid:</span><span class='id identifier rubyid_to_s'>to_s</span><span class='comma'>,</span> <span class='label'>argc:</span><span class='int'>0</span><span class='comma'>,</span> <span class='const'>FCALL</span><span class='op'>|</span><span class='const'>ARGS_SIMPLE</span><span class='op'>&gt;</span>
+<span class='int'>0007</span> <span class='id identifier rubyid_anytostring'>anytostring</span>
+<span class='int'>0008</span> <span class='id identifier rubyid_toregexp'>toregexp</span>                               <span class='int'>0</span><span class='comma'>,</span> <span class='int'>2</span>
+<span class='int'>0011</span> <span class='id identifier rubyid_leave'>leave</span></code></pre>
+<p>In this case CRuby fetches the local variable with <code>getlocal_WC_1</code> as the second instruction to the &quot;once&quot; instruction sequence. When compiling CRuby, prism therefore will adjust the depth to account for this difference.</p>
+<h2 id="rescue_clauses"><code>rescue</code> clauses</h2>
+<p>In CRuby, <code>rescue</code> clauses are implemented as their own instruction sequence, and therefore CRuby thinks the depth is one more than prism does. For example:</p>
+<pre class="code ruby"><code class="ruby"><span class='gvar'>$ </span><span class='id identifier rubyid_ruby'>ruby</span> <span class='op'>-</span><span class='op'>-</span><span class='id identifier rubyid_dump'>dump</span><span class='op'>=</span><span class='id identifier rubyid_insns'>insns</span> <span class='op'>-</span><span class='id identifier rubyid_e'>e</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>begin; foo = 1; rescue; foo; end</span><span class='tstring_end'>&#39;</span></span>
+<span class='op'>==</span> <span class='id identifier rubyid_disasm'>disasm</span><span class='op'>:</span> {<span class='comment'>#&lt;}ISeq:&lt;main&gt;@-e:1 (1,0)-(1,32)&gt; (catch: true)
+</span><span class='op'>==</span> <span class='id identifier rubyid_catch'>catch</span> <span class='id identifier rubyid_table'>table</span>
+<span class='op'>|</span> <span class='id identifier rubyid_catch'>catch</span> <span class='label'>type:</span> <span class='kw'>rescue</span> <span class='id identifier rubyid_st'>st</span><span class='op'>:</span> <span class='int'>0000</span> <span class='id identifier rubyid_ed'>ed</span><span class='op'>:</span> <span class='int'>0004</span> <span class='id identifier rubyid_sp'>sp</span><span class='op'>:</span> <span class='int'>0000</span> <span class='id identifier rubyid_cont'>cont</span><span class='op'>:</span> <span class='int'>0005</span>
+<span class='op'>|</span> <span class='op'>==</span> <span class='id identifier rubyid_disasm'>disasm</span><span class='op'>:</span> {<span class='comment'>#&lt;}ISeq:rescue in &lt;main&gt;@-e:1 (1,16)-(1,28)&gt; (catch: true)
+</span><span class='op'>|</span> <span class='id identifier rubyid_local'>local</span> <span class='id identifier rubyid_table'>table</span> (<span class='label'>size:</span> <span class='int'>1</span><span class='comma'>,</span> <span class='id identifier rubyid_argc'>argc</span><span class='op'>:</span> <span class='int'>0</span> [<span class='id identifier rubyid_opts'>opts</span><span class='op'>:</span> <span class='int'>0</span><span class='comma'>,</span> <span class='id identifier rubyid_rest'>rest</span><span class='op'>:</span> <span class='op'>-</span><span class='int'>1</span><span class='comma'>,</span> <span class='id identifier rubyid_post'>post</span><span class='op'>:</span> <span class='int'>0</span><span class='comma'>,</span> <span class='id identifier rubyid_block'>block</span><span class='op'>:</span> <span class='op'>-</span><span class='int'>1</span><span class='comma'>,</span> <span class='id identifier rubyid_kw'>kw</span><span class='op'>:</span> <span class='op'>-</span><span class='int'>1</span><span class='ivar'>@</span><span class='op'>-</span><span class='int'>1</span><span class='comma'>,</span> <span class='id identifier rubyid_kwrest'>kwrest</span><span class='op'>:</span> <span class='op'>-</span><span class='int'>1</span>])
+<span class='op'>|</span> [ <span class='int'>1</span>] <span class='gvar'>$!</span><span class='ivar'>@</span><span class='int'>0</span>
+<span class='op'>|</span> <span class='int'>0000</span> <span class='id identifier rubyid_getlocal_WC_0'>getlocal_WC_0</span>                          <span class='gvar'>$!</span><span class='ivar'>@</span><span class='int'>0</span>                      (   <span class='int'>1</span>)
+<span class='op'>|</span> <span class='int'>0002</span> <span class='id identifier rubyid_putobject'>putobject</span>                              <span class='const'>StandardError</span>
+<span class='op'>|</span> <span class='int'>0004</span> <span class='id identifier rubyid_checkmatch'>checkmatch</span>                             <span class='int'>3</span>
+<span class='op'>|</span> <span class='int'>0006</span> <span class='id identifier rubyid_branchunless'>branchunless</span>                           <span class='int'>11</span>
+<span class='op'>|</span> <span class='int'>0008</span> <span class='id identifier rubyid_getlocal_WC_1'>getlocal_WC_1</span>                          <span class='id identifier rubyid_foo'>foo</span><span class='ivar'>@</span><span class='int'>0</span>[<span class='const'>Li</span>]
+<span class='op'>|</span> <span class='int'>0010</span> <span class='id identifier rubyid_leave'>leave</span>
+<span class='op'>|</span> <span class='int'>0011</span> <span class='id identifier rubyid_getlocal_WC_0'>getlocal_WC_0</span>                          <span class='gvar'>$!</span><span class='ivar'>@</span><span class='int'>0</span>
+<span class='op'>|</span> <span class='int'>0013</span> <span class='id identifier rubyid_throw'>throw</span>                                  <span class='int'>0</span>
+<span class='op'>|</span> <span class='id identifier rubyid_catch'>catch</span> <span class='label'>type:</span> <span class='kw'>retry</span>  <span class='id identifier rubyid_st'>st</span><span class='op'>:</span> <span class='int'>0004</span> <span class='id identifier rubyid_ed'>ed</span><span class='op'>:</span> <span class='int'>0005</span> <span class='id identifier rubyid_sp'>sp</span><span class='op'>:</span> <span class='int'>0000</span> <span class='id identifier rubyid_cont'>cont</span><span class='op'>:</span> <span class='int'>0000</span>
+<span class='op'>|</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span>
+<span class='id identifier rubyid_local'>local</span> <span class='id identifier rubyid_table'>table</span> (<span class='label'>size:</span> <span class='int'>1</span><span class='comma'>,</span> <span class='label'>argc:</span> <span class='int'>0</span> [<span class='label'>opts:</span> <span class='int'>0</span><span class='comma'>,</span> <span class='label'>rest:</span> <span class='op'>-</span><span class='int'>1</span><span class='comma'>,</span> <span class='label'>post:</span> <span class='int'>0</span><span class='comma'>,</span> <span class='label'>block:</span> <span class='op'>-</span><span class='int'>1</span><span class='comma'>,</span> <span class='label'>kw:</span> <span class='op'>-</span><span class='int'>1</span><span class='ivar'>@</span><span class='op'>-</span><span class='int'>1</span><span class='comma'>,</span> <span class='label'>kwrest:</span> <span class='op'>-</span><span class='int'>1</span>])
+[ <span class='int'>1</span>] <span class='id identifier rubyid_foo'>foo</span><span class='ivar'>@</span><span class='int'>0</span>
+<span class='int'>0000</span> <span class='id identifier rubyid_putobject_INT2FIX_1_'>putobject_INT2FIX_1_</span>                                             (   <span class='int'>1</span>)[<span class='const'>Li</span>]
+<span class='int'>0001</span> <span class='id identifier rubyid_dup'>dup</span>
+<span class='int'>0002</span> <span class='id identifier rubyid_setlocal_WC_0'>setlocal_WC_0</span>                          <span class='id identifier rubyid_foo'>foo</span><span class='ivar'>@</span><span class='int'>0</span>
+<span class='int'>0004</span> <span class='id identifier rubyid_nop'>nop</span>
+<span class='int'>0005</span> <span class='id identifier rubyid_leave'>leave</span></code></pre>
+<p>In the catch table, CRuby is reading the <code>foo</code> local variable using <code>getlocal_WC_1</code> as the fifth instruction to the &quot;rescue&quot; instruction sequence. When compiling CRuby, prism therefore will adjust the depth to account for this difference.</p>
+<p>Note that this includes the error reference, which can target local variables, as in:</p>
+<pre class="code ruby"><code class="ruby"><span class='gvar'>$ </span><span class='id identifier rubyid_ruby'>ruby</span> <span class='op'>-</span><span class='op'>-</span><span class='id identifier rubyid_dump'>dump</span><span class='op'>=</span><span class='id identifier rubyid_insns'>insns</span> <span class='op'>-</span><span class='id identifier rubyid_e'>e</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>foo = 1; begin; rescue =&gt; foo; end</span><span class='tstring_end'>&#39;</span></span>              
+<span class='op'>==</span> <span class='id identifier rubyid_disasm'>disasm</span><span class='op'>:</span> {<span class='comment'>#&lt;}ISeq:&lt;main&gt;@-e:1 (1,0)-(1,34)&gt; (catch: true)
+</span><span class='op'>==</span> <span class='id identifier rubyid_catch'>catch</span> <span class='id identifier rubyid_table'>table</span>
+<span class='op'>|</span> <span class='id identifier rubyid_catch'>catch</span> <span class='label'>type:</span> <span class='kw'>rescue</span> <span class='id identifier rubyid_st'>st</span><span class='op'>:</span> <span class='int'>0003</span> <span class='id identifier rubyid_ed'>ed</span><span class='op'>:</span> <span class='int'>0004</span> <span class='id identifier rubyid_sp'>sp</span><span class='op'>:</span> <span class='int'>0000</span> <span class='id identifier rubyid_cont'>cont</span><span class='op'>:</span> <span class='int'>0005</span>
+<span class='op'>|</span> <span class='op'>==</span> <span class='id identifier rubyid_disasm'>disasm</span><span class='op'>:</span> {<span class='comment'>#&lt;}ISeq:rescue in &lt;main&gt;@-e:1 (1,16)-(1,30)&gt; (catch: true)
+</span><span class='op'>|</span> <span class='id identifier rubyid_local'>local</span> <span class='id identifier rubyid_table'>table</span> (<span class='label'>size:</span> <span class='int'>1</span><span class='comma'>,</span> <span class='id identifier rubyid_argc'>argc</span><span class='op'>:</span> <span class='int'>0</span> [<span class='id identifier rubyid_opts'>opts</span><span class='op'>:</span> <span class='int'>0</span><span class='comma'>,</span> <span class='id identifier rubyid_rest'>rest</span><span class='op'>:</span> <span class='op'>-</span><span class='int'>1</span><span class='comma'>,</span> <span class='id identifier rubyid_post'>post</span><span class='op'>:</span> <span class='int'>0</span><span class='comma'>,</span> <span class='id identifier rubyid_block'>block</span><span class='op'>:</span> <span class='op'>-</span><span class='int'>1</span><span class='comma'>,</span> <span class='id identifier rubyid_kw'>kw</span><span class='op'>:</span> <span class='op'>-</span><span class='int'>1</span><span class='ivar'>@</span><span class='op'>-</span><span class='int'>1</span><span class='comma'>,</span> <span class='id identifier rubyid_kwrest'>kwrest</span><span class='op'>:</span> <span class='op'>-</span><span class='int'>1</span>])
+<span class='op'>|</span> [ <span class='int'>1</span>] <span class='gvar'>$!</span><span class='ivar'>@</span><span class='int'>0</span>
+<span class='op'>|</span> <span class='int'>0000</span> <span class='id identifier rubyid_getlocal_WC_0'>getlocal_WC_0</span>                          <span class='gvar'>$!</span><span class='ivar'>@</span><span class='int'>0</span>                      (   <span class='int'>1</span>)
+<span class='op'>|</span> <span class='int'>0002</span> <span class='id identifier rubyid_putobject'>putobject</span>                              <span class='const'>StandardError</span>
+<span class='op'>|</span> <span class='int'>0004</span> <span class='id identifier rubyid_checkmatch'>checkmatch</span>                             <span class='int'>3</span>
+<span class='op'>|</span> <span class='int'>0006</span> <span class='id identifier rubyid_branchunless'>branchunless</span>                           <span class='int'>14</span>
+<span class='op'>|</span> <span class='int'>0008</span> <span class='id identifier rubyid_getlocal_WC_0'>getlocal_WC_0</span>                          <span class='gvar'>$!</span><span class='ivar'>@</span><span class='int'>0</span>
+<span class='op'>|</span> <span class='int'>0010</span> <span class='id identifier rubyid_setlocal_WC_1'>setlocal_WC_1</span>                          <span class='id identifier rubyid_foo'>foo</span><span class='ivar'>@</span><span class='int'>0</span>
+<span class='op'>|</span> <span class='int'>0012</span> <span class='id identifier rubyid_putnil'>putnil</span>
+<span class='op'>|</span> <span class='int'>0013</span> <span class='id identifier rubyid_leave'>leave</span>
+<span class='op'>|</span> <span class='int'>0014</span> <span class='id identifier rubyid_getlocal_WC_0'>getlocal_WC_0</span>                          <span class='gvar'>$!</span><span class='ivar'>@</span><span class='int'>0</span>
+<span class='op'>|</span> <span class='int'>0016</span> <span class='id identifier rubyid_throw'>throw</span>                                  <span class='int'>0</span>
+<span class='op'>|</span> <span class='id identifier rubyid_catch'>catch</span> <span class='label'>type:</span> <span class='kw'>retry</span>  <span class='id identifier rubyid_st'>st</span><span class='op'>:</span> <span class='int'>0004</span> <span class='id identifier rubyid_ed'>ed</span><span class='op'>:</span> <span class='int'>0005</span> <span class='id identifier rubyid_sp'>sp</span><span class='op'>:</span> <span class='int'>0000</span> <span class='id identifier rubyid_cont'>cont</span><span class='op'>:</span> <span class='int'>0003</span>
+<span class='op'>|</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span>
+<span class='id identifier rubyid_local'>local</span> <span class='id identifier rubyid_table'>table</span> (<span class='label'>size:</span> <span class='int'>1</span><span class='comma'>,</span> <span class='label'>argc:</span> <span class='int'>0</span> [<span class='label'>opts:</span> <span class='int'>0</span><span class='comma'>,</span> <span class='label'>rest:</span> <span class='op'>-</span><span class='int'>1</span><span class='comma'>,</span> <span class='label'>post:</span> <span class='int'>0</span><span class='comma'>,</span> <span class='label'>block:</span> <span class='op'>-</span><span class='int'>1</span><span class='comma'>,</span> <span class='label'>kw:</span> <span class='op'>-</span><span class='int'>1</span><span class='ivar'>@</span><span class='op'>-</span><span class='int'>1</span><span class='comma'>,</span> <span class='label'>kwrest:</span> <span class='op'>-</span><span class='int'>1</span>])
+[ <span class='int'>1</span>] <span class='id identifier rubyid_foo'>foo</span><span class='ivar'>@</span><span class='int'>0</span>
+<span class='int'>0000</span> <span class='id identifier rubyid_putobject_INT2FIX_1_'>putobject_INT2FIX_1_</span>                                             (   <span class='int'>1</span>)[<span class='const'>Li</span>]
+<span class='int'>0001</span> <span class='id identifier rubyid_setlocal_WC_0'>setlocal_WC_0</span>                          <span class='id identifier rubyid_foo'>foo</span><span class='ivar'>@</span><span class='int'>0</span>
+<span class='int'>0003</span> <span class='id identifier rubyid_putnil'>putnil</span>
+<span class='int'>0004</span> <span class='id identifier rubyid_nop'>nop</span>
+<span class='int'>0005</span> <span class='id identifier rubyid_leave'>leave</span></code></pre>
+<p>Note that CRuby is writing to the <code>foo</code> local variable using the <code>setlocal_WC_1</code> instruction as the sixth instruction to the &quot;rescue&quot; instruction sequence. When compiling CRuby, prism therefore will adjust the depth to account for this difference.</p>
+<h2 id="Post_execution_blocks">Post execution blocks</h2>
+<p>The <code>END {}</code> syntax allows executing code when the program exits. In CRuby, this is implemented as two nested instruction sequences. CRuby therefore thinks the depth is two more than prism does. For example:</p>
+<pre class="code ruby"><code class="ruby"><span class='gvar'>$ </span><span class='id identifier rubyid_ruby'>ruby</span> <span class='op'>-</span><span class='op'>-</span><span class='id identifier rubyid_dump'>dump</span><span class='op'>=</span><span class='id identifier rubyid_insns'>insns</span> <span class='op'>-</span><span class='id identifier rubyid_e'>e</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>foo = 1; END { foo }</span><span class='tstring_end'>&#39;</span></span>            
+<span class='op'>==</span> <span class='id identifier rubyid_disasm'>disasm</span><span class='op'>:</span> {<span class='comment'>#&lt;}ISeq:&lt;main&gt;@-e:1 (1,0)-(1,20)&gt; (catch: false)
+</span><span class='id identifier rubyid_local'>local</span> <span class='id identifier rubyid_table'>table</span> (<span class='label'>size:</span> <span class='int'>1</span><span class='comma'>,</span> <span class='label'>argc:</span> <span class='int'>0</span> [<span class='label'>opts:</span> <span class='int'>0</span><span class='comma'>,</span> <span class='label'>rest:</span> <span class='op'>-</span><span class='int'>1</span><span class='comma'>,</span> <span class='label'>post:</span> <span class='int'>0</span><span class='comma'>,</span> <span class='label'>block:</span> <span class='op'>-</span><span class='int'>1</span><span class='comma'>,</span> <span class='label'>kw:</span> <span class='op'>-</span><span class='int'>1</span><span class='ivar'>@</span><span class='op'>-</span><span class='int'>1</span><span class='comma'>,</span> <span class='label'>kwrest:</span> <span class='op'>-</span><span class='int'>1</span>])
+[ <span class='int'>1</span>] <span class='id identifier rubyid_foo'>foo</span><span class='ivar'>@</span><span class='int'>0</span>
+<span class='int'>0000</span> <span class='id identifier rubyid_putobject_INT2FIX_1_'>putobject_INT2FIX_1_</span>                                             (   <span class='int'>1</span>)[<span class='const'>Li</span>]
+<span class='int'>0001</span> <span class='id identifier rubyid_setlocal_WC_0'>setlocal_WC_0</span>                          <span class='id identifier rubyid_foo'>foo</span><span class='ivar'>@</span><span class='int'>0</span>
+<span class='int'>0003</span> <span class='id identifier rubyid_once'>once</span>                                   <span class='id identifier rubyid_block'>block</span> <span class='kw'>in</span> <span class='op'>&lt;</span><span class='id identifier rubyid_main'>main</span><span class='op'>&gt;</span><span class='comma'>,</span> <span class='op'>&lt;</span><span class='id identifier rubyid_is'>is</span><span class='symbeg'>:</span><span class='int'>0</span><span class='op'>&gt;</span>
+<span class='int'>0006</span> <span class='id identifier rubyid_leave'>leave</span>
+
+<span class='op'>==</span> <span class='id identifier rubyid_disasm'>disasm</span><span class='op'>:</span> {<span class='comment'>#&lt;}ISeq:block in &lt;main&gt;@-e:0 (0,0)-(-1,-1)&gt; (catch: false)
+</span><span class='int'>0000</span> <span class='id identifier rubyid_putspecialobject'>putspecialobject</span>                       <span class='int'>1</span>                         (   <span class='int'>1</span>)
+<span class='int'>0002</span> <span class='id identifier rubyid_send'>send</span>                                   <span class='op'>&lt;</span><span class='id identifier rubyid_calldata!'>calldata!</span><span class='label'>mid:</span><span class='id identifier rubyid_core'>core</span><span class='comment'>#set_postexe, argc:0, FCALL&gt;, block in &lt;main&gt;
+</span><span class='int'>0005</span> <span class='id identifier rubyid_leave'>leave</span>
+
+<span class='op'>==</span> <span class='id identifier rubyid_disasm'>disasm</span><span class='op'>:</span> {<span class='comment'>#&lt;}ISeq:block in &lt;main&gt;@-e:1 (1,9)-(1,20)&gt; (catch: false)
+</span><span class='int'>0000</span> <span class='id identifier rubyid_getlocal'>getlocal</span>                               <span class='id identifier rubyid_foo'>foo</span><span class='ivar'>@</span><span class='int'>0</span><span class='comma'>,</span> <span class='int'>2</span>                  (   <span class='int'>1</span>)[<span class='const'>LiBc</span>]
+<span class='int'>0003</span> <span class='id identifier rubyid_leave'>leave</span>                                  [<span class='const'>Br</span>]</code></pre>
+<p>In the instruction sequence corresponding to the code that gets executed inside the <code>END</code> block, CRuby is reading the <code>foo</code> local variable using <code>getlocal</code> as the second instruction to the <code>&quot;block in <main>&quot;</code> instruction sequence. When compiling CRuby, prism therefore will adjust the depth to account for this difference.</p>
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>

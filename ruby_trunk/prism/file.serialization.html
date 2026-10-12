@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen' content='yes'>
+<meta name='mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Serialization &mdash; prism  Ruby-master dev</title>
+
+<link rel='stylesheet'  type='text/css' href='../../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "serialization",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='../.'>Ruby-master</a> &raquo; 
+      <a href='.'>prism</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Serialization&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<h1 id="Serialization">Serialization</h1>
+<p><a href="Prism.html" title="Prism (module)"><code>Prism</code></a> ships with the ability to serialize a syntax tree to a single string.
+The string can then be deserialized back into a syntax tree using a language other than C.
+This is useful for using the parsing logic in other tools without having to write a parser in that language.
+The syntax tree still requires a copy of the original source, as for the most part it just contains byte offsets into the source string.</p>
+<h2 id="Types">Types</h2>
+<p>Let us define some simple types for readability.</p>
+<h3 id="varuint">varuint</h3>
+<p>A variable-length unsigned integer with the value fitting in <code>uint32_t</code> using between 1 and 5 bytes, using the<a href='https://en.wikipedia.org/wiki/LEB128'>LEB128</a> encoding.
+This drastically cuts down on the size of the serialized string, especially when the source file is large.</p>
+<h3 id="varsint">varsint</h3>
+<p>A variable-length signed integer with the value fitting in <code>int32_t</code> using between 1 and 5 bytes, using<a href='https://protobuf.dev/programming-guides/encoding/#signed-ints'>ZigZag encoding</a> into [LEB128].</p>
+<h3 id="string">string</h3>
+<table>
+<thead>
+<tr>
+<th># bytes</th>
+<th>field</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>varuint</td>
+<td>the length of the string in bytes</td>
+</tr>
+<tr>
+<td>...</td>
+<td>the string bytes</td>
+</tr>
+</tbody>
+</table>
+<h3 id="location">location</h3>
+<table>
+<thead>
+<tr>
+<th># bytes</th>
+<th>field</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>varuint</td>
+<td>byte offset into the source string where this location begins</td>
+</tr>
+<tr>
+<td>varuint</td>
+<td>length of the location in bytes in the source string</td>
+</tr>
+</tbody>
+</table>
+<h3 id="comment">comment</h3>
+<p>The comment type is one of:</p>
+<ul>
+<li>0=<code>INLINE</code> (<code># comment</code>)</li>
+<li>1=<code>EMBEDDED_DOCUMENT</code> (<code>=begin</code>/<code>=end</code>)</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th># bytes</th>
+<th>field</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code></td>
+<td>comment type</td>
+</tr>
+<tr>
+<td>location</td>
+<td>the location in the source of this comment</td>
+</tr>
+</tbody>
+</table>
+<h3 id="magic_comment">magic comment</h3>
+<table>
+<thead>
+<tr>
+<th># bytes</th>
+<th>field</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>location</td>
+<td>the location of the key of the magic comment</td>
+</tr>
+<tr>
+<td>location</td>
+<td>the location of the value of the magic comment</td>
+</tr>
+</tbody>
+</table>
+<h3 id="error">error</h3>
+<table>
+<thead>
+<tr>
+<th># bytes</th>
+<th>field</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>varuint</td>
+<td>type</td>
+</tr>
+<tr>
+<td>string</td>
+<td>error message (ASCII-only characters)</td>
+</tr>
+<tr>
+<td>location</td>
+<td>the location in the source this error applies to</td>
+</tr>
+<tr>
+<td><code>1</code></td>
+<td>the level of the error: <code>0</code> for <code>fatal</code>, <code>1</code> for <code>argument</code>, <code>2</code> for <code>load</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="warning">warning</h3>
+<table>
+<thead>
+<tr>
+<th># bytes</th>
+<th>field</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>varuint</td>
+<td>type</td>
+</tr>
+<tr>
+<td>string</td>
+<td>warning message (ASCII-only characters)</td>
+</tr>
+<tr>
+<td>location</td>
+<td>the location in the source this warning applies to</td>
+</tr>
+<tr>
+<td><code>1</code></td>
+<td>the level of the warning: <code>0</code> for <code>default</code> and <code>1</code> for <code>verbose</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="integer">integer</h3>
+<table>
+<thead>
+<tr>
+<th># bytes</th>
+<th>field</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code></td>
+<td><code>1</code> if the integer is negative, <code>0</code> if the integer is positive</td>
+</tr>
+<tr>
+<td>varuint</td>
+<td>the number of words in this integer</td>
+</tr>
+<tr>
+<td>varuint+</td>
+<td>the words of the integer, least-significant to most-significant</td>
+</tr>
+</tbody>
+</table>
+<h2 id="Structure">Structure</h2>
+<p>The serialized string representing the syntax tree is composed of three parts: the header, the body, and the constant pool.
+The header contains information like the version of prism that serialized the tree.
+The body contains the actual nodes in the tree.
+The constant pool contains constants that were interned while parsing.</p>
+<p>The header is structured like the following table:</p>
+<table>
+<thead>
+<tr>
+<th># bytes</th>
+<th>field</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>5</code></td>
+<td>&quot;PRISM&quot;</td>
+</tr>
+<tr>
+<td><code>1</code></td>
+<td>major version number</td>
+</tr>
+<tr>
+<td><code>1</code></td>
+<td>minor version number</td>
+</tr>
+<tr>
+<td><code>1</code></td>
+<td>patch version number</td>
+</tr>
+<tr>
+<td><code>1</code></td>
+<td>1 indicates only semantics fields were serialized, 0 indicates all fields were serialized (including location fields)</td>
+</tr>
+<tr>
+<td>string</td>
+<td>the encoding name</td>
+</tr>
+<tr>
+<td>varsint</td>
+<td>the start line</td>
+</tr>
+<tr>
+<td>varuint</td>
+<td>number of newline offsets</td>
+</tr>
+<tr>
+<td>varuint*</td>
+<td>newline offsets</td>
+</tr>
+<tr>
+<td>varuint</td>
+<td>number of comments</td>
+</tr>
+<tr>
+<td>comment*</td>
+<td>comments</td>
+</tr>
+<tr>
+<td>varuint</td>
+<td>number of magic comments</td>
+</tr>
+<tr>
+<td>magic comment*</td>
+<td>magic comments</td>
+</tr>
+<tr>
+<td>location?</td>
+<td>the optional location of the <code>__END__</code> keyword and its contents</td>
+</tr>
+<tr>
+<td>varuint</td>
+<td>number of errors</td>
+</tr>
+<tr>
+<td>error*</td>
+<td>errors</td>
+</tr>
+<tr>
+<td>varuint</td>
+<td>number of warnings</td>
+</tr>
+<tr>
+<td>warning*</td>
+<td>warnings</td>
+</tr>
+<tr>
+<td><code>4</code></td>
+<td>content pool offset</td>
+</tr>
+<tr>
+<td>varuint</td>
+<td>content pool size</td>
+</tr>
+</tbody>
+</table>
+<p>After the header comes the body of the serialized string.
+The body consists of a sequence of nodes that is built using a prefix traversal order of the syntax tree.
+Each node is structured like the following table:</p>
+<table>
+<thead>
+<tr>
+<th># bytes</th>
+<th>field</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code></td>
+<td>node type</td>
+</tr>
+<tr>
+<td>varuint</td>
+<td>node identifier</td>
+</tr>
+<tr>
+<td>location</td>
+<td>node location</td>
+</tr>
+<tr>
+<td>varuint</td>
+<td>node flags</td>
+</tr>
+</tbody>
+</table>
+<p>Every field on the node is then appended to the serialized string. The fields can be determined by referencing <code>config.yml</code>. Depending on the type of field, it could take a couple of different forms, described below:</p>
+<ul>
+<li><code>double</code> - A field that is a <code>double</code>. This is structured as a sequence of 8 bytes in native endian order.</li>
+<li><code>node</code> - A field that is a node. This is structured just as like parent node.</li>
+<li><code>node?</code> - A field that is a node that is optionally present. If the node is not present, then a single <code>0</code> byte will be written in its place. If it is present, then it will be structured just as like parent node.</li>
+<li><code><a href="">node</a></code> - A field that is an array of nodes. This is structured as a variable-length integer length, followed by the child nodes themselves.</li>
+<li><code>string</code> - A field that is a string. For example, this is used as the name of the method in a call node, since it cannot directly reference the source string (as in <code>@-</code> or <code>foo=</code>). This is structured as a variable-length integer byte length, followed by the string itself (<em>without</em> a trailing null byte).</li>
+<li><code>constant</code> - A variable-length integer that represents an index in the constant pool.</li>
+<li><code>constant?</code> - An optional variable-length integer that represents an index in the constant pool. If it's not present, then a single <code>0</code> byte will be written in its place.</li>
+<li><code>integer</code> - A field that represents an arbitrary-sized integer. The structure is listed above.</li>
+<li><code>location</code> - A field that is a location. This is structured as a variable-length integer start followed by a variable-length integer length.</li>
+<li><code>location?</code> - A field that is a location that is optionally present. If the location is not present, then a single <code>0</code> byte will be written in its place. If it is present, then it will be structured just like the <code>location</code> child node.</li>
+<li><code>uint8</code> - A field that is an 8-bit unsigned integer. This is structured as a single byte.</li>
+<li><code>uint32</code> - A field that is a 32-bit unsigned integer. This is structured as a variable-length integer.</li>
+</ul>
+<p>After the syntax tree, the content pool is serialized. This is a list of constants that were referenced from within the tree. The content pool begins at the offset specified in the header. Constants can be either &quot;owned&quot; (in which case their contents are embedded in the serialization) or &quot;shared&quot; (in which case their contents represent a slice of the source string). The most significant bit of the constant indicates whether it is owned or shared.</p>
+<p>In the case that it is owned, the constant is structured as follows:</p>
+<table>
+<thead>
+<tr>
+<th># bytes</th>
+<th>field</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>4</code></td>
+<td>the byte offset in the serialization for the contents of the constant</td>
+</tr>
+<tr>
+<td><code>4</code></td>
+<td>the byte length in the serialization</td>
+</tr>
+</tbody>
+</table>
+<p>Note that you will need to mask off the most significant bit for the byte offset in the serialization. In the case that it is shared, the constant is structured as follows:</p>
+<table>
+<thead>
+<tr>
+<th># bytes</th>
+<th>field</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>4</code></td>
+<td>the byte offset in the source string for the contents of the constant</td>
+</tr>
+<tr>
+<td><code>4</code></td>
+<td>the byte length in the source string</td>
+</tr>
+</tbody>
+</table>
+<p>After the constant pool, the contents of the owned constants are serialized. This is just a sequence of bytes that represent the contents of the constants. At the end of the serialization, the buffer is null terminated.</p>
+<h2 id="APIs">APIs</h2>
+<p>The relevant APIs and struct definitions are listed below:</p>
+<pre class="code c"><code class="c">// A pm_buffer_t is a simple memory buffer that stores data in a contiguous
+// block of memory. It is used to store the serialized representation of a
+// prism tree.
+typedef struct {
+  char *value;
+  size_t length;
+  size_t capacity;
+} pm_buffer_t;
+
+// Free the memory associated with the buffer.
+void pm_buffer_free(pm_buffer_t *);
+
+// Parse and serialize the AST represented by the given source to the given
+// buffer.
+void pm_serialize_parse(pm_buffer_t *buffer, const uint8_t *source, size_t length, const char *data);
+</code></pre>
+<p>Typically you would use a stack-allocated <code>pm_buffer_t</code> and call <code>pm_serialize_parse</code>, as in:</p>
+<pre class="code c"><code class="c">void
+serialize(const uint8_t *source, size_t length) {
+  pm_buffer_t buffer = { 0 };
+  pm_serialize_parse(&amp;buffer, source, length, NULL);
+
+  // Do something with the serialized string.
+
+  pm_buffer_free(&amp;buffer);
+}
+</code></pre>
+<p>The final argument to <code>pm_serialize_parse</code> is an optional string that controls the options to the parse function. This includes all of the normal options that could be passed to <code>pm_parser_init</code> through a <code>pm_options_t</code> struct, but serialized as a string to make it easier for callers through FFI. Note that no <code>varuint</code> are used here to make it easier to produce the data for the caller, and also serialized size is less important here. The format of the data is structured as follows:</p>
+<table>
+<thead>
+<tr>
+<th># bytes</th>
+<th>field</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>4</code></td>
+<td>the length of the filepath</td>
+</tr>
+<tr>
+<td>...</td>
+<td>the filepath bytes</td>
+</tr>
+<tr>
+<td><code>4</code></td>
+<td>the line number</td>
+</tr>
+<tr>
+<td><code>4</code></td>
+<td>the length the encoding</td>
+</tr>
+<tr>
+<td>...</td>
+<td>the encoding bytes</td>
+</tr>
+<tr>
+<td><code>1</code></td>
+<td>frozen string literal</td>
+</tr>
+<tr>
+<td><code>1</code></td>
+<td>command line flags</td>
+</tr>
+<tr>
+<td><code>1</code></td>
+<td>syntax version, see<a href='https://github.com/ruby/prism/blob/main/include/prism/options.h'>pm_options_version_t</a> for valid values</td>
+</tr>
+<tr>
+<td><code>1</code></td>
+<td>whether or not the encoding is locked (should almost always be false)</td>
+</tr>
+<tr>
+<td><code>4</code></td>
+<td>the number of scopes</td>
+</tr>
+<tr>
+<td>...</td>
+<td>the scopes</td>
+</tr>
+</tbody>
+</table>
+<p>Command line flags are a bitset. By default every flag is <code>0</code>. It includes the following values:</p>
+<ul>
+<li><code>0x1</code> - the <code>-a</code> option</li>
+<li><code>0x2</code> - the <code>-e</code> option</li>
+<li><code>0x4</code> - the <code>-l</code> option</li>
+<li><code>0x8</code> - the <code>-n</code> option</li>
+<li><code>0x10</code> - the <code>-p</code> option</li>
+<li><code>0x20</code> - the <code>-x</code> option</li>
+</ul>
+<p>Scopes are ordered from the outermost scope to the innermost one.</p>
+<p>Each scope is laid out as follows:</p>
+<table>
+<thead>
+<tr>
+<th># bytes</th>
+<th>field</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>4</code></td>
+<td>the number of locals</td>
+</tr>
+<tr>
+<td>...</td>
+<td>the locals</td>
+</tr>
+</tbody>
+</table>
+<p>Each local is laid out as follows:</p>
+<table>
+<thead>
+<tr>
+<th># bytes</th>
+<th>field</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>4</code></td>
+<td>the length of the local</td>
+</tr>
+<tr>
+<td>...</td>
+<td>the local bytes</td>
+</tr>
+</tbody>
+</table>
+<p>The data can be <code>NULL</code> (as seen in the example above).</p>
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>

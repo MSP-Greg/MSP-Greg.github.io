@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen' content='yes'>
+<meta name='mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: Design &mdash; prism  Ruby-master dev</title>
+
+<link rel='stylesheet'  type='text/css' href='../../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "design",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='../.'>Ruby-master</a> &raquo; 
+      <a href='.'>prism</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: Design&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<h1 id="Design">Design</h1>
+<p>There are three overall goals for this project:</p>
+<ul>
+<li>to provide a documented and maintainable parser</li>
+<li>to provide an error-tolerant parser suitable for use in an IDE</li>
+<li>to provide a portable parser that can be used in projects that don't link against CRuby</li>
+</ul>
+<p>The design of the parser is based around these main goals.</p>
+<h2 id="Structure">Structure</h2>
+<p>The first piece to understand about the parser is the design of its syntax tree. This is documented in <code>config.yml</code>. Every token and node is defined in that file, along with comments about where they are found in what kinds of syntax. This file is used to template out a lot of different files, all found in the <code>templates</code> directory. The <code>templates/template.rb</code> script performs the templating and outputs all files matching the directory structure found in the templates directory.</p>
+<p>The templated files contain all of the code required to allocate and initialize nodes, pretty print nodes, and serialize nodes. This means for the most part, you will only need to then hook up the parser to call the templated functions to create the nodes in the correct position. That means editing the parser itself, which is housed in <code>prism.c</code>.</p>
+<h2 id="Pratt_parsing">Pratt parsing</h2>
+<p>In order to provide the best possible error tolerance, the parser is hand-written. It is structured using Pratt parsing, a technique developed by Vaughan Pratt back in the 1970s. Below are a bunch of links to articles and papers that explain Pratt parsing in more detail.</p>
+<ul>
+<li><a href="https://web.archive.org/web/20151223215421/http://hall.org.ua/halls/wizzard/pdf/Vaughan.Pratt.TDOP.pdf">https://web.archive.org/web/20151223215421/http://hall.org.ua/halls/wizzard/pdf/Vaughan.Pratt.TDOP.pdf</a></li>
+<li><a href="https://tdop.github.io/">https://tdop.github.io/</a></li>
+<li><a href="https://journal.stuffwithstuff.com/2011/03/19/pratt-parsers-expression-parsing-made-easy/">https://journal.stuffwithstuff.com/2011/03/19/pratt-parsers-expression-parsing-made-easy/</a></li>
+<li><a href="https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html">https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html</a></li>
+<li><a href="https://chidiwilliams.com/post/on-recursive-descent-and-pratt-parsing/">https://chidiwilliams.com/post/on-recursive-descent-and-pratt-parsing/</a></li>
+</ul>
+<p>You can find most of the functions that correspond to constructs in the Pratt parsing algorithm in <code>prism.c</code>. As a couple of examples:</p>
+<ul>
+<li><code>parse</code> corresponds to the <code>parse_expression</code> function</li>
+<li><code>nud</code> (null denotation) corresponds to the <code>parse_expression_prefix</code> function</li>
+<li><code>led</code> (left denotation) corresponds to the <code>parse_expression_infix</code> function</li>
+<li><code>lbp</code> (left binding power) corresponds to accessing the <code>left</code> field of an element in the <code>binding_powers</code> array</li>
+<li><code>rbp</code> (right binding power) corresponds to accessing the <code>right</code> field of an element in the <code>binding_powers</code> array</li>
+</ul>
+<h2 id="Portability">Portability</h2>
+<p>In order to enable using this parser in other projects, the parser is written in C99, and uses only the standard library. This means it can be embedded in most any other project without having to link against CRuby. It can be used directly through its C API to access individual fields, or it can used to parse a syntax tree and then serialize it to a single blob. For more information on serialization, see the<a href='file.serialization.html'>docs/serialization.md</a> file.</p>
+<h2 id="Error_tolerance">Error tolerance</h2>
+<p>The design of the error tolerance of this parser is still very much in flux. We are experimenting with various approaches as the parser is being developed to try to determine the best approach. Below are a bunch of links to articles and papers that explain error tolerance in more detail, as well as document some of the approaches that we're evaluating.</p>
+<ul>
+<li><a href="https://tratt.net/laurie/blog/2020/automatic_syntax_error_recovery.html">https://tratt.net/laurie/blog/2020/automatic_syntax_error_recovery.html</a></li>
+<li><a href="https://diekmann.uk/diekmann_phd.pdf">https://diekmann.uk/diekmann_phd.pdf</a></li>
+<li><a href="https://eelcovisser.org/publications/2012/JongeKVS12.pdf">https://eelcovisser.org/publications/2012/JongeKVS12.pdf</a></li>
+<li><a href="https://www.antlr.org/papers/allstar-techreport.pdf">https://www.antlr.org/papers/allstar-techreport.pdf</a></li>
+<li><a href="https://github.com/microsoft/tolerant-php-parser/blob/main/docs/HowItWorks.md">https://github.com/microsoft/tolerant-php-parser/blob/main/docs/HowItWorks.md</a></li>
+</ul>
+<p>Currently, there are a couple of mechanisms for error tolerance that are in place:</p>
+<ul>
+<li>If the parser expects a token in a particular position (for example the <code>in</code> keyword in a for loop or the `<code>after {BEGIN</code> or <code>END</code>) then it will insert a missing token if one can't be found and continue parsing.</li>
+<li>If the parser expects an expression in a particular position but encounters a token that can't be used as that expression, it checks up the stack to see if that token would close out a parent node. If so, it will close out all of its parent nodes using missing nodes wherever necessary and continue parsing.</li>
+<li>If the parser cannot understand a token in any capacity, it will skip past the token.</li>
+</ul>
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>
