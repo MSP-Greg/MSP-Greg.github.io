@@ -63,6 +63,74 @@
 <div id='content' class='file'>
 <ul>
 <li>
+<p>Dump <code>create_schema</code> with <code>if_not_exists: true</code> for every schema that holds
+a dumped extension.</p>
+<p>A relocatable extension, such as <code>btree_gin</code> or <code>pg_trgm</code>, can live in a schema
+that <code>dump_schemas</code> does not cover. The Ruby schema dump wrote
+<code>enable_extension &quot;extensions.btree_gin&quot;</code> without <code>create_schema</code> for it, and
+<code>db:schema:load</code> failed with <code>PG::InvalidSchemaName</code>. When the schema was in
+<code>dump_schemas</code>, the dump wrote <code>create_schema &quot;extensions&quot;</code>, and the load
+failed with <code>PG::DuplicateSchema</code> where the schema exists already, as on Supabase.
+The dump now writes <code>create_schema &quot;extensions&quot;, if_not_exists: true</code> in both cases.</p>
+<p><em>Tusshar Laddha</em></p>
+</li>
+<li>
+<p>Fix <code>eager_load</code> with a <code>limit</code> on a relation that joins a CTE.</p>
+<p>Working out whether the limit could be applied to the joined query took the
+name of the CTE for an association name:</p>
+<pre class="code ruby"><code class="ruby"><span class='const'>Post</span>.<span class='id identifier rubyid_with'>with</span>(<span class='label'>commented_posts:</span> <span class='const'>Comment</span>.<span class='id identifier rubyid_select'>select</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_post_id'>post_id</span>))
+  .<span class='id identifier rubyid_joins'>joins</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_commented_posts'>commented_posts</span>).<span class='id identifier rubyid_eager_load'>eager_load</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_author'>author</span>).<span class='id identifier rubyid_limit'>limit</span>(<span class='int'>2</span>)
+<span class='comment'># ActiveRecord::ConfigurationError: Can&#39;t join &#39;Post&#39; to association named
+</span><span class='comment'># &#39;commented_posts&#39;; perhaps you misspelled it?</span></code></pre>
+<p><em>Ryuta Kamizono</em></p>
+</li>
+<li>
+<p>Fix the order of joins when <code>eager_load</code> or <code>left_joins</code> is combined with
+joins merged from a relation of another model.</p>
+<p>The join built by <code>eager_load</code>, and the one built from the association names
+passed to <code>left_joins</code>, are rooted at the base table, so they have to come
+before the joins merged in from a relation of another model, since those
+depend on the tables they bring in. They were emitted after them instead,
+which produced an invalid query:</p>
+<pre class="code ruby"><code class="ruby"><span class='const'>Post</span>.<span class='id identifier rubyid_eager_load'>eager_load</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_comments'>comments</span>).<span class='id identifier rubyid_merge'>merge</span>(<span class='const'>Comment</span>.<span class='id identifier rubyid_left_joins'>left_joins</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_user'>user</span>))
+<span class='comment'># before: ... FROM &quot;posts&quot;
+</span><span class='comment'>#             LEFT OUTER JOIN &quot;users&quot; ON &quot;users&quot;.&quot;id&quot; = &quot;comments&quot;.&quot;user_id&quot;
+</span><span class='comment'>#             LEFT OUTER JOIN &quot;comments&quot; ON &quot;comments&quot;.&quot;post_id&quot; = &quot;posts&quot;.&quot;id&quot;
+</span><span class='comment'># after:  ... FROM &quot;posts&quot;
+</span><span class='comment'>#             LEFT OUTER JOIN &quot;comments&quot; ON &quot;comments&quot;.&quot;post_id&quot; = &quot;posts&quot;.&quot;id&quot;
+</span><span class='comment'>#             LEFT OUTER JOIN &quot;users&quot; ON &quot;users&quot;.&quot;id&quot; = &quot;comments&quot;.&quot;user_id&quot;
+</span>
+<span class='const'>Post</span>.<span class='id identifier rubyid_left_joins'>left_joins</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_comments'>comments</span>).<span class='id identifier rubyid_merge'>merge</span>(<span class='const'>Comment</span>.<span class='id identifier rubyid_joins'>joins</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_ratings'>ratings</span>))
+<span class='comment'># before: ... FROM &quot;posts&quot;
+</span><span class='comment'>#             INNER JOIN &quot;ratings&quot; ON &quot;ratings&quot;.&quot;comment_id&quot; = &quot;comments&quot;.&quot;id&quot;
+</span><span class='comment'>#             LEFT OUTER JOIN &quot;comments&quot; ON &quot;comments&quot;.&quot;post_id&quot; = &quot;posts&quot;.&quot;id&quot;
+</span><span class='comment'># after:  ... FROM &quot;posts&quot;
+</span><span class='comment'>#             LEFT OUTER JOIN &quot;comments&quot; ON &quot;comments&quot;.&quot;post_id&quot; = &quot;posts&quot;.&quot;id&quot;
+</span><span class='comment'>#             INNER JOIN &quot;ratings&quot; ON &quot;ratings&quot;.&quot;comment_id&quot; = &quot;comments&quot;.&quot;id&quot;</span></code></pre>
+<p><em>Ryuta Kamizono</em></p>
+</li>
+<li>
+<p>Move adapter-specific migration version compatibility into the connection adapters.</p>
+<p>The adjustments that <code>ActiveRecord::Migration::Compatibility</code> applied through
+<code>adapter_name</code> checks, such as the <code>timestamp</code> type for <code>:datetime</code> in
+<code>Migration[6.1]</code> on PostgreSQL, are now defined by each adapter. Migrations on
+the bundled adapters produce the same schema and the same verbose output as
+before, with one exception: on PostgreSQL, a migration declaring 7.0 or
+earlier that passes <code>force:</code> to <code>disable_extension</code> now keeps that value
+instead of having it replaced by <code>:cascade</code>. Adapters that patched those
+classes to adjust the behavior for their database should define it through
+<code>compatibility_behavior_for</code> instead.</p>
+<p>Adapters that subclass a bundled adapter now inherit its adjustments, which
+the previous <code>adapter_name</code> checks never applied to them. On a PostgreSQL
+subclass, for example, <code>disable_extension</code> in a migration declaring 7.0 or
+earlier now adds <code>CASCADE</code>, and <code>:datetime</code> in one declaring 6.1 or earlier
+becomes <code>timestamp</code> when <code>datetime_type</code> is <code>:timestamptz</code>. An adapter that
+does not want an inherited adjustment can override
+<code>compatibility_behavior_for</code> to return a subclass of the bundled behavior
+that overrides that operation.</p>
+<p><em>Yasuo Honda</em></p>
+</li>
+<li>
 <p>Fix <code>has_many</code>/<code>has_one :through</code> associations with <code>disable_joins: true</code>
 raising when the owner's foreign key is composite.</p>
 <p><em>Federico Carrocera</em></p>
