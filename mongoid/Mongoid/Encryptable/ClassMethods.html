@@ -115,11 +115,11 @@
 <ul class='summary full'>
   <li>
     <span class='summary_signature '>
-      <a href="#embeds_encrypted%3F-instance_method" title="#embeds_encrypted? (instance method)">#<strong>embeds_encrypted?</strong>(path)  &#x21d2; true | false </a>
+      <a href="#embedded_encryption_scan-instance_method" title="#embedded_encryption_scan (instance method)">#<strong>embedded_encryption_scan</strong>(path)  &#x21d2; Array&lt;true | false&gt; </a>
     </span>
     <span class='nodoc note title'>Internal use only</span>
     <div class='summary_desc'>
-      <div class='inline'><p>Whether any model reachable through this model's embeds_one relations declares encryption.</p></div>
+      <div class='inline'><p>Walks the models reachable through this model's embeds_one relations, looking for one that declares encryption.</p></div>
     </div>
   </li>
   <li>
@@ -189,9 +189,12 @@ is encrypted.</p>
 reachable through its embeds_one relations does. A model in the second
 group has no encrypted field of its own, but its collection still needs
 a schema, otherwise the embedded fields are written in plaintext.</p>
-<p>The answer is memoized, since this runs on the persistence path.
-Declaring encryption on a model after it has already been persisted is
-not supported.</p>
+<p>This runs on the persistence path, so the answer is memoized. A true
+answer is always memoized. A false answer is memoized only when every
+embeds_one target in the walk resolved to a class; if one could not be
+resolved yet, the answer is recomputed next time, so a class loaded
+later is still detected. Declaring encryption on a model after it has
+already been persisted is not supported.</p>
   </div>
 </div>
 <div class='tags'>
@@ -204,17 +207,20 @@ not supported.</p>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongoid/blob/master/lib/mongoid/encryptable.rb#L53-L57'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongoid/blob/master/lib/mongoid/encryptable.rb#L56-L63'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='53' data-end='57'></pre>
+  <pre class='lines_num' data-start='56' data-end='63'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongoid/encryptable.rb', line 53</span></pre>
+<pre><span class='info file'># File 'lib/mongoid/encryptable.rb', line 56</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_requires_encryption_schema?'>requires_encryption_schema?</span>
   <span class='kw'>return</span> <span class='ivar'>@requires_encryption_schema</span> <span class='kw'>if</span> <span class='kw'>defined?</span>(<span class='ivar'>@requires_encryption_schema</span>)
+  <span class='kw'>return</span> <span class='ivar'>@requires_encryption_schema</span> <span class='op'>=</span> <span class='kw'>true</span> <span class='kw'>if</span> <span class='id identifier rubyid_encrypted?'><a href="#encrypted%3F-instance_method" title="Mongoid::Encryptable::ClassMethods#encrypted? (method)">encrypted?</a></span>
 
-  <span class='ivar'>@requires_encryption_schema</span> <span class='op'>=</span> <span class='id identifier rubyid_encrypted?'><a href="#encrypted%3F-instance_method" title="Mongoid::Encryptable::ClassMethods#encrypted? (method)">encrypted?</a></span> <span class='op'>||</span> <span class='id identifier rubyid_embeds_encrypted?'><a href="#embeds_encrypted%3F-instance_method" title="Mongoid::Encryptable::ClassMethods#embeds_encrypted? (method)">embeds_encrypted?</a></span>([ <span class='kw'>self</span> ])
+  <span class='id identifier rubyid_found'>found</span><span class='comma'>,</span> <span class='id identifier rubyid_complete'>complete</span> <span class='op'>=</span> <span class='id identifier rubyid_embedded_encryption_scan'><a href="#embedded_encryption_scan-instance_method" title="Mongoid::Encryptable::ClassMethods#embedded_encryption_scan (method)">embedded_encryption_scan</a></span>([ <span class='kw'>self</span> ])
+  <span class='ivar'>@requires_encryption_schema</span> <span class='op'>=</span> <span class='id identifier rubyid_found'>found</span> <span class='kw'>if</span> <span class='id identifier rubyid_found'>found</span> <span class='op'>||</span> <span class='id identifier rubyid_complete'>complete</span>
+  <span class='id identifier rubyid_found'>found</span>
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -222,14 +228,14 @@ not supported.</p>
 </section>
 
 <h2 class='y_details'>Instance Method Details</h2>
-<section class='method_details first' id="embeds_encrypted?-instance_method">
+<section class='method_details first' id="embedded_encryption_scan-instance_method">
   <h3 class='signature  first'>
-    #<strong>embeds_encrypted?</strong>(path)  &#x21d2; <code>true</code> | <code>false</code> 
+    #<strong>embedded_encryption_scan</strong>(path)  &#x21d2; <a href="../../Array.html" title="Array (class)">Array</a>&lt;<code>true</code> | <code>false</code>&gt; 
   </h3>
 <div class='docstring'>
   <div class='discussion'>
-    <p>Whether any model reachable through this model's embeds_one relations
-declares encryption.</p>
+    <p>Walks the models reachable through this model's embeds_one relations,
+looking for one that declares encryption.</p>
 <p>embeds_many is not considered: libmongocrypt cannot express per-field
 encryption under array items, so those fields are never mapped.</p>
   </div>
@@ -247,31 +253,47 @@ A model embedding itself terminates here.</p></div>
 <p class='tag_title'>Returns:</p>
 <ul class='return'>
   <li>
-    <span class='type'>(<code>true</code> | <code>false</code>)</span>
-&mdash;    <div class='inline'><p>Whether an embedded model is encrypted.</p></div>
+    <span class='type'>(<a href="../../Array.html" title="Array (class)">Array</a>&lt;<code>true</code> | <code>false</code>&gt;)</span>
+&mdash;    <div class='inline'><p>A pair: whether an embedded model is
+encrypted, and whether every embeds_one target the walk needed
+resolved to a class. The second value is only meaningful when the
+first is false.</p></div>
   </li>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongoid/blob/master/lib/mongoid/encryptable.rb#L71-L83'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongoid/blob/master/lib/mongoid/encryptable.rb#L80-L105'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='71' data-end='83'></pre>
+  <pre class='lines_num' data-start='80' data-end='105'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongoid/encryptable.rb', line 71</span></pre>
+<pre><span class='info file'># File 'lib/mongoid/encryptable.rb', line 80</span></pre>
 <pre class='code ruby'>
 
-<span class='kw'>def</span> <span class='id identifier rubyid_embeds_encrypted?'>embeds_encrypted?</span>(<span class='id identifier rubyid_path'>path</span>)
-  <span class='id identifier rubyid_relations'>relations</span>.<span class='id identifier rubyid_each_value'>each_value</span>.<span class='id identifier rubyid_any?'>any?</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_relation'>relation</span><span class='op'>|</span>
-    <span class='kw'>next</span> <span class='kw'>false</span> <span class='kw'>unless</span> <span class='id identifier rubyid_relation'>relation</span>.<span class='id identifier rubyid_is_a?'>is_a?</span>(<span class='const'><a href="../Association.html" title="Mongoid::Association (module)">Association</a></span><span class='op'>::</span><span class='const'><a href="../Association/Embedded.html" title="Mongoid::Association::Embedded (module)">Embedded</a></span><span class='op'>::</span><span class='const'><a href="../Association/Embedded/EmbedsOne.html" title="Mongoid::Association::Embedded::EmbedsOne (class)">EmbedsOne</a></span>)
+<span class='kw'>def</span> <span class='id identifier rubyid_embedded_encryption_scan'>embedded_encryption_scan</span>(<span class='id identifier rubyid_path'>path</span>)
+  <span class='id identifier rubyid_complete'>complete</span> <span class='op'>=</span> <span class='kw'>true</span>
+
+  <span class='id identifier rubyid_relations'>relations</span>.<span class='id identifier rubyid_each_value'>each_value</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_relation'>relation</span><span class='op'>|</span>
+    <span class='kw'>next</span> <span class='kw'>unless</span> <span class='id identifier rubyid_relation'>relation</span>.<span class='id identifier rubyid_is_a?'>is_a?</span>(<span class='const'><a href="../Association.html" title="Mongoid::Association (module)">Association</a></span><span class='op'>::</span><span class='const'><a href="../Association/Embedded.html" title="Mongoid::Association::Embedded (module)">Embedded</a></span><span class='op'>::</span><span class='const'><a href="../Association/Embedded/EmbedsOne.html" title="Mongoid::Association::Embedded::EmbedsOne (class)">EmbedsOne</a></span>)
 
     <span class='id identifier rubyid_klass'>klass</span> <span class='op'>=</span> <span class='id identifier rubyid_relation'>relation</span>.<span class='id identifier rubyid_try_relation_class'>try_relation_class</span>
-    <span class='comment'># An association target does not have to be a Mongoid document, and
-</span>    <span class='comment'># the class it names does not have to exist.
-</span>    <span class='kw'>next</span> <span class='kw'>false</span> <span class='kw'>unless</span> <span class='id identifier rubyid_klass'>klass</span>.<span class='id identifier rubyid_respond_to?'>respond_to?</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_encrypted?'><a href="#encrypted%3F-instance_method" title="Mongoid::Encryptable::ClassMethods#encrypted? (method)">encrypted?</a></span>)
-    <span class='kw'>next</span> <span class='kw'>false</span> <span class='kw'>if</span> <span class='id identifier rubyid_path'>path</span>.<span class='id identifier rubyid_include?'>include?</span>(<span class='id identifier rubyid_klass'>klass</span>)
+    <span class='comment'># The class an association names does not have to exist yet.
+</span>    <span class='kw'>if</span> <span class='id identifier rubyid_klass'>klass</span>.<span class='id identifier rubyid_nil?'>nil?</span>
+      <span class='id identifier rubyid_complete'>complete</span> <span class='op'>=</span> <span class='kw'>false</span>
+      <span class='kw'>next</span>
+    <span class='kw'>end</span>
 
-    <span class='id identifier rubyid_klass'>klass</span>.<span class='id identifier rubyid_encrypted?'><a href="#encrypted%3F-instance_method" title="Mongoid::Encryptable::ClassMethods#encrypted? (method)">encrypted?</a></span> <span class='op'>||</span> <span class='id identifier rubyid_klass'>klass</span>.<span class='id identifier rubyid_embeds_encrypted?'>embeds_encrypted?</span>(<span class='id identifier rubyid_path'>path</span> <span class='op'>+</span> [ <span class='id identifier rubyid_klass'>klass</span> ])
+    <span class='comment'># An association target does not have to be a Mongoid document.
+</span>    <span class='kw'>next</span> <span class='kw'>unless</span> <span class='id identifier rubyid_klass'>klass</span>.<span class='id identifier rubyid_respond_to?'>respond_to?</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_encrypted?'><a href="#encrypted%3F-instance_method" title="Mongoid::Encryptable::ClassMethods#encrypted? (method)">encrypted?</a></span>)
+    <span class='kw'>next</span> <span class='kw'>if</span> <span class='id identifier rubyid_path'>path</span>.<span class='id identifier rubyid_include?'>include?</span>(<span class='id identifier rubyid_klass'>klass</span>)
+    <span class='kw'>return</span> [ <span class='kw'>true</span><span class='comma'>,</span> <span class='kw'>true</span> ] <span class='kw'>if</span> <span class='id identifier rubyid_klass'>klass</span>.<span class='id identifier rubyid_encrypted?'><a href="#encrypted%3F-instance_method" title="Mongoid::Encryptable::ClassMethods#encrypted? (method)">encrypted?</a></span>
+
+    <span class='id identifier rubyid_found'>found</span><span class='comma'>,</span> <span class='id identifier rubyid_nested_complete'>nested_complete</span> <span class='op'>=</span> <span class='id identifier rubyid_klass'>klass</span>.<span class='id identifier rubyid_embedded_encryption_scan'>embedded_encryption_scan</span>(<span class='id identifier rubyid_path'>path</span> <span class='op'>+</span> [ <span class='id identifier rubyid_klass'>klass</span> ])
+    <span class='kw'>return</span> [ <span class='kw'>true</span><span class='comma'>,</span> <span class='kw'>true</span> ] <span class='kw'>if</span> <span class='id identifier rubyid_found'>found</span>
+
+    <span class='id identifier rubyid_complete'>complete</span> <span class='op'>&amp;&amp;=</span> <span class='id identifier rubyid_nested_complete'>nested_complete</span>
   <span class='kw'>end</span>
+
+  [ <span class='kw'>false</span><span class='comma'>,</span> <span class='id identifier rubyid_complete'>complete</span> ]
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -351,11 +373,11 @@ have any effect.</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongoid/blob/master/lib/mongoid/encryptable.rb#L93-L95'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongoid/blob/master/lib/mongoid/encryptable.rb#L115-L117'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='93' data-end='95'></pre>
+  <pre class='lines_num' data-start='115' data-end='117'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongoid/encryptable.rb', line 93</span></pre>
+<pre><span class='info file'># File 'lib/mongoid/encryptable.rb', line 115</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_set_key_id'>set_key_id</span>(<span class='id identifier rubyid_key_id'>key_id</span>)
