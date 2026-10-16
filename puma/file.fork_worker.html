@@ -62,8 +62,8 @@
   </header>
 <div id='content' class='file'>
 <h1 id="Fork_Worker_Cluster_Mode_Experimental_">Fork-Worker Cluster Mode [Experimental]</h1>
-<p><a href="Puma.html" title="Puma (module)"><code>Puma</code></a> 5 introduces an experimental new cluster-mode configuration option, <code>fork_worker</code> (<code>--fork-worker</code> from the CLI). This mode causes <a href="Puma.html" title="Puma (module)"><code>Puma</code></a> to fork additional workers from worker 0, instead of directly from the master process:</p>
-<pre class="code ruby"><code class="ruby"><span class='int'>10000</span>   <span class='CHAR'>\</span><span class='id identifier rubyid__'>_</span> <span class='id identifier rubyid_puma'>puma</span> <span class='float'>4.3</span> (<span class='id identifier rubyid_tcp'>tcp</span><span class='symbeg'>:</span><span class='op'>/</span><span class='op'>/</span><span class='float'>0.0</span><span class='op'>:</span><span class='int'>9292</span>) [<span class='id identifier rubyid_puma'>puma</span>]
+<p><code>fork_worker</code> (<code>--fork-worker</code> from the CLI) is an experimental cluster-mode configuration option. This mode causes <a href="Puma.html" title="Puma (module)"><code>Puma</code></a> to fork additional workers from worker 0, instead of directly from the master process.</p>
+<pre class="code ruby"><code class="ruby"><span class='int'>10000</span>   <span class='CHAR'>\</span><span class='id identifier rubyid__'>_</span> <span class='id identifier rubyid_puma'>puma</span> <span class='float'>8.0</span> (<span class='id identifier rubyid_tcp'>tcp</span><span class='symbeg'>:</span><span class='op'>/</span><span class='op'>/</span><span class='float'>0.0</span><span class='op'>:</span><span class='int'>9292</span>) [<span class='id identifier rubyid_puma'>puma</span>]
 <span class='int'>10001</span>       <span class='CHAR'>\</span><span class='id identifier rubyid__'>_</span> <span class='label'>puma:</span> <span class='id identifier rubyid_cluster'>cluster</span> <span class='id identifier rubyid_worker'>worker</span> <span class='int'>0</span><span class='op'>:</span> <span class='int'>10000</span> [<span class='id identifier rubyid_puma'>puma</span>]
 <span class='int'>10002</span>           <span class='CHAR'>\</span><span class='id identifier rubyid__'>_</span> <span class='label'>puma:</span> <span class='id identifier rubyid_cluster'>cluster</span> <span class='id identifier rubyid_worker'>worker</span> <span class='int'>1</span><span class='op'>:</span> <span class='int'>10000</span> [<span class='id identifier rubyid_puma'>puma</span>]
 <span class='int'>10003</span>           <span class='CHAR'>\</span><span class='id identifier rubyid__'>_</span> <span class='label'>puma:</span> <span class='id identifier rubyid_cluster'>cluster</span> <span class='id identifier rubyid_worker'>worker</span> <span class='int'>2</span><span class='op'>:</span> <span class='int'>10000</span> [<span class='id identifier rubyid_puma'>puma</span>]
@@ -71,7 +71,7 @@
 <p>The <code>fork_worker</code> option allows your application to be initialized only once for copy-on-write memory savings, and it has two additional advantages:</p>
 <ol>
 <li>
-<p><strong>Compatible with phased restart.</strong> Because the master process itself doesn't preload the application, this mode works with phased restart (<code>SIGUSR1</code> or <code>pumactl phased-restart</code>). When worker 0 reloads as part of a phased restart, it initializes a new copy of your application first, then the other workers reload by forking from this new worker already containing the new preloaded application.</p>
+<p><strong>Compatible with phased restart.</strong> With <code>preload_app!</code> disabled, the master process doesn't load the application, so this mode works with phased restart (<code>SIGUSR1</code> or <code>pumactl phased-restart</code>). When worker 0 reloads as part of a phased restart, it initializes a new copy of your application first, then the other workers reload by forking from this new worker already containing the new preloaded application.</p>
 <p>This allows a phased restart to complete as quickly as a hot restart (<code>SIGUSR2</code> or <code>pumactl restart</code>), while still minimizing downtime by staggering the restart across cluster workers.</p>
 </li>
 <li>
@@ -102,6 +102,30 @@
 </li>
 <li>
 <p>In a cluster with <code>n</code> workers, a normal phased restart stops and restarts workers one by one while the application is loaded in each process, so <code>n-1</code> workers are available serving requests during the restart. In a phased restart in fork-worker mode, the application is first loaded in worker 0 while <code>n-1</code> workers are available, then worker 0 remains stopped while the rest of the workers are reloaded one by one, leaving only <code>n-2</code> workers to be available for a brief period of time. Reloading the rest of the workers should be quick because the application is preloaded at that point, but there may be situations where it can take longer (slow clients, long-running application code, slow worker-fork hooks, etc).</p>
+</li>
+</ul>
+<h1 id="Mold_Worker_Cluster_Mode_Experimental_">Mold-Worker Cluster Mode [Experimental]</h1>
+<p><code>mold_worker</code> (<code>--mold-worker</code> from the CLI) is an alternative to <code>fork_worker</code>. Instead of forking from a worker that also serves requests, Puma promotes a worker to a &quot;mold&quot;, which stops serving requests and only forks new workers. Because the mold never serves traffic, a slow request, timeout or memory limit can't take it down mid-refork.</p>
+<pre class="code ruby"><code class="ruby"><span class='int'>10000</span>   <span class='CHAR'>\</span><span class='id identifier rubyid__'>_</span> <span class='id identifier rubyid_puma'>puma</span> <span class='float'>8.0</span> (<span class='id identifier rubyid_tcp'>tcp</span><span class='symbeg'>:</span><span class='op'>/</span><span class='op'>/</span><span class='float'>0.0</span><span class='op'>:</span><span class='int'>9292</span>) [<span class='id identifier rubyid_puma'>puma</span>]
+<span class='int'>10005</span>       <span class='CHAR'>\</span><span class='id identifier rubyid__'>_</span> <span class='label'>puma:</span> <span class='id identifier rubyid_mold'>mold</span> <span class='int'>2</span><span class='op'>:</span> <span class='int'>10000</span> [<span class='id identifier rubyid_puma'>puma</span>]
+<span class='int'>10011</span>           <span class='CHAR'>\</span><span class='id identifier rubyid__'>_</span> <span class='label'>puma:</span> <span class='id identifier rubyid_cluster'>cluster</span> <span class='id identifier rubyid_worker'>worker</span> <span class='int'>0</span><span class='op'>:</span> <span class='int'>10000</span> [<span class='id identifier rubyid_puma'>puma</span>]
+<span class='int'>10012</span>           <span class='CHAR'>\</span><span class='id identifier rubyid__'>_</span> <span class='label'>puma:</span> <span class='id identifier rubyid_cluster'>cluster</span> <span class='id identifier rubyid_worker'>worker</span> <span class='int'>1</span><span class='op'>:</span> <span class='int'>10000</span> [<span class='id identifier rubyid_puma'>puma</span>]
+<span class='int'>10013</span>           <span class='CHAR'>\</span><span class='id identifier rubyid__'>_</span> <span class='label'>puma:</span> <span class='id identifier rubyid_cluster'>cluster</span> <span class='id identifier rubyid_worker'>worker</span> <span class='int'>2</span><span class='op'>:</span> <span class='int'>10000</span> [<span class='id identifier rubyid_puma'>puma</span>]</code></pre>
+<p>Workers are forked from the master at boot. Each request threshold (default <code>1000</code>) promotes the busiest worker to a new mold, retires the previous one, and reforks every worker from the new mold.</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_mold_worker'>mold_worker</span> <span class='int'>1000</span><span class='comma'>,</span> <span class='int'>2000</span><span class='comma'>,</span> <span class='int'>4000</span></code></pre>
+<h3 id="Usage_Considerations">Usage Considerations</h3>
+<ul>
+<li>Thresholds are per worker, counted from when that worker booted. Workers forked from a mold start again at zero, so with the config above a worker is promoted after 1000 requests, and a worker from that generation is promoted after another 2000.</li>
+<li>After the last threshold, molds are only replaced by <code>SIGURG</code> or <code>pumactl refork</code>, which promote the busiest worker at any time.</li>
+<li>A phased restart (<code>SIGUSR1</code> or <code>pumactl phased-restart</code>) retires the mold and forks workers from the master, so new code is loaded, then starts the thresholds again. As with any phased restart, this requires <code>preload_app!</code> to be disabled.</li>
+<li><code>mold_worker</code> cannot be combined with <code>fork_worker</code>.</li>
+<li>On Linux 3.4+, workers are reparented to the master rather than orphaned if their mold exits.</li>
+<li><code>mold_worker</code> introduces new <code>after_mold_promotion</code> and <code>before_mold_shutdown</code> configuration hooks.
+<ul>
+<li><code>after_mold_promotion</code> runs in the mold after it stops serving requests, before it forks any workers. Use it for what you would do in <code>before_refork</code>, such as closing connections or running garbage collection.</li>
+<li><code>before_mold_shutdown</code> runs in the mold before it exits.</li>
+<li><code>before_worker_boot</code> runs in each forked worker, as usual. Use it for what you would do in <code>after_refork</code>.</li>
+</ul>
 </li>
 </ul>
 <div id='footer'></div>
