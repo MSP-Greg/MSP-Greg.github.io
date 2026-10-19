@@ -588,6 +588,11 @@ component is still limited to 255 characters, and a child process still
 starts with the <code>MAX_PATH</code> limited current directory. [[Bug #18947]]</p>
 </li>
 <li>
+<p>On 64-bit Windows with MSVC (mswin), String, Array and MatchData can now be
+2GiB or longer.  Their lengths used to be <code>long</code>, which is 32 bits there.
+[[Feature #22400]]</p>
+</li>
+<li>
 <p>Building Ruby with MSVC now requires Visual Studio 2017 version 15.8
 (<code>_MSC_VER</code> 1915) or later.</p>
 </li>
@@ -632,13 +637,13 @@ still refer to unshareable objects through the members of <code>rb_io_t</code>.<
 </li>
 <li>
 <p><code>Random.urandom</code> now raises <code>RangeError</code> for every size too large for a
-<code>long</code>, as <code>Random#bytes</code> does.  A size that still fit in an <code>unsigned long</code>
+String, as <code>Random#bytes</code> does.  A size that still fit in an <code>unsigned long</code>
 used to raise <code>ArgumentError</code>. [[Feature #22400]]</p>
 </li>
 <li>
 <p><code>Struct#[]</code> and <code>Struct#[]=</code> now raise <code>IndexError</code> for every out-of-range
-Integer index that fits in a <code>long</code>.  An index past the <code>int</code> range used to
-raise <code>RangeError</code>. [[Feature #22400]]</p>
+Integer index within the range of Array indices.  An index past the <code>int</code>
+range used to raise <code>RangeError</code>. [[Feature #22400]]</p>
 </li>
 </ul>
 <h2 id="Stdlib_compatibility_issues">Stdlib compatibility issues</h2>
@@ -714,11 +719,28 @@ Ractor once the dead Ractor is collected.</p>
 <p><code>rb_len_t</code> and <code>rb_ulen_t</code> are added as the types of the lengths and indices
 of String, Array and MatchData, with <code>LEN2NUM</code>, <code>NUM2LEN</code>, <code>ULEN2NUM</code>,
 <code>rb_len2int</code>, <code>PRIdLEN</code> and its siblings, <code>RB_LEN_MAX</code>, <code>RB_LEN_MIN</code>,
-<code>RB_ULEN_MAX</code>, <code>SIZEOF_RB_LEN_T</code> and <code>HAVE_RB_LEN_T</code>.  <code>RbConfig::SIZEOF[&quot;rb_len_t&quot;]</code>
-gives its size to an extconf.rb.  They are <code>long</code> on every platform for now, and
-the C API that carries such lengths, such as <code>RSTRING_LEN</code> and
-<code>rb_range_beg_len</code>, uses them.  A later change will makes them 64 bits on mswin,
-so extensions should keep these lengths in <code>rb_len_t</code>. [[Feature #22400]]</p>
+<code>RB_ULEN_MAX</code>, <code>SIZEOF_RB_LEN_T</code> and <code>HAVE_RB_LEN_T</code>.
+<code>RbConfig::SIZEOF[&quot;rb_len_t&quot;]</code> gives its size to an extconf.rb.  They are
+<code>long</code>, except on 64-bit mswin, where they are 64 bits.  The C API that
+carries such lengths, such as <code>RSTRING_LEN</code> and <code>rb_range_beg_len</code>, uses
+them.
+[[Feature #22400]]</p>
+</li>
+<li>
+<p>On 64-bit mswin this changes the ABI, so extensions have to be rebuilt.  An
+extension that passes a <code>long *</code> to an output parameter such as
+<code>rb_range_beg_len</code> no longer compiles there, and one that keeps a length in
+<code>long</code> truncates it at 2GiB.  Keep such lengths in <code>rb_len_t</code>, or convert
+them with <code>rb_len2long</code>.  An extension that also supports older versions can
+check <code>HAVE_RB_LEN_T</code> and fall back to <code>typedef long rb_len_t</code>.
+[[Feature #22400]]</p>
+</li>
+<li>
+<p>On mswin, extensions are now built with incompatible pointer types
+(warning C4133) as errors.  Besides a <code>long *</code> passed where an
+<code>rb_len_t *</code> is expected, this rejects any other mismatched pointer that
+used to compile with a warning.
+[[Feature #22400]]</p>
 </li>
 <li>
 <p><code>rb_len2long</code> is added to convert an <code>rb_len_t</code> to <code>long</code>, raising
