@@ -3780,7 +3780,7 @@ this cop may register false positives.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock">No</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Always (Unsafe)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">1.77</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">-</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1.92</p></td>
 </tr>
 </tbody>
 </table>
@@ -3808,6 +3808,15 @@ and <code>size</code>, but it doesn&#8217;t include <code>Enumerable</code>.
 </tr>
 </table>
 </div>
+<div class="paragraph">
+<p>When <code>count</code> is used without a block, it measures the collection&#8217;s
+size, so the offense is corrected to <code>empty?</code> or &lt;code&gt;!empty?&lt;/code&gt;. The
+predicate methods <code>any?</code>, <code>none?</code> and <code>one?</code> test element truthiness
+instead and would return different results for collections with falsey
+elements (e.g. &lt;code&gt;[false].count.zero?&lt;/code&gt; is <code>false</code>, but &lt;code&gt;[false].none?&lt;/code&gt;
+is <code>true</code>). For the same reason, &lt;code&gt;count == 1&lt;/code&gt; and &lt;code&gt;count &gt; 1&lt;/code&gt; without
+a block are not flagged.</p>
+</div>
 <div class="sect2">
 <h3 id="safety-stylecollectionquerying">Safety</h3>
 <div class="paragraph">
@@ -3816,26 +3825,11 @@ it has nonstandard implementation of <code>count</code> or any replacement
 methods.</p>
 </div>
 <div class="paragraph">
-<p>It&#8217;s also unsafe because for collections with falsey values, expressions
-with <code>count</code> without a block return a different result than methods <code>any?</code>,
-<code>none?</code> and <code>one?</code>:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="code ruby"><code class="ruby">[<span class='kw'>nil</span><span class='comma'>,</span> <span class='kw'>false</span>].<span class='id identifier rubyid_count'>count</span>.<span class='id identifier rubyid_positive?'>positive?</span>
-[<span class='kw'>nil</span>].<span class='id identifier rubyid_count'>count</span> <span class='op'>==</span> <span class='int'>1</span>
-<span class='comment'># =&gt; true
-</span>
-[<span class='kw'>nil</span><span class='comma'>,</span> <span class='kw'>false</span>].<span class='id identifier rubyid_any?'>any?</span>
-[<span class='kw'>nil</span>].<span class='id identifier rubyid_one?'>one?</span>
-<span class='comment'># =&gt; false
-</span>
-[<span class='kw'>nil</span>].<span class='id identifier rubyid_count'>count</span> <span class='op'>==</span> <span class='int'>0</span>
-<span class='comment'># =&gt; false
-</span>
-[<span class='kw'>nil</span>].<span class='id identifier rubyid_none?'>none?</span>
-<span class='comment'># =&gt; true</span></code></pre>
-</div>
+<p>Blockless <code>count</code> is corrected to <code>empty?</code>, which <code>Enumerable</code> doesn&#8217;t
+define. <code>Range</code>, <code>Enumerator</code> (including lazy ones), <code>Struct</code>, <code>StringIO</code>
+and any class that just includes <code>Enumerable</code> respond to <code>count</code> but not
+to <code>empty?</code>, so &lt;code&gt;(1&#8230;&#8203;1).count.zero?&lt;/code&gt; is <code>true</code> while &lt;code&gt;(1&#8230;&#8203;1).empty?&lt;/code&gt;
+raises <code>NoMethodError</code>.</p>
 </div>
 <div class="paragraph">
 <p>Autocorrection is unsafe when replacement methods don&#8217;t iterate over
@@ -3860,13 +3854,15 @@ every element in collection and the given block runs side effects:</p>
 <span class='id identifier rubyid_x'>x</span>.<span class='id identifier rubyid_count'>count</span> <span class='op'>&gt;</span> <span class='int'>0</span>
 <span class='id identifier rubyid_x'>x</span>.<span class='id identifier rubyid_count'>count</span> <span class='op'>!=</span> <span class='int'>0</span>
 
-<span class='id identifier rubyid_x'>x</span>.<span class='id identifier rubyid_count'>count</span>(<span class='op'>&amp;</span><span class='symbeg'>:</span><span class='id identifier rubyid_foo?'>foo?</span>).<span class='id identifier rubyid_positive?'>positive?</span>
+<span class='comment'># good
+</span><span class='op'>!</span><span class='id identifier rubyid_x'>x</span>.<span class='id identifier rubyid_empty?'>empty?</span>
+
+<span class='comment'># bad
+</span><span class='id identifier rubyid_x'>x</span>.<span class='id identifier rubyid_count'>count</span>(<span class='op'>&amp;</span><span class='symbeg'>:</span><span class='id identifier rubyid_foo?'>foo?</span>).<span class='id identifier rubyid_positive?'>positive?</span>
 <span class='id identifier rubyid_x'>x</span>.<span class='id identifier rubyid_count'>count</span> { <span class='op'>|</span><span class='id identifier rubyid_item'>item</span><span class='op'>|</span> <span class='id identifier rubyid_item'>item</span>.<span class='id identifier rubyid_foo?'>foo?</span> }.<span class='id identifier rubyid_positive?'>positive?</span>
 
 <span class='comment'># good
-</span><span class='id identifier rubyid_x'>x</span>.<span class='id identifier rubyid_any?'>any?</span>
-
-<span class='id identifier rubyid_x'>x</span>.<span class='id identifier rubyid_any?'>any?</span>(<span class='op'>&amp;</span><span class='symbeg'>:</span><span class='id identifier rubyid_foo?'>foo?</span>)
+</span><span class='id identifier rubyid_x'>x</span>.<span class='id identifier rubyid_any?'>any?</span>(<span class='op'>&amp;</span><span class='symbeg'>:</span><span class='id identifier rubyid_foo?'>foo?</span>)
 <span class='id identifier rubyid_x'>x</span>.<span class='id identifier rubyid_any?'>any?</span> { <span class='op'>|</span><span class='id identifier rubyid_item'>item</span><span class='op'>|</span> <span class='id identifier rubyid_item'>item</span>.<span class='id identifier rubyid_foo?'>foo?</span> }
 
 <span class='comment'># bad
@@ -3874,11 +3870,20 @@ every element in collection and the given block runs side effects:</p>
 <span class='id identifier rubyid_x'>x</span>.<span class='id identifier rubyid_count'>count</span> <span class='op'>==</span> <span class='int'>0</span>
 
 <span class='comment'># good
-</span><span class='id identifier rubyid_x'>x</span>.<span class='id identifier rubyid_none?'>none?</span>
+</span><span class='id identifier rubyid_x'>x</span>.<span class='id identifier rubyid_empty?'>empty?</span>
 
 <span class='comment'># bad
-</span><span class='id identifier rubyid_x'>x</span>.<span class='id identifier rubyid_count'>count</span> <span class='op'>==</span> <span class='int'>1</span>
-<span class='id identifier rubyid_x'>x</span>.<span class='id identifier rubyid_one?'>one?</span></code></pre>
+</span><span class='id identifier rubyid_x'>x</span>.<span class='id identifier rubyid_count'>count</span>(<span class='op'>&amp;</span><span class='symbeg'>:</span><span class='id identifier rubyid_foo?'>foo?</span>).<span class='id identifier rubyid_zero?'>zero?</span>
+<span class='id identifier rubyid_x'>x</span>.<span class='id identifier rubyid_count'>count</span>(<span class='op'>&amp;</span><span class='symbeg'>:</span><span class='id identifier rubyid_foo?'>foo?</span>) <span class='op'>==</span> <span class='int'>0</span>
+
+<span class='comment'># good
+</span><span class='id identifier rubyid_x'>x</span>.<span class='id identifier rubyid_none?'>none?</span>(<span class='op'>&amp;</span><span class='symbeg'>:</span><span class='id identifier rubyid_foo?'>foo?</span>)
+
+<span class='comment'># bad
+</span><span class='id identifier rubyid_x'>x</span>.<span class='id identifier rubyid_count'>count</span>(<span class='op'>&amp;</span><span class='symbeg'>:</span><span class='id identifier rubyid_foo?'>foo?</span>) <span class='op'>==</span> <span class='int'>1</span>
+
+<span class='comment'># good
+</span><span class='id identifier rubyid_x'>x</span>.<span class='id identifier rubyid_one?'>one?</span>(<span class='op'>&amp;</span><span class='symbeg'>:</span><span class='id identifier rubyid_foo?'>foo?</span>)</code></pre>
 </div>
 </div>
 <div class="sect3">
@@ -3886,7 +3891,7 @@ every element in collection and the given block runs side effects:</p>
 <div class="listingblock">
 <div class="content">
 <pre class="code ruby"><code class="ruby"><span class='comment'># good
-</span><span class='id identifier rubyid_x'>x</span>.<span class='id identifier rubyid_count'>count</span> <span class='op'>&gt;</span> <span class='int'>1</span></code></pre>
+</span><span class='id identifier rubyid_x'>x</span>.<span class='id identifier rubyid_count'>count</span>(<span class='op'>&amp;</span><span class='symbeg'>:</span><span class='id identifier rubyid_foo?'>foo?</span>) <span class='op'>&gt;</span> <span class='int'>1</span></code></pre>
 </div>
 </div>
 </div>
@@ -3895,10 +3900,10 @@ every element in collection and the given block runs side effects:</p>
 <div class="listingblock">
 <div class="content">
 <pre class="code ruby"><code class="ruby"><span class='comment'># bad
-</span><span class='id identifier rubyid_x'>x</span>.<span class='id identifier rubyid_count'>count</span> <span class='op'>&gt;</span> <span class='int'>1</span>
+</span><span class='id identifier rubyid_x'>x</span>.<span class='id identifier rubyid_count'>count</span>(<span class='op'>&amp;</span><span class='symbeg'>:</span><span class='id identifier rubyid_foo?'>foo?</span>) <span class='op'>&gt;</span> <span class='int'>1</span>
 
 <span class='comment'># good
-</span><span class='id identifier rubyid_x'>x</span>.<span class='id identifier rubyid_many?'>many?</span></code></pre>
+</span><span class='id identifier rubyid_x'>x</span>.<span class='id identifier rubyid_many?'>many?</span>(<span class='op'>&amp;</span><span class='symbeg'>:</span><span class='id identifier rubyid_foo?'>foo?</span>)</code></pre>
 </div>
 </div>
 </div>
