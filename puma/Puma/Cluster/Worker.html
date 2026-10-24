@@ -481,9 +481,9 @@ that this inherits from.</p>
   <h3 class='signature priv  nodoc'>
     #<strong>run_mold</strong>   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/puma/puma/blob/main/lib/puma/cluster/worker.rb#L176-L206'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/puma/puma/blob/main/lib/puma/cluster/worker.rb#L176-L217'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='176' data-end='206'></pre>
+  <pre class='lines_num' data-start='176' data-end='217'></pre>
   <div class='lines_code'>
 <pre><span class='info file'># File 'lib/puma/cluster/worker.rb', line 176</span></pre>
 <pre class='code ruby'>
@@ -491,8 +491,13 @@ that this inherits from.</p>
 <span class='kw'>def</span> <span class='id identifier rubyid_run_mold'>run_mold</span>
   <span class='gvar'>$0</span> <span class='op'>=</span> <span class='gvar'>$0</span>.<span class='id identifier rubyid_sub'>sub</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>cluster worker</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>mold</span><span class='tstring_end'>&quot;</span></span>)
 
+  <span class='id identifier rubyid_retired'>retired</span> <span class='op'>=</span> <span class='kw'>false</span>
   <span class='id identifier rubyid_stopping'>stopping</span> <span class='op'>=</span> <span class='kw'>false</span>
   <span class='id identifier rubyid_stop_read'>stop_read</span><span class='comma'>,</span> <span class='id identifier rubyid_stop_write'>stop_write</span> <span class='op'>=</span> <span class='const'><a href="../../Puma.html" title="Puma (module)">Puma</a></span><span class='op'>::</span><span class='const'><a href="../Util.html" title="Puma::Util (module)">Util</a></span>.<span class='id identifier rubyid_pipe'><a href="../Util.html#pipe-class_method" title="Puma::Util.pipe (method)">pipe</a></span>
+  <span class='const'>Signal</span>.<span class='id identifier rubyid_trap'>trap</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>SIGURG</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_retired'>retired</span> <span class='op'>=</span> <span class='kw'>true</span>
+    <span class='id identifier rubyid_stop_write'>stop_write</span>.<span class='id identifier rubyid_write_nonblock'>write_nonblock</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>.</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>exception:</span> <span class='kw'>false</span>)
+  <span class='kw'>end</span>
   <span class='const'>Signal</span>.<span class='id identifier rubyid_trap'>trap</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>SIGTERM</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
     <span class='ivar'>@worker_write</span> <span class='op'>&lt;&lt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='const'><a href="../Const/PipeRequest.html#PIPE_EXTERNAL_TERM-constant" title="Puma::Const::PipeRequest::PIPE_EXTERNAL_TERM (constant)">PIPE_EXTERNAL_TERM</a></span><span class='embexpr_end'>}</span><span class='embexpr_beg'>#{</span><span class='const'>Process</span>.<span class='id identifier rubyid_pid'>pid</span><span class='embexpr_end'>}</span><span class='tstring_content'>\n</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>rescue</span> <span class='kw'>nil</span>
     <span class='id identifier rubyid_stopping'>stopping</span> <span class='op'>=</span> <span class='kw'>true</span>
@@ -508,13 +513,19 @@ that this inherits from.</p>
   <span class='id identifier rubyid_loop'>loop</span> <span class='kw'>do</span>
     <span class='const'>IO</span>.<span class='id identifier rubyid_select'>select</span>([<span class='ivar'>@fork_pipe</span><span class='comma'>,</span> <span class='id identifier rubyid_stop_read'>stop_read</span>])
     <span class='comment'># A retired mold must not read indices meant for its replacement.
-</span>    <span class='kw'>break</span> <span class='kw'>if</span> <span class='id identifier rubyid_stopping'>stopping</span>
+</span>    <span class='kw'>break</span> <span class='kw'>if</span> <span class='id identifier rubyid_retired'>retired</span> <span class='op'>||</span> <span class='id identifier rubyid_stopping'>stopping</span>
 
     <span class='id identifier rubyid_idx'>idx</span> <span class='op'>=</span> <span class='ivar'>@fork_pipe</span>.<span class='id identifier rubyid_sysread'>sysread</span>(<span class='const'><a href="../Cluster.html#MOLD_FORK_BYTES-constant" title="Puma::Cluster::MOLD_FORK_BYTES (constant)">MOLD_FORK_BYTES</a></span>).<span class='id identifier rubyid_unpack1'>unpack1</span>(<span class='const'><a href="../Cluster.html#MOLD_FORK_FORMAT-constant" title="Puma::Cluster::MOLD_FORK_FORMAT (constant)">MOLD_FORK_FORMAT</a></span>)
     <span class='id identifier rubyid_pid'>pid</span> <span class='op'>=</span> <span class='id identifier rubyid_spawn_worker'><a href="#spawn_worker-instance_method" title="Puma::Cluster::Worker#spawn_worker (method)">spawn_worker</a></span>(<span class='id identifier rubyid_idx'>idx</span>)
     <span class='ivar'>@worker_write</span> <span class='op'>&lt;&lt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='const'><a href="../Const/PipeRequest.html#PIPE_FORK-constant" title="Puma::Const::PipeRequest::PIPE_FORK (constant)">PIPE_FORK</a></span><span class='embexpr_end'>}</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_pid'>pid</span><span class='embexpr_end'>}</span><span class='tstring_content'>:</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_idx'>idx</span><span class='embexpr_end'>}</span><span class='tstring_content'>\n</span><span class='tstring_end'>&quot;</span></span>
   <span class='kw'>rescue</span> <span class='const'>EOFError</span>
     <span class='kw'>break</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>if</span> <span class='id identifier rubyid_retired'>retired</span>
+    <span class='comment'># Stay alive until stopped, so the workers this mold forked are
+</span>    <span class='comment'># reaped and the master is woken as they exit.
+</span>    <span class='id identifier rubyid_stop_read'>stop_read</span>.<span class='id identifier rubyid_read'>read</span>(<span class='int'>1</span>) <span class='kw'>until</span> <span class='id identifier rubyid_stopping'>stopping</span>
   <span class='kw'>end</span>
 
   <span class='ivar'>@config</span>.<span class='id identifier rubyid_run_hooks'>run_hooks</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_before_mold_shutdown'>before_mold_shutdown</span><span class='comma'>,</span> <span class='id identifier rubyid_index'><a href="#index-instance_method" title="Puma::Cluster::Worker#index (method)">index</a></span><span class='comma'>,</span> <span class='ivar'>@log_writer</span><span class='comma'>,</span> <span class='ivar'>@hook_data</span>)
@@ -528,11 +539,11 @@ that this inherits from.</p>
   <h3 class='signature priv  nodoc'>
     #<strong>spawn_worker</strong>(idx)   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/puma/puma/blob/main/lib/puma/cluster/worker.rb#L216-L243'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/puma/puma/blob/main/lib/puma/cluster/worker.rb#L227-L254'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='216' data-end='243'></pre>
+  <pre class='lines_num' data-start='227' data-end='254'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/puma/cluster/worker.rb', line 216</span></pre>
+<pre><span class='info file'># File 'lib/puma/cluster/worker.rb', line 227</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_spawn_worker'>spawn_worker</span>(<span class='id identifier rubyid_idx'>idx</span>)
@@ -611,11 +622,11 @@ that this inherits from.</p>
   <h3 class='signature priv  nodoc'>
     #<strong>trap_sigchld</strong>   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/puma/puma/blob/main/lib/puma/cluster/worker.rb#L208-L214'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/puma/puma/blob/main/lib/puma/cluster/worker.rb#L219-L225'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='208' data-end='214'></pre>
+  <pre class='lines_num' data-start='219' data-end='225'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/puma/cluster/worker.rb', line 208</span></pre>
+<pre><span class='info file'># File 'lib/puma/cluster/worker.rb', line 219</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_trap_sigchld'>trap_sigchld</span>
