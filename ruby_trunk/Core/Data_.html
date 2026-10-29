@@ -77,7 +77,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2 o'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2335'>struct.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L1714'>struct.c</a></span>
+      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2337'>struct.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L1713'>struct.c</a></span>
       </td>
     </tr>
   </tbody>
@@ -303,24 +303,22 @@ defaults:</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L1883-L1928'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L1879-L1930'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1883' data-end='1928'></pre>
+  <pre class='lines_num' data-start='1879' data-end='1930'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'struct.c', line 1883</span></pre>
+<pre><span class='info file'># File 'struct.c', line 1879</span></pre>
 <pre class='code cpp'>
 
 static VALUE
 rb_data_initialize_m(int argc, const VALUE *argv, VALUE self)
 {
-    VALUE klass = rb_obj_class(self);
     rb_struct_modify(self);
-    VALUE members = struct_ivar_get(klass, id_members);
-    size_t num_members = RARRAY_LEN(members);
+    rb_len_t num_members = RSTRUCT_LEN_RAW(self);
 
     if (argc == 0) {
         if (num_members &gt; 0) {
-            rb_exc_raise(rb_keyword_error_new(&quot;missing&quot;, members));
+            rb_exc_raise(rb_keyword_error_new(&quot;missing&quot;, struct_ivar_get(rb_obj_class(self), id_members)));
         }
         OBJ_FREEZE(self);
         return Qnil;
@@ -329,29 +327,37 @@ rb_data_initialize_m(int argc, const VALUE *argv, VALUE self)
         rb_error_arity(argc, 0, 0);
     }
 
-    VALUE missing = rb_ary_dup(members);
-    RBASIC_CLEAR_CLASS(missing);
+    VALUE found_buffer = 0;
+    bool *found = NULL;
+    if (num_members &gt; 0) {
+        found = ALLOCV_N(bool, found_buffer, num_members);
+        MEMZERO(found, bool, num_members);
+    }
     struct struct_hash_set_arg arg = {
         .self = self,
-        .unknown_keywords = Qnil,
-        .missing_keywords = missing,
-        .missing_count = (rb_len_t)num_members,
+        .found = found,
+        .missing_count = num_members,
     };
     rb_mem_clear((VALUE *)RSTRUCT_CONST_PTR(self), num_members);
     rb_hash_foreach(argv[0], data_hash_set_i, (VALUE)&amp;arg);
+
     // Freeze early before potentially raising, so that we don&#39;t leave an
     // unfrozen copy on the heap, which could get exposed via ObjectSpace.
     OBJ_FREEZE(self);
     if (UNLIKELY(arg.missing_count &gt; 0)) {
-        rb_ary_compact_bang(missing);
+        VALUE members = struct_ivar_get(rb_obj_class(self), id_members);
+        RUBY_ASSERT(RARRAY_LEN(members) == num_members);
+        VALUE missing = rb_ary_new_capa(arg.missing_count);
+        for (rb_len_t i = 0; i &lt; num_members; i++) {
+            if (!found[i]) rb_ary_push(missing, RARRAY_AREF(members, i));
+        }
         RUBY_ASSERT(RARRAY_LEN(missing) == arg.missing_count, &quot;missing_count=%&quot;PRIdLEN&quot; but %&quot;PRIdLEN, arg.missing_count, RARRAY_LEN(missing));
-        RBASIC_SET_CLASS_RAW(missing, rb_cArray);
         rb_exc_raise(rb_keyword_error_new(&quot;missing&quot;, missing));
     }
-    VALUE unknown_keywords = arg.unknown_keywords;
-    if (UNLIKELY(!NIL_P(unknown_keywords))) {
-        RBASIC_SET_CLASS_RAW(unknown_keywords, rb_cArray);
-        rb_exc_raise(rb_keyword_error_new(&quot;unknown&quot;, unknown_keywords));
+
+    ALLOCV_END(found_buffer);
+    if (UNLIKELY(arg.unknown_keywords)) {
+        rb_exc_raise(rb_keyword_error_new(&quot;unknown&quot;, arg.unknown_keywords));
     }
 
     return Qnil;
@@ -399,11 +405,11 @@ representation:</p>
 </span><span class='kw'>end</span></code></pre>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L1759-L1788'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L1758-L1787'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1759' data-end='1788'></pre>
+  <pre class='lines_num' data-start='1758' data-end='1787'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'struct.c', line 1759</span></pre>
+<pre><span class='info file'># File 'struct.c', line 1758</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -445,7 +451,7 @@ rb_data_s_def(int argc, VALUE *argv, VALUE klass)
   <h3 class='signature '>
     .<strong>members</strong>  
   </h3>
-  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2342'>GitHub</a> ]</span>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2344'>GitHub</a> ]</span>
 
 </section>
 
@@ -454,7 +460,7 @@ rb_data_s_def(int argc, VALUE *argv, VALUE klass)
   <h3 class='signature  first'>
     #<strong>==</strong>  
   </h3>
-  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2348'>GitHub</a> ]</span>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2350'>GitHub</a> ]</span>
 
 </section>
 
@@ -462,7 +468,7 @@ rb_data_s_def(int argc, VALUE *argv, VALUE klass)
   <h3 class='signature '>
     #<strong>deconstruct</strong>  
   </h3>
-  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2358'>GitHub</a> ]</span>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2360'>GitHub</a> ]</span>
 
 </section>
 
@@ -494,11 +500,11 @@ rb_data_s_def(int argc, VALUE *argv, VALUE klass)
 </span><span class='kw'>end</span></code></pre>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2181-L2185'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2183-L2187'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2181' data-end='2185'></pre>
+  <pre class='lines_num' data-start='2183' data-end='2187'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'struct.c', line 2181</span></pre>
+<pre><span class='info file'># File 'struct.c', line 2183</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -523,7 +529,7 @@ rb_data_deconstruct_keys(VALUE s, VALUE keys)
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2349'>GitHub</a> ]</span>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2351'>GitHub</a> ]</span>
 
 </section>
 
@@ -531,7 +537,7 @@ rb_data_deconstruct_keys(VALUE s, VALUE keys)
   <h3 class='signature '>
     #<strong>hash</strong>  
   </h3>
-  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2350'>GitHub</a> ]</span>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2352'>GitHub</a> ]</span>
 
 </section>
 
@@ -542,11 +548,11 @@ rb_data_deconstruct_keys(VALUE s, VALUE keys)
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L1931-L1937'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L1933-L1939'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1931' data-end='1937'></pre>
+  <pre class='lines_num' data-start='1933' data-end='1939'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'struct.c', line 1931</span></pre>
+<pre><span class='info file'># File 'struct.c', line 1933</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -583,7 +589,7 @@ rb_data_init_copy(VALUE copy, VALUE s)
   <h3 class='signature '>
     #<strong>members</strong>  
   </h3>
-  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2356'>GitHub</a> ]</span>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2358'>GitHub</a> ]</span>
 
 </section>
 
@@ -591,7 +597,7 @@ rb_data_init_copy(VALUE copy, VALUE s)
   <h3 class='signature '>
     #<strong>to_h</strong>  
   </h3>
-  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2354'>GitHub</a> ]</span>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2356'>GitHub</a> ]</span>
 
 </section>
 
@@ -617,11 +623,11 @@ rb_data_init_copy(VALUE copy, VALUE s)
 </span><span class='comment'>#&lt;data Measure amount=10, unit=&quot;km&quot;&gt;</span></code></pre>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2002-L2006'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L2004-L2008'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2002' data-end='2006'></pre>
+  <pre class='lines_num' data-start='2004' data-end='2008'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'struct.c', line 2002</span></pre>
+<pre><span class='info file'># File 'struct.c', line 2004</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -662,11 +668,11 @@ supply a keyword that the <code>Data</code> class does not have as a member.</p>
 </span><span class='id identifier rubyid_some_point'>some_point</span> <span class='op'>=</span> <span class='id identifier rubyid_origin'>origin</span>.<span class='id identifier rubyid_with'>with</span>(<span class='int'>1</span><span class='comma'>,</span> <span class='int'>2</span>) <span class='comment'># ArgumentError: expected keyword arguments, got positional arguments</span></code></pre>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L1969-L1981'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/struct.c#L1971-L1983'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='1969' data-end='1981'></pre>
+  <pre class='lines_num' data-start='1971' data-end='1983'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'struct.c', line 1969</span></pre>
+<pre><span class='info file'># File 'struct.c', line 1971</span></pre>
 <pre class='code cpp'>
 
 static VALUE
