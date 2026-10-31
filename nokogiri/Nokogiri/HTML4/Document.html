@@ -118,7 +118,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2 o'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/ext/nokogiri/html4_document.c#L161'>ext/nokogiri/html4_document.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/lib/nokogiri/html4/document.rb#L8'>lib/nokogiri/html4/document.rb</a></span>
+      <td class='box_rel'><a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/ext/nokogiri/html4_document.c#L168'>ext/nokogiri/html4_document.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/lib/nokogiri/html4/document.rb#L8'>lib/nokogiri/html4/document.rb</a></span>
       </td>
     </tr>
   </tbody>
@@ -426,7 +426,7 @@
     </tr>
     <tr class='i_ds'>
       <td><a class='i_m rw' href="../XML/Node.html#namespace=-instance_method" title="Nokogiri::XML::Node#namespace= (method)">#namespace=</a></td>
-      <td><div class='inline'><p>Set the default namespace on this node (as would be defined with an &quot;xmlns=&quot; attribute in <a href="../XML.html" title="Nokogiri::XML (module)"><code>::Nokogiri::XML</code></a> source), as a Namespace object <code>ns</code>.</p></div></td>
+      <td><div class='inline'><p>Set the namespace of this node to the Namespace object <code>ns</code>, which must belong to this node's document.</p></div></td>
     </tr>
     <tr class='i_ds'>
       <td><a class='i_m wo' href="../XML/Node.html#native_content=-instance_method" title="Nokogiri::XML::Node#native_content= (method)">#native_content=</a></td>
@@ -1179,8 +1179,8 @@ rb_html_document_s_new(int argc, VALUE *argv, VALUE klass)
   htmlDocPtr doc;
 
   rb_scan_args(argc, argv, &quot;0*&quot;, &amp;rest);
-  uri = rb_ary_entry(rest, (long)0);
-  external_id = rb_ary_entry(rest, (long)1);
+  uri = rb_ary_entry(rest, (rb_len_t)0);
+  external_id = rb_ary_entry(rest, (rb_len_t)1);
 
   doc = htmlNewDoc(
           RTEST(uri) ? (const xmlChar *)StringValueCStr(uri) : NULL,
@@ -1304,9 +1304,9 @@ can be configured before parsing. See Nokogiri::XML::ParseOptions for more infor
 and <code>options</code>.  See <a href="../HTML4.html#parse-class_method" title="Nokogiri::HTML4.parse (method)">Nokogiri::HTML4.parse</a></p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/ext/nokogiri/html4_document.c#L39-L88'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/ext/nokogiri/html4_document.c#L39-L95'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='39' data-end='88'></pre>
+  <pre class='lines_num' data-start='39' data-end='95'></pre>
   <div class='lines_code'>
 <pre><span class='info file'># File 'ext/nokogiri/html4_document.c', line 39</span></pre>
 <pre class='code cpp'>
@@ -1323,9 +1323,16 @@ rb_html_document_s_read_io(VALUE klass, VALUE rb_io, VALUE rb_url, VALUE rb_enco
 
   xmlSetStructuredErrorFunc((void *)rb_error_list, noko__error_array_pusher);
 
-  c_doc = htmlReadIO(noko_io_read, noko_io_close, (void *)rb_io, c_url, c_encoding, options);
+  noko_io_read_reset_exception();
+  c_doc = htmlReadIO(noko_io_read_protected, noko_io_close, (void *)rb_io, c_url, c_encoding, options);
+  VALUE rb_io_read_exception = noko_io_read_take_exception();
 
   xmlSetStructuredErrorFunc(NULL, NULL);
+
+  if (!NIL_P(rb_io_read_exception)) {
+    xmlFreeDoc(c_doc);
+    noko_io_read_raise_exception(rb_io_read_exception);
+  }
 
   /*
    * If EncodingFound has occurred in EncodingReader, make sure to do
@@ -1375,11 +1382,11 @@ rb_html_document_s_read_io(VALUE klass, VALUE rb_io, VALUE rb_url, VALUE rb_enco
 and <code>options</code>.  See <a href="../HTML4.html#parse-class_method" title="Nokogiri::HTML4.parse (method)">Nokogiri::HTML4.parse</a></p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/ext/nokogiri/html4_document.c#L97-L136'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/ext/nokogiri/html4_document.c#L104-L143'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='97' data-end='136'></pre>
+  <pre class='lines_num' data-start='104' data-end='143'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/nokogiri/html4_document.c', line 97</span></pre>
+<pre><span class='info file'># File 'ext/nokogiri/html4_document.c', line 104</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1705,11 +1712,11 @@ content element (typically <body>) if any.</p>
     <p>The type for this document</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/ext/nokogiri/html4_document.c#L144-L149'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/ext/nokogiri/html4_document.c#L151-L156'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='144' data-end='149'></pre>
+  <pre class='lines_num' data-start='151' data-end='156'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/nokogiri/html4_document.c', line 144</span></pre>
+<pre><span class='info file'># File 'ext/nokogiri/html4_document.c', line 151</span></pre>
 <pre class='code cpp'>
 
 static VALUE

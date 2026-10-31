@@ -115,7 +115,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2 o'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/lib/nokogiri/xml/document.rb#L14'>lib/nokogiri/xml/document.rb</a><span class='defines'>,<br /><a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/ext/nokogiri/xml_comment.c#L14'>ext/nokogiri/xml_comment.c</a>,<br/> <a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/ext/nokogiri/xml_document.c#L777'>ext/nokogiri/xml_document.c</a></span>
+      <td class='box_rel'><a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/lib/nokogiri/xml/document.rb#L14'>lib/nokogiri/xml/document.rb</a><span class='defines'>,<br /><a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/ext/nokogiri/xml_comment.c#L14'>ext/nokogiri/xml_comment.c</a>,<br/> <a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/ext/nokogiri/xml_document.c#L784'>ext/nokogiri/xml_document.c</a></span>
       </td>
     </tr>
   </tbody>
@@ -140,7 +140,7 @@ please read that class's documentation as well.</p>
     <span id='IMPLIED_XPATH_CONTEXTS-constant' class='summary_signature nodoc'>IMPLIED_XPATH_CONTEXTS =</span>
     <span class='nodoc note title'>Internal use only</span>
     <br/>
-    <a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/lib/nokogiri/xml/document.rb#L506-L506'># File 'lib/nokogiri/xml/document.rb', line 506</a>    <pre class='code ruby'>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>//</span><span class='tstring_end'>&quot;</span></span>].<span class='id identifier rubyid_freeze'>freeze</span></pre>
+    <a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/lib/nokogiri/xml/document.rb#L507-L507'># File 'lib/nokogiri/xml/document.rb', line 507</a>    <pre class='code ruby'>[<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>//</span><span class='tstring_end'>&quot;</span></span>].<span class='id identifier rubyid_freeze'>freeze</span></pre>
   </li>
   <li>
     <span id='NCNAME_CHAR-constant' class='summary_signature'>NCNAME_CHAR =</span>
@@ -438,7 +438,7 @@ characters in NCNAMEs.</p>
     </tr>
     <tr class='i_ds'>
       <td><a class='i_m rw' href="Node.html#namespace=-instance_method" title="Nokogiri::XML::Node#namespace= (method)">#namespace=</a></td>
-      <td><div class='inline'><p>Set the default namespace on this node (as would be defined with an &quot;xmlns=&quot; attribute in <a href="../XML.html" title="Nokogiri::XML (module)"><code>::Nokogiri::XML</code></a> source), as a <a href="Namespace.html" title="Nokogiri::XML::Namespace (class)"><code>Namespace</code></a> object <code>ns</code>.</p></div></td>
+      <td><div class='inline'><p>Set the namespace of this node to the <a href="Namespace.html" title="Nokogiri::XML::Namespace (class)"><code>Namespace</code></a> object <code>ns</code>, which must belong to this node's document.</p></div></td>
     </tr>
     <tr class='i_ds'>
       <td><a class='i_m wo' href="Node.html#native_content=-instance_method" title="Nokogiri::XML::Node#native_content= (method)">#native_content=</a></td>
@@ -1406,9 +1406,9 @@ can be configured before parsing. See Nokogiri::XML::ParseOptions for more infor
     <p>Create a new document from an IO object</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/ext/nokogiri/xml_document.c#L371-L412'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/ext/nokogiri/xml_document.c#L371-L419'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='371' data-end='412'></pre>
+  <pre class='lines_num' data-start='371' data-end='419'></pre>
   <div class='lines_code'>
 <pre><span class='info file'># File 'ext/nokogiri/xml_document.c', line 371</span></pre>
 <pre class='code cpp'>
@@ -1429,16 +1429,23 @@ noko_xml_document_s_read_io(VALUE rb_class,
 
   const char *c_url    = NIL_P(rb_url)      ? NULL : StringValueCStr(rb_url);
   const char *c_enc    = NIL_P(rb_encoding) ? NULL : StringValueCStr(rb_encoding);
+  noko_io_read_reset_exception();
   xmlDocPtr c_document = xmlReadIO(
-                           (xmlInputReadCallback)noko_io_read,
+                           (xmlInputReadCallback)noko_io_read_protected,
                            (xmlInputCloseCallback)noko_io_close,
                            (void *)rb_io,
                            c_url,
                            c_enc,
                            (int)NUM2INT(rb_options)
                          );
+  VALUE rb_io_read_exception = noko_io_read_take_exception();
 
   noko__structured_error_func_restore(&amp;handler_state);
+
+  if (!NIL_P(rb_io_read_exception)) {
+    xmlFreeDoc(c_document);
+    noko_io_read_raise_exception(rb_io_read_exception);
+  }
 
   if (c_document == NULL) {
     xmlFreeDoc(c_document);
@@ -1468,11 +1475,11 @@ noko_xml_document_s_read_io(VALUE rb_class,
     <p>Create a new document from a String</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/ext/nokogiri/xml_document.c#L420-L452'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/ext/nokogiri/xml_document.c#L427-L459'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='420' data-end='452'></pre>
+  <pre class='lines_num' data-start='427' data-end='459'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/nokogiri/xml_document.c', line 420</span></pre>
+<pre><span class='info file'># File 'ext/nokogiri/xml_document.c', line 427</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1796,11 +1803,11 @@ rb_xml_document_root_set(VALUE self, VALUE rb_new_root)
     <p>Alias for <a href="#add_child-instance_method" title="Nokogiri::XML::Document#add_child (method)">#add_child</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/lib/nokogiri/xml/document.rb#L450-L450'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/lib/nokogiri/xml/document.rb#L451-L451'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='450' data-end='450'></pre>
+  <pre class='lines_num' data-start='451' data-end='451'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/nokogiri/xml/document.rb', line 450</span></pre>
+<pre><span class='info file'># File 'lib/nokogiri/xml/document.rb', line 451</span></pre>
 <pre class='code ruby'>
 
 <span class='id identifier rubyid_alias_method'>alias_method</span> <span class='symbeg'>:</span><span class='op'>&lt;&lt;</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_add_child'><a href="#add_child-instance_method" title="Nokogiri::XML::Document#add_child (method)">add_child</a></span>
@@ -1814,11 +1821,11 @@ rb_xml_document_root_set(VALUE self, VALUE rb_new_root)
     #<strong>add_child</strong>(node_or_tags)  
     <span class='aliases'>Also known as: <span class='names'>#&lt;&lt;</span></span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/lib/nokogiri/xml/document.rb#L438-L449'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/lib/nokogiri/xml/document.rb#L439-L450'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='438' data-end='449'></pre>
+  <pre class='lines_num' data-start='439' data-end='450'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/nokogiri/xml/document.rb', line 438</span></pre>
+<pre><span class='info file'># File 'lib/nokogiri/xml/document.rb', line 439</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_add_child'>add_child</span>(<span class='id identifier rubyid_node_or_tags'>node_or_tags</span>)
@@ -1857,11 +1864,11 @@ should be included in the canonicalized document.</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/ext/nokogiri/xml_document.c#L605-L674'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/ext/nokogiri/xml_document.c#L612-L681'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='605' data-end='674'></pre>
+  <pre class='lines_num' data-start='612' data-end='681'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/nokogiri/xml_document.c', line 605</span></pre>
+<pre><span class='info file'># File 'ext/nokogiri/xml_document.c', line 612</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -1911,7 +1918,7 @@ rb_xml_document_canonicalize(int argc, VALUE *argv, VALUE self)
   if (NIL_P(rb_namespaces)) {
     c_namespaces = NULL;
   } else {
-    long ns_len = RARRAY_LEN(rb_namespaces);
+    rb_len_t ns_len = RARRAY_LEN(rb_namespaces);
     c_namespaces = ruby_xcalloc((size_t)ns_len + 1, sizeof(xmlChar *));
     for (int j = 0 ; j &lt; ns_len ; j++) {
       VALUE entry = rb_ary_entry(rb_namespaces, j);
@@ -2155,11 +2162,11 @@ more information.</p>
 and content respectively.  All of these parameters are optional.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/ext/nokogiri/xml_document.c#L533-L573'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/ext/nokogiri/xml_document.c#L540-L580'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='533' data-end='573'></pre>
+  <pre class='lines_num' data-start='540' data-end='580'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/nokogiri/xml_document.c', line 533</span></pre>
+<pre><span class='info file'># File 'ext/nokogiri/xml_document.c', line 540</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2270,11 +2277,11 @@ by opening an issue or a discussion on the github project.</p>
 <p>Since v1.14.0</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/lib/nokogiri/xml/document.rb#L502-L504'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/lib/nokogiri/xml/document.rb#L503-L505'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='502' data-end='504'></pre>
+  <pre class='lines_num' data-start='503' data-end='505'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/nokogiri/xml/document.rb', line 502</span></pre>
+<pre><span class='info file'># File 'lib/nokogiri/xml/document.rb', line 503</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_deconstruct_keys'>deconstruct_keys</span>(<span class='id identifier rubyid_keys'>keys</span>)
@@ -2429,11 +2436,11 @@ Returns an empty fragment if <code>tags</code> is nil.</p>
   <h3 class='signature priv'>
     #<strong>inspect_attributes</strong>   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/lib/nokogiri/xml/document.rb#L510-L512'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/lib/nokogiri/xml/document.rb#L511-L513'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='510' data-end='512'></pre>
+  <pre class='lines_num' data-start='511' data-end='513'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/nokogiri/xml/document.rb', line 510</span></pre>
+<pre><span class='info file'># File 'lib/nokogiri/xml/document.rb', line 511</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_inspect_attributes'>inspect_attributes</span>
@@ -2527,11 +2534,11 @@ please direct your browser to
 <a href="http://tenderlovemaking.com/2009/04/23/namespaces-in-xml.html">http://tenderlovemaking.com/2009/04/23/namespaces-in-xml.html</a></p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/ext/nokogiri/xml_document.c#L512-L519'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/ext/nokogiri/xml_document.c#L519-L526'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='512' data-end='519'></pre>
+  <pre class='lines_num' data-start='519' data-end='526'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/nokogiri/xml_document.c', line 512</span></pre>
+<pre><span class='info file'># File 'ext/nokogiri/xml_document.c', line 519</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2728,11 +2735,11 @@ version(VALUE self)
 <p>See XPathVisitor for more information.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/lib/nokogiri/xml/document.rb#L458-L460'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/sparklemotion/nokogiri/blob/main/lib/nokogiri/xml/document.rb#L459-L461'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='458' data-end='460'></pre>
+  <pre class='lines_num' data-start='459' data-end='461'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/nokogiri/xml/document.rb', line 458</span></pre>
+<pre><span class='info file'># File 'lib/nokogiri/xml/document.rb', line 459</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_xpath_doctype'>xpath_doctype</span>
