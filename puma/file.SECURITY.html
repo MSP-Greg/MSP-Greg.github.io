@@ -62,7 +62,9 @@
   </header>
 <div id='content' class='file'>
 <h1 id="Security_Policy">Security Policy</h1>
+<p>Thank you for helping to keep the internet secure. Please read this before making a security report.</p>
 <h2 id="Supported_Versions">Supported Versions</h2>
+<p>We support the last two major versions and their latest minor.</p>
 <table>
 <thead>
 <tr>
@@ -85,8 +87,61 @@
 </tr>
 </tbody>
 </table>
+<h2 id="Our_Threat_Model">Our Threat Model</h2>
+<p>This determines what becomes a security advisory in <a href="Puma.html" title="Puma (module)"><code>Puma</code></a>. We may make separate hardening fixes for things outside of this model.</p>
+<h3 id="Who_do_we_defend_against_">Who do we defend against?</h3>
+<ol>
+<li><strong>Anyone who can reach the app port</strong> (the Unix, TCP or SSL bind that <a href="Puma.html" title="Puma (module)"><code>Puma</code></a> serves the <a href="Rack.html" title="Rack (module)"><code>Rack</code></a> app over). They can send any bytes, split up their data however they like, at any rate, with as many requests as they like on one connection or many. Their data is untrusted after it reaches your app. <a href="Puma.html" title="Puma (module)"><code>Puma</code></a> must hold up its side of the <a href="Rack.html" title="Rack (module)"><code>Rack</code></a> spec: build the <a href="Rack.html" title="Rack (module)"><code>Rack</code></a> <code>env</code> accurately, call <code>close</code> on every response body, and keep attacker controlled values in your return value of <code>app.call</code> from breaking the HTTP response. If an app that relies on the <a href="Rack.html" title="Rack (module)"><code>Rack</code></a> spec leaks data between requests or users because <a href="Puma.html" title="Puma (module)"><code>Puma</code></a> didn't follow it, that's in scope.</li>
+<li><strong>Anyone who can watch or change encrypted network traffic between the <code>pumactl</code> utility and a <a href="Puma.html" title="Puma (module)"><code>Puma</code></a> control server</strong>.</li>
+<li><strong>Anyone who can reach Puma's control server without the control token.</strong></li>
+</ol>
+<h3 id="Who_do_we_trust_">Who do we trust?</h3>
+<p>We don't defend against someone who already controls:</p>
+<ul>
+<li>Puma's config, command-line flags, environment variables, Gemfile, or load path</li>
+<li>Any code running inside <a href="Puma.html" title="Puma (module)"><code>Puma</code></a>, including your app, <a href="Rack.html" title="Rack (module)"><code>Rack</code></a> middleware, plugins, and hooks</li>
+<li>Direct calls to Puma's Ruby code, such as building a parser by hand</li>
+<li>Local files and process setup: state files, PID files, signals, sockets passed in by systemd or a parent process, <code>key_password_command</code>, and <code>puma-wild</code></li>
+<li>The control token</li>
+<li>A user account on the server (the actual host, not the <a href="Rack.html" title="Rack (module)"><code>Rack</code></a> app). That account can reach Unix-socket control servers, state files, and logs.</li>
+<li>Your reverse proxies and load balancers, when configured correctly. We don't trust their forwarded requests.</li>
+<li>If you tell <a href="Puma.html" title="Puma (module)"><code>Puma</code></a> to trust a header or the PROXY protocol, only your proxies should be able to reach <a href="Puma.html" title="Puma (module)"><code>Puma</code></a>.</li>
+</ul>
+<h3 id="Bugs">Bugs</h3>
+<p>Our features should work as designed. Bugs in our security features count in our threat model, even if they are optional. For example, if you turn on the optional control server and <code>pumactl</code> doesn't check a TLS certificate when it's supposed to, that's in scope.</p>
+<h3 id="What_s_a_Denial_of_Service_">What's a Denial of Service?</h3>
+<p>If you throw enough traffic at <em>any</em> web server, it eventually will fall over. So what's a DoS vulnerability in Puma?</p>
+<ul>
+<li><strong>A small effort in <a href="Puma.html" title="Puma (module)"><code>Puma</code></a> can cause outsized harm to <a href="Puma.html" title="Puma (module)"><code>Puma</code></a> or other users</strong>, such as a process crash or restart.</li>
+<li><strong>The attack gets around a limit enforced by Puma</strong>, such as timeout on how long a connection can be held.</li>
+</ul>
+<h3 id="Request_smuggling">Request smuggling</h3>
+<p>When Puma and a proxy disagree about where one request ends and another begins, you can get a smuggling vuln.</p>
+<p>A smuggling report to <a href="Puma.html" title="Puma (module)"><code>Puma</code></a> needs all three of these:</p>
+<ol>
+<li>A real, popular, maintained proxy, set up in a realistic or valid way. Most reports to <a href="Puma.html" title="Puma (module)"><code>Puma</code></a> fail this criterion because they propose hypothetical proxies which do not exist or would be doing something stupid. In that case, we might harden <a href="Puma.html" title="Puma (module)"><code>Puma</code></a> against it, but it's not going to get an advisory from us.</li>
+<li>A reproduction against that proxy.</li>
+<li>Harm that crosses a security boundary, such as another user, cache, or connection shared with other users.</li>
+</ol>
+<p>If Puma misreads an attacker's requests only for the attacker's own connection, that's not smuggling. We may fix it as a parser bug.</p>
+<h3 id="How_we_triage">How we triage</h3>
+<p>We ask:</p>
+<ol>
+<li>Is it within the scope of our threat model?</li>
+<li>What's the CVSS 4.0 score?</li>
+</ol>
+<p>The answers can lead to the following outcomes:</p>
+<ul>
+<li>Out of scope. It's a real bug, but outside our threat model (e.g., an attacker who has to be able to read a state file). May still get a hardening fix.</li>
+<li>CVSS score is 0.0. No harm shown. No advisory. May get a hardening fix.</li>
+<li>Advisory. We fix and release with a GHSA or CVE.</li>
+</ul>
+<p>We don't publish advisories for unreleased code on main.</p>
 <h2 id="Reporting_a_Vulnerability">Reporting a Vulnerability</h2>
-<p><a href='https://github.com/evanphx'>Report on Github](<a href="https://github.com/puma/puma/security">https://github.com/puma/puma/security</a>) or contact [Evan Phoenix.</a></p>
+<p><a href='https://github.com/puma/puma/security'>Report on Github</a>.</p>
+<p>AI reports are welcome.</p>
+<p>Rejected out-scope reports can be filed as public issues or PRs, but we will probably do that for you.</p>
+<p>You'll help us most if you include <a href="Puma.html" title="Puma (module)"><code>Puma</code></a>, Ruby, and OS versions, the config, a runnable reproduction, and, for smuggling, the proxy name, version and config.</p>
 <div id='footer'></div>
 </div> <!-- content  -->
 </div> <!-- y_main   -->
