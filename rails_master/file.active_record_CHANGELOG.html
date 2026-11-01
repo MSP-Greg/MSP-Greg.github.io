@@ -63,6 +63,72 @@
 <div id='content' class='file'>
 <ul>
 <li>
+<p>Fix eager loading with <code>limit</code> or <code>offset</code> on a relation with a <code>default_order</code>.</p>
+<p>The <code>SELECT DISTINCT</code> of primary keys ignored <code>default_order</code>, which raised
+on PostgreSQL and MySQL because the <code>ORDER BY</code> columns were missing from
+its select list.</p>
+<pre class="code ruby"><code class="ruby"><span class='const'>Post</span>.<span class='id identifier rubyid_eager_load'>eager_load</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_comments'>comments</span>).<span class='id identifier rubyid_default_order'>default_order</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_title'>title</span>).<span class='id identifier rubyid_limit'>limit</span>(<span class='int'>2</span>).<span class='id identifier rubyid_offset'>offset</span>(<span class='int'>1</span>)
+<span class='comment'># =&gt; PG::InvalidColumnReference before, now loads the records</span></code></pre>
+<p><em>Clément Joubert</em></p>
+</li>
+<li>
+<p>Fix subclasses missing <code>enum</code> definitions added to their parent class later.</p>
+<p><code>defined_enums</code> on a subclass that already existed did not include an enum
+added to its parent afterwards.</p>
+<p><em>Ryuta Kamizono</em></p>
+</li>
+<li>
+<p>Fix assigning an <code>attr_readonly</code> attribute added to a parent class not raising
+on a subclass whose attribute methods were already generated.</p>
+<p><em>Ryuta Kamizono</em></p>
+</li>
+<li>
+<p>Fix subclasses missing <code>attr_readonly</code> attributes added to their parent class later.</p>
+<p>A subclass that had already declared readonly attributes of its own did
+not see attributes declared readonly on its parent afterwards, so they
+could be changed and saved on the subclass.</p>
+<p><em>Kengo Johira</em></p>
+</li>
+<li>
+<p>Fix subclasses missing <code>composed_of</code> aggregations added to their parent class later.</p>
+<p>A subclass that had already defined an aggregation of its own did not see
+aggregations added to its parent afterwards, so <code>reflect_on_aggregation</code>
+returned <code>nil</code> and <code>where</code> could not expand the value object.</p>
+<p><em>Kengo Johira</em></p>
+</li>
+<li>
+<p>Fix preloading a <code>has_one :through</code> or <code>has_many :through</code> association when
+its through and source models share a table, such as STI subclasses.</p>
+<p>Source conditions, including the STI type condition, were merged into the
+through model's query, where they filtered the through records instead of
+the source records. They are now applied by the source preloader.</p>
+<p>Fixes #43657.</p>
+<p><em>Masaki Ozawa</em></p>
+</li>
+<li>
+<p>Fix counter caches being incremented twice when creating a new record with
+a <code>has_many :through</code> association and <code>partial_inserts</code> disabled.</p>
+<p>The counter incremented in memory on the unsaved owner was written by the
+<code>INSERT</code>, and then incremented again by the join model's <code>belongs_to</code>
+counter cache. Unchanged counter cache columns are now omitted from the
+<code>INSERT</code>, as they already are when <code>partial_inserts</code> is enabled.</p>
+<p>Fixes #47555.</p>
+<p><em>Masaki Ozawa</em></p>
+</li>
+<li>
+<p>Fix preloading an ordered <code>has_many :through</code> association reusing the
+source records already loaded by an unordered one, ignoring its order.</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Author</span> <span class='op'>&lt;</span> <span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)">Base</a></span>
+  <span class='id identifier rubyid_has_many'>has_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_categorizations'>categorizations</span>
+  <span class='id identifier rubyid_has_many'>has_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_categorized_posts'>categorized_posts</span><span class='comma'>,</span> <span class='label'>through:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_categorizations'>categorizations</span><span class='comma'>,</span> <span class='label'>source:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_post'>post</span>
+  <span class='id identifier rubyid_has_many'>has_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_categorized_posts_desc'>categorized_posts_desc</span><span class='comma'>,</span> <span class='tlambda'>-&gt;</span> <span class='tlambeg'>{</span> <span class='id identifier rubyid_order'>order</span>(<span class='label'>id:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_desc'>desc</span>) }<span class='comma'>,</span> <span class='label'>through:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_categorizations'>categorizations</span><span class='comma'>,</span> <span class='label'>source:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_post'>post</span>
+<span class='kw'>end</span>
+
+<span class='const'>Author</span>.<span class='id identifier rubyid_preload'>preload</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_categorized_posts'>categorized_posts</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_categorized_posts_desc'>categorized_posts_desc</span>).<span class='id identifier rubyid_first'>first</span>.<span class='id identifier rubyid_categorized_posts_desc'>categorized_posts_desc</span> <span class='comment'># =&gt; now sorted by id desc</span></code></pre>
+<p>Fixes #56110.</p>
+<p><em>Clément Joubert</em></p>
+</li>
+<li>
 <p>Add a <code>checkout_wait.active_record</code> notification.</p>
 <p>It is emitted when a connection checkout waits because the pool is full,
 and its duration is the time spent waiting, so pool saturation can be
