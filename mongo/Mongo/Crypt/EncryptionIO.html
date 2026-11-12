@@ -121,7 +121,7 @@ for a discussion and updates on what this timeout should be.</p>
 <ul class='summary full'>
   <li>
     <span class='summary_signature '>
-      <a href="#new-class_method" title=".new (class method)">.<strong>new</strong>(key_vault_namespace:, key_vault_client:, metadata_client:, client: nil, mongocryptd_client: nil, mongocryptd_options: {})  &#x21d2; EncryptionIO </a>
+      <a href="#new-class_method" title=".new (class method)">.<strong>new</strong>(key_vault_namespace:, key_vault_client:, metadata_client:, client: nil, mongocryptd_client: nil, mongocryptd_options: {}, kms_connect_callback: nil)  &#x21d2; EncryptionIO </a>
     </span>
     <span class='note title constructor'>constructor</span>
     <span class='nodoc note title'>Internal use only</span>
@@ -245,12 +245,32 @@ for a discussion and updates on what this timeout should be.</p>
   </li>
   <li>
     <span class='summary_signature priv'>
+      <a href="#connect_budget-instance_method" title="#connect_budget (instance method)">#<strong>connect_budget</strong>(timeout_ms)  &#x21d2; Float </a>
+    </span>
+    <span class='note title private'>private</span>
+    <span class='nodoc note title'>Internal use only</span>
+    <div class='summary_desc'>
+      <div class='inline'><p>The budget for the connect phase, in seconds: the remaining operation timeout when a CSOT budget is in effect, otherwise the driver's fixed connect timeout.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
       <a href="#key_vault_collection-instance_method" title="#key_vault_collection (instance method)">#<strong>key_vault_collection</strong>  </a>
     </span>
     <span class='note title private'>private</span>
     <span class='nodoc note title'>Internal use only</span>
     <div class='summary_desc'>
       <div class='inline'><p>Use the provided key vault client and namespace to construct a <a href="../Collection.html" title="Mongo::Collection (class)"><code>::Mongo::Collection</code></a> object representing the key vault collection.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
+      <a href="#remaining_timeout-instance_method" title="#remaining_timeout (instance method)">#<strong>remaining_timeout</strong>(deadline)  &#x21d2; Float </a>
+    </span>
+    <span class='note title private'>private</span>
+    <span class='nodoc note title'>Internal use only</span>
+    <div class='summary_desc'>
+      <div class='inline'><p>The time left, in seconds, before the shared <a href="KMS.html" title="Mongo::Crypt::KMS (module)"><code>KMS</code></a> exchange deadline.</p></div>
     </div>
   </li>
   <li>
@@ -293,7 +313,7 @@ for a discussion and updates on what this timeout should be.</p>
 
   <section class='method_details first' id="new-class_method">
   <h3 class='signature  first'>
-    .<strong>new</strong>(key_vault_namespace:, key_vault_client:, metadata_client:, client: nil, mongocryptd_client: nil, mongocryptd_options: {})  &#x21d2; <code>EncryptionIO</code> 
+    .<strong>new</strong>(key_vault_namespace:, key_vault_client:, metadata_client:, client: nil, mongocryptd_client: nil, mongocryptd_options: {}, kms_connect_callback: nil)  &#x21d2; <code>EncryptionIO</code> 
   </h3>
 <div class='docstring'>
   <div class='discussion'>
@@ -353,6 +373,14 @@ db_name.collection_name.</p></div>
     <span class='type'>(<code>Hash</code>)</span>
 &mdash;    <div class='inline'><p><a href="../Options.html" title="Mongo::Options (module)"><code>::Mongo::Options</code></a> related to mongocryptd.</p></div>
   </li>
+  <li>
+    <span class='name'>kms_connect_callback</span>
+    <span class='type'>(<code>Proc</code> | <code>nil</code>)</span>
+&mdash;    <div class='inline'><p>Optional callable that
+establishes the TCP connection to a <a href="KMS.html" title="Mongo::Crypt::KMS (module)"><code>KMS</code></a> provider. It is invoked with
+the host, port, and operation timeout in milliseconds (or nil), and
+must return an IO connected to the host.</p></div>
+  </li>
 </ul>
     <p class='tag_title'>Options Hash (<tt>mongocryptd_options:</tt>):</p>
     <ul class='option'>
@@ -371,18 +399,21 @@ db_name.collection_name.</p></div>
     </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L54-L66'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L58-L74'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='54' data-end='66'></pre>
+  <pre class='lines_num' data-start='58' data-end='74'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 54</span></pre>
+<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 58</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span>(
-  <span class='label'>key_vault_namespace:</span><span class='comma'>,</span> <span class='label'>key_vault_client:</span><span class='comma'>,</span> <span class='label'>metadata_client:</span><span class='comma'>,</span> <span class='label'>client:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>mongocryptd_client:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>mongocryptd_options:</span> {}
+  <span class='label'>key_vault_namespace:</span><span class='comma'>,</span> <span class='label'>key_vault_client:</span><span class='comma'>,</span> <span class='label'>metadata_client:</span><span class='comma'>,</span> <span class='label'>client:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>mongocryptd_client:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>mongocryptd_options:</span> {}<span class='comma'>,</span> <span class='label'>kms_connect_callback:</span> <span class='kw'>nil</span>
 )
   <span class='id identifier rubyid_validate_key_vault_client!'><a href="#validate_key_vault_client!-instance_method" title="Mongo::Crypt::EncryptionIO#validate_key_vault_client! (method)">validate_key_vault_client!</a></span>(<span class='id identifier rubyid_key_vault_client'>key_vault_client</span>)
   <span class='id identifier rubyid_validate_key_vault_namespace!'><a href="#validate_key_vault_namespace!-instance_method" title="Mongo::Crypt::EncryptionIO#validate_key_vault_namespace! (method)">validate_key_vault_namespace!</a></span>(<span class='id identifier rubyid_key_vault_namespace'>key_vault_namespace</span>)
+  <span class='kw'>if</span> <span class='id identifier rubyid_kms_connect_callback'>kms_connect_callback</span> <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='id identifier rubyid_kms_connect_callback'>kms_connect_callback</span>.<span class='id identifier rubyid_respond_to?'>respond_to?</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_call'>call</span>)
+    <span class='id identifier rubyid_raise'>raise</span> <span class='const'>ArgumentError</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>kms_connect_callback must respond to :call</span><span class='tstring_end'>&#39;</span></span>
+  <span class='kw'>end</span>
 
   <span class='ivar'>@client</span> <span class='op'>=</span> <span class='id identifier rubyid_client'>client</span>
   <span class='ivar'>@mongocryptd_client</span> <span class='op'>=</span> <span class='id identifier rubyid_mongocryptd_client'>mongocryptd_client</span>
@@ -390,6 +421,7 @@ db_name.collection_name.</p></div>
   <span class='ivar'>@key_vault_client</span> <span class='op'>=</span> <span class='id identifier rubyid_key_vault_client'>key_vault_client</span>
   <span class='ivar'>@metadata_client</span> <span class='op'>=</span> <span class='id identifier rubyid_metadata_client'>metadata_client</span>
   <span class='ivar'>@options</span> <span class='op'>=</span> <span class='id identifier rubyid_mongocryptd_options'>mongocryptd_options</span>
+  <span class='ivar'>@kms_connect_callback</span> <span class='op'>=</span> <span class='id identifier rubyid_kms_connect_callback'>kms_connect_callback</span>
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -410,11 +442,11 @@ in the key vault collection with the given id.</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L187-L193'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L205-L211'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='187' data-end='193'></pre>
+  <pre class='lines_num' data-start='205' data-end='211'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 187</span></pre>
+<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 205</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_add_key_alt_name'>add_key_alt_name</span>(<span class='id identifier rubyid_id'>id</span><span class='comma'>,</span> <span class='id identifier rubyid_key_alt_name'>key_alt_name</span><span class='comma'>,</span> <span class='label'>timeout_ms:</span> <span class='kw'>nil</span>)
@@ -462,11 +494,11 @@ The default value is unset which means the feature is not enabled.</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L101-L112'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L109-L120'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='101' data-end='112'></pre>
+  <pre class='lines_num' data-start='109' data-end='120'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 101</span></pre>
+<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 109</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_collection_info'>collection_info</span>(<span class='id identifier rubyid_db_name'>db_name</span><span class='comma'>,</span> <span class='id identifier rubyid_filter'>filter</span><span class='comma'>,</span> <span class='label'>timeout_ms:</span> <span class='kw'>nil</span>)
@@ -486,6 +518,52 @@ The default value is unset which means the feature is not enabled.</p></div>
 </div>
 </section>
 
+<section class='method_details' id="connect_budget-instance_method">
+  <h3 class='signature priv'>
+    #<strong>connect_budget</strong>(timeout_ms)  &#x21d2; <code>Float</code>  <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    <p>The budget for the connect phase, in seconds: the remaining operation
+timeout when a CSOT budget is in effect, otherwise the driver's fixed
+connect timeout. The connect callback and the TLS handshake that
+follows it share this budget, so neither can run past the deadline.</p>
+  </div>
+</div>
+<div class='tags'>
+  <p class='tag_title'>Parameters:</p>
+<ul class='param'>
+  <li>
+    <span class='name'>timeout_ms</span>
+    <span class='type'>(<code>Integer</code>, <code>nil</code>)</span>
+&mdash;    <div class='inline'><p>The remaining operation timeout in
+milliseconds, or nil when no budget is set.</p></div>
+  </li>
+</ul>
+<p class='tag_title'>Returns:</p>
+<ul class='return'>
+  <li>
+    <span class='type'>(<code>Float</code>)</span>
+&mdash;    <div class='inline'><p>The connect budget in seconds.</p></div>
+  </li>
+</ul>
+
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L301-L303'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='301' data-end='303'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 301</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_connect_budget'>connect_budget</span>(<span class='id identifier rubyid_timeout_ms'>timeout_ms</span>)
+  <span class='id identifier rubyid_timeout_ms'>timeout_ms</span> <span class='op'>?</span> <span class='id identifier rubyid_timeout_ms'>timeout_ms</span> <span class='op'>/</span> <span class='float'>1_000.0</span> <span class='op'>:</span> <span class='const'><a href="../Server.html" title="Mongo::Server (class)">Server</a></span><span class='op'>::</span><span class='const'><a href="../Server.html#CONNECT_TIMEOUT-constant" title="Mongo::Server::CONNECT_TIMEOUT (constant)">CONNECT_TIMEOUT</a></span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
 <section class='method_details' id="delete_key-instance_method">
   <h3 class='signature '>
     #<strong>delete_key</strong>(id, timeout_ms: nil)  
@@ -499,11 +577,11 @@ from the key vault collection.</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L197-L199'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L215-L217'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='197' data-end='199'></pre>
+  <pre class='lines_num' data-start='215' data-end='217'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 197</span></pre>
+<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 215</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_delete_key'>delete_key</span>(<span class='id identifier rubyid_id'>id</span><span class='comma'>,</span> <span class='label'>timeout_ms:</span> <span class='kw'>nil</span>)
@@ -551,23 +629,33 @@ The default value is unset which means the feature is not enabled.</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L165-L183'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L173-L201'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='165' data-end='183'></pre>
+  <pre class='lines_num' data-start='173' data-end='201'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 165</span></pre>
+<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 173</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_feed_kms'>feed_kms</span>(<span class='id identifier rubyid_kms_context'>kms_context</span><span class='comma'>,</span> <span class='id identifier rubyid_tls_options'>tls_options</span><span class='comma'>,</span> <span class='label'>timeout_ms:</span> <span class='kw'>nil</span>)
-  <span class='id identifier rubyid_with_ssl_socket'><a href="#with_ssl_socket-instance_method" title="Mongo::Crypt::EncryptionIO#with_ssl_socket (method)">with_ssl_socket</a></span>(<span class='id identifier rubyid_kms_context'>kms_context</span>.<span class='id identifier rubyid_endpoint'>endpoint</span><span class='comma'>,</span> <span class='id identifier rubyid_tls_options'>tls_options</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_ssl_socket'>ssl_socket</span><span class='op'>|</span>
-    <span class='const'><a href="../Timeout.html" title="Mongo::Timeout (module)">Timeout</a></span>.<span class='id identifier rubyid_timeout'><a href="../Timeout.html#timeout-class_method" title="Mongo::Timeout.timeout (method)">timeout</a></span>(<span class='id identifier rubyid_timeout_ms'>timeout_ms</span> <span class='op'>||</span> <span class='const'><a href="#SOCKET_TIMEOUT-constant" title="Mongo::Crypt::EncryptionIO::SOCKET_TIMEOUT (constant)">SOCKET_TIMEOUT</a></span><span class='comma'>,</span> <span class='const'><a href="../Error.html" title="Mongo::Error (class)">Error</a></span><span class='op'>::</span><span class='const'><a href="../Error/SocketTimeoutError.html" title="Mongo::Error::SocketTimeoutError (class)">SocketTimeoutError</a></span><span class='comma'>,</span>
+  <span class='comment'># When a budget is in effect the TLS handshake, the request write, and
+</span>  <span class='comment'># every read chunk share a single deadline, so a slow, chunked response
+</span>  <span class='comment'># cannot run for a multiple of the budget. Without a budget each phase
+</span>  <span class='comment'># keeps the fixed SOCKET_TIMEOUT fallback. Timeout.timeout takes
+</span>  <span class='comment'># seconds, but timeout_ms is in milliseconds.
+</span>  <span class='id identifier rubyid_deadline'>deadline</span> <span class='op'>=</span> <span class='const'><a href="../Utils.html" title="Mongo::Utils (module)">Utils</a></span>.<span class='id identifier rubyid_monotonic_time'>monotonic_time</span> <span class='op'>+</span> (<span class='id identifier rubyid_timeout_ms'>timeout_ms</span> <span class='op'>/</span> <span class='float'>1_000.0</span>) <span class='kw'>if</span> <span class='id identifier rubyid_timeout_ms'>timeout_ms</span>
+  <span class='comment'># Use the CSOT-appropriate error class when a timeout budget is
+</span>  <span class='comment'># in effect, otherwise preserve the historical SocketTimeoutError.
+</span>  <span class='id identifier rubyid_timeout_error'>timeout_error</span> <span class='op'>=</span> <span class='id identifier rubyid_timeout_ms'>timeout_ms</span> <span class='op'>?</span> <span class='const'><a href="../Error.html" title="Mongo::Error (class)">Error</a></span><span class='op'>::</span><span class='const'><a href="../Error/TimeoutError.html" title="Mongo::Error::TimeoutError (class)">TimeoutError</a></span> <span class='op'>:</span> <span class='const'><a href="../Error.html" title="Mongo::Error (class)">Error</a></span><span class='op'>::</span><span class='const'><a href="../Error/SocketTimeoutError.html" title="Mongo::Error::SocketTimeoutError (class)">SocketTimeoutError</a></span>
+
+  <span class='id identifier rubyid_with_ssl_socket'><a href="#with_ssl_socket-instance_method" title="Mongo::Crypt::EncryptionIO#with_ssl_socket (method)">with_ssl_socket</a></span>(<span class='id identifier rubyid_kms_context'>kms_context</span>.<span class='id identifier rubyid_endpoint'>endpoint</span><span class='comma'>,</span> <span class='id identifier rubyid_tls_options'>tls_options</span><span class='comma'>,</span> <span class='label'>timeout_ms:</span> <span class='id identifier rubyid_timeout_ms'>timeout_ms</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_ssl_socket'>ssl_socket</span><span class='op'>|</span>
+    <span class='const'><a href="../Timeout.html" title="Mongo::Timeout (module)">Timeout</a></span>.<span class='id identifier rubyid_timeout'><a href="../Timeout.html#timeout-class_method" title="Mongo::Timeout.timeout (method)">timeout</a></span>(<span class='id identifier rubyid_remaining_timeout'><a href="#remaining_timeout-instance_method" title="Mongo::Crypt::EncryptionIO#remaining_timeout (method)">remaining_timeout</a></span>(<span class='id identifier rubyid_deadline'>deadline</span>)<span class='comma'>,</span> <span class='id identifier rubyid_timeout_error'>timeout_error</span><span class='comma'>,</span>
                     <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Socket write operation timed out</span><span class='tstring_end'>&#39;</span></span>) <span class='kw'>do</span>
       <span class='id identifier rubyid_ssl_socket'>ssl_socket</span>.<span class='id identifier rubyid_syswrite'>syswrite</span>(<span class='id identifier rubyid_kms_context'>kms_context</span>.<span class='id identifier rubyid_message'>message</span>)
     <span class='kw'>end</span>
 
     <span class='id identifier rubyid_bytes_needed'>bytes_needed</span> <span class='op'>=</span> <span class='id identifier rubyid_kms_context'>kms_context</span>.<span class='id identifier rubyid_bytes_needed'>bytes_needed</span>
     <span class='kw'>while</span> <span class='id identifier rubyid_bytes_needed'>bytes_needed</span> <span class='op'>&gt;</span> <span class='int'>0</span>
-      <span class='id identifier rubyid_bytes'>bytes</span> <span class='op'>=</span> <span class='const'><a href="../Timeout.html" title="Mongo::Timeout (module)">Timeout</a></span>.<span class='id identifier rubyid_timeout'><a href="../Timeout.html#timeout-class_method" title="Mongo::Timeout.timeout (method)">timeout</a></span>(<span class='id identifier rubyid_timeout_ms'>timeout_ms</span> <span class='op'>||</span> <span class='const'><a href="#SOCKET_TIMEOUT-constant" title="Mongo::Crypt::EncryptionIO::SOCKET_TIMEOUT (constant)">SOCKET_TIMEOUT</a></span><span class='comma'>,</span> <span class='const'><a href="../Error.html" title="Mongo::Error (class)">Error</a></span><span class='op'>::</span><span class='const'><a href="../Error/SocketTimeoutError.html" title="Mongo::Error::SocketTimeoutError (class)">SocketTimeoutError</a></span><span class='comma'>,</span>
+      <span class='id identifier rubyid_bytes'>bytes</span> <span class='op'>=</span> <span class='const'><a href="../Timeout.html" title="Mongo::Timeout (module)">Timeout</a></span>.<span class='id identifier rubyid_timeout'><a href="../Timeout.html#timeout-class_method" title="Mongo::Timeout.timeout (method)">timeout</a></span>(<span class='id identifier rubyid_remaining_timeout'><a href="#remaining_timeout-instance_method" title="Mongo::Crypt::EncryptionIO#remaining_timeout (method)">remaining_timeout</a></span>(<span class='id identifier rubyid_deadline'>deadline</span>)<span class='comma'>,</span> <span class='id identifier rubyid_timeout_error'>timeout_error</span><span class='comma'>,</span>
                               <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Socket read operation timed out</span><span class='tstring_end'>&#39;</span></span>) <span class='kw'>do</span>
         <span class='id identifier rubyid_ssl_socket'>ssl_socket</span>.<span class='id identifier rubyid_sysread'>sysread</span>(<span class='id identifier rubyid_bytes_needed'>bytes_needed</span>)
       <span class='kw'>end</span>
@@ -616,11 +704,11 @@ The default value is unset which means the feature is not enabled.</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L77-L79'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L85-L87'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='77' data-end='79'></pre>
+  <pre class='lines_num' data-start='85' data-end='87'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 77</span></pre>
+<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 85</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_find_keys'>find_keys</span>(<span class='id identifier rubyid_filter'>filter</span><span class='comma'>,</span> <span class='label'>timeout_ms:</span> <span class='kw'>nil</span>)
@@ -643,11 +731,11 @@ The default value is unset which means the feature is not enabled.</p></div>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L202-L204'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L220-L222'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='202' data-end='204'></pre>
+  <pre class='lines_num' data-start='220' data-end='222'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 202</span></pre>
+<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 220</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_get_key'>get_key</span>(<span class='id identifier rubyid_id'>id</span><span class='comma'>,</span> <span class='label'>timeout_ms:</span> <span class='kw'>nil</span>)
@@ -671,11 +759,11 @@ the given key_alt_name.</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L208-L210'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L226-L228'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='208' data-end='210'></pre>
+  <pre class='lines_num' data-start='226' data-end='228'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 208</span></pre>
+<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 226</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_get_key_by_alt_name'>get_key_by_alt_name</span>(<span class='id identifier rubyid_key_alt_name'>key_alt_name</span><span class='comma'>,</span> <span class='label'>timeout_ms:</span> <span class='kw'>nil</span>)
@@ -698,11 +786,11 @@ the given key_alt_name.</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L213-L215'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L231-L233'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='213' data-end='215'></pre>
+  <pre class='lines_num' data-start='231' data-end='233'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 213</span></pre>
+<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 231</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_get_keys'>get_keys</span>(<span class='label'>timeout_ms:</span> <span class='kw'>nil</span>)
@@ -746,11 +834,11 @@ The default value is unset which means the feature is not enabled.</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L89-L91'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L97-L99'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='89' data-end='91'></pre>
+  <pre class='lines_num' data-start='97' data-end='99'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 89</span></pre>
+<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 97</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_insert_data_key'>insert_data_key</span>(<span class='id identifier rubyid_document'>document</span><span class='comma'>,</span> <span class='label'>timeout_ms:</span> <span class='kw'>nil</span>)
@@ -774,11 +862,11 @@ The default value is unset which means the feature is not enabled.</p></div>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L278-L284'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L328-L334'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='278' data-end='284'></pre>
+  <pre class='lines_num' data-start='328' data-end='334'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 278</span></pre>
+<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 328</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_key_vault_collection'>key_vault_collection</span>
@@ -834,11 +922,11 @@ The default value is unset which means the feature is not enabled.</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L126-L151'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L134-L159'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='126' data-end='151'></pre>
+  <pre class='lines_num' data-start='134' data-end='159'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 126</span></pre>
+<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 134</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_mark_command'>mark_command</span>(<span class='id identifier rubyid_cmd'>cmd</span><span class='comma'>,</span> <span class='label'>db_name:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>timeout_ms:</span> <span class='kw'>nil</span>)
@@ -872,6 +960,63 @@ The default value is unset which means the feature is not enabled.</p></div>
 </div>
 </section>
 
+<section class='method_details' id="remaining_timeout-instance_method">
+  <h3 class='signature priv'>
+    #<strong>remaining_timeout</strong>(deadline)  &#x21d2; <code>Float</code>  <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    <p>The time left, in seconds, before the shared <a href="KMS.html" title="Mongo::Crypt::KMS (module)"><code>KMS</code></a> exchange deadline.
+When no operation budget is in effect there is no deadline, so each
+phase falls back to the fixed <a href="#SOCKET_TIMEOUT-constant" title="Mongo::Crypt::EncryptionIO::SOCKET_TIMEOUT (constant)">SOCKET_TIMEOUT</a>.</p>
+  </div>
+</div>
+<div class='tags'>
+  <p class='tag_title'>Parameters:</p>
+<ul class='param'>
+  <li>
+    <span class='name'>deadline</span>
+    <span class='type'>(<code>Float</code>, <code>nil</code>)</span>
+&mdash;    <div class='inline'><p>The monotonic time the exchange must
+finish by, or nil when no budget is set.</p></div>
+  </li>
+</ul>
+<p class='tag_title'>Returns:</p>
+<ul class='return'>
+  <li>
+    <span class='type'>(<code>Float</code>)</span>
+&mdash;    <div class='inline'><p>The number of seconds left before the deadline.</p></div>
+  </li>
+</ul>
+<p class='tag_title'>Raises:</p>
+<ul class='raise'>
+  <li>
+    <span class='type'>(<a href="../Error/TimeoutError.html" title="Mongo::Error::TimeoutError (class)">Error::TimeoutError</a>)</span>
+&mdash;    <div class='inline'><p>If the deadline has already passed.</p></div>
+  </li>
+</ul>
+
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L283-L290'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='283' data-end='290'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 283</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_remaining_timeout'>remaining_timeout</span>(<span class='id identifier rubyid_deadline'>deadline</span>)
+  <span class='kw'>return</span> <span class='const'><a href="#SOCKET_TIMEOUT-constant" title="Mongo::Crypt::EncryptionIO::SOCKET_TIMEOUT (constant)">SOCKET_TIMEOUT</a></span> <span class='kw'>if</span> <span class='id identifier rubyid_deadline'>deadline</span>.<span class='id identifier rubyid_nil?'>nil?</span>
+
+  <span class='id identifier rubyid_remaining'>remaining</span> <span class='op'>=</span> <span class='id identifier rubyid_deadline'>deadline</span> <span class='op'>-</span> <span class='const'><a href="../Utils.html" title="Mongo::Utils (module)">Utils</a></span>.<span class='id identifier rubyid_monotonic_time'>monotonic_time</span>
+  <span class='id identifier rubyid_raise'>raise</span> <span class='const'><a href="../Error.html" title="Mongo::Error (class)">Error</a></span><span class='op'>::</span><span class='const'><a href="../Error/TimeoutError.html" title="Mongo::Error::TimeoutError (class)">TimeoutError</a></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>KMS request timed out</span><span class='tstring_end'>&#39;</span></span> <span class='kw'>if</span> <span class='id identifier rubyid_remaining'>remaining</span> <span class='op'>&lt;=</span> <span class='int'>0</span>
+
+  <span class='id identifier rubyid_remaining'>remaining</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
 <section class='method_details' id="remove_key_alt_name-instance_method">
   <h3 class='signature '>
     #<strong>remove_key_alt_name</strong>(id, key_alt_name, timeout_ms: nil)  
@@ -885,11 +1030,11 @@ in the key vault collection with the given id.</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L219-L242'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L237-L260'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='219' data-end='242'></pre>
+  <pre class='lines_num' data-start='237' data-end='260'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 219</span></pre>
+<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 237</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_remove_key_alt_name'>remove_key_alt_name</span>(<span class='id identifier rubyid_id'>id</span><span class='comma'>,</span> <span class='id identifier rubyid_key_alt_name'>key_alt_name</span><span class='comma'>,</span> <span class='label'>timeout_ms:</span> <span class='kw'>nil</span>)
@@ -958,11 +1103,11 @@ have been provided</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L298-L331'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L348-L381'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='298' data-end='331'></pre>
+  <pre class='lines_num' data-start='348' data-end='381'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 298</span></pre>
+<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 348</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_spawn_mongocryptd'>spawn_mongocryptd</span>
@@ -1031,11 +1176,11 @@ have been provided</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L249-L251'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L267-L269'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='249' data-end='251'></pre>
+  <pre class='lines_num' data-start='267' data-end='269'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 249</span></pre>
+<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 267</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_update_data_keys'>update_data_keys</span>(<span class='id identifier rubyid_updates'>updates</span><span class='comma'>,</span> <span class='label'>timeout_ms:</span> <span class='kw'>nil</span>)
@@ -1064,11 +1209,11 @@ have been provided</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L255-L263'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L305-L313'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='255' data-end='263'></pre>
+  <pre class='lines_num' data-start='305' data-end='313'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 255</span></pre>
+<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 305</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_validate_key_vault_client!'>validate_key_vault_client!</span>(<span class='id identifier rubyid_key_vault_client'>key_vault_client</span>)
@@ -1103,11 +1248,11 @@ have been provided</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L265-L274'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L315-L324'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='265' data-end='274'></pre>
+  <pre class='lines_num' data-start='315' data-end='324'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 265</span></pre>
+<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 315</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_validate_key_vault_namespace!'>validate_key_vault_namespace!</span>(<span class='id identifier rubyid_key_vault_namespace'>key_vault_namespace</span>)
@@ -1175,33 +1320,69 @@ an exception</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L346-L368'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongo-ruby-driver/blob/master/lib/mongo/crypt/encryption_io.rb#L396-L454'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='346' data-end='368'></pre>
+  <pre class='lines_num' data-start='396' data-end='454'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 346</span></pre>
+<pre><span class='info file'># File 'lib/mongo/crypt/encryption_io.rb', line 396</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_with_ssl_socket'>with_ssl_socket</span>(<span class='id identifier rubyid_endpoint'>endpoint</span><span class='comma'>,</span> <span class='id identifier rubyid_tls_options'>tls_options</span><span class='comma'>,</span> <span class='label'>timeout_ms:</span> <span class='kw'>nil</span>)
   <span class='id identifier rubyid_csot'>csot</span> <span class='op'>=</span> <span class='op'>!</span><span class='id identifier rubyid_timeout_ms'>timeout_ms</span>.<span class='id identifier rubyid_nil?'>nil?</span>
-  <span class='id identifier rubyid_address'>address</span> <span class='op'>=</span> <span class='kw'>begin</span>
-    <span class='id identifier rubyid_host'>host</span><span class='comma'>,</span> <span class='id identifier rubyid_port'>port</span> <span class='op'>=</span> <span class='id identifier rubyid_endpoint'>endpoint</span>.<span class='id identifier rubyid_split'>split</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>:</span><span class='tstring_end'>&#39;</span></span>)
-    <span class='id identifier rubyid_port'>port</span> <span class='op'>||=</span> <span class='int'>443</span> <span class='comment'># All supported KMS APIs use this port by default.
-</span>    <span class='const'><a href="../Address.html" title="Mongo::Address (class)">Address</a></span>.<span class='id identifier rubyid_new'><a href="../Address.html#new-class_method" title="Mongo::Address.new (method)">new</a></span>([ <span class='id identifier rubyid_host'>host</span><span class='comma'>,</span> <span class='id identifier rubyid_port'>port</span> ].<span class='id identifier rubyid_join'>join</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>:</span><span class='tstring_end'>&#39;</span></span>))
-  <span class='kw'>end</span>
-  <span class='id identifier rubyid_socket_options'>socket_options</span> <span class='op'>=</span> { <span class='label'>ssl:</span> <span class='kw'>true</span><span class='comma'>,</span> <span class='label'>csot:</span> <span class='id identifier rubyid_csot'>csot</span> }.<span class='id identifier rubyid_tap'>tap</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_opts'>opts</span><span class='op'>|</span>
-    <span class='id identifier rubyid_opts'>opts</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_connect_timeout'>connect_timeout</span>] <span class='op'>=</span> (<span class='id identifier rubyid_timeout_ms'>timeout_ms</span> <span class='op'>/</span> <span class='float'>1_000.0</span>) <span class='kw'>if</span> <span class='id identifier rubyid_csot'>csot</span>
-  <span class='kw'>end</span>
-  <span class='id identifier rubyid_mongo_socket'>mongo_socket</span> <span class='op'>=</span> <span class='id identifier rubyid_address'>address</span>.<span class='id identifier rubyid_socket'>socket</span>(
-    <span class='const'><a href="#SOCKET_TIMEOUT-constant" title="Mongo::Crypt::EncryptionIO::SOCKET_TIMEOUT (constant)">SOCKET_TIMEOUT</a></span><span class='comma'>,</span>
-    <span class='id identifier rubyid_tls_options'>tls_options</span>.<span class='id identifier rubyid_merge'>merge</span>(<span class='id identifier rubyid_socket_options'>socket_options</span>)
-  )
+  <span class='id identifier rubyid_host'>host</span><span class='comma'>,</span> <span class='id identifier rubyid_port'>port</span> <span class='op'>=</span> <span class='id identifier rubyid_endpoint'>endpoint</span>.<span class='id identifier rubyid_split'>split</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>:</span><span class='tstring_end'>&#39;</span></span>)
+  <span class='id identifier rubyid_port'>port</span> <span class='op'>=</span> (<span class='id identifier rubyid_port'>port</span> <span class='op'>||</span> <span class='int'>443</span>).<span class='id identifier rubyid_to_i'>to_i</span>
+
+  <span class='id identifier rubyid_mongo_socket'>mongo_socket</span> <span class='op'>=</span>
+    <span class='kw'>if</span> <span class='ivar'>@kms_connect_callback</span>
+      <span class='comment'># The callback runs before any socket exists, so it cannot inherit
+</span>      <span class='comment'># the connect timeout the socket gets below; bound it explicitly by
+</span>      <span class='comment'># the connect budget so a callback that blocks cannot outlive the
+</span>      <span class='comment'># operation deadline. A well-behaved callback should still honor
+</span>      <span class='comment'># timeout_ms itself, so it can fail cleanly and close its socket.
+</span>      <span class='id identifier rubyid_connect_budget_sec'>connect_budget_sec</span> <span class='op'>=</span> <span class='id identifier rubyid_connect_budget'><a href="#connect_budget-instance_method" title="Mongo::Crypt::EncryptionIO#connect_budget (method)">connect_budget</a></span>(<span class='id identifier rubyid_timeout_ms'>timeout_ms</span>)
+      <span class='id identifier rubyid_connect_deadline'>connect_deadline</span> <span class='op'>=</span> <span class='const'><a href="../Utils.html" title="Mongo::Utils (module)">Utils</a></span>.<span class='id identifier rubyid_monotonic_time'>monotonic_time</span> <span class='op'>+</span> <span class='id identifier rubyid_connect_budget_sec'>connect_budget_sec</span>
+      <span class='id identifier rubyid_connect_error'>connect_error</span> <span class='op'>=</span> <span class='id identifier rubyid_csot'>csot</span> <span class='op'>?</span> <span class='const'><a href="../Error.html" title="Mongo::Error (class)">Error</a></span><span class='op'>::</span><span class='const'><a href="../Error/TimeoutError.html" title="Mongo::Error::TimeoutError (class)">TimeoutError</a></span> <span class='op'>:</span> <span class='const'><a href="../Error.html" title="Mongo::Error (class)">Error</a></span><span class='op'>::</span><span class='const'><a href="../Error/SocketTimeoutError.html" title="Mongo::Error::SocketTimeoutError (class)">SocketTimeoutError</a></span>
+      <span class='id identifier rubyid_connected_socket'>connected_socket</span> <span class='op'>=</span>
+        <span class='const'><a href="../Timeout.html" title="Mongo::Timeout (module)">Timeout</a></span>.<span class='id identifier rubyid_timeout'><a href="../Timeout.html#timeout-class_method" title="Mongo::Timeout.timeout (method)">timeout</a></span>(<span class='id identifier rubyid_connect_budget_sec'>connect_budget_sec</span><span class='comma'>,</span> <span class='id identifier rubyid_connect_error'>connect_error</span><span class='comma'>,</span>
+                        <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>KMS connect callback timed out</span><span class='tstring_end'>&#39;</span></span>) <span class='kw'>do</span>
+          <span class='ivar'>@kms_connect_callback</span>.<span class='id identifier rubyid_call'>call</span>(<span class='id identifier rubyid_host'>host</span><span class='comma'>,</span> <span class='id identifier rubyid_port'>port</span><span class='comma'>,</span> <span class='id identifier rubyid_timeout_ms'>timeout_ms</span>)
+        <span class='kw'>end</span>
+      <span class='kw'>unless</span> <span class='id identifier rubyid_connected_socket'>connected_socket</span>.<span class='id identifier rubyid_is_a?'>is_a?</span>(<span class='const'>IO</span>)
+        <span class='id identifier rubyid_raise'>raise</span> <span class='const'><a href="../Error.html" title="Mongo::Error (class)">Error</a></span><span class='op'>::</span><span class='const'><a href="../Error/KmsError.html" title="Mongo::Error::KmsError (class)">KmsError</a></span>.<span class='id identifier rubyid_new'><a href="../Error/KmsError.html#new-class_method" title="Mongo::Error::KmsError.new (method)">new</a></span>(
+          <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>kms_connect_callback must return an IO connected to the KMS provider </span><span class='tstring_end'>&#39;</span></span> <span class='op'>+</span>
+          <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>at </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_host'>host</span><span class='embexpr_end'>}</span><span class='tstring_content'>:</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_port'>port</span><span class='embexpr_end'>}</span><span class='tstring_content'>, but it returned </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_connected_socket'>connected_socket</span>.<span class='id identifier rubyid_inspect'>inspect</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
+        )
+      <span class='kw'>end</span>
+
+      <span class='comment'># The callback and the handshake share one connect budget: give the
+</span>      <span class='comment'># handshake only the time the callback left, so together they cannot
+</span>      <span class='comment'># run past the deadline.
+</span>      <span class='id identifier rubyid_remaining_connect'>remaining_connect</span> <span class='op'>=</span> <span class='id identifier rubyid_connect_deadline'>connect_deadline</span> <span class='op'>-</span> <span class='const'><a href="../Utils.html" title="Mongo::Utils (module)">Utils</a></span>.<span class='id identifier rubyid_monotonic_time'>monotonic_time</span>
+      <span class='id identifier rubyid_raise'>raise</span> <span class='id identifier rubyid_connect_error'>connect_error</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>KMS connect timed out</span><span class='tstring_end'>&#39;</span></span> <span class='kw'>if</span> <span class='id identifier rubyid_remaining_connect'>remaining_connect</span> <span class='op'>&lt;=</span> <span class='int'>0</span>
+
+      <span class='id identifier rubyid_socket_options'>socket_options</span> <span class='op'>=</span> { <span class='label'>ssl:</span> <span class='kw'>true</span><span class='comma'>,</span> <span class='label'>csot:</span> <span class='id identifier rubyid_csot'>csot</span><span class='comma'>,</span> <span class='label'>connected_socket:</span> <span class='id identifier rubyid_connected_socket'>connected_socket</span> }
+      <span class='id identifier rubyid_socket_options'>socket_options</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_connect_timeout'>connect_timeout</span>] <span class='op'>=</span> <span class='id identifier rubyid_remaining_connect'>remaining_connect</span>
+      <span class='const'><a href="../../Mongo.html" title="Mongo (module)">Mongo</a></span><span class='op'>::</span><span class='const'><a href="../Socket.html" title="Mongo::Socket (class)">Socket</a></span><span class='op'>::</span><span class='const'><a href="../Socket/SSL.html" title="Mongo::Socket::SSL (class)">SSL</a></span>.<span class='id identifier rubyid_new'><a href="../Socket/SSL.html#new-class_method" title="Mongo::Socket::SSL.new (method)">new</a></span>(
+        <span class='id identifier rubyid_host'>host</span><span class='comma'>,</span> <span class='id identifier rubyid_port'>port</span><span class='comma'>,</span> <span class='id identifier rubyid_host'>host</span><span class='comma'>,</span> <span class='const'><a href="#SOCKET_TIMEOUT-constant" title="Mongo::Crypt::EncryptionIO::SOCKET_TIMEOUT (constant)">SOCKET_TIMEOUT</a></span><span class='comma'>,</span> <span class='op'>::</span><span class='const'><a href="../Socket.html" title="Mongo::Socket (class)">Socket</a></span><span class='op'>::</span><span class='const'>AF_UNSPEC</span><span class='comma'>,</span>
+        <span class='id identifier rubyid_tls_options'>tls_options</span>.<span class='id identifier rubyid_merge'>merge</span>(<span class='id identifier rubyid_socket_options'>socket_options</span>)
+      )
+    <span class='kw'>else</span>
+      <span class='id identifier rubyid_address'>address</span> <span class='op'>=</span> <span class='const'><a href="../Address.html" title="Mongo::Address (class)">Address</a></span>.<span class='id identifier rubyid_new'><a href="../Address.html#new-class_method" title="Mongo::Address.new (method)">new</a></span>([ <span class='id identifier rubyid_host'>host</span><span class='comma'>,</span> <span class='id identifier rubyid_port'>port</span> ].<span class='id identifier rubyid_join'>join</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>:</span><span class='tstring_end'>&#39;</span></span>))
+      <span class='id identifier rubyid_socket_options'>socket_options</span> <span class='op'>=</span> { <span class='label'>ssl:</span> <span class='kw'>true</span><span class='comma'>,</span> <span class='label'>csot:</span> <span class='id identifier rubyid_csot'>csot</span> }.<span class='id identifier rubyid_tap'>tap</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_opts'>opts</span><span class='op'>|</span>
+        <span class='id identifier rubyid_opts'>opts</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_connect_timeout'>connect_timeout</span>] <span class='op'>=</span> (<span class='id identifier rubyid_timeout_ms'>timeout_ms</span> <span class='op'>/</span> <span class='float'>1_000.0</span>) <span class='kw'>if</span> <span class='id identifier rubyid_csot'>csot</span>
+      <span class='kw'>end</span>
+      <span class='id identifier rubyid_address'>address</span>.<span class='id identifier rubyid_socket'>socket</span>(<span class='const'><a href="#SOCKET_TIMEOUT-constant" title="Mongo::Crypt::EncryptionIO::SOCKET_TIMEOUT (constant)">SOCKET_TIMEOUT</a></span><span class='comma'>,</span> <span class='id identifier rubyid_tls_options'>tls_options</span>.<span class='id identifier rubyid_merge'>merge</span>(<span class='id identifier rubyid_socket_options'>socket_options</span>))
+    <span class='kw'>end</span>
+
   <span class='kw'>yield</span>(<span class='id identifier rubyid_mongo_socket'>mongo_socket</span>.<span class='id identifier rubyid_socket'>socket</span>)
 <span class='kw'>rescue</span> <span class='const'><a href="../Error.html" title="Mongo::Error (class)">Error</a></span><span class='op'>::</span><span class='const'><a href="../Error/KmsError.html" title="Mongo::Error::KmsError (class)">KmsError</a></span>
   <span class='id identifier rubyid_raise'>raise</span>
 <span class='kw'>rescue</span> <span class='const'>StandardError</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
-  <span class='id identifier rubyid_raise'>raise</span> <span class='const'><a href="../Error.html" title="Mongo::Error (class)">Error</a></span><span class='op'>::</span><span class='const'><a href="../Error/KmsError.html" title="Mongo::Error::KmsError (class)">KmsError</a></span>.<span class='id identifier rubyid_new'><a href="../Error/KmsError.html#new-class_method" title="Mongo::Error::KmsError.new (method)">new</a></span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Error when connecting to KMS provider: </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_e'>e</span>.<span class='id identifier rubyid_class'>class</span><span class='embexpr_end'>}</span><span class='tstring_content'>: </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_e'>e</span>.<span class='id identifier rubyid_message'>message</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
-                            <span class='label'>network_error:</span> <span class='kw'>true</span>)
+  <span class='comment'># A timeout is not a transient network failure: retrying it only spends
+</span>  <span class='comment'># more of the operation budget, and under CSOT the deadline has already
+</span>  <span class='comment'># passed, so let it surface instead of letting feed_kms retry.
+</span>  <span class='id identifier rubyid_raise'>raise</span> <span class='const'><a href="../Error.html" title="Mongo::Error (class)">Error</a></span><span class='op'>::</span><span class='const'><a href="../Error/KmsError.html" title="Mongo::Error::KmsError (class)">KmsError</a></span>.<span class='id identifier rubyid_new'><a href="../Error/KmsError.html#new-class_method" title="Mongo::Error::KmsError.new (method)">new</a></span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Error when connecting to KMS provider: </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_e'>e</span>.<span class='id identifier rubyid_class'>class</span><span class='embexpr_end'>}</span><span class='tstring_content'>: </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_e'>e</span>.<span class='id identifier rubyid_message'>message</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+                            <span class='label'>network_error:</span> <span class='op'>!</span><span class='id identifier rubyid_e'>e</span>.<span class='id identifier rubyid_is_a?'>is_a?</span>(<span class='const'><a href="../Error.html" title="Mongo::Error (class)">Error</a></span><span class='op'>::</span><span class='const'><a href="../Error/TimeoutError.html" title="Mongo::Error::TimeoutError (class)">TimeoutError</a></span>))
 <span class='kw'>ensure</span>
   <span class='id identifier rubyid_mongo_socket'>mongo_socket</span><span class='op'>&amp;.</span><span class='id identifier rubyid_close'>close</span>
 <span class='kw'>end</span>
