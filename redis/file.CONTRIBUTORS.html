@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>
+<meta name='apple-touch-fullscreen' content='yes'>
+<meta name='mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-status-bar-style' content='rgba(228,228,228,1.0)'>
+
+<title>File: CONTRIBUTORS &mdash; Redis master</title>
+
+<link rel='stylesheet'  type='text/css' href='../css/y_fonts.css' />
+<link rel='stylesheet'  type='text/css' href='../css/highlight.github.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_style.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_list.css' />
+<link rel='stylesheet'  type='text/css' href='../css/y_color.css' />
+
+<script type='text/javascript'>
+  var pathId = "CONTRIBUTORS",
+    relpath = '';
+
+  var t2Info = {
+    CSEP: '.',
+    ISEP: '#',
+    NSEP: '::'
+  };
+</script>
+
+<script type='text/javascript' charset='utf-8' src='../js/highlight.pack.js'></script>
+<script type='text/javascript' charset='utf-8' src='../js/y_app.js'></script>
+
+</head>
+<body>
+<svg id='y_wait' class viewBox='0 0 90 90'></svg>
+<div id='settings' class='hidden'></div>
+<div id='y_list' class='d h'>
+  <header id='list_header'></header>
+  <nav id= 'list_nav' class='y_nav l_nav'>
+    <ul id='list_items'></ul>
+  </nav>
+</div>
+<div id='y_toc' class='f h'>
+  <header id='toc_header'></header>
+  <nav id= 'toc_nav' class='y_nav t_nav'>
+  <ol id='toc_items'></ol>
+  </nav>
+</div>
+<div id='y_main' tabindex='-1'>
+  <header id='y_header'>
+    <div id='y_menu'>
+      <a id='home_no_xhr' href='/'>Home</a> &raquo; 
+      <a href='.'>Redis master</a> &raquo; 
+      <a href='_index.html'>Index</a> &raquo; 
+      <span class='title'><a id='t2_doc_top' href='#'>File: CONTRIBUTORS&nbsp;&#x25B2;</a></span>
+          </div>
+
+    <a id='list_href' href="class_list.html"></a>
+    <div id='y_measure_em' class='y_measure'></div>
+    <div id='y_measure_vh' class='y_measure'></div>
+    <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
+  </header>
+<div id='content' class='file'>
+<h1 id="Contributing_to_redis_rb">Contributing to redis-rb</h1>
+<p>Thanks for your interest in contributing. This guide covers how the repository is laid out, how to run the test suite locally, and what a pull request needs before it can be merged.</p>
+<h2 id="Contributions_we_need">Contributions we need</h2>
+<p>Bug fixes, support for new <a href="Redis.html" title="Redis (class)"><code>Redis</code></a> commands, documentation improvements and test coverage are all welcome. If you are unsure where to start, look through the<a href='https://github.com/redis/redis-rb/issues'>open issues</a>; newly released <a href="Redis.html" title="Redis (class)"><code>Redis</code></a> commands that the gem does not wrap yet are a good first contribution, since the process is well documented below.</p>
+<p>Before starting a larger feature, open an issue describing what you want to add and how it should behave. It may already be underway, or there may be design constraints worth knowing first.</p>
+<h2 id="Two_gems_one_repository">Two gems, one repository</h2>
+<p>This tree ships two gems. Keep that in mind when deciding which files a change touches:</p>
+<table>
+<thead>
+<tr>
+<th>Gem</th>
+<th>Source</th>
+<th>Gemspec</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>redis</code></td>
+<td><code>lib/</code></td>
+<td><code>redis.gemspec</code></td>
+<td>Standalone and Sentinel client, plus <a href="Redis/Distributed.html" title="Redis::Distributed (class)"><code>::Redis::Distributed</code></a> (client-side sharding)</td>
+</tr>
+<tr>
+<td><code>redis-clustering</code></td>
+<td><code>cluster/lib/</code></td>
+<td><code>cluster/redis-clustering.gemspec</code></td>
+<td><code>Redis::Cluster</code>, a thin subclass of <a href="Redis.html" title="Redis (class)"><code>Redis</code></a> built on <code>redis-cluster-client</code></td>
+</tr>
+</tbody>
+</table>
+<p>The cluster gem reuses <code>lib/redis/commands/**</code> from the main gem, so most command additions land in <code>lib/</code> and work on all three client types automatically. Cluster-only behaviour (routing overrides, reply aggregation, transaction adapter) lives under <code>cluster/lib/</code>.</p>
+<p><code>AGENTS.md</code> at the repository root is a detailed architecture tour (layering, reply reshaping, connection lifecycle, pub/sub, cluster routing). Read it before touching anything beyond a single command method.</p>
+<h2 id="Development_setup">Development setup</h2>
+<p>You need Ruby 3.2 or newer, Bundler, and Docker with Docker Compose (profiles support).</p>
+<pre class="code sh"><code class="sh">git clone https://github.com/&lt;your-user&gt;/redis-rb.git
+cd redis-rb
+bundle install
+BUNDLE_GEMFILE=cluster/Gemfile bundle install   # the cluster gem has its own bundle
+</code></pre>
+<p>Redis servers for the test suite run in Docker from the prebuilt <code>redislabs/client-libs-test</code> image. Topologies are selected by Compose profile:</p>
+<pre class="code sh"><code class="sh">make start_all                               # standalone + replica + 3 sentinels + 6-node cluster
+BUNDLE_GEMFILE=cluster/Gemfile make test     # run the whole suite, including the cluster group
+make stop_all                                # tear everything down
+BUNDLE_GEMFILE=cluster/Gemfile make all      # start, test, stop in one go
+</code></pre>
+<p>The cluster bundle is needed for the full suite because the root <code>Gemfile</code> does not include <code>redis-cluster-client</code>; <code>make test</code> under the root bundle fails when it reaches <code>test:cluster</code>. The cluster bundle contains everything the other groups need, so it is safe to use for all of them.</p>
+<p>Or drive Compose directly when you only need one topology:</p>
+<pre class="code sh"><code class="sh">docker compose --profile standalone up -d --wait
+docker compose --profile sentinel   up -d --wait
+docker compose --profile cluster    up -d --wait
+docker compose --profile modules    up -d --wait   # Redis Stack, only needed for Redis &lt; 8
+docker compose --profile all down -v
+</code></pre>
+<p>Pin a server version with <code>REDIS_VERSION=8.4.3 make start_all</code>. Image tags exist per <code>major.minor.patch</code> (for example <code>7.2.14</code>, <code>8.2.6</code>, <code>8.8.0</code>); a bare <code>8.4</code> tag generally does not.</p>
+<h3 id="macOS_note">macOS note</h3>
+<p>The Compose stack uses host networking so sentinel and cluster nodes advertise <code>127.0.0.1</code>. On Docker Desktop you must enable <strong>Settings → Resources → Network → Enable host networking</strong>, otherwise the containers come up healthy but their ports are not reachable from the host. The Unix-socket test (<code>test_connecting_to_unix_domain_socket</code>) does not work on macOS because bind-mounted AF_UNIX sockets do not cross the Docker Desktop VM boundary; it passes on Linux CI.</p>
+<h2 id="Running_tests">Running tests</h2>
+<p><code>BUNDLE_GEMFILE=cluster/Gemfile bundle exec rake test</code> runs five Minitest groups defined in the <code>Rakefile</code>. The first four also work under the root bundle:</p>
+<pre class="code sh"><code class="sh">bundle exec rake test:redis         # lib/redis core
+bundle exec rake test:distributed   # {Redis::Distributed}
+bundle exec rake test:sentinel      # Sentinel mode
+bundle exec rake test:modules       # module commands (JSON.*, {FT.*}, ...)
+BUNDLE_GEMFILE=cluster/Gemfile bundle exec rake test:cluster   # cluster gem
+</code></pre>
+<p>The cluster group must run with <code>BUNDLE_GEMFILE=cluster/Gemfile</code>; the root bundle does not include <code>redis-cluster-client</code>.</p>
+<p>Run a single file or test with Minitest options:</p>
+<pre class="code sh"><code class="sh">bundle exec rake test:redis TEST=test/redis/commands_on_strings_test.rb
+bundle exec rake test:redis TEST=test/redis/commands_on_strings_test.rb TESTOPTS=&quot;--name=/incr/&quot;
+BUNDLE_GEMFILE=cluster/Gemfile bundle exec rake test:cluster TEST=cluster/test/commands_on_strings_test.rb
+</code></pre>
+<p>Useful environment knobs:</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PROTOCOL=2</code></td>
+<td>Run over RESP2 instead of the default RESP3</td>
+</tr>
+<tr>
+<td><code>DRIVER=hiredis</code></td>
+<td>Use the <code>hiredis-client</code> C driver instead of the pure-Ruby one</td>
+</tr>
+<tr>
+<td><code>REDIS_VERSION=x.y.z</code></td>
+<td>Server image tag to boot</td>
+</tr>
+<tr>
+<td><code>REDIS_SOCKET_PATH=...</code></td>
+<td>Override the Unix socket path (default <code>tmp/redis.sock</code>, created by the standalone container)</td>
+</tr>
+<tr>
+<td><code>VERBOSE=1</code></td>
+<td>Verbose Minitest output</td>
+</tr>
+</tbody>
+</table>
+<p>CI runs every group under <strong>both</strong> RESP3 and RESP2, with both drivers, across MRI 3.2 to 4.0 and TruffleRuby, against several Redis versions from 7.2 to the latest release candidate. Anything that reshapes replies should be checked locally under at least <code>PROTOCOL=2</code> and <code>PROTOCOL=3</code> before you open a PR.</p>
+<p>Test files must live under <code>test/redis</code>, <code>test/distributed</code>, <code>test/sentinel</code>, <code>test/modules</code> or <code>cluster/test</code>. The Rakefile aborts if a <code>*_test.rb</code> exists anywhere else.</p>
+<h3 id="Gating_tests_by_server_version">Gating tests by server version</h3>
+<p>Tests for commands that only exist on newer servers wrap themselves in <code>target_version</code> from <code>test/helper.rb</code>:</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>def</span> <span class='id identifier rubyid_test_hgetex'>test_hgetex</span>
+  <span class='id identifier rubyid_target_version'>target_version</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>8.0</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
+    <span class='comment'># ...
+</span>  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+<p>The suite skips the body on older servers, which is what lets the CI matrix include Redis 7.2.</p>
+<h2 id="Linting">Linting</h2>
+<pre class="code sh"><code class="sh">bundle exec rubocop
+</code></pre>
+<p>Configuration is in <code>.rubocop.yml</code> at the repository root and covers both gems. CI fails on offences. Every Ruby file starts with <code># frozen_string_literal: true</code>; keep it when creating files.</p>
+<h2 id="Adding_a_new_Redis_command">Adding a new Redis command</h2>
+<p>This is the most common contribution, so it has its own end-to-end guide: <code>specs/adding-commands.md</code>. The short version:</p>
+<ol>
+<li>Add a method to the matching module under <code>lib/redis/commands/<category>.rb</code> that builds the argument array and calls <code>send_command</code>. Because <a href="Redis/Commands.html" title="Redis::Commands (module)"><code>::Redis::Commands</code></a> is mixed into <a href="Redis.html" title="Redis (class)"><code>Redis</code></a>, <a href="Redis/PipelinedConnection.html" title="Redis::PipelinedConnection (class)"><code>::Redis::PipelinedConnection</code></a> and <code>Redis::Cluster</code>, the method is immediately available in direct calls, pipelines, transactions and cluster mode.</li>
+<li>If the reply needs reshaping into idiomatic Ruby, reuse one of the lambdas at the top of <code>lib/redis/commands.rb</code> (<code>Boolify</code>, <code>Hashify</code>, <code>Floatify</code>, ...) or add one. Lambdas must accept both the RESP2 and RESP3 wire shape and return the same Ruby value. Do not coerce inside the command method itself.</li>
+<li>Add a corresponding method to <code>lib/redis/distributed.rb</code>. <a href="Redis/Distributed.html" title="Redis::Distributed (class)"><code>::Redis::Distributed</code></a> does <strong>not</strong> include <code>Commands</code>; every method is defined explicitly so it can route by key. Multi-key commands whose keys may land on different nodes raise <code>CannotDistribute</code>.</li>
+<li>Check whether <code>Redis::Cluster</code> needs anything. Routing is the driver's job, so usually nothing. If the driver's default routing is wrong, fix it through <code>DEFAULT_COMMAND_ROUTINGS</code> in <code>cluster/lib/redis/cluster.rb</code>, not by enumerating nodes in Ruby.</li>
+<li>Write Yard docstrings (<code>@param</code>, <code>@return</code>, <code>@example</code>) in the same style as the neighbouring methods.</li>
+<li>Add tests: a shared lint module under <code>test/lint/</code> where the behaviour is identical across clients, and per-client test files under <code>test/redis/</code>, <code>test/distributed/</code> and <code>cluster/test/</code>. Gate with <code>target_version</code> if the command is newer than Redis 7.2.</li>
+</ol>
+<p>Follow the local conventions in the file you are editing: symbols for the command verb (<code>[:incr, key]</code>), explicit coercion for numeric arguments (<code>Integer(x)</code>, <code>Float(x)</code>), keyword arguments for optional flags.</p>
+<h3 id="AI_assisted_contributions">AI-assisted contributions</h3>
+<p>The repository ships a Claude Code skill, <code>.claude/skills/add-new-command</code>, that walks through the checklist above from a command specification in <code>command_specs/</code>. You can invoke it as <code>/add-new-command <COMMAND></code> from Claude Code. It is a convenience, not a requirement, and its output is held to the same review standard as hand-written code.</p>
+<h2 id="Pull_request_checklist">Pull request checklist</h2>
+<p>Before opening a PR:</p>
+<ul>
+<li>[ ] <code>bundle exec rubocop</code> passes.</li>
+<li>[ ] The affected test groups pass locally under <code>PROTOCOL=3</code> and <code>PROTOCOL=2</code>.</li>
+<li>[ ] New commands are implemented for <a href="Redis.html" title="Redis (class)"><code>Redis</code></a>, <a href="Redis/Distributed.html" title="Redis::Distributed (class)"><code>::Redis::Distributed</code></a> and work on <code>Redis::Cluster</code>, with tests for each (or an explanation of why one client is excluded).</li>
+<li>[ ] Public methods have Yard docstrings.</li>
+<li>[ ] No unrelated changes, reformatting or version bumps. Maintainers bump <code>lib/redis/version.rb</code> and update <code>CHANGELOG.md</code> at release time.</li>
+<li>[ ] The PR description says what changed and why, and links the issue it closes if there is one.</li>
+</ul>
+<p>Keep PRs focused. A small, well-tested change is reviewed and merged much faster than a large one that mixes several concerns.</p>
+<h2 id="Code_review_process">Code review process</h2>
+<p>Maintainers look at pull requests regularly and will leave feedback as soon as they can. Please respond to review comments within two weeks; PRs without activity after that may be closed, and you are welcome to reopen them when you have time.</p>
+<h2 id="Reporting_bugs">Reporting bugs</h2>
+<h3 id="Security_vulnerabilities">Security vulnerabilities</h3>
+<p>Do <strong>not</strong> open a public issue for a security problem. Report it through the<a href='mailto:security#Redis_Vulnerability_Disclosure_Program_https_redis_io_redis_responsible_vulnerability_disclosure_or_email_security_redis_com'>Redis Vulnerability Disclosure Program](<a href="https://redis.io/redis-responsible-vulnerability-disclosure/">https://redis.io/redis-responsible-vulnerability-disclosure/</a>) or email [security@redis.com</a>.</p>
+<h3 id="Everything_else">Everything else</h3>
+<p>When filing an issue, include:</p>
+<ol>
+<li>The <code>redis</code> gem version (and <code>redis-clustering</code> version if you use cluster mode).</li>
+<li>The <code>redis-client</code> and, if applicable, <code>hiredis-client</code> versions from your <code>Gemfile.lock</code>.</li>
+<li>The Redis server version and topology (standalone, Sentinel, Cluster, Distributed).</li>
+<li>Ruby version and implementation (MRI, TruffleRuby, JRuby).</li>
+<li>A minimal script that reproduces the problem.</li>
+<li>What you expected to see, and what you saw instead, including the full exception and backtrace.</li>
+</ol>
+<h2 id="Suggesting_a_feature">Suggesting a feature</h2>
+<p>Check the issue list first; someone may already have proposed it, or it may have been declined with reasoning. If not, open an issue describing the feature and how it should behave from the caller's point of view. For new Redis commands, a link to the command's page on<a href='https://redis.io/commands/'>redis.io</a> is enough.</p>
+<h2 id="License">License</h2>
+<p>By contributing you agree that your contributions are licensed under the<a href='LICENSE'>MIT license</a> that covers the project.</p>
+<div id='footer'></div>
+</div> <!-- content  -->
+</div> <!-- y_main   -->
+</body>
+</html>
