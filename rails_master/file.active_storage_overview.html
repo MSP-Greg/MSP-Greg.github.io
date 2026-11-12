@@ -159,7 +159,7 @@ services</a> in a later section.</p>
 <h3 id="Configuring_Active_Storage_Routes">Configuring Active Storage Routes</h3>
 <p>Active Storage automatically adds routes to your application for serving files.
 These routes are mounted under <code>/rails/active_storage</code> by default. For example,
-So when someone requests a file attachment in your app, the URL may look like
+when someone requests a file attachment in your app, the URL may look like
 <code><a href="https://example.com/rails/active_storage/blobs/redirect/eyJf.../photo.jpg</code>">https://example.com/rails/active_storage/blobs/redirect/eyJf.../photo.jpg</code></a>. You can see all the routes by running:</p>
 <pre class="code bash"><code class="bash">$ bin/rails routes --grep active_storage
 </code></pre>
@@ -266,7 +266,7 @@ entire intended set of attachments for that field. If the form only includes the
 newly uploaded files, Rails will interpret that as replacing the collection.</p>
 <p>To keep existing attachments, you can use hidden form fields with the
 <a href="https://api.rubyonrails.org/classes/ActiveStorage/Blob.html#method-i-signed_id"><code>signed_id</code></a> to re-submit each of the already
-attached file:</p>
+attached files:</p>
 <pre class="code xml"><code class="xml">&lt;% @product.images.each do |image| %&gt;
   &lt;%= form.hidden_field :images, multiple: true, value: image.signed_id %&gt;
 &lt;% end %&gt;
@@ -288,7 +288,7 @@ practice to use the {content_type} option to specify the content type when
 possible:</p>
 <pre class="code ruby"><code class="ruby"><span class='ivar'>@product</span>.<span class='id identifier rubyid_images'>images</span>.<span class='id identifier rubyid_attach'>attach</span>(<span class='label'>io:</span> <span class='const'><a href="File.html" title="File (class)">File</a></span>.<span class='id identifier rubyid_open'>open</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>/path/to/file</span><span class='tstring_end'>&quot;</span></span>)<span class='comma'>,</span> <span class='label'>filename:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>product.pdf</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>content_type:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>application/pdf</span><span class='tstring_end'>&quot;</span></span>)</code></pre>
 <p>You can also instruct Active Storage not to infer content type from the data by
-using the<code>identify</code> option:</p>
+using the {identify} option:</p>
 <pre class="code ruby"><code class="ruby"><span class='ivar'>@product</span>.<span class='id identifier rubyid_images'>images</span>.<span class='id identifier rubyid_attach'>attach</span>(
   <span class='label'>io:</span> <span class='const'><a href="File.html" title="File (class)">File</a></span>.<span class='id identifier rubyid_open'>open</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>/path/to/file</span><span class='tstring_end'>&quot;</span></span>)<span class='comma'>,</span>
   <span class='label'>filename:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>product.pdf</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
@@ -680,6 +680,42 @@ command injection vulnerabilities in your app.</p>
 <p>WARNING: It is also recommended to implement a strict <a href="https://imagemagick.org/script/security-policy.php">ImageMagick security
 policy</a> when MiniMagick is the variant processor
 of choice, or when libvips is delegating to ImageMagick (run <code>vips -l</code> on your platform).</p>
+<h4 id="ImageMagick_Security_Policy">ImageMagick Security Policy</h4>
+<p>Active Storage ships an ImageMagick security policy, in
+{ActiveStorage::ImageMagick::POLICY_DIRECTORY}, that denies coders that untrusted uploads must not reach.
+It prepends that directory to {MAGICK_CONFIGURE_PATH} through {MiniMagick.cli_env}, so every
+ImageMagick process MiniMagick spawns applies it. ImageMagick applies every <code>policy.xml</code> on its
+search path, so the shipped policy adds to your system policy rather than replacing it, and a
+{MAGICK_CONFIGURE_PATH} you set, in the environment or in {MiniMagick.cli_env}, stays on the
+search path after it. Active Storage applies the policy again after your application initializes,
+so a value an initializer or dotenv sets is kept too. ImageMagick policies are
+blocklists, so expect Active Storage to maintain and expand the shipped file over time.</p>
+<p>Because {MAGICK_CONFIGURE_PATH} is set in {MiniMagick.cli_env} rather than the shell, list the
+policy through MiniMagick to see what your application actually loads:</p>
+<pre class="code bash"><code class="bash">bin/rails runner &#39;puts {MiniMagick.identify} { |i| i.list &quot;policy&quot; }&#39;
+</code></pre>
+<p>Applying the policy requires mini_magick 5.1 or later. With an older mini_magick, an application
+whose variant processor is <code>:mini_magick</code> raises at boot.</p>
+<p>The shipped policy reaches only ImageMagick processes started through MiniMagick with its default
+shell. If your application replaces {MiniMagick.cli_env} after it boots, clears the environment with
+{MiniMagick.cli_prefix}, or installs its own {MiniMagick::Shell}, it does not receive the shipped
+policy: copy its rules into a policy in ImageMagick's system location, such as
+<code>/etc/ImageMagick-7/policy.xml</code>. That is also where any stricter rules of your own belong.
+GraphicsMagick does not read ImageMagick policies, so an application that uses it gets no
+protection from the shipped policy.</p>
+<p>The policy denies the coders that reach a file or a script through ImageMagick rather than
+through the image itself, the coders backed by Ghostscript, and the {gs} delegate. It applies to
+every ImageMagick command MiniMagick runs, not only Active Storage's. An application that renders
+PostScript or PDF through ImageMagick must re-allow the {gs} delegate and the coders it uses in
+its own <code>policy.xml</code>:</p>
+<pre class="code xml"><code class="xml">&lt;policy domain=&quot;delegate&quot; rights=&quot;execute&quot; pattern=&quot;gs&quot;/&gt;
+&lt;policy domain=&quot;coder&quot; rights=&quot;read|write&quot; pattern=&quot;PDF&quot;/&gt;
+</code></pre>
+<p>A rule in your policy that allows a coder, including a wildcard such as <code>pattern=&quot;*&quot;</code>, overrides
+the shipped deny, so allow only what you use.</p>
+<p>The shipped policy sets no resource limits. ImageMagick takes each limit from the first policy on
+its search path that sets it, so a limit shipped by Active Storage could not be changed by yours.
+Set limits such as {width}, {height} and {area} in your system policy.</p>
 <h4 id="Disabled_Vips_Image_Loaders_and_Savers">Disabled Vips Image Loaders and Savers</h4>
 <p>libvips marks some of its image loaders and savers as&lt;a href='https://www.libvips.org/2022/05/28/What's-new-in-8.13.html#blocking-of-unfuzzed-loaders'&gt;unfuzzed</a>,
 meaning they should not be used to process untrusted content. Active Storage disables all of them
@@ -1115,6 +1151,7 @@ documentation for your service:</p>
 <li><code>Content-MD5</code></li>
 <li><code>Content-Disposition</code></li>
 <li><code>Cache-Control</code> (for GCS, only if <code>cache_control</code> is set)</li>
+<li><code>x-goog-content-length-range</code> (for GCS)</li>
 </ul>
 </li>
 </ul>
@@ -1143,7 +1180,7 @@ app’s origin.</p>
   {
     &quot;origin&quot;: [&quot;https://www.example.com&quot;],
     &quot;method&quot;: [&quot;PUT&quot;],
-    &quot;responseHeader&quot;: [&quot;Content-Type&quot;, &quot;Content-MD5&quot;, &quot;Content-Disposition&quot;],
+    &quot;responseHeader&quot;: [&quot;Content-Type&quot;, &quot;Content-MD5&quot;, &quot;Content-Disposition&quot;, &quot;x-goog-content-length-range&quot;],
     &quot;maxAgeSeconds&quot;: 3600
   }
 ]

@@ -63,6 +63,130 @@
 <div id='content' class='file'>
 <ul>
 <li>
+<p>Deprecate <code>unscope(where: <code>:column</code>)</code> removing conditions on other tables.</p>
+<p>An unqualified column passed to <code>unscope(where: ...)</code> currently removes
+conditions on every table that has a column of that name, including
+joined and eager loaded tables. In Rails 9.0 it will only remove
+conditions on the relation's own table.</p>
+<pre class="code ruby"><code class="ruby"><span class='const'>Post</span>.<span class='id identifier rubyid_joins'>joins</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_comments'>comments</span>).<span class='id identifier rubyid_where'>where</span>(<span class='label'>body:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>post</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>comments:</span> { <span class='label'>body:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>test</span><span class='tstring_end'>&quot;</span></span> }).<span class='id identifier rubyid_unscope'>unscope</span>(<span class='label'>where:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_body'>body</span>)
+<span class='comment'># DEPRECATION WARNING: ... also removes conditions on other tables (comments.body) ...</span></code></pre>
+<p>Qualify the column with the table name to unscope conditions on another table:</p>
+<pre class="code ruby"><code class="ruby"><span class='const'>Post</span>.<span class='id identifier rubyid_joins'>joins</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_comments'>comments</span>).<span class='id identifier rubyid_where'>where</span>(<span class='label'>comments:</span> { <span class='label'>body:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>test</span><span class='tstring_end'>&quot;</span></span> }).<span class='id identifier rubyid_unscope'>unscope</span>(<span class='label'>where:</span> { <span class='label'>comments:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_body'>body</span> })
+<span class='const'>Post</span>.<span class='id identifier rubyid_joins'>joins</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_comments'>comments</span>).<span class='id identifier rubyid_where'>where</span>(<span class='label'>comments:</span> { <span class='label'>body:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>test</span><span class='tstring_end'>&quot;</span></span> }).<span class='id identifier rubyid_unscope'>unscope</span>(<span class='label'>where:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>comments.body</span><span class='tstring_end'>&quot;</span></span>)</code></pre>
+<p><em>Ryuta Kamizono</em></p>
+</li>
+<li>
+<p>Cast and freeze a model's attribute defaults when its schema is loaded.</p>
+<p>Unless the model declares an attribute with a <code>default:</code>, each default is
+now type cast and frozen once, when the schema loads, instead of being
+cast the first time a new record reads it. Two things can change for
+custom types and coders.</p>
+<p>A type's <code>cast</code>, through <code>deserialize</code>, now receives the default of a
+column that has none, which is <code>nil</code>, including for <code>NOT NULL</code> columns.
+A type that overrides <code>cast</code> rather than <code>cast_value</code> must handle <code>nil</code>
+the way <code>ActiveModel::Type::Value#cast</code> does, or the schema fails to load.</p>
+<p>A record works on a <code>dup</code> of the frozen default value. A mutable default,
+such as the object a <code>serialize</code> coder returns for <code>nil</code>, must copy its
+own state in <code>initialize_copy</code>, or changing it on a record raises
+<code>FrozenError</code>.</p>
+<p><em>Aaron Patterson</em></p>
+</li>
+<li>
+<p>Qualify unscope values with table name when merging relations.</p>
+<p>Fixes an issue where merging a relation with an <code>unscope(where: ...)</code>
+clause unscoped conditions on joined or eager loaded tables that share
+the same column name.</p>
+<p><em>Helmi Pradita</em></p>
+</li>
+<li>
+<p>Fix preloading a <code>has_many :through</code> association whose scope has conditions
+and <code>preload</code> or <code>eager_load</code> not loading the nested associations.</p>
+<p>Only <code>includes</code> in the scope was applied, so the nested association was
+loaded with a query per record, or raised under <code>strict_loading</code>.</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Tagging</span> <span class='op'>&lt;</span> <span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)">Base</a></span>
+  <span class='id identifier rubyid_belongs_to'>belongs_to</span> <span class='symbeg'>:</span><span class='id identifier rubyid_post'>post</span>
+<span class='kw'>end</span>
+
+<span class='kw'>class</span> <span class='const'>Tag</span> <span class='op'>&lt;</span> <span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)">Base</a></span>
+  <span class='id identifier rubyid_has_many'>has_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_taggings'>taggings</span>
+  <span class='id identifier rubyid_has_many'>has_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_active_posts'>active_posts</span><span class='comma'>,</span> <span class='tlambda'>-&gt;</span> <span class='tlambeg'>{</span> <span class='id identifier rubyid_preload'>preload</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_comments'>comments</span>).<span class='id identifier rubyid_where'>where</span>(<span class='label'>taggings:</span> { <span class='label'>active:</span> <span class='kw'>true</span> }) }<span class='comma'>,</span>
+    <span class='label'>through:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_taggings'>taggings</span><span class='comma'>,</span> <span class='label'>source:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_post'>post</span>
+<span class='kw'>end</span>
+
+<span class='id identifier rubyid_posts'>posts</span> <span class='op'>=</span> <span class='const'>Tag</span>.<span class='id identifier rubyid_preload'>preload</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_active_posts'>active_posts</span>).<span class='id identifier rubyid_first'>first</span>.<span class='id identifier rubyid_active_posts'>active_posts</span>
+<span class='id identifier rubyid_posts'>posts</span>.<span class='id identifier rubyid_map'>map</span> { <span class='op'>|</span><span class='id identifier rubyid_post'>post</span><span class='op'>|</span> <span class='id identifier rubyid_post'>post</span>.<span class='id identifier rubyid_comments'>comments</span>.<span class='id identifier rubyid_to_a'>to_a</span> }
+<span class='comment'># =&gt; no longer runs a query per post</span></code></pre>
+<p><em>Kengo Johira</em></p>
+</li>
+<li>
+<p>Fix a <code>default_order</code> being ignored by a <code>disable_joins</code> through association.</p>
+<p>An explicit order in an association's scope was carried over to the
+queries the chain is split into, but a <code>default_order</code> was dropped, so the
+records came back in whatever order the database returned them.</p>
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Author</span> <span class='op'>&lt;</span> <span class='const'>ApplicationRecord</span>
+  <span class='id identifier rubyid_has_many'>has_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_comments'>comments</span><span class='comma'>,</span> <span class='label'>through:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_posts'>posts</span>
+  <span class='id identifier rubyid_has_many'>has_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_ratings'>ratings</span><span class='comma'>,</span> <span class='tlambda'>-&gt;</span> <span class='tlambeg'>{</span> <span class='id identifier rubyid_default_order'>default_order</span>(<span class='label'>value:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_desc'>desc</span>) }<span class='comma'>,</span>
+    <span class='label'>through:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_comments'>comments</span><span class='comma'>,</span> <span class='label'>disable_joins:</span> <span class='kw'>true</span>
+<span class='kw'>end</span></code></pre>
+<p><em>Carlos Pohlod</em></p>
+</li>
+<li>
+<p>Fix <code>eager_load</code> of associations to models without a primary key.</p>
+<p>Every parent got only the first loaded record: a <code>has_many</code> kept one
+record per parent, and parents after the first got the first parent's
+record.</p>
+<p><em>Kengo Johira</em></p>
+</li>
+<li>
+<p>Cast numeric values to the scale of the PostgreSQL <code>money</code> type.</p>
+<p><code>money</code> only rounded strings to its scale, so a numeric value was held
+unrounded and as given, while it was rounded on save and read back as a
+<code>BigDecimal</code>.</p>
+<pre class="code ruby"><code class="ruby"><span class='comment'># t.money :wealth
+</span>
+<span class='id identifier rubyid_record'>record</span> <span class='op'>=</span> <span class='const'>Post</span>.<span class='id identifier rubyid_new'>new</span>(<span class='label'>wealth:</span> <span class='float'>10.004</span>)
+<span class='id identifier rubyid_record'>record</span>.<span class='id identifier rubyid_wealth'>wealth</span> <span class='comment'># =&gt; 10.004 before, now 0.1e2</span></code></pre>
+<p><em>Ryuta Kamizono</em></p>
+</li>
+<li>
+<p>Fix nested preloads under a <code>:through</code> association attaching their
+records to copies instead of the records the owners hold.</p>
+<pre class="code ruby"><code class="ruby"><span class='const'>Author</span>.<span class='id identifier rubyid_strict_loading'>strict_loading</span>.<span class='id identifier rubyid_preload'>preload</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_comments'>comments</span><span class='comma'>,</span> <span class='label'>comments:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_ratings'>ratings</span>).<span class='id identifier rubyid_first'>first</span>.<span class='id identifier rubyid_comments'>comments</span>.<span class='id identifier rubyid_first'>first</span>.<span class='id identifier rubyid_ratings'>ratings</span>
+<span class='comment'># =&gt; raised ActiveRecord::StrictLoadingViolationError</span></code></pre>
+<p>When the owners already had the through association loaded, the nested
+association was preloaded on fresh copies of its records, so it raised
+with <code>strict_loading</code>, and without it was loaded again lazily, one query
+per record. Nested preloads now always use the records held by the owners.</p>
+<p>Fixes #49197.</p>
+<p><em>Clément Joubert</em></p>
+</li>
+<li>
+<p>Retry <a href="ActiveRecord/SerializationFailure.html" title="ActiveRecord::SerializationFailure (class)"><code>::ActiveRecord::SerializationFailure</code></a> on queries that opted into retries.</p>
+<p>A serialization failure rolls back whatever the statement was part of, so a
+statement that was not part of an open transaction can be re-run on the same
+connection, exactly as <code>ActiveRecord::Deadlocked</code> already is.</p>
+<p><em>Adrianna Chang</em></p>
+</li>
+<li>
+<p>Fix <code>in_order_of</code> modifying the receiver relation.</p>
+<p><code>in_order_of</code> added the referenced table to the receiver's
+<code>references_values</code> instead of only the returned relation's, so it
+raised <code>ActiveRecord::UnmodifiableRelation</code> on a loaded relation.</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_posts'>posts</span> <span class='op'>=</span> <span class='const'>Post</span>.<span class='id identifier rubyid_all'>all</span>.<span class='id identifier rubyid_load'>load</span>
+<span class='id identifier rubyid_posts'>posts</span>.<span class='id identifier rubyid_in_order_of'>in_order_of</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>posts.id</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> [<span class='int'>3</span><span class='comma'>,</span> <span class='int'>4</span><span class='comma'>,</span> <span class='int'>1</span>])
+<span class='comment'># =&gt; ActiveRecord::UnmodifiableRelation before, now the ordered relation</span></code></pre>
+<p><em>Ryuta Kamizono</em></p>
+</li>
+<li>
+<p>Fix <code>merge</code> dropping <code>RECURSIVE</code> from a relation built with <code>with_recursive</code>.</p>
+<p>The recursive flag is now kept with the relation's other values, so
+<code>merge</code>, <code>only</code>, and <code>or</code> keep it, and <code>except(:with)</code> and <code>unscope(:with)</code>
+remove it along with the CTEs.</p>
+<pre class="code ruby"><code class="ruby"><span class='const'>Post</span>.<span class='id identifier rubyid_all'>all</span>.<span class='id identifier rubyid_merge'>merge</span>(<span class='const'>Post</span>.<span class='id identifier rubyid_with_recursive'>with_recursive</span>(<span class='label'>post_and_replies:</span> [<span class='op'>...</span>])).<span class='id identifier rubyid_to_sql'>to_sql</span>
+<span class='comment'># =&gt; &quot;WITH post_and_replies AS (...)&quot; before, now &quot;WITH RECURSIVE post_and_replies AS (...)&quot;</span></code></pre>
+<p><em>Ryuta Kamizono</em></p>
+</li>
+<li>
 <p>Fix <code>one?</code> and <code>many?</code> on grouped relations.</p>
 <p>A grouped count returns a hash, so <code>one?</code> returned <code>false</code> for a single
 group and <code>many?</code> raised a <code>TypeError</code>. They now count the groups, which
@@ -140,8 +264,8 @@ counter cache. Unchanged counter cache columns are now omitted from the
 <p><em>Masaki Ozawa</em></p>
 </li>
 <li>
-<p>Fix preloading an ordered <code>has_many :through</code> association reusing the
-source records already loaded by an unordered one, ignoring its order.</p>
+<p>Fix preloading a scoped <code>has_many :through</code> association reusing the
+source records already loaded by an unscoped one, ignoring its scope.</p>
 <pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>Author</span> <span class='op'>&lt;</span> <span class='const'><a href="ActiveRecord.html" title="ActiveRecord (module)">ActiveRecord</a></span><span class='op'>::</span><span class='const'><a href="ActiveRecord/Base.html" title="ActiveRecord::Base (class)">Base</a></span>
   <span class='id identifier rubyid_has_many'>has_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_categorizations'>categorizations</span>
   <span class='id identifier rubyid_has_many'>has_many</span> <span class='symbeg'>:</span><span class='id identifier rubyid_categorized_posts'>categorized_posts</span><span class='comma'>,</span> <span class='label'>through:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_categorizations'>categorizations</span><span class='comma'>,</span> <span class='label'>source:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_post'>post</span>
