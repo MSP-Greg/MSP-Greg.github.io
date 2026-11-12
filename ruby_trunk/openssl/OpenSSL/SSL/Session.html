@@ -85,7 +85,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl_session.c#L306'>ext/openssl/ossl_ssl_session.c</a>      </td>
+      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl_session.c#L323'>ext/openssl/ossl_ssl_session.c</a>      </td>
     </tr>
   </tbody>
 </table>
@@ -269,9 +269,9 @@ ossl_ssl_session_initialize(VALUE self, VALUE arg1)
     <p>Returns the time at which the session was established.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl_session.c#L131-L143'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl_session.c#L131-L149'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='131' data-end='143'></pre>
+  <pre class='lines_num' data-start='131' data-end='149'></pre>
   <div class='lines_code'>
 <pre><span class='info file'># File 'ext/openssl/ossl_ssl_session.c', line 131</span></pre>
 <pre class='code cpp'>
@@ -280,14 +280,20 @@ static VALUE
 ossl_ssl_session_get_time(VALUE self)
 {
     SSL_SESSION *ctx;
-    long t;
+    time_t t;
 
     GetSSLSession(self, ctx);
+#ifdef HAVE_SSL_SESSION_GET_TIME_EX
+    t = SSL_SESSION_get_time_ex(ctx);
+#elif SIZEOF_TIME_T &lt; SIZEOF_LONG
+# error OpenSSL assumes time_t is wide enough for long
+#else
     t = SSL_SESSION_get_time(ctx);
+#endif
     if (t == 0)
         return Qnil;
 
-    return rb_funcall(rb_cTime, rb_intern(&quot;at&quot;), 1, LONG2NUM(t));
+    return rb_funcall(rb_cTime, rb_intern(&quot;at&quot;), 1, TIMET2NUM(t));
 }
 </pre>
   </div>
@@ -309,24 +315,32 @@ ossl_ssl_session_get_time(VALUE self)
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl_session.c#L173-L185'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl_session.c#L179-L199'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='173' data-end='185'></pre>
+  <pre class='lines_num' data-start='179' data-end='199'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl_session.c', line 173</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl_session.c', line 179</span></pre>
 <pre class='code cpp'>
 
 static VALUE ossl_ssl_session_set_time(VALUE self, VALUE time_v)
 {
     SSL_SESSION *ctx;
-    long t;
 
     GetSSLSession(self, ctx);
     if (rb_obj_is_instance_of(time_v, rb_cTime)) {
         time_v = rb_funcall(time_v, rb_intern(&quot;to_i&quot;), 0);
     }
-    t = NUM2LONG(time_v);
-    SSL_SESSION_set_time(ctx, t);
+#ifdef HAVE_SSL_SESSION_GET_TIME_EX
+    time_t t = NUM2TIMET(time_v);
+    if (SSL_SESSION_set_time_ex(ctx, t) != t) {
+        ossl_raise(eSSLSession, &quot;SSL_SESSION_set_time_ex&quot;);
+    }
+#else
+    long t = NUM2LONG(time_v);
+    if (SSL_SESSION_set_time(ctx, t) != t) {
+        ossl_raise(eSSLSession, &quot;SSL_SESSION_set_time&quot;);
+    }
+#endif
     return ossl_ssl_session_get_time(self);
 }
 </pre>
@@ -343,11 +357,11 @@ static VALUE ossl_ssl_session_set_time(VALUE self, VALUE time_v)
 established time.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl_session.c#L153-L163'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl_session.c#L159-L169'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='153' data-end='163'></pre>
+  <pre class='lines_num' data-start='159' data-end='169'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl_session.c', line 153</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl_session.c', line 159</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -374,11 +388,11 @@ ossl_ssl_session_get_timeout(VALUE self)
     <p>Sets how long until the session expires in seconds.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl_session.c#L193-L202'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl_session.c#L207-L218'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='193' data-end='202'></pre>
+  <pre class='lines_num' data-start='207' data-end='218'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl_session.c', line 193</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl_session.c', line 207</span></pre>
 <pre class='code cpp'>
 
 static VALUE ossl_ssl_session_set_timeout(VALUE self, VALUE time_v)
@@ -388,7 +402,9 @@ static VALUE ossl_ssl_session_set_timeout(VALUE self, VALUE time_v)
 
     GetSSLSession(self, ctx);
     t = NUM2LONG(time_v);
-    SSL_SESSION_set_timeout(ctx, t);
+    if (SSL_SESSION_set_timeout(ctx, t) != 1) {
+        ossl_raise(eSSLSession, &quot;SSL_SESSION_set_timeout&quot;);
+    }
     return ossl_ssl_session_get_timeout(self);
 }
 </pre>
@@ -437,11 +453,11 @@ static VALUE ossl_ssl_session_eq(VALUE val1, VALUE val2)
     <p>Returns the <code>Session</code> ID.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl_session.c#L210-L221'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl_session.c#L226-L237'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='210' data-end='221'></pre>
+  <pre class='lines_num' data-start='226' data-end='237'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl_session.c', line 210</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl_session.c', line 226</span></pre>
 <pre class='code cpp'>
 
 static VALUE ossl_ssl_session_get_id(VALUE self)
@@ -505,11 +521,11 @@ ossl_ssl_session_initialize_copy(VALUE self, VALUE other)
     <p>Returns an <a href="../ASN1.html" title="OpenSSL::ASN1 (module)"><code>::OpenSSL::ASN1</code></a> encoded String that contains the <code>Session</code> object.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl_session.c#L229-L247'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl_session.c#L245-L264'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='229' data-end='247'></pre>
+  <pre class='lines_num' data-start='245' data-end='264'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl_session.c', line 229</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl_session.c', line 245</span></pre>
 <pre class='code cpp'>
 
 static VALUE ossl_ssl_session_to_der(VALUE self)
@@ -527,7 +543,8 @@ static VALUE ossl_ssl_session_to_der(VALUE self)
 
     str = rb_str_new(0, len);
     p = (unsigned char *)RSTRING_PTR(str);
-    i2d_SSL_SESSION(ctx, &amp;p);
+    if (i2d_SSL_SESSION(ctx, &amp;p) &lt;= 0)
+        ossl_raise(eSSLSession, &quot;i2d_SSL_SESSION&quot;);
     ossl_str_adjust(str, p);
     return str;
 }
@@ -544,11 +561,11 @@ static VALUE ossl_ssl_session_to_der(VALUE self)
     <p>Returns a PEM encoded String that contains the <code>Session</code> object.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl_session.c#L255-L273'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl_session.c#L272-L290'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='255' data-end='273'></pre>
+  <pre class='lines_num' data-start='272' data-end='290'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl_session.c', line 255</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl_session.c', line 272</span></pre>
 <pre class='code cpp'>
 
 static VALUE ossl_ssl_session_to_pem(VALUE self)
@@ -583,11 +600,11 @@ static VALUE ossl_ssl_session_to_pem(VALUE self)
     <p>Shows everything in the <code>Session</code> object. This is for diagnostic purposes.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl_session.c#L282-L299'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/ext/openssl/ossl_ssl_session.c#L299-L316'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='282' data-end='299'></pre>
+  <pre class='lines_num' data-start='299' data-end='316'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'ext/openssl/ossl_ssl_session.c', line 282</span></pre>
+<pre><span class='info file'># File 'ext/openssl/ossl_ssl_session.c', line 299</span></pre>
 <pre class='code cpp'>
 
 static VALUE ossl_ssl_session_to_text(VALUE self)

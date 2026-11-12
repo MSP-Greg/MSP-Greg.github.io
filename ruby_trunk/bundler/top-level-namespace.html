@@ -187,9 +187,9 @@ Defaults to <code>false</code>.</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/bundler/inline.rb#L36-L146'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/lib/bundler/inline.rb#L36-L154'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='36' data-end='146'></pre>
+  <pre class='lines_num' data-start='36' data-end='154'></pre>
   <div class='lines_code'>
 <pre><span class='info file'># File 'lib/bundler/inline.rb', line 36</span></pre>
 <pre class='code ruby'>
@@ -233,18 +233,25 @@ Defaults to <code>false</code>.</p></div>
         <span class='kw'>end</span>
 
         <span class='comment'># When possible we do the install in a subprocess because to install
-</span>        <span class='comment'># gems we need to require some default gems like `securerandom` etc
+</span>        <span class='comment'># gems we need to require some default gems like `tempfile` etc
 </span>        <span class='comment'># which may later conflict with the Gemfile requirements.
 </span>        <span class='id identifier rubyid_installed_in_fork'>installed_in_fork</span> <span class='op'>=</span> <span class='kw'>false</span>
         <span class='kw'>if</span> <span class='const'>Process</span>.<span class='id identifier rubyid_respond_to?'>respond_to?</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_fork'>fork</span>)
           <span class='const'><a href="Gem.html" title="Gem (module)">Gem</a></span>.<span class='id identifier rubyid_load_yaml'>load_yaml</span> <span class='comment'># Avoid NameError on Ruby 3.2&#39;s safe_yaml.rb after Gem::Specification.reset
-</span>          <span class='id identifier rubyid__'>_</span><span class='comma'>,</span> <span class='id identifier rubyid_status'>status</span> <span class='op'>=</span> <span class='const'>Process</span>.<span class='id identifier rubyid_waitpid2'>waitpid2</span>(<span class='const'>Process</span>.<span class='id identifier rubyid_fork'>fork</span> <span class='kw'>do</span>
-                                         <span class='gvar'>$VERBOSE</span> <span class='op'>=</span> <span class='kw'>nil</span>
-                                         <span class='id identifier rubyid_do_install'>do_install</span>.<span class='id identifier rubyid_call'>call</span> <span class='kw'>end</span>)
-          <span class='id identifier rubyid_exit'>exit</span>(<span class='id identifier rubyid_status'>status</span>.<span class='id identifier rubyid_exitstatus'>exitstatus</span> <span class='op'>||</span> <span class='id identifier rubyid_status'>status</span>.<span class='id identifier rubyid_to_i'>to_i</span>) <span class='kw'>unless</span> <span class='id identifier rubyid_status'>status</span>.<span class='id identifier rubyid_success?'>success?</span>
+</span>          <span class='comment'># exit! leaves the script&#39;s at_exit hooks to this process, which installs again on failure to raise the error here
+</span>          <span class='id identifier rubyid_pid'>pid</span> <span class='op'>=</span> <span class='const'>Process</span>.<span class='id identifier rubyid_fork'>fork</span> <span class='kw'>do</span>
+            <span class='gvar'>$VERBOSE</span> <span class='op'>=</span> <span class='kw'>nil</span>
+            <span class='id identifier rubyid_do_install'>do_install</span>.<span class='id identifier rubyid_call'>call</span>
+            <span class='gvar'>$stdout</span>.<span class='id identifier rubyid_flush'>flush</span>
+            <span class='gvar'>$stderr</span>.<span class='id identifier rubyid_flush'>flush</span>
+            <span class='id identifier rubyid_exit!'>exit!</span>(<span class='kw'>true</span>)
+          <span class='kw'>rescue</span> <span class='const'>Exception</span> <span class='comment'># rubocop:disable Lint/RescueException
+</span>            <span class='id identifier rubyid_exit!'>exit!</span>(<span class='kw'>false</span>)
+          <span class='kw'>end</span>
+          <span class='id identifier rubyid_installed_in_fork'>installed_in_fork</span> <span class='op'>=</span> <span class='const'>Process</span>.<span class='id identifier rubyid_waitpid2'>waitpid2</span>(<span class='id identifier rubyid_pid'>pid</span>).<span class='id identifier rubyid_last'>last</span>.<span class='id identifier rubyid_success?'>success?</span>
+        <span class='kw'>end</span>
 
-          <span class='id identifier rubyid_installed_in_fork'>installed_in_fork</span> <span class='op'>=</span> <span class='kw'>true</span>
-
+        <span class='kw'>if</span> <span class='id identifier rubyid_installed_in_fork'>installed_in_fork</span>
           <span class='const'><a href="Bundler.html" title="Bundler (module)">Bundler</a></span>.<span class='id identifier rubyid_reset!'><a href="Bundler.html#reset!-class_method" title="Bundler.reset! (method)">reset!</a></span>
           <span class='const'><a href="Gem.html" title="Gem (module)">Gem</a></span><span class='op'>::</span><span class='const'><a href="Gem/Specification.html" title="Gem::Specification (class)">Specification</a></span>.<span class='id identifier rubyid_reset'>reset</span>
           <span class='const'><a href="Bundler.html" title="Bundler (module)">Bundler</a></span>.<span class='id identifier rubyid_instance_variable_set'>instance_variable_set</span>(<span class='symbeg'>:</span><span class='ivar'>@bundle_path</span><span class='comma'>,</span> <span class='const'>Pathname</span>.<span class='id identifier rubyid_new'>new</span>(<span class='const'><a href="Gem.html" title="Gem (module)">Gem</a></span>.<span class='id identifier rubyid_dir'>dir</span>))
@@ -271,7 +278,8 @@ Defaults to <code>false</code>.</p></div>
       <span class='id identifier rubyid_configure_forked_definition'>configure_forked_definition</span>.<span class='id identifier rubyid_call'>call</span>(<span class='id identifier rubyid_definition'>definition</span>) <span class='kw'>if</span> <span class='id identifier rubyid_installed_in_fork'>installed_in_fork</span>
 
       <span class='kw'>begin</span>
-        <span class='id identifier rubyid_runtime'>runtime</span> <span class='op'>=</span> <span class='const'><a href="Bundler.html" title="Bundler (module)">Bundler</a></span><span class='op'>::</span><span class='const'><a href="Bundler/Runtime.html" title="Bundler::Runtime (class)">Runtime</a></span>.<span class='id identifier rubyid_new'><a href="Bundler/Runtime.html#new-class_method" title="Bundler::Runtime.new (method)">new</a></span>(<span class='kw'>nil</span><span class='comma'>,</span> <span class='id identifier rubyid_definition'>definition</span>).<span class='id identifier rubyid_setup'><a href="Bundler/Runtime.html#setup-instance_method" title="Bundler::Runtime#setup (method)">setup</a></span>
+        <span class='id identifier rubyid_runtime'>runtime</span> <span class='op'>=</span> <span class='const'><a href="Bundler.html" title="Bundler (module)">Bundler</a></span><span class='op'>::</span><span class='const'><a href="Bundler/Runtime.html" title="Bundler::Runtime (class)">Runtime</a></span>.<span class='id identifier rubyid_new'><a href="Bundler/Runtime.html#new-class_method" title="Bundler::Runtime.new (method)">new</a></span>(<span class='kw'>nil</span><span class='comma'>,</span> <span class='id identifier rubyid_definition'>definition</span>)
+        <span class='id identifier rubyid_installed_in_fork'>installed_in_fork</span> <span class='op'>?</span> <span class='const'><a href="Bundler.html" title="Bundler (module)">Bundler</a></span>.<span class='id identifier rubyid_ui'><a href="Bundler.html#ui-class_method" title="Bundler.ui (method)">ui</a></span>.<span class='id identifier rubyid_silence'>silence</span> { <span class='id identifier rubyid_runtime'>runtime</span>.<span class='id identifier rubyid_setup'>setup</span> } <span class='op'>:</span> <span class='id identifier rubyid_runtime'>runtime</span>.<span class='id identifier rubyid_setup'>setup</span>
       <span class='kw'>rescue</span> <span class='const'><a href="Gem.html" title="Gem (module)">Gem</a></span><span class='op'>::</span><span class='const'>LoadError</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
         <span class='id identifier rubyid_name'>name</span> <span class='op'>=</span> <span class='id identifier rubyid_e'>e</span>.<span class='id identifier rubyid_name'>name</span>
         <span class='id identifier rubyid_version'>version</span> <span class='op'>=</span> <span class='id identifier rubyid_e'>e</span>.<span class='id identifier rubyid_requirement'>requirement</span>.<span class='id identifier rubyid_requirements'>requirements</span>.<span class='id identifier rubyid_first'>first</span>[<span class='int'>1</span>]

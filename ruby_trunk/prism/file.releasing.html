@@ -87,9 +87,10 @@ ruby -pi -e &#39;gsub(/PRISM_VERSION_PATCH \d+/, %Q{PRISM_VERSION_PATCH #{ENV[&q
 ruby -pi -e &#39;gsub(/PRISM_VERSION &quot;.+?&quot;/, %Q{PRISM_VERSION &quot;#{ENV[&quot;PRISM_VERSION&quot;]}&quot;})&#39; include/prism/version.h
 ruby -pi -e &#39;gsub(/&quot;version&quot;: &quot;.+?&quot;/, %Q{&quot;version&quot;: &quot;#{ENV[&quot;PRISM_VERSION&quot;]}&quot;})&#39; javascript/package.json
 ruby -pi -e &#39;gsub(/lossy\(\), &quot;.+?&quot;/, %Q{lossy(), &quot;#{ENV[&quot;PRISM_VERSION&quot;]}&quot;})&#39; rust/ruby-prism-sys/tests/utils_tests.rs
-ruby -pi -e &#39;gsub(/\d+, &quot;prism major/, %Q{#{ENV[&quot;PRISM_MAJOR&quot;]}, &quot;prism major})&#39; templates/java/org/prism/Loader.java.erb
-ruby -pi -e &#39;gsub(/\d+, &quot;prism minor/, %Q{#{ENV[&quot;PRISM_MINOR&quot;]}, &quot;prism minor})&#39; templates/java/org/prism/Loader.java.erb
-ruby -pi -e &#39;gsub(/\d+, &quot;prism patch/, %Q{#{ENV[&quot;PRISM_PATCH&quot;]}, &quot;prism patch})&#39; templates/java/org/prism/Loader.java.erb
+ruby -pi -e &#39;gsub(/assertEquals\(&quot;.+?&quot;, prism.version\(\)\)/, %Q{assertEquals(&quot;#{ENV[&quot;PRISM_VERSION&quot;]}&quot;, prism.version())})&#39; java/wasm/src/test/java/org/jruby/parser/prism/WASMTest.java
+ruby -pi -e &#39;gsub(/\d+, &quot;prism major/, %Q{#{ENV[&quot;PRISM_MAJOR&quot;]}, &quot;prism major})&#39; templates/java/api/src/main/java-templates/org/ruby_lang/prism/Loader.java.erb
+ruby -pi -e &#39;gsub(/\d+, &quot;prism minor/, %Q{#{ENV[&quot;PRISM_MINOR&quot;]}, &quot;prism minor})&#39; templates/java/api/src/main/java-templates/org/ruby_lang/prism/Loader.java.erb
+ruby -pi -e &#39;gsub(/\d+, &quot;prism patch/, %Q{#{ENV[&quot;PRISM_PATCH&quot;]}, &quot;prism patch})&#39; templates/java/api/src/main/java-templates/org/ruby_lang/prism/Loader.java.erb
 ruby -pi -e &#39;gsub(/MAJOR_VERSION = \d+/, %Q{MAJOR_VERSION = #{ENV[&quot;PRISM_MAJOR&quot;]}})&#39; templates/javascript/src/deserialize.js.erb
 ruby -pi -e &#39;gsub(/MINOR_VERSION = \d+/, %Q{MINOR_VERSION = #{ENV[&quot;PRISM_MINOR&quot;]}})&#39; templates/javascript/src/deserialize.js.erb
 ruby -pi -e &#39;gsub(/PATCH_VERSION = \d+/, %Q{PATCH_VERSION = #{ENV[&quot;PRISM_PATCH&quot;]}})&#39; templates/javascript/src/deserialize.js.erb
@@ -118,7 +119,12 @@ chruby ruby-4.1.0-dev &amp;&amp; BUNDLE_GEMFILE=gemfiles/4.1/Gemfile bundle inst
 <pre class="code sh"><code class="sh">bundle exec rake cargo:build
 </code></pre>
 <ul>
-<li>Commit all of the updated files:</li>
+<li>
+<p>Regenerate <code>rust/ruby-prism-sys/src/bindings.rs</code> with <code>bundle exec rake cargo:bindings</code>. CI fails if the committed file is stale.</p>
+</li>
+<li>
+<p>Commit all of the updated files:</p>
+</li>
 </ul>
 <pre class="code sh"><code class="sh">git commit -am &quot;Bump to v$PRISM_VERSION&quot;
 </code></pre>
@@ -128,10 +134,54 @@ chruby ruby-4.1.0-dev &amp;&amp; BUNDLE_GEMFILE=gemfiles/4.1/Gemfile bundle inst
 <pre class="code sh"><code class="sh">git push
 </code></pre>
 <h2 id="Publishing">Publishing</h2>
+<h3 id="Automatic_Github_Actions_">Automatic (Github Actions)</h3>
+<p>The<a href='.github/workflows/publish-gem.yml'><code>publish-gem.yml</code>&lt;/a&gt; workflow handles publishing. It triggers either on a <code>v*</code> tag push or via manual <code>workflow_dispatch</code>. In both cases it:</p>
 <ul>
-<li>Update the GitHub release page with a copy of the latest entry in the <code>CHANGELOG.md</code> file.</li>
-<li>Push a new tag to the GitHub repository, following the <code>vX.Y.Z</code> format.</li>
+<li>Builds the source gem and all native gems (calling the reusable<a href='.github/workflows/build-gems.yml'><code>build-gems.yml</code>&lt;/a&gt; workflow with <code>--release</code>).</li>
+<li>Pushes every gem to <code>RubyGems.org</code> using OIDC trusted publishing (no API key required).</li>
+<li>Creates (or updates) a GitHub release for the tag, attaches the <code>.gem</code> files and a <code>CHECKSUMS.txt</code>, and auto-generates release notes.</li>
 </ul>
+<p>The <code>push</code> job is gated on <code>github.repository == 'ruby/prism'</code> and runs in the <code>rubygems.org</code> GitHub environment, which is the trust anchor for OIDC publishing to <code>RubyGems.org</code>. Pushes that already exist on <code>RubyGems.org</code> are reported as warnings rather than failing the run, so re-runs after a partial failure are safe.</p>
+<h4 id="1_Trigger_the_release_pipeline">1. Trigger the release pipeline</h4>
+<p>After the preparation commit is on <code>main</code>, tag and push:</p>
+<pre class="code sh"><code class="sh">git tag &quot;v${PRISM_VERSION}&quot;
+git push origin &quot;v${PRISM_VERSION}&quot;
+</code></pre>
+<p>The <code>v*</code> tag push triggers <code>publish-gem.yml</code> automatically.</p>
+<p>If you need to re-trigger the workflow against an existing tag — for example, if the tag-push run failed partway through and you've fixed the cause — go to the Actions tab and use &quot;Run workflow&quot; on <code>Publish gem to rubygems.org</code>, passing the tag (e.g. <code>v1.10.0</code>) as the <code>version_tag</code> input. The workflow will check out that tag, rebuild, and push.</p>
+<h4 id="2_Edit_the_release_notes">2. Edit the release notes</h4>
+<p>The workflow creates the GitHub release with auto-generated notes. Edit it to paste in the relevant section of <code>CHANGELOG.md</code>.</p>
+<h3 id="Manually">Manually</h3>
+<p>If for whatever reason (like an emergency), you need to release a version and the Github Actions pipelines aren't available, here's how you can build the full set of native gems.</p>
+<h4 id="1_Build_gems">1. Build gems</h4>
+<pre class="code sh"><code class="sh">bin/build-gems
+</code></pre>
+<p>This script will:</p>
+<ul>
+<li>Run <code>bundle update</code> and <code>bundle package</code> to vendor dependencies</li>
+<li>Run a safety check (<code>compile</code> and <code>test</code>)</li>
+<li>Build all gems via <code>rake gem:all</code> (source gem + native gems for all platforms using rake-compiler-dock)</li>
+<li>Place all gems in <code>./gems/</code></li>
+<li>Verify all built gems with <code>test/prism/packaging/test-gem-file-contents</code></li>
+<li>Print SHA256 checksums for inclusion in release notes</li>
+</ul>
+<h4 id="2_Push_gems">2. Push gems</h4>
+<p>Push the native gems first, then the source gem last (so that when users see the new version, native gems are already available):</p>
+<pre class="code sh"><code class="sh"># push native gems first
+for gem in gems/prism-*-*.gem ; do
+  gem push &quot;$gem&quot;
+done
+
+# push source gem last
+gem push gems/prism-${PRISM_VERSION}.gem
+</code></pre>
+<h4 id="3_Push_tag">3. Push tag</h4>
+<p>Push a new tag to the GitHub repository, following the <code>vX.Y.Z</code> format:</p>
+<pre class="code sh"><code class="sh">git tag &quot;v${PRISM_VERSION}&quot;
+git push origin &quot;v${PRISM_VERSION}&quot;
+</code></pre>
+<h4 id="4_Create_a_release">4. Create a release</h4>
+<p>Update the GitHub release page with a copy of the latest entry in the <code>CHANGELOG.md</code> file, including the SHA256 checksums from the build output.</p>
 <div id='footer'></div>
 </div> <!-- content  -->
 </div> <!-- y_main   -->

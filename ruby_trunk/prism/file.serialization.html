@@ -136,6 +136,31 @@ This drastically cuts down on the size of the serialized string, especially when
 </tr>
 </tbody>
 </table>
+<h3 id="comment_attachment">comment attachment</h3>
+<p>A comment attachment lists the comments owned by a single node.
+Only nodes that own comments have an attachment, and there are none unless the <code>attach_comments</code> option was set.</p>
+<table>
+<thead>
+<tr>
+<th># bytes</th>
+<th>field</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>varuint</td>
+<td>the node identifier of the node that owns the comments</td>
+</tr>
+<tr>
+<td>varuint</td>
+<td>number of comments owned by the node</td>
+</tr>
+<tr>
+<td>varuint*</td>
+<td>the index of each owned comment in the list of comments, ordered by start offset</td>
+</tr>
+</tbody>
+</table>
 <h3 id="magic_comment">magic comment</h3>
 <table>
 <thead>
@@ -275,6 +300,10 @@ The constant pool contains constants that were interned while parsing.</p>
 <td>the start line</td>
 </tr>
 <tr>
+<td><code>8</code></td>
+<td>the checksum of the source up to the end of the <code>__END__</code> line in native endian order, see <code>pm_parser_checksum</code></td>
+</tr>
+<tr>
 <td>varuint</td>
 <td>number of newline offsets</td>
 </tr>
@@ -289,6 +318,14 @@ The constant pool contains constants that were interned while parsing.</p>
 <tr>
 <td>comment*</td>
 <td>comments</td>
+</tr>
+<tr>
+<td>varuint</td>
+<td>number of nodes with attached comments</td>
+</tr>
+<tr>
+<td>comment attachment*</td>
+<td>comment attachments</td>
 </tr>
 <tr>
 <td>varuint</td>
@@ -319,6 +356,10 @@ The constant pool contains constants that were interned while parsing.</p>
 <td>warnings</td>
 </tr>
 <tr>
+<td><code>1</code></td>
+<td><code>1</code> if the source is continuable (incomplete but could become valid with more input), <code>0</code> otherwise</td>
+</tr>
+<tr>
 <td><code>4</code></td>
 <td>content pool offset</td>
 </tr>
@@ -329,8 +370,12 @@ The constant pool contains constants that were interned while parsing.</p>
 </tbody>
 </table>
 <p>After the header comes the body of the serialized string.
-The body consists of a sequence of nodes that is built using a prefix traversal order of the syntax tree.
-Each node is structured like the following table:</p>
+The body consists of a sequence of nodes that is built using a postfix traversal order of the syntax tree: the children of each node come before the node itself, so the root node comes last.
+The body ends at the content pool offset specified in the header.</p>
+<p>The children of a node are the values of its <code>node</code>, <code>node?</code>, and <code><a href="">node</a></code> fields, which are serialized in the order in which the fields are listed in <code>config.yml</code>.
+A <code>node</code> field is serialized as its node, a <code>node?</code> field is serialized as its node or as a single <code>0</code> byte if the node is not present, and a <code><a href="">node</a></code> field is serialized as each of its nodes in order.
+A loader can therefore keep a stack of loaded nodes: a <code>0</code> byte pushes an absent node, and each node pops its children off the top of the stack (they are in field order) and then pushes itself.</p>
+<p>After its children, each node is structured like the following table:</p>
 <table>
 <thead>
 <tr>
@@ -357,13 +402,12 @@ Each node is structured like the following table:</p>
 </tr>
 </tbody>
 </table>
-<p>Every field on the node is then appended to the serialized string. The fields can be determined by referencing <code>config.yml</code>. Depending on the type of field, it could take a couple of different forms, described below:</p>
+<p>Every other field on the node is then appended to the serialized string. The fields can be determined by referencing <code>config.yml</code>. Depending on the type of field, it could take a couple of different forms, described below:</p>
 <ul>
 <li><code>double</code> - A field that is a <code>double</code>. This is structured as a sequence of 8 bytes in native endian order.</li>
-<li><code>node</code> - A field that is a node. This is structured just as like parent node.</li>
-<li><code>node?</code> - A field that is a node that is optionally present. If the node is not present, then a single <code>0</code> byte will be written in its place. If it is present, then it will be structured just as like parent node.</li>
-<li><code><a href="">node</a></code> - A field that is an array of nodes. This is structured as a variable-length integer length, followed by the child nodes themselves.</li>
-<li><code>string</code> - A field that is a string. For example, this is used as the name of the method in a call node, since it cannot directly reference the source string (as in <code>@-</code> or <code>foo=</code>). This is structured as a variable-length integer byte length, followed by the string itself (<em>without</em> a trailing null byte).</li>
+<li><code>node</code>, <code>node?</code> - Nothing is appended here, since the node has already been serialized as a child.</li>
+<li><code><a href="">node</a></code> - A field that is an array of nodes. This is structured as a variable-length integer length, which is the number of children that belong to this field.</li>
+<li><code>string</code> - A field that is a string. For example, this is used as the name of the method in a call node, since it cannot directly reference the source string (as in <code>@-</code> or <code>foo=</code>). This is structured as a variable-length integer byte length, followed by the string bytes (<em>without</em> a trailing null byte).</li>
 <li><code>constant</code> - A variable-length integer that represents an index in the constant pool.</li>
 <li><code>constant?</code> - An optional variable-length integer that represents an index in the constant pool. If it's not present, then a single <code>0</code> byte will be written in its place.</li>
 <li><code>integer</code> - A field that represents an arbitrary-sized integer. The structure is listed above.</li>
@@ -372,8 +416,30 @@ Each node is structured like the following table:</p>
 <li><code>uint8</code> - A field that is an 8-bit unsigned integer. This is structured as a single byte.</li>
 <li><code>uint32</code> - A field that is a 32-bit unsigned integer. This is structured as a variable-length integer.</li>
 </ul>
-<p>After the syntax tree, the content pool is serialized. This is a list of constants that were referenced from within the tree. The content pool begins at the offset specified in the header. Constants can be either &quot;owned&quot; (in which case their contents are embedded in the serialization) or &quot;shared&quot; (in which case their contents represent a slice of the source string). The most significant bit of the constant indicates whether it is owned or shared.</p>
-<p>In the case that it is owned, the constant is structured as follows:</p>
+<p>The <code>body</code> field of a <code>DefNode</code> is lazy, which means that loaders can skip it and load it later. The children of a <code>DefNode</code> are preceded by the following, which loaders that do not skip lazy fields can ignore:</p>
+<table>
+<thead>
+<tr>
+<th># bytes</th>
+<th>field</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code></td>
+<td><code>255</code></td>
+</tr>
+<tr>
+<td><code>4</code></td>
+<td>the byte length of the children that come before the <code>body</code> child</td>
+</tr>
+<tr>
+<td><code>4</code></td>
+<td>the byte length of the <code>body</code> child</td>
+</tr>
+</tbody>
+</table>
+<p>After the syntax tree, the content pool is serialized. This is a list of constants that were referenced from within the tree. The content pool begins at the offset specified in the header. Every constant is embedded in the serialization. Each constant is structured as follows:</p>
 <table>
 <thead>
 <tr>
@@ -392,53 +458,26 @@ Each node is structured like the following table:</p>
 </tr>
 </tbody>
 </table>
-<p>Note that you will need to mask off the most significant bit for the byte offset in the serialization. In the case that it is shared, the constant is structured as follows:</p>
-<table>
-<thead>
-<tr>
-<th># bytes</th>
-<th>field</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>4</code></td>
-<td>the byte offset in the source string for the contents of the constant</td>
-</tr>
-<tr>
-<td><code>4</code></td>
-<td>the byte length in the source string</td>
-</tr>
-</tbody>
-</table>
-<p>After the constant pool, the contents of the owned constants are serialized. This is just a sequence of bytes that represent the contents of the constants. At the end of the serialization, the buffer is null terminated.</p>
+<p>After the constant pool, the contents of the constants are serialized. This is just a sequence of bytes that represent the contents of the constants. At the end of the serialization, the buffer is null terminated.</p>
 <h2 id="APIs">APIs</h2>
 <p>The relevant APIs and struct definitions are listed below:</p>
 <pre class="code c"><code class="c">// A pm_buffer_t is a simple memory buffer that stores data in a contiguous
 // block of memory. It is used to store the serialized representation of a
 // prism tree.
-typedef struct {
-  char *value;
-  size_t length;
-  size_t capacity;
-} pm_buffer_t;
-
-// Free the memory associated with the buffer.
-void pm_buffer_free(pm_buffer_t *);
 
 // Parse and serialize the AST represented by the given source to the given
 // buffer.
 void pm_serialize_parse(pm_buffer_t *buffer, const uint8_t *source, size_t length, const char *data);
 </code></pre>
-<p>Typically you would use a stack-allocated <code>pm_buffer_t</code> and call <code>pm_serialize_parse</code>, as in:</p>
+<p>Typically you would allocate a <code>pm_buffer_t</code> and call <code>pm_serialize_parse</code>, as in:</p>
 <pre class="code c"><code class="c">void
 serialize(const uint8_t *source, size_t length) {
-  pm_buffer_t buffer = { 0 };
-  pm_serialize_parse(&amp;buffer, source, length, NULL);
+  pm_buffer_t *buffer = pm_buffer_new();
+  pm_serialize_parse(buffer, source, length, NULL);
 
   // Do something with the serialized string.
 
-  pm_buffer_free(&amp;buffer);
+  pm_buffer_free(buffer);
 }
 </code></pre>
 <p>The final argument to <code>pm_serialize_parse</code> is an optional string that controls the options to the parse function. This includes all of the normal options that could be passed to <code>pm_parser_init</code> through a <code>pm_options_t</code> struct, but serialized as a string to make it easier for callers through FFI. Note that no <code>varuint</code> are used here to make it easier to produce the data for the caller, and also serialized size is less important here. The format of the data is structured as follows:</p>
