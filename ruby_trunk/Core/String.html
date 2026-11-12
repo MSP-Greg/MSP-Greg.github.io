@@ -96,7 +96,7 @@
     </tr>
     <tr class='single'>
       <td id='t2_defined_in' class='box_2 o'>Defined in:</td>
-      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L16407'>string.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/complex.c#L2365'>complex.c</a>,<br/> <a class='repo' href='https://github.com/ruby/ruby/blob/master/encoding.c#L1277'>encoding.c</a>,<br/> <a class='repo' href='https://github.com/ruby/ruby/blob/master/golf_prelude.rb#L88'>golf_prelude.rb</a>,<br/> <a class='repo' href='https://github.com/ruby/ruby/blob/master/pack.rb#L12'>pack.rb</a>,<br/> <a class='repo' href='https://github.com/ruby/ruby/blob/master/rational.c#L2541'>rational.c</a>,<br/> <a class='repo' href='https://github.com/ruby/ruby/blob/master/string.rb#L1'>string.rb</a>,<br/> <a class='repo' href='https://github.com/ruby/ruby/blob/master/symbol.c#L1090'>symbol.c</a>,<br/> <a class='repo' href='https://github.com/ruby/ruby/blob/master/transcode.c#L3035'>transcode.c</a>,<br/> <a class='repo' href='https://github.com/ruby/ruby/blob/master/doc/string.rb#L421'>doc/string.rb</a></span>
+      <td class='box_rel'><a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L16337'>string.c</a><span class='defines'>,<br /><a class='repo' href='https://github.com/ruby/ruby/blob/master/complex.c#L2365'>complex.c</a>,<br/> <a class='repo' href='https://github.com/ruby/ruby/blob/master/encoding.c#L1277'>encoding.c</a>,<br/> <a class='repo' href='https://github.com/ruby/ruby/blob/master/golf_prelude.rb#L88'>golf_prelude.rb</a>,<br/> <a class='repo' href='https://github.com/ruby/ruby/blob/master/pack.rb#L12'>pack.rb</a>,<br/> <a class='repo' href='https://github.com/ruby/ruby/blob/master/rational.c#L2541'>rational.c</a>,<br/> <a class='repo' href='https://github.com/ruby/ruby/blob/master/string.rb#L1'>string.rb</a>,<br/> <a class='repo' href='https://github.com/ruby/ruby/blob/master/symbol.c#L1090'>symbol.c</a>,<br/> <a class='repo' href='https://github.com/ruby/ruby/blob/master/transcode.c#L3035'>transcode.c</a>,<br/> <a class='repo' href='https://github.com/ruby/ruby/blob/master/doc/string.rb#L421'>doc/string.rb</a></span>
       </td>
     </tr>
   </tbody>
@@ -1194,15 +1194,6 @@ as determined by a given record separator.</li>
   </li>
   <li>
     <span class='summary_signature '>
-      <a href="#initialize-instance_method" title="#new (instance method)">#<strong>new</strong>(string = &#39;&#39;.encode(Encoding::ASCII_8BIT), **options)  &#x21d2; String </a>
-    </span>
-    <span class='note title constructor'>constructor</span>
-    <div class='summary_desc'>
-      <div class='inline'><p>Returns a new String object containing the given <code>string</code>.</p></div>
-    </div>
-  </li>
-  <li>
-    <span class='summary_signature '>
       <a href="#initialize_copy-instance_method" title="#initialize_copy (instance method)">#<strong>initialize_copy</strong>(other_string)  &#x21d2; self </a>
     </span>
     <div class='summary_desc'>
@@ -1786,232 +1777,39 @@ as determined by a given record separator.</li>
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L2285-L2362'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.rb#L87-L114'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2285' data-end='2362'></pre>
+  <pre class='lines_num' data-start='87' data-end='114'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 2285</span></pre>
+<pre><span class='info file'># File 'string.rb', line 87</span></pre>
 <pre class='code cpp'>
 
-static VALUE
+VALUE
 rb_str_s_new(int argc, VALUE *argv, VALUE klass)
 {
     if (klass != rb_cString) {
         return rb_class_new_instance_pass_kw(argc, argv, klass);
     }
 
-    static ID keyword_ids[2];
-    VALUE orig, opt, encoding = Qnil, capacity = Qnil;
-    VALUE kwargs[2];
-    rb_encoding *enc = NULL;
+    VALUE venc = Qundef;
+    VALUE vcapa = INT2FIX(0);
 
+    VALUE orig, opt;
     int n = rb_scan_args(argc, argv, &quot;01:&quot;, &amp;orig, &amp;opt);
-    if (NIL_P(opt)) {
-        return rb_class_new_instance_pass_kw(argc, argv, klass);
-    }
+    if (n == 0) orig = Qundef;
 
-    keyword_ids[0] = rb_id_encoding();
-    CONST_ID(keyword_ids[1], &quot;capacity&quot;);
-    rb_get_kwargs(opt, keyword_ids, 0, 2, kwargs);
-    encoding = kwargs[0];
-    capacity = kwargs[1];
-
-    if (n == 1) {
-        orig = StringValue(orig);
-    }
-    else {
-        orig = Qnil;
-    }
-
-    if (UNDEF_P(encoding)) {
-        if (!NIL_P(orig)) {
-            encoding = rb_obj_encoding(orig);
-        }
-    }
-
-    if (!UNDEF_P(encoding)) {
-        enc = rb_to_encoding(encoding);
-    }
-
-    // If capacity is nil, we&#39;re basically just duping `orig`.
-    if (UNDEF_P(capacity)) {
-        if (NIL_P(orig)) {
-            VALUE empty_str = str_new(klass, &quot;&quot;, 0);
-            if (enc) {
-                rb_enc_associate(empty_str, enc);
-            }
-            return empty_str;
-        }
-        VALUE copy = str_duplicate(klass, orig);
-        rb_enc_associate(copy, enc);
-        ENC_CODERANGE_CLEAR(copy);
-        return copy;
-    }
-
-    rb_len_t capa = 0;
-    capa = NUM2LEN(capacity);
-    if (capa &lt; 0) {
-        capa = 0;
-    }
-
-    if (!NIL_P(orig)) {
-        rb_len_t orig_capa = rb_str_capacity(orig);
-        if (orig_capa &gt; capa) {
-            capa = orig_capa;
-        }
-    }
-
-    VALUE str = str_enc_new(klass, NULL, capa, enc);
-    STR_SET_LEN(str, 0);
-    TERM_FILL(RSTRING_PTR(str), enc ? rb_enc_mbmaxlen(enc) : 1);
-
-    if (!NIL_P(orig)) {
-        rb_str_buf_append(str, orig);
-    }
-
-    return str;
-}
-</pre>
-  </div>
-</div>
-</section>
-
-  <section class='method_details' id="initialize-instance_method">
-  <h3 class='signature '>
-    #<strong>new</strong>(string = &#39;&#39;.encode(Encoding::ASCII_8BIT), **options)  &#x21d2; <code>String</code>   </h3>
-<div class='docstring'>
-  <div class='discussion'>
-    <p>Returns a new String object containing the given <code>string</code>.</p>
-<p>The <code>options</code> are optional keyword options (see below).</p>
-<p>With no argument given and keyword <a href="#encoding-instance_method" title="String#encoding (method)">#encoding</a> also not given,
-returns an empty string with the <a href="Encoding.html" title="Encoding (class)"><code>::Encoding</code></a> <tt>ASCII-8BIT</tt>:</p>
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_s'>s</span> <span class='op'>=</span> <span class='const'>String</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="String.new (method)">new</a></span> <span class='comment'># =&gt; &quot;&quot;
-</span><span class='id identifier rubyid_s'>s</span>.<span class='id identifier rubyid_encoding'><a href="#encoding-instance_method" title="String#encoding (method)">encoding</a></span>     <span class='comment'># =&gt; #&lt;Encoding:ASCII-8BIT&gt;</span></code></pre>
-<p>With argument <code>string</code> given and keyword option <a href="#encoding-instance_method" title="String#encoding (method)">#encoding</a> not given,
-returns a new string with the same encoding as <code>string</code>:</p>
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_s0'>s0</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&#39;</span></span>.<span class='id identifier rubyid_encode'><a href="#encode-instance_method" title="String#encode (method)">encode</a></span>(<span class='const'><a href="Encoding.html" title="Encoding (class)">Encoding</a></span><span class='op'>::</span><span class='const'>UTF_16</span>)
-<span class='id identifier rubyid_s1'>s1</span> <span class='op'>=</span> <span class='const'>String</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="String.new (method)">new</a></span>(<span class='id identifier rubyid_s0'>s0</span>)
-<span class='id identifier rubyid_s1'>s1</span>.<span class='id identifier rubyid_encoding'><a href="#encoding-instance_method" title="String#encoding (method)">encoding</a></span> <span class='comment'># =&gt; #&lt;Encoding:UTF-16 (dummy)&gt;</span></code></pre>
-<p>(Unlike String.new,
-a <a href='file.literals.html#String_Literals'>string literal</a> like <tt>''</tt> or a
-<a href='file.literals.html#Here_Document_Literals'>here document literal</a>
-always has <a href='file.encodings.html#Script_Encoding'>script encoding</a>.)</p>
-<p>With keyword option <a href="#encoding-instance_method" title="String#encoding (method)">#encoding</a> given,
-returns a string with the specified encoding;
-the <a href="#encoding-instance_method" title="String#encoding (method)">#encoding</a> may be an <a href="Encoding.html" title="Encoding (class)"><code>::Encoding</code></a> object, an encoding name,
-or an encoding name alias:</p>
-<pre class="code ruby"><code class="ruby"><span class='const'>String</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="String.new (method)">new</a></span>(<span class='label'>encoding:</span> <span class='const'><a href="Encoding.html" title="Encoding (class)">Encoding</a></span><span class='op'>::</span><span class='const'>US_ASCII</span>).<span class='id identifier rubyid_encoding'><a href="#encoding-instance_method" title="String#encoding (method)">encoding</a></span>        <span class='comment'># =&gt; #&lt;Encoding:US-ASCII&gt;
-</span><span class='const'>String</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="String.new (method)">new</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='label'>encoding:</span> <span class='const'><a href="Encoding.html" title="Encoding (class)">Encoding</a></span><span class='op'>::</span><span class='const'>US_ASCII</span>).<span class='id identifier rubyid_encoding'><a href="#encoding-instance_method" title="String#encoding (method)">encoding</a></span>    <span class='comment'># =&gt; #&lt;Encoding:US-ASCII&gt;
-</span><span class='const'>String</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="String.new (method)">new</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='label'>encoding:</span> <span class='const'><a href="Encoding.html" title="Encoding (class)">Encoding</a></span><span class='op'>::</span><span class='const'>US_ASCII</span>).<span class='id identifier rubyid_encoding'><a href="#encoding-instance_method" title="String#encoding (method)">encoding</a></span> <span class='comment'># =&gt; #&lt;Encoding:US-ASCII&gt;
-</span><span class='const'>String</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="String.new (method)">new</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='label'>encoding:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>US-ASCII</span><span class='tstring_end'>&#39;</span></span>).<span class='id identifier rubyid_encoding'><a href="#encoding-instance_method" title="String#encoding (method)">encoding</a></span>         <span class='comment'># =&gt; #&lt;Encoding:US-ASCII&gt;
-</span><span class='const'>String</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="String.new (method)">new</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='label'>encoding:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>ASCII</span><span class='tstring_end'>&#39;</span></span>).<span class='id identifier rubyid_encoding'><a href="#encoding-instance_method" title="String#encoding (method)">encoding</a></span>            <span class='comment'># =&gt; #&lt;Encoding:US-ASCII&gt;</span></code></pre>
-<p>The given encoding need not be valid for the string's content,
-and its validity is not checked:</p>
-<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_s'>s</span> <span class='op'>=</span> <span class='const'>String</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="String.new (method)">new</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>こんにちは</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='label'>encoding:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>ascii</span><span class='tstring_end'>&#39;</span></span>)
-<span class='id identifier rubyid_s'>s</span>.<span class='id identifier rubyid_valid_encoding?'><a href="#valid_encoding%3F-instance_method" title="String#valid_encoding? (method)">valid_encoding?</a></span> <span class='comment'># =&gt; false</span></code></pre>
-<p>But the given <a href="#encoding-instance_method" title="String#encoding (method)">#encoding</a> itself is checked:</p>
-<pre class="code ruby"><code class="ruby"><span class='const'>String</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="String.new (method)">new</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='label'>encoding:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>bar</span><span class='tstring_end'>&#39;</span></span>) <span class='comment'># Raises ArgumentError.</span></code></pre>
-<p>With keyword option <code>capacity</code> given,
-the given value is advisory only,
-and may or may not set the size of the internal buffer,
-which may in turn affect performance:</p>
-<pre class="code ruby"><code class="ruby"><span class='const'>String</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="String.new (method)">new</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='label'>capacity:</span> <span class='int'>1</span>)    <span class='comment'># Buffer size is at least 4 (includes terminal null byte).
-</span><span class='const'>String</span>.<span class='id identifier rubyid_new'><a href="#new-class_method" title="String.new (method)">new</a></span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>foo</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='label'>capacity:</span> <span class='int'>4096</span>) <span class='comment'># Buffer size is at least 4;
-</span>                                <span class='comment'># may be equal to, greater than, or less than 4096.</span></code></pre>
-  </div>
-</div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L2196-L2282'>GitHub</a>&#8202;]</span>
-<div class='source_code h'>
-  <pre class='lines_num' data-start='2196' data-end='2282'></pre>
-  <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 2196</span></pre>
-<pre class='code cpp'>
-
-static VALUE
-rb_str_init(int argc, VALUE *argv, VALUE str)
-{
-    static ID keyword_ids[2];
-    VALUE orig, opt, venc, vcapa;
-    VALUE kwargs[2];
-    rb_encoding *enc = 0;
-    int n;
-
-    if (!keyword_ids[0]) {
-        keyword_ids[0] = rb_id_encoding();
-        CONST_ID(keyword_ids[1], &quot;capacity&quot;);
-    }
-
-    n = rb_scan_args(argc, argv, &quot;01:&quot;, &amp;orig, &amp;opt);
     if (!NIL_P(opt)) {
+        ID keyword_ids[2] = {idEncoding, idCapacity};
+        VALUE kwargs[2];
         rb_get_kwargs(opt, keyword_ids, 0, 2, kwargs);
         venc = kwargs[0];
-        vcapa = kwargs[1];
-        if (!NIL_OR_UNDEF_P(venc)) {
-            enc = rb_to_encoding(venc);
+        if (!UNDEF_P(kwargs[1])) {
+            vcapa = kwargs[1];
         }
-        if (!NIL_OR_UNDEF_P(vcapa)) {
-            rb_len_t capa = NUM2LEN(vcapa);
-            rb_len_t len = 0;
-            int termlen;
+    }
 
-            if (capa &lt; STR_BUF_MIN_SIZE) {
-                capa = STR_BUF_MIN_SIZE;
-            }
-            if (n == 1) {
-                StringValue(orig);
-                len = RSTRING_LEN(orig);
-                if (capa &lt; len) {
-                    capa = len;
-                }
-                if (orig == str) n = 0;
-            }
-            termlen = enc ? rb_enc_mbminlen(enc) : TERM_LEN(n == 1 ? orig : str);
-            str_modifiable(str);
-            if (STR_EMBED_P(str) || FL_TEST(str, STR_SHARED|STR_NOFREE)) {
-                /* make noembed always */
-                const size_t size = (size_t)capa + termlen;
-                const char *const old_ptr = RSTRING_PTR(str);
-                const size_t osize = RSTRING_LEN(str) + TERM_LEN(str);
-                char *new_ptr = ALLOC_N(char, size);
-                if (STR_EMBED_P(str)) RUBY_ASSERT((rb_len_t)osize &lt;= str_embed_capa(str));
-                memcpy(new_ptr, old_ptr, osize &lt; size ? osize : size);
-                FL_UNSET_RAW(str, STR_SHARED|STR_NOFREE);
-                RSTRING(str)-&gt;as.heap.ptr = new_ptr;
-            }
-            else if (STR_HEAP_SIZE(str) != (size_t)capa + termlen) {
-                SIZED_REALLOC_N(RSTRING(str)-&gt;as.heap.ptr, char,
-                        (size_t)capa + termlen, STR_HEAP_SIZE(str));
-            }
-            STR_SET_LEN(str, len);
-            TERM_FILL(&amp;RSTRING(str)-&gt;as.heap.ptr[len], termlen);
-            if (n == 1) {
-                memcpy(RSTRING(str)-&gt;as.heap.ptr, RSTRING_PTR(orig), len);
-                if (!enc || rb_enc_get(orig) == enc) {
-                    rb_enc_cr_str_exact_copy(str, orig);
-                    enc = 0;
-                }
-            }
-            FL_SET(str, STR_NOEMBED);
-            RSTRING(str)-&gt;as.heap.aux.capa = capa;
-        }
-        else if (n == 1) {
-            rb_str_replace(str, orig);
-        }
-        if (enc) {
-            str_modifiable(str);
-            if (NIL_OR_UNDEF_P(vcapa)) {
-                rb_enc_associate(str, enc);
-            }
-            else {
-                /* the buffer is already sized for enc&#39;s terminator */
-                rb_enc_raw_set(str, enc);
-            }
-            ENC_CODERANGE_CLEAR(str);
-        }
-    }
-    else if (n == 1) {
-        rb_str_replace(str, orig);
-    }
+    VALUE str = rb_str_alloc_enc_capa(klass, venc, vcapa);
+    str_init(str, orig, venc, vcapa);
     return str;
 }
 </pre>
@@ -2033,11 +1831,11 @@ calls <tt>object.to_str</tt> and returns the result.</p>
 <p>Raises an exception unless <tt>object.to_str</tt> returns a string.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L3157-L3161'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L3087-L3091'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='3157' data-end='3161'></pre>
+  <pre class='lines_num' data-start='3087' data-end='3091'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 3157</span></pre>
+<pre><span class='info file'># File 'string.c', line 3087</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2090,11 +1888,11 @@ rb_str_s_try_convert(VALUE dummy, VALUE str)
 <p>Related: see <a href='String#Querying'>Querying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L2627-L2631'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L2557-L2561'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2627' data-end='2631'></pre>
+  <pre class='lines_num' data-start='2557' data-end='2561'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 2627</span></pre>
+<pre><span class='info file'># File 'string.c', line 2557</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2154,11 +1952,11 @@ contained in <code>self</code>
 <p>Related: see <a href='String#Converting_to_New_String'>Converting to New String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L2796-L2807'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L2726-L2737'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2796' data-end='2807'></pre>
+  <pre class='lines_num' data-start='2726' data-end='2737'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 2796</span></pre>
+<pre><span class='info file'># File 'string.c', line 2726</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2189,11 +1987,11 @@ rb_str_format_m(VALUE str, VALUE arg)
 <p>Related: see <a href='String#Converting_to_New_String'>Converting to New String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L2718-L2774'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L2648-L2704'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2718' data-end='2774'></pre>
+  <pre class='lines_num' data-start='2648' data-end='2704'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 2718</span></pre>
+<pre><span class='info file'># File 'string.c', line 2648</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -2268,11 +2066,11 @@ rb_str_times(VALUE str, VALUE times)
 <p>Related: see <a href='String#Converting_to_New_String'>Converting to New String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L2644-L2673'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L2574-L2603'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2644' data-end='2673'></pre>
+  <pre class='lines_num' data-start='2574' data-end='2603'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 2644</span></pre>
+<pre><span class='info file'># File 'string.c', line 2574</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -2321,11 +2119,11 @@ without warning issuance.</p>
 <p>Related: see <a href='String#Freezing_Unfreezing'>Freezing/Unfreezing</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L3502-L3511'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L3432-L3441'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='3502' data-end='3511'></pre>
+  <pre class='lines_num' data-start='3432' data-end='3441'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 3502</span></pre>
+<pre><span class='info file'># File 'string.c', line 3432</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2371,11 +2169,11 @@ see <a href='https://en.wikipedia.org/wiki/Data_deduplication'>Data deduplicatio
 <p>Related: see <a href='String#Freezing_Unfreezing'>Freezing/Unfreezing</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L3547-L3554'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L3477-L3484'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='3547' data-end='3554'></pre>
+  <pre class='lines_num' data-start='3477' data-end='3484'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 3547</span></pre>
+<pre><span class='info file'># File 'string.c', line 3477</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2440,11 +2238,11 @@ changes the encoding to <code>Encoding::ASCII_8BIT</code>:</p>
 <p>Related: see <a href='String#Modifying'>Modifying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L4250-L4307'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L4180-L4237'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='4250' data-end='4307'></pre>
+  <pre class='lines_num' data-start='4180' data-end='4237'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 4250</span></pre>
+<pre><span class='info file'># File 'string.c', line 4180</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -2536,11 +2334,11 @@ each of whose methods uses <code>&lt;=&gt;</code> for comparison.</p>
 <p>Related: see <a href='String#Comparing'>Comparing</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L4576-L4586'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L4506-L4516'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='4576' data-end='4586'></pre>
+  <pre class='lines_num' data-start='4506' data-end='4516'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 4576</span></pre>
+<pre><span class='info file'># File 'string.c', line 4506</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2583,11 +2381,11 @@ rb_str_cmp_m(VALUE str1, VALUE str2)
 <p>Related: <a href='String#Comparing'>Comparing</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L4501-L4512'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L4431-L4442'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='4501' data-end='4512'></pre>
+  <pre class='lines_num' data-start='4431' data-end='4442'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 4501</span></pre>
+<pre><span class='info file'># File 'string.c', line 4431</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -2655,11 +2453,11 @@ returned by <tt>other =~ self</tt>.</p>
 <p>Related: see <a href='String#Querying'>Querying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L5385-L5398'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L5315-L5328'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='5385' data-end='5398'></pre>
+  <pre class='lines_num' data-start='5315' data-end='5328'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 5385</span></pre>
+<pre><span class='info file'># File 'string.c', line 5315</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2769,11 +2567,11 @@ returns the matching substring of <code>self</code>, if found:</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L6249-L6262'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L6179-L6192'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='6249' data-end='6262'></pre>
+  <pre class='lines_num' data-start='6179' data-end='6192'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 6249</span></pre>
+<pre><span class='info file'># File 'string.c', line 6179</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -2965,11 +2763,11 @@ searches for the +n+th matched group:</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L6660-L6674'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L6590-L6604'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='6660' data-end='6674'></pre>
+  <pre class='lines_num' data-start='6590' data-end='6604'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 6660</span></pre>
+<pre><span class='info file'># File 'string.c', line 6590</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -3014,11 +2812,11 @@ appends only the low-order byte (similar to <a href="#setbyte-instance_method" t
 <p>Related: see <a href='String#Modifying'>Modifying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L4100-L4209'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L4030-L4139'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='4100' data-end='4209'></pre>
+  <pre class='lines_num' data-start='4030' data-end='4139'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 4100</span></pre>
+<pre><span class='info file'># File 'string.c', line 4030</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -3157,11 +2955,11 @@ the underlying bytes are not modified:</p>
 <p>Related: see <a href='String#Converting_to_New_String'>Converting to New String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L15145-L15176'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L15075-L15106'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='15145' data-end='15176'></pre>
+  <pre class='lines_num' data-start='15075' data-end='15106'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 15145</span></pre>
+<pre><span class='info file'># File 'string.c', line 15075</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -3243,11 +3041,11 @@ Raises <a href="FrozenError.html" title="FrozenError (class)"><code>::FrozenErro
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L8054-L8058'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L7984-L7988'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='8054' data-end='8058'></pre>
+  <pre class='lines_num' data-start='7984' data-end='7988'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 8054</span></pre>
+<pre><span class='info file'># File 'string.c', line 7984</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -3304,11 +3102,11 @@ Raises <a href="ArgumentError.html" title="ArgumentError (class)"><code>::Argume
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L8215-L8264'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L8145-L8194'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='8215' data-end='8264'></pre>
+  <pre class='lines_num' data-start='8145' data-end='8194'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 8215</span></pre>
+<pre><span class='info file'># File 'string.c', line 8145</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -3408,11 +3206,11 @@ Raises <a href="FrozenError.html" title="FrozenError (class)"><code>::FrozenErro
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L8102-L8106'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L8032-L8036'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='8102' data-end='8106'></pre>
+  <pre class='lines_num' data-start='8032' data-end='8036'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 8102</span></pre>
+<pre><span class='info file'># File 'string.c', line 8032</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -3446,11 +3244,11 @@ Raises <a href="ArgumentError.html" title="ArgumentError (class)"><code>::Argume
 Raises <a href="ArgumentError.html" title="ArgumentError (class)"><code>::ArgumentError</code></a> if <code>lsb_first</code> is neither <code>true</code> nor <code>false</code>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L7756-L7761'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L7686-L7691'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='7756' data-end='7761'></pre>
+  <pre class='lines_num' data-start='7686' data-end='7691'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 7756</span></pre>
+<pre><span class='info file'># File 'string.c', line 7686</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -3506,11 +3304,11 @@ Raises <a href="FrozenError.html" title="FrozenError (class)"><code>::FrozenErro
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L8006-L8010'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L7936-L7940'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='8006' data-end='8010'></pre>
+  <pre class='lines_num' data-start='7936' data-end='7940'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 8006</span></pre>
+<pre><span class='info file'># File 'string.c', line 7936</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -3544,11 +3342,11 @@ Raises <a href="ArgumentError.html" title="ArgumentError (class)"><code>::Argume
 Raises <a href="ArgumentError.html" title="ArgumentError (class)"><code>::ArgumentError</code></a> if <code>lsb_first</code> is neither <code>true</code> nor <code>false</code>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L7789-L7794'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L7719-L7724'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='7789' data-end='7794'></pre>
+  <pre class='lines_num' data-start='7719' data-end='7724'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 7789</span></pre>
+<pre><span class='info file'># File 'string.c', line 7719</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -3574,7 +3372,7 @@ Raises <a href="ArgumentError.html" title="ArgumentError (class)"><code>::Argume
 The returned string has BINARY encoding.</p>
   </div>
 </div>
-  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L16459'>GitHub</a> ]</span>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L16388'>GitHub</a> ]</span>
 
 </section>
 
@@ -3593,7 +3391,7 @@ Raises <a href="ArgumentError.html" title="ArgumentError (class)"><code>::Argume
 The encoding of <code>self</code> is not changed.</p>
   </div>
 </div>
-  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L16460'>GitHub</a> ]</span>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L16389'>GitHub</a> ]</span>
 
 </section>
 
@@ -3607,11 +3405,11 @@ The encoding of <code>self</code> is not changed.</p>
 <p>The returned string has BINARY encoding.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L8375-L8383'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L8305-L8313'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='8375' data-end='8383'></pre>
+  <pre class='lines_num' data-start='8305' data-end='8313'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 8375</span></pre>
+<pre><span class='info file'># File 'string.c', line 8305</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -3640,11 +3438,11 @@ rb_str_bitwise_not(VALUE str)
 <p>The encoding of <code>self</code> is not changed.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L8398-L8409'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L8328-L8339'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='8398' data-end='8409'></pre>
+  <pre class='lines_num' data-start='8328' data-end='8339'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 8398</span></pre>
+<pre><span class='info file'># File 'string.c', line 8328</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -3676,7 +3474,7 @@ Raises <a href="ArgumentError.html" title="ArgumentError (class)"><code>::Argume
 The returned string has BINARY encoding.</p>
   </div>
 </div>
-  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L16461'>GitHub</a> ]</span>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L16390'>GitHub</a> ]</span>
 
 </section>
 
@@ -3695,7 +3493,7 @@ Raises <a href="ArgumentError.html" title="ArgumentError (class)"><code>::Argume
 The encoding of <code>self</code> is not changed.</p>
   </div>
 </div>
-  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L16462'>GitHub</a> ]</span>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L16391'>GitHub</a> ]</span>
 
 </section>
 
@@ -3711,7 +3509,7 @@ Raises <a href="ArgumentError.html" title="ArgumentError (class)"><code>::Argume
 The returned string has BINARY encoding.</p>
   </div>
 </div>
-  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L16463'>GitHub</a> ]</span>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L16392'>GitHub</a> ]</span>
 
 </section>
 
@@ -3730,7 +3528,7 @@ Raises <a href="ArgumentError.html" title="ArgumentError (class)"><code>::Argume
 The encoding of <code>self</code> is not changed.</p>
   </div>
 </div>
-  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L16464'>GitHub</a> ]</span>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L16393'>GitHub</a> ]</span>
 
 </section>
 
@@ -3790,11 +3588,11 @@ searching begins at byte position <code>offset</code>:</p>
 <p>Related: see <a href='String#Querying'>Querying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L4984-L5020'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L4914-L4950'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='4984' data-end='5020'></pre>
+  <pre class='lines_num' data-start='4914' data-end='4950'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 4984</span></pre>
+<pre><span class='info file'># File 'string.c', line 4914</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -3908,11 +3706,11 @@ searching ends at byte position <code>offset</code>:</p>
 <p>Related: see <a href='String#Querying'>Querying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L5312-L5349'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L5242-L5279'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='5312' data-end='5349'></pre>
+  <pre class='lines_num' data-start='5242' data-end='5279'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 5312</span></pre>
+<pre><span class='info file'># File 'string.c', line 5242</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -3970,11 +3768,11 @@ rb_str_byterindex_m(int argc, VALUE *argv, VALUE str)
 <p>Related: see <a href='String#Converting_to_Non_String'>Converting to Non-String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L12778-L12783'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L12708-L12713'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='12778' data-end='12783'></pre>
+  <pre class='lines_num' data-start='12708' data-end='12713'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 12778</span></pre>
+<pre><span class='info file'># File 'string.c', line 12708</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -4004,11 +3802,11 @@ rb_str_bytes(VALUE str)
 <p>Related: see <a href='String#Querying'>Querying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L2608-L2612'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L2538-L2542'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2608' data-end='2612'></pre>
+  <pre class='lines_num' data-start='2538' data-end='2542'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 2608</span></pre>
+<pre><span class='info file'># File 'string.c', line 2538</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -4074,11 +3872,11 @@ the encoding of the returned substring may not be valid:</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L8683-L8693'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L8613-L8623'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='8683' data-end='8693'></pre>
+  <pre class='lines_num' data-start='8613' data-end='8623'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 8683</span></pre>
+<pre><span class='info file'># File 'string.c', line 8613</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -4163,11 +3961,11 @@ and so has character boundaries at offsets 0, 3, 6, 9, 12, and 15.</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L8792-L8852'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L8722-L8782'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='8792' data-end='8852'></pre>
+  <pre class='lines_num' data-start='8722' data-end='8782'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 8792</span></pre>
+<pre><span class='info file'># File 'string.c', line 8722</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -4264,11 +4062,11 @@ see <a href='file.case_mapping.html#Case_Mappings'>Case Mappings</a>.</p>
 <p>Related: see <a href='String#Converting_to_New_String'>Converting to New String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L10368-L10391'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L10298-L10321'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='10368' data-end='10391'></pre>
+  <pre class='lines_num' data-start='10298' data-end='10321'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 10368</span></pre>
+<pre><span class='info file'># File 'string.c', line 10298</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -4313,11 +4111,11 @@ rb_str_capitalize(int argc, VALUE *argv, VALUE str)
 <p>Related: See <a href='String#Modifying'>Modifying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L10311-L10332'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L10241-L10262'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='10311' data-end='10332'></pre>
+  <pre class='lines_num' data-start='10241' data-end='10262'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 10311</span></pre>
+<pre><span class='info file'># File 'string.c', line 10241</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -4371,11 +4169,11 @@ rb_str_capitalize_bang(int argc, VALUE *argv, VALUE str)
 <p>Related: see <a href='String#Comparing'>Comparing</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L4617-L4625'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L4547-L4555'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='4617' data-end='4625'></pre>
+  <pre class='lines_num' data-start='4547' data-end='4555'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 4617</span></pre>
+<pre><span class='info file'># File 'string.c', line 4547</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -4411,11 +4209,11 @@ Unicode case folding, <code>false</code> if unequal, <code>nil</code> if incompa
 <p>Related: see <a href='String#Comparing'>Comparing</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L4706-L4714'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L4636-L4644'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='4706' data-end='4714'></pre>
+  <pre class='lines_num' data-start='4636' data-end='4644'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 4706</span></pre>
+<pre><span class='info file'># File 'string.c', line 4636</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -4453,11 +4251,11 @@ centered and padded on one or both ends with <code>pad_string</code>:</p>
 <p>Related: see <a href='String#Converting_to_New_String'>Converting to New String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L14575-L14579'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L14505-L14509'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='14575' data-end='14579'></pre>
+  <pre class='lines_num' data-start='14505' data-end='14509'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 14575</span></pre>
+<pre><span class='info file'># File 'string.c', line 14505</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -4482,11 +4280,11 @@ rb_str_center(int argc, VALUE *argv, VALUE str)
 <p>Related: see <a href='String#Converting_to_Non_String'>Converting to Non-String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L12869-L12874'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L12799-L12804'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='12869' data-end='12874'></pre>
+  <pre class='lines_num' data-start='12799' data-end='12804'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 12869</span></pre>
+<pre><span class='info file'># File 'string.c', line 12799</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -4531,11 +4329,11 @@ removes a single trailing line separator if there is one:</p>
 <p>Related: see <a href='String#Converting_to_New_String'>Converting to New String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L13459-L13465'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L13389-L13395'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='13459' data-end='13465'></pre>
+  <pre class='lines_num' data-start='13389' data-end='13395'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 13459</span></pre>
+<pre><span class='info file'># File 'string.c', line 13389</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -4563,11 +4361,11 @@ rb_str_chomp(int argc, VALUE *argv, VALUE str)
 <p>Related: see <a href='String#Modifying'>Modifying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L13409-L13418'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L13339-L13348'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='13409' data-end='13418'></pre>
+  <pre class='lines_num' data-start='13339' data-end='13348'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 13409</span></pre>
+<pre><span class='info file'># File 'string.c', line 13339</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -4603,11 +4401,11 @@ rb_str_chomp_bang(int argc, VALUE *argv, VALUE str)
 <p>Related: see <a href='String#Converting_to_New_String'>Converting to New String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L13245-L13249'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L13175-L13179'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='13245' data-end='13249'></pre>
+  <pre class='lines_num' data-start='13175' data-end='13179'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 13245</span></pre>
+<pre><span class='info file'># File 'string.c', line 13175</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -4633,11 +4431,11 @@ rb_str_chop(VALUE str)
 <p>Related: see <a href='String#Modifying'>Modifying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L13203-L13218'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L13133-L13148'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='13203' data-end='13218'></pre>
+  <pre class='lines_num' data-start='13133' data-end='13148'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 13203</span></pre>
+<pre><span class='info file'># File 'string.c', line 13133</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -4673,11 +4471,11 @@ rb_str_chop_bang(VALUE str)
 <p>Related: see <a href='String#Converting_to_New_String'>Converting to New String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L7362-L7366'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L7292-L7296'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='7362' data-end='7366'></pre>
+  <pre class='lines_num' data-start='7292' data-end='7296'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 7362</span></pre>
+<pre><span class='info file'># File 'string.c', line 7292</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -4702,11 +4500,11 @@ rb_str_chr(VALUE str)
 <p>Related: see <a href='String#Modifying'>Modifying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L7334-L7346'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L7264-L7276'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='7334' data-end='7346'></pre>
+  <pre class='lines_num' data-start='7264' data-end='7276'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 7334</span></pre>
+<pre><span class='info file'># File 'string.c', line 7264</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -4740,11 +4538,11 @@ each codepoint is the integer value for a character:</p>
 <p>Related: see <a href='String#Converting_to_Non_String'>Converting to Non-String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L12960-L12965'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L12890-L12895'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='12960' data-end='12965'></pre>
+  <pre class='lines_num' data-start='12890' data-end='12895'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 12960</span></pre>
+<pre><span class='info file'># File 'string.c', line 12890</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -4772,11 +4570,11 @@ the value is considered a codepoint and converted to a character before concaten
 <p>Related: see <a href='String#Converting_to_New_String'>Converting to New String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L4054-L4073'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L3984-L4003'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='4054' data-end='4073'></pre>
+  <pre class='lines_num' data-start='3984' data-end='4003'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 4054</span></pre>
+<pre><span class='info file'># File 'string.c', line 3984</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -4873,11 +4671,11 @@ or another backslash:</p>
 <p>Related: see <a href='String#Querying'>Querying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L11887-L11954'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L11817-L11884'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='11887' data-end='11954'></pre>
+  <pre class='lines_num' data-start='11817' data-end='11884'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 11887</span></pre>
+<pre><span class='info file'># File 'string.c', line 11817</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -5021,11 +4819,11 @@ password hashing algorithms, install the string-crypt gem and
 <code>require 'string/crypt'</code> to continue using it.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L14237-L14302'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L14167-L14232'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='14237' data-end='14302'></pre>
+  <pre class='lines_num' data-start='14167' data-end='14232'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 14237</span></pre>
+<pre><span class='info file'># File 'string.c', line 14167</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -5184,11 +4982,11 @@ or another backslash:</p>
 <p>Related: see <a href='String#Converting_to_New_String'>Converting to New String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L11613-L11619'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L11543-L11549'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='11613' data-end='11619'></pre>
+  <pre class='lines_num' data-start='11543' data-end='11549'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 11613</span></pre>
+<pre><span class='info file'># File 'string.c', line 11543</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -5213,11 +5011,11 @@ returns <code>self</code> if any characters were deleted, <code>nil</code> other
 <p>Related: see <a href='String#Modifying'>Modifying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L11469-L11528'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L11399-L11458'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='11469' data-end='11528'></pre>
+  <pre class='lines_num' data-start='11399' data-end='11458'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 11469</span></pre>
+<pre><span class='info file'># File 'string.c', line 11399</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -5299,11 +5097,11 @@ rb_str_delete_bang(int argc, VALUE *argv, VALUE str)
 <p>Related: see <a href='String#Converting_to_New_String'>Converting to New String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L14933-L14942'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L14863-L14872'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='14933' data-end='14942'></pre>
+  <pre class='lines_num' data-start='14863' data-end='14872'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 14933</span></pre>
+<pre><span class='info file'># File 'string.c', line 14863</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -5331,11 +5129,11 @@ returns <code>self</code> if the prefix is removed, <code>nil</code> otherwise.<
 <p>Related: see <a href='String#Modifying'>Modifying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L14905-L14915'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L14835-L14845'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='14905' data-end='14915'></pre>
+  <pre class='lines_num' data-start='14835' data-end='14845'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 14905</span></pre>
+<pre><span class='info file'># File 'string.c', line 14835</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -5369,11 +5167,11 @@ rb_str_delete_prefix_bang(VALUE str, VALUE prefix)
 <p>Related: see <a href='String#Converting_to_New_String'>Converting to New String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L15018-L15027'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L14948-L14957'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='15018' data-end='15027'></pre>
+  <pre class='lines_num' data-start='14948' data-end='14957'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 15018</span></pre>
+<pre><span class='info file'># File 'string.c', line 14948</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -5401,11 +5199,11 @@ returns <code>self</code> if the suffix is removed, <code>nil</code> otherwise.<
 <p>Related: see <a href='String#Modifying'>Modifying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L14989-L14999'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L14919-L14929'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='14989' data-end='14999'></pre>
+  <pre class='lines_num' data-start='14919' data-end='14929'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 14989</span></pre>
+<pre><span class='info file'># File 'string.c', line 14919</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -5446,11 +5244,11 @@ see <a href='file.case_mapping.html#Case_Mappings'>Case Mappings</a>.</p>
 <p>Related: see <a href='String#Converting_to_New_String'>Converting to New String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L10246-L10269'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L10176-L10199'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='10246' data-end='10269'></pre>
+  <pre class='lines_num' data-start='10176' data-end='10199'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 10246</span></pre>
+<pre><span class='info file'># File 'string.c', line 10176</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -5495,11 +5293,11 @@ rb_str_downcase(int argc, VALUE *argv, VALUE str)
 <p>Related: See <a href='String#Modifying'>Modifying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L10196-L10216'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L10126-L10146'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='10196' data-end='10216'></pre>
+  <pre class='lines_num' data-start='10126' data-end='10146'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 10196</span></pre>
+<pre><span class='info file'># File 'string.c', line 10126</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -5607,11 +5405,11 @@ where <tt><encoding></tt> is <tt>self.encoding.name</tt>:</p>
 <span class='const'>Undumped</span><span class='op'>:</span>  <span class='id identifier rubyid_こんにちは'>こんにちは</span></code></pre>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L9462-L9607'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L9392-L9537'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='9462' data-end='9607'></pre>
+  <pre class='lines_num' data-start='9392' data-end='9537'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 9462</span></pre>
+<pre><span class='info file'># File 'string.c', line 9392</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -5818,11 +5616,11 @@ returns <code>self</code>:</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L12757-L12762'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L12687-L12692'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='12757' data-end='12762'></pre>
+  <pre class='lines_num' data-start='12687' data-end='12692'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 12757</span></pre>
+<pre><span class='info file'># File 'string.c', line 12687</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -5864,11 +5662,11 @@ returns <code>self</code>:</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L12848-L12853'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L12778-L12783'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='12848' data-end='12853'></pre>
+  <pre class='lines_num' data-start='12778' data-end='12783'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 12848</span></pre>
+<pre><span class='info file'># File 'string.c', line 12778</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -5911,11 +5709,11 @@ returns <code>self</code>:</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L12938-L12943'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L12868-L12873'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='12938' data-end='12943'></pre>
+  <pre class='lines_num' data-start='12868' data-end='12873'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 12938</span></pre>
+<pre><span class='info file'># File 'string.c', line 12868</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -5959,11 +5757,11 @@ returns <code>self</code>:</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L13133-L13138'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L13063-L13068'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='13133' data-end='13138'></pre>
+  <pre class='lines_num' data-start='13063' data-end='13068'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 13133</span></pre>
+<pre><span class='info file'># File 'string.c', line 13063</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -6039,11 +5837,11 @@ of two or more newlines:</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L12651-L12656'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L12581-L12586'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='12651' data-end='12656'></pre>
+  <pre class='lines_num' data-start='12581' data-end='12586'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 12651</span></pre>
+<pre><span class='info file'># File 'string.c', line 12581</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -6205,11 +6003,11 @@ str_encode_bang(int argc, VALUE *argv, VALUE str)
 <p>Related: see <a href='String#Querying'>Querying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L14820-L14844'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L14750-L14774'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='14820' data-end='14844'></pre>
+  <pre class='lines_num' data-start='14750' data-end='14774'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 14820</span></pre>
+<pre><span class='info file'># File 'string.c', line 14750</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -6262,11 +6060,11 @@ rb_str_end_with(int argc, VALUE *argv, VALUE str)
 <p>Related: see <a href='String#Querying'>Querying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L4539-L4545'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L4469-L4475'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='4539' data-end='4545'></pre>
+  <pre class='lines_num' data-start='4469' data-end='4475'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 4539</span></pre>
+<pre><span class='info file'># File 'string.c', line 4469</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -6304,11 +6102,11 @@ for <code>self</code> (as is the change above):</p>
 <p>Related: see <a href='String#Modifying'>Modifying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L15097-L15120'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L15027-L15050'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='15097' data-end='15120'></pre>
+  <pre class='lines_num' data-start='15027' data-end='15050'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 15097</span></pre>
+<pre><span class='info file'># File 'string.c', line 15027</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -6347,11 +6145,11 @@ rb_str_force_encoding(VALUE str, VALUE enc)
   <div class='note nodoc inline-block'>
     <strong>This method is for internal use only.</strong>
   </div><div></div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L3479-L3489'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L3409-L3419'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='3479' data-end='3489'></pre>
+  <pre class='lines_num' data-start='3409' data-end='3419'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 3479</span></pre>
+<pre><span class='info file'># File 'string.c', line 3409</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -6392,11 +6190,11 @@ rb_str_freeze(VALUE str)
 <p>Related: see <a href='String#Converting_to_Non_String'>Converting to Non-String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L7397-L7408'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L7327-L7338'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='7397' data-end='7408'></pre>
+  <pre class='lines_num' data-start='7327' data-end='7338'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 7397</span></pre>
+<pre><span class='info file'># File 'string.c', line 7327</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -6438,11 +6236,11 @@ rb_str_getbyte(VALUE str, VALUE index)
 <p>Related: see <a href='String#Converting_to_Non_String'>Converting to Non-String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L13166-L13171'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L13096-L13101'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='13166' data-end='13171'></pre>
+  <pre class='lines_num' data-start='13096' data-end='13101'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 13166</span></pre>
+<pre><span class='info file'># File 'string.c', line 13096</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -6496,11 +6294,11 @@ returns a new <a href="Enumerator.html" title="Enumerator (class)"><code>::Enume
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L7290-L7294'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L7220-L7224'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='7290' data-end='7294'></pre>
+  <pre class='lines_num' data-start='7220' data-end='7224'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 7290</span></pre>
+<pre><span class='info file'># File 'string.c', line 7220</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -6534,11 +6332,11 @@ rb_str_gsub(int argc, VALUE *argv, VALUE str)
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L7239-L7244'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L7169-L7174'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='7239' data-end='7244'></pre>
+  <pre class='lines_num' data-start='7169' data-end='7174'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 7239</span></pre>
+<pre><span class='info file'># File 'string.c', line 7169</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -6575,11 +6373,11 @@ see <a href="Object.html#hash-instance_method" title="Object#hash (method)">Obje
 <p>Related: see <a href='String#Querying'>Querying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L4414-L4419'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L4344-L4349'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='4414' data-end='4419'></pre>
+  <pre class='lines_num' data-start='4344' data-end='4349'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 4414</span></pre>
+<pre><span class='info file'># File 'string.c', line 4344</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -6634,11 +6432,11 @@ and not binary, octal, or decimal notations:</p>
 <p>Related: See <a href='String#Converting_to_Non_String'>Converting to Non-String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L14076-L14080'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L14006-L14010'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='14076' data-end='14080'></pre>
+  <pre class='lines_num' data-start='14006' data-end='14010'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 14076</span></pre>
+<pre><span class='info file'># File 'string.c', line 14006</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -6667,11 +6465,11 @@ rb_str_hex(VALUE str)
 <p>Related: see <a href='String#Querying'>Querying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L8976-L8985'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L8906-L8915'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='8976' data-end='8985'></pre>
+  <pre class='lines_num' data-start='8906' data-end='8915'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 8976</span></pre>
+<pre><span class='info file'># File 'string.c', line 8906</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -6725,11 +6523,11 @@ from the end of <code>self</code>:</p>
 <p>Related: see <a href='String#Querying'>Querying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L4856-L4897'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L4786-L4827'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='4856' data-end='4897'></pre>
+  <pre class='lines_num' data-start='4786' data-end='4827'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 4856</span></pre>
+<pre><span class='info file'># File 'string.c', line 4786</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -6814,11 +6612,11 @@ and inserts <code>other_string</code> <em>after</em> the offset:</p>
 <p>Related: see <a href='String#Modifying'>Modifying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L6698-L6711'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L6628-L6641'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='6698' data-end='6711'></pre>
+  <pre class='lines_num' data-start='6628' data-end='6641'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 6698</span></pre>
+<pre><span class='info file'># File 'string.c', line 6628</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -6844,7 +6642,7 @@ rb_str_insert(VALUE str, VALUE idx, VALUE str2)
   <h3 class='signature '>
     #<strong>inspect</strong>  
   </h3>
-  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L16479'>GitHub</a> ]</span>
+  <span class='link_repo'>[ <a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L16408'>GitHub</a> ]</span>
 
 </section>
 
@@ -6893,11 +6691,11 @@ rb_str_intern(VALUE str)
 <p>Related: see <a href='String#Querying'>Querying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L2583-L2587'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L2513-L2517'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='2583' data-end='2587'></pre>
+  <pre class='lines_num' data-start='2513' data-end='2517'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 2583</span></pre>
+<pre><span class='info file'># File 'string.c', line 2513</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -6954,11 +6752,11 @@ removes the trailing newline from each line:</p>
 <p>Related: see <a href='String#Converting_to_Non_String'>Converting to Non-String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L12709-L12714'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L12639-L12644'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='12709' data-end='12714'></pre>
+  <pre class='lines_num' data-start='12639' data-end='12644'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 12709</span></pre>
+<pre><span class='info file'># File 'string.c', line 12639</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -6988,11 +6786,11 @@ rb_str_lines(int argc, VALUE *argv, VALUE str)
 <p>Related: see <a href='String#Converting_to_New_String'>Converting to New String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L14512-L14516'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L14442-L14446'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='14512' data-end='14516'></pre>
+  <pre class='lines_num' data-start='14442' data-end='14446'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 14512</span></pre>
+<pre><span class='info file'># File 'string.c', line 14442</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -7027,11 +6825,11 @@ and may use any of its valid forms, including negation, ranges, and escapes:</p>
 <p>Related: see <a href='String#Converting_to_New_String'>Converting to New String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L13602-L13625'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L13532-L13555'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='13602' data-end='13625'></pre>
+  <pre class='lines_num' data-start='13532' data-end='13555'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 13602</span></pre>
+<pre><span class='info file'># File 'string.c', line 13532</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -7076,11 +6874,11 @@ rb_str_lstrip(int argc, VALUE *argv, VALUE str)
 <p>Related: see <a href='String#Modifying'>Modifying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L13537-L13572'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L13467-L13502'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='13537' data-end='13572'></pre>
+  <pre class='lines_num' data-start='13467' data-end='13502'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 13537</span></pre>
+<pre><span class='info file'># File 'string.c', line 13467</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -7162,11 +6960,11 @@ returns the block's return value:</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L5439-L5452'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L5369-L5382'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='5439' data-end='5452'></pre>
+  <pre class='lines_num' data-start='5369' data-end='5382'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 5439</span></pre>
+<pre><span class='info file'># File 'string.c', line 5369</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -7207,11 +7005,11 @@ Returns <code>true</code> if a match is found, <code>false</code> otherwise:</p>
 <p>Related: see <a href='String#Querying'>Querying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L5477-L5484'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L5407-L5414'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='5477' data-end='5484'></pre>
+  <pre class='lines_num' data-start='5407' data-end='5414'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 5477</span></pre>
+<pre><span class='info file'># File 'string.c', line 5407</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -7274,11 +7072,11 @@ and prepending another character if necessary:</p>
 <p>Related: see <a href='String#Converting_to_New_String'>Converting to New String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L5730-L5737'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L5660-L5667'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='5730' data-end='5737'></pre>
+  <pre class='lines_num' data-start='5660' data-end='5667'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 5730</span></pre>
+<pre><span class='info file'># File 'string.c', line 5660</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -7304,11 +7102,11 @@ rb_str_succ(VALUE orig)
 <p>Related: see <a href='String#Modifying'>Modifying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L5836-L5842'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L5766-L5772'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='5836' data-end='5842'></pre>
+  <pre class='lines_num' data-start='5766' data-end='5772'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 5836</span></pre>
+<pre><span class='info file'># File 'string.c', line 5766</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -7398,11 +7196,11 @@ the string is interpreted as hexadecimal digits (base 16):</p>
 <p>Related: see <a href='String#Converting_to_Non_String'>Converting to Non-String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L14162-L14166'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L14092-L14096'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='14162' data-end='14166'></pre>
+  <pre class='lines_num' data-start='14092' data-end='14096'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 14162</span></pre>
+<pre><span class='info file'># File 'string.c', line 14092</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -7427,11 +7225,11 @@ rb_str_oct(VALUE str)
 <p>Related: see <a href='String#Converting_to_Non_String'>Converting to Non-String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L14319-L14326'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L14249-L14256'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='14319' data-end='14326'></pre>
+  <pre class='lines_num' data-start='14249' data-end='14256'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 14319</span></pre>
+<pre><span class='info file'># File 'string.c', line 14249</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -7487,11 +7285,11 @@ then performs the equivalent of <tt>self.index(pattern)</tt>
 <p>Related: see <a href='String#Converting_to_Non_String'>Converting to Non-String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L14631-L14659'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L14561-L14589'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='14631' data-end='14659'></pre>
+  <pre class='lines_num' data-start='14561' data-end='14589'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 14631</span></pre>
+<pre><span class='info file'># File 'string.c', line 14561</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -7538,11 +7336,11 @@ rb_str_partition(VALUE str, VALUE sep)
 <p>Related: see <a href='String#Modifying'>Modifying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L4341-L4360'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L4271-L4290'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='4341' data-end='4360'></pre>
+  <pre class='lines_num' data-start='4271' data-end='4290'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 4341</span></pre>
+<pre><span class='info file'># File 'string.c', line 4271</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -7583,11 +7381,11 @@ returns <code>self</code>:</p>
 <p>Related: see <a href='String#Modifying'>Modifying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L7310-L7319'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L7240-L7249'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='7310' data-end='7319'></pre>
+  <pre class='lines_num' data-start='7240' data-end='7249'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 7310</span></pre>
+<pre><span class='info file'># File 'string.c', line 7240</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -7618,11 +7416,11 @@ rb_str_replace(VALUE str, VALUE str2)
 <p>Related: see <a href='String#Converting_to_New_String'>Converting to New String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L8868-L8915'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L8798-L8845'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='8868' data-end='8915'></pre>
+  <pre class='lines_num' data-start='8798' data-end='8845'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 8868</span></pre>
+<pre><span class='info file'># File 'string.c', line 8798</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -7691,11 +7489,11 @@ rb_str_reverse(VALUE str)
 <p>Related: see <a href='String#Modifying'>Modifying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L8932-L8956'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L8862-L8886'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='8932' data-end='8956'></pre>
+  <pre class='lines_num' data-start='8862' data-end='8886'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 8932</span></pre>
+<pre><span class='info file'># File 'string.c', line 8862</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -7771,11 +7569,11 @@ the last of longest matches:</p>
 <p>Related: see <a href='String#Querying'>Querying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L5152-L5194'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L5082-L5124'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='5152' data-end='5194'></pre>
+  <pre class='lines_num' data-start='5082' data-end='5124'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 5152</span></pre>
+<pre><span class='info file'># File 'string.c', line 5082</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -7845,11 +7643,11 @@ right justified and padded on the left with <code>pad_string</code>:</p>
 <p>Related: see <a href='String#Converting_to_New_String'>Converting to New String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L14542-L14546'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L14472-L14476'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='14542' data-end='14546'></pre>
+  <pre class='lines_num' data-start='14472' data-end='14476'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 14542</span></pre>
+<pre><span class='info file'># File 'string.c', line 14472</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -7905,11 +7703,11 @@ then searches for the last matching substring
 <p>Related: see <a href='String#Converting_to_Non_String'>Converting to Non-String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L14715-L14747'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L14645-L14677'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='14715' data-end='14747'></pre>
+  <pre class='lines_num' data-start='14645' data-end='14677'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 14715</span></pre>
+<pre><span class='info file'># File 'string.c', line 14645</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -7971,11 +7769,11 @@ and may use any of its valid forms, including negation, ranges, and escapes:</p>
 <p>Related: see <a href='String#Converting_to_New_String'>Converting to New String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L13754-L13780'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L13684-L13710'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='13754' data-end='13780'></pre>
+  <pre class='lines_num' data-start='13684' data-end='13710'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 13754</span></pre>
+<pre><span class='info file'># File 'string.c', line 13684</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -8023,11 +7821,11 @@ rb_str_rstrip(int argc, VALUE *argv, VALUE str)
 <p>Related: see <a href='String#Modifying'>Modifying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L13691-L13725'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L13621-L13655'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='13691' data-end='13725'></pre>
+  <pre class='lines_num' data-start='13621' data-end='13655'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 13691</span></pre>
+<pre><span class='info file'># File 'string.c', line 13621</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -8115,11 +7913,11 @@ containing a matched substring for each group.</li>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L13995-L14027'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L13925-L13957'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='13995' data-end='14027'></pre>
+  <pre class='lines_num' data-start='13925' data-end='13957'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 13995</span></pre>
+<pre><span class='info file'># File 'string.c', line 13925</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -8189,11 +7987,11 @@ and replaces that sequence with the return value of the block:</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L15551-L15557'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L15481-L15487'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='15551' data-end='15557'></pre>
+  <pre class='lines_num' data-start='15481' data-end='15487'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 15551</span></pre>
+<pre><span class='info file'># File 'string.c', line 15481</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -8228,11 +8026,11 @@ str_scrub(int argc, VALUE *argv, VALUE str)
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L15572-L15579'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L15502-L15509'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='15572' data-end='15579'></pre>
+  <pre class='lines_num' data-start='15502' data-end='15509'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 15572</span></pre>
+<pre><span class='info file'># File 'string.c', line 15502</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -8261,11 +8059,11 @@ returns <code>integer</code>:</p>
 <p>Related: see <a href='String#Modifying'>Modifying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L7423-L7476'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L7353-L7406'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='7423' data-end='7476'></pre>
+  <pre class='lines_num' data-start='7353' data-end='7406'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 7423</span></pre>
+<pre><span class='info file'># File 'string.c', line 7353</span></pre>
 <pre class='code cpp'>
 
 VALUE
@@ -8394,11 +8192,11 @@ rb_str_setbyte(VALUE str, VALUE index, VALUE value)
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L6738-L6826'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L6668-L6756'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='6738' data-end='6826'></pre>
+  <pre class='lines_num' data-start='6668' data-end='6756'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 6738</span></pre>
+<pre><span class='info file'># File 'string.c', line 6668</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -8581,11 +8379,11 @@ and trailing empty strings are included:</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L12154-L12379'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L12084-L12309'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='12154' data-end='12379'></pre>
+  <pre class='lines_num' data-start='12084' data-end='12309'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 12154</span></pre>
+<pre><span class='info file'># File 'string.c', line 12084</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -8850,11 +8648,11 @@ see <a href='file.character_selectors.html#Multiple_Character_Selectors'>Multipl
 <p>Related: see <a href='String#Converting_to_New_String'>Converting to New String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L11750-L11756'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L11680-L11686'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='11750' data-end='11756'></pre>
+  <pre class='lines_num' data-start='11680' data-end='11686'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 11750</span></pre>
+<pre><span class='info file'># File 'string.c', line 11680</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -8882,11 +8680,11 @@ rb_str_squeeze(int argc, VALUE *argv, VALUE str)
 <p>Related: See <a href='String#Modifying'>Modifying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L11634-L11707'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L11564-L11637'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='11634' data-end='11707'></pre>
+  <pre class='lines_num' data-start='11564' data-end='11637'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 11634</span></pre>
+<pre><span class='info file'># File 'string.c', line 11564</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -8988,11 +8786,11 @@ rb_str_squeeze_bang(int argc, VALUE *argv, VALUE str)
 <p>Related: see <a href='String#Querying'>Querying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L14772-L14802'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L14702-L14732'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='14772' data-end='14802'></pre>
+  <pre class='lines_num' data-start='14702' data-end='14732'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 14772</span></pre>
+<pre><span class='info file'># File 'string.c', line 14702</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -9053,11 +8851,11 @@ and may use any of its valid forms, including negation, ranges, and escapes:</p>
 <p>Related: see <a href='String#Converting_to_New_String'>Converting to New String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L13866-L13895'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L13796-L13825'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='13866' data-end='13895'></pre>
+  <pre class='lines_num' data-start='13796' data-end='13825'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 13866</span></pre>
+<pre><span class='info file'># File 'string.c', line 13796</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -9108,11 +8906,11 @@ rb_str_strip(int argc, VALUE *argv, VALUE str)
 <p>Related: see <a href='String#Modifying'>Modifying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L13795-L13836'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L13725-L13766'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='13795' data-end='13836'></pre>
+  <pre class='lines_num' data-start='13725' data-end='13766'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 13795</span></pre>
+<pre><span class='info file'># File 'string.c', line 13725</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -9199,11 +8997,11 @@ replaces that substring with the block’s return value:</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L7071-L7077'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L7001-L7007'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='7071' data-end='7077'></pre>
+  <pre class='lines_num' data-start='7001' data-end='7007'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 7071</span></pre>
+<pre><span class='info file'># File 'string.c', line 7001</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -9238,11 +9036,11 @@ rb_str_sub(int argc, VALUE *argv, VALUE str)
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L6920-L7028'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L6850-L6958'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='6920' data-end='7028'></pre>
+  <pre class='lines_num' data-start='6850' data-end='6958'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 6920</span></pre>
+<pre><span class='info file'># File 'string.c', line 6850</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -9411,11 +9209,11 @@ modulo <tt>2**n - 1</tt>:</p>
 <p>Related: see <a href='String#Querying'>Querying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L14346-L14397'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L14276-L14327'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='14346' data-end='14397'></pre>
+  <pre class='lines_num' data-start='14276' data-end='14327'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 14346</span></pre>
+<pre><span class='info file'># File 'string.c', line 14276</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -9506,11 +9304,11 @@ see <a href='file.case_mapping.html#Case_Mappings'>Case Mappings</a>.</p>
 <p>Related: see <a href='String#Converting_to_New_String'>Converting to New String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L10463-L10481'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L10393-L10411'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='10463' data-end='10481'></pre>
+  <pre class='lines_num' data-start='10393' data-end='10411'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 10463</span></pre>
+<pre><span class='info file'># File 'string.c', line 10393</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -9550,11 +9348,11 @@ rb_str_swapcase(int argc, VALUE *argv, VALUE str)
 <p>Related: see <a href='String#Modifying'>Modifying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L10406-L10422'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L10336-L10352'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='10406' data-end='10422'></pre>
+  <pre class='lines_num' data-start='10336' data-end='10352'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 10406</span></pre>
+<pre><span class='info file'># File 'string.c', line 10336</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -9772,11 +9570,11 @@ string_to_c(VALUE self)
 <p>See <a href='String#Converting_to_Non_String'>Converting to Non-String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L9054-L9058'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L8984-L8988'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='9054' data-end='9058'></pre>
+  <pre class='lines_num' data-start='8984' data-end='8988'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 9054</span></pre>
+<pre><span class='info file'># File 'string.c', line 8984</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -9816,11 +9614,11 @@ to specify the actual base:</p>
 <p>Related: see <a href='String#Converting_to_Non_String'>Converting to Non-String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L9022-L9031'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L8952-L8961'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='9022' data-end='9031'></pre>
+  <pre class='lines_num' data-start='8952' data-end='8961'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 9022</span></pre>
+<pre><span class='info file'># File 'string.c', line 8952</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -9897,11 +9695,11 @@ or <code>self</code> converted to a <code>String</code> if <code>self</code> is 
 <p>Related: see <a href='String#Converting_to_New_String'>Converting to New String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L9071-L9078'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L9001-L9008'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='9071' data-end='9078'></pre>
+  <pre class='lines_num' data-start='9001' data-end='9008'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 9071</span></pre>
+<pre><span class='info file'># File 'string.c', line 9001</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -10006,11 +9804,11 @@ and may use any of its valid forms, including negation, ranges, and escapes:</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L11352-L11369'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L11282-L11299'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='11352' data-end='11369'></pre>
+  <pre class='lines_num' data-start='11282' data-end='11299'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 11352</span></pre>
+<pre><span class='info file'># File 'string.c', line 11282</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -10056,11 +9854,11 @@ rb_str_tr(int argc, VALUE *argv, VALUE str)
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L11282-L11294'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L11212-L11224'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='11282' data-end='11294'></pre>
+  <pre class='lines_num' data-start='11212' data-end='11224'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 11282</span></pre>
+<pre><span class='info file'># File 'string.c', line 11212</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -10099,11 +9897,11 @@ see String#squeeze.</li>
 <p>Related: see <a href='String#Converting_to_New_String'>Converting to New String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L11798-L11804'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L11728-L11734'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='11798' data-end='11804'></pre>
+  <pre class='lines_num' data-start='11728' data-end='11734'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 11798</span></pre>
+<pre><span class='info file'># File 'string.c', line 11728</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -10131,11 +9929,11 @@ rb_str_tr_s(VALUE str, VALUE src, VALUE repl)
 <p>Related: <a href='String#Modifying'>Modifying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L11771-L11775'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L11701-L11705'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='11771' data-end='11775'></pre>
+  <pre class='lines_num' data-start='11701' data-end='11705'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 11771</span></pre>
+<pre><span class='info file'># File 'string.c', line 11701</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -10157,11 +9955,11 @@ rb_str_tr_s_bang(VALUE str, VALUE src, VALUE repl)
 <p>Related: see <a href='String#Converting_to_New_String'>Converting to New String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L9753-L9842'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L9683-L9772'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='9753' data-end='9842'></pre>
+  <pre class='lines_num' data-start='9683' data-end='9772'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 9753</span></pre>
+<pre><span class='info file'># File 'string.c', line 9683</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -10291,11 +10089,11 @@ invalid_format:
 <p>Related: see <a href='String#Converting_to_New_String'>Converting to New String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L15634-L15638'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L15564-L15568'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='15634' data-end='15638'></pre>
+  <pre class='lines_num' data-start='15564' data-end='15568'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 15634</span></pre>
+<pre><span class='info file'># File 'string.c', line 15564</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -10318,11 +10116,11 @@ is performed on <code>self</code> (not on a copy of <code>self</code>).</p>
 <p>Related: see <a href='String#Modifying'>Modifying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L15650-L15654'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L15580-L15584'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='15650' data-end='15654'></pre>
+  <pre class='lines_num' data-start='15580' data-end='15584'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 15650</span></pre>
+<pre><span class='info file'># File 'string.c', line 15580</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -10354,11 +10152,11 @@ see <a href="#unicode_normalize-instance_method" title="String#unicode_normalize
 <p>Related: see <a href='String#Querying'>Querying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L15679-L15683'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L15609-L15613'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='15679' data-end='15683'></pre>
+  <pre class='lines_num' data-start='15609' data-end='15613'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 15679</span></pre>
+<pre><span class='info file'># File 'string.c', line 15609</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -10458,11 +10256,11 @@ see <a href='file.case_mapping.html#Case_Mappings'>Case Mappings</a>.</p>
 <p>Related: see <a href='String#Converting_to_New_String'>Converting to New String</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L10140-L10163'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L10070-L10093'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='10140' data-end='10163'></pre>
+  <pre class='lines_num' data-start='10070' data-end='10093'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 10140</span></pre>
+<pre><span class='info file'># File 'string.c', line 10070</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -10507,11 +10305,11 @@ rb_str_upcase(int argc, VALUE *argv, VALUE str)
 <p>Related: See <a href='String#Modifying'>Modifying</a>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L10084-L10104'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L10014-L10034'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='10084' data-end='10104'></pre>
+  <pre class='lines_num' data-start='10014' data-end='10034'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 10084</span></pre>
+<pre><span class='info file'># File 'string.c', line 10014</span></pre>
 <pre class='code cpp'>
 
 static VALUE
@@ -10584,11 +10382,11 @@ returns <code>self</code>:</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L5907-L5915'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/ruby/ruby/blob/master/string.c#L5837-L5845'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='5907' data-end='5915'></pre>
+  <pre class='lines_num' data-start='5837' data-end='5845'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'string.c', line 5907</span></pre>
+<pre><span class='info file'># File 'string.c', line 5837</span></pre>
 <pre class='code cpp'>
 
 static VALUE
