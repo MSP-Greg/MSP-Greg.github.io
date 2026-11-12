@@ -235,7 +235,9 @@ already been persisted is not supported.</p>
 <div class='docstring'>
   <div class='discussion'>
     <p>Walks the models reachable through this model's embeds_one relations,
-looking for one that declares encryption.</p>
+looking for one that declares encryption. Subclasses of an
+association target are included: any of them can be assigned to the
+association.</p>
 <p>embeds_many is not considered: libmongocrypt cannot express per-field
 encryption under array items, so those fields are never mapped.</p>
   </div>
@@ -262,11 +264,11 @@ first is false.</p></div>
 </ul>
 
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongoid/blob/master/lib/mongoid/encryptable.rb#L80-L105'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongoid/blob/master/lib/mongoid/encryptable.rb#L82-L110'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='80' data-end='105'></pre>
+  <pre class='lines_num' data-start='82' data-end='110'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongoid/encryptable.rb', line 80</span></pre>
+<pre><span class='info file'># File 'lib/mongoid/encryptable.rb', line 82</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_embedded_encryption_scan'>embedded_encryption_scan</span>(<span class='id identifier rubyid_path'>path</span>)
@@ -284,13 +286,16 @@ first is false.</p></div>
 
     <span class='comment'># An association target does not have to be a Mongoid document.
 </span>    <span class='kw'>next</span> <span class='kw'>unless</span> <span class='id identifier rubyid_klass'>klass</span>.<span class='id identifier rubyid_respond_to?'>respond_to?</span>(<span class='symbeg'>:</span><span class='id identifier rubyid_encrypted?'><a href="#encrypted%3F-instance_method" title="Mongoid::Encryptable::ClassMethods#encrypted? (method)">encrypted?</a></span>)
-    <span class='kw'>next</span> <span class='kw'>if</span> <span class='id identifier rubyid_path'>path</span>.<span class='id identifier rubyid_include?'>include?</span>(<span class='id identifier rubyid_klass'>klass</span>)
-    <span class='kw'>return</span> [ <span class='kw'>true</span><span class='comma'>,</span> <span class='kw'>true</span> ] <span class='kw'>if</span> <span class='id identifier rubyid_klass'>klass</span>.<span class='id identifier rubyid_encrypted?'><a href="#encrypted%3F-instance_method" title="Mongoid::Encryptable::ClassMethods#encrypted? (method)">encrypted?</a></span>
 
-    <span class='id identifier rubyid_found'>found</span><span class='comma'>,</span> <span class='id identifier rubyid_nested_complete'>nested_complete</span> <span class='op'>=</span> <span class='id identifier rubyid_klass'>klass</span>.<span class='id identifier rubyid_embedded_encryption_scan'>embedded_encryption_scan</span>(<span class='id identifier rubyid_path'>path</span> <span class='op'>+</span> [ <span class='id identifier rubyid_klass'>klass</span> ])
-    <span class='kw'>return</span> [ <span class='kw'>true</span><span class='comma'>,</span> <span class='kw'>true</span> ] <span class='kw'>if</span> <span class='id identifier rubyid_found'>found</span>
+    ([ <span class='id identifier rubyid_klass'>klass</span> ] <span class='op'>+</span> <span class='id identifier rubyid_klass'>klass</span>.<span class='id identifier rubyid_descendants'>descendants</span>).<span class='id identifier rubyid_uniq'>uniq</span>.<span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_candidate'>candidate</span><span class='op'>|</span>
+      <span class='kw'>next</span> <span class='kw'>if</span> <span class='id identifier rubyid_path'>path</span>.<span class='id identifier rubyid_include?'>include?</span>(<span class='id identifier rubyid_candidate'>candidate</span>)
+      <span class='kw'>return</span> [ <span class='kw'>true</span><span class='comma'>,</span> <span class='kw'>true</span> ] <span class='kw'>if</span> <span class='id identifier rubyid_candidate'>candidate</span>.<span class='id identifier rubyid_encrypted?'><a href="#encrypted%3F-instance_method" title="Mongoid::Encryptable::ClassMethods#encrypted? (method)">encrypted?</a></span>
 
-    <span class='id identifier rubyid_complete'>complete</span> <span class='op'>&amp;&amp;=</span> <span class='id identifier rubyid_nested_complete'>nested_complete</span>
+      <span class='id identifier rubyid_found'>found</span><span class='comma'>,</span> <span class='id identifier rubyid_nested_complete'>nested_complete</span> <span class='op'>=</span> <span class='id identifier rubyid_candidate'>candidate</span>.<span class='id identifier rubyid_embedded_encryption_scan'>embedded_encryption_scan</span>(<span class='id identifier rubyid_path'>path</span> <span class='op'>+</span> [ <span class='id identifier rubyid_candidate'>candidate</span> ])
+      <span class='kw'>return</span> [ <span class='kw'>true</span><span class='comma'>,</span> <span class='kw'>true</span> ] <span class='kw'>if</span> <span class='id identifier rubyid_found'>found</span>
+
+      <span class='id identifier rubyid_complete'>complete</span> <span class='op'>&amp;&amp;=</span> <span class='id identifier rubyid_nested_complete'>nested_complete</span>
+    <span class='kw'>end</span>
   <span class='kw'>end</span>
 
   [ <span class='kw'>false</span><span class='comma'>,</span> <span class='id identifier rubyid_complete'>complete</span> ]
@@ -373,11 +378,11 @@ have any effect.</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongoid/blob/master/lib/mongoid/encryptable.rb#L115-L117'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/mongodb/mongoid/blob/master/lib/mongoid/encryptable.rb#L120-L122'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='115' data-end='117'></pre>
+  <pre class='lines_num' data-start='120' data-end='122'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/mongoid/encryptable.rb', line 115</span></pre>
+<pre><span class='info file'># File 'lib/mongoid/encryptable.rb', line 120</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_set_key_id'>set_key_id</span>(<span class='id identifier rubyid_key_id'>key_id</span>)
