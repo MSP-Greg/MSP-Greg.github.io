@@ -1898,16 +1898,16 @@ value would be 4 until it finishes processing.</p>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_notify_safely'>notify_safely</span>(<span class='id identifier rubyid_message'>message</span>)
-  <span class='comment'># Use syswrite (a single write(2) syscall) rather than `&lt;&lt;` to
-</span>  <span class='comment'># bypass MRI&#39;s buffered-IO write lock. That lock can deadlock with
-</span>  <span class='comment'># IO#close running in handle_servers&#39; ensure block — the closer
-</span>  <span class='comment'># parks in sleep_forever while a buffered writer is mid-write,
-</span>  <span class='comment'># even though the writer is woken with IOError (puma#3677).
-</span>  <span class='comment'># syswrite is also async-signal-safe, so notify_safely remains
-</span>  <span class='comment'># callable from puma&#39;s signal handlers (TERM/USR2/INT/HUP) without
-</span>  <span class='comment'># raising &quot;can&#39;t be called from trap context&quot;.
+  <span class='comment'># Use write_nonblock rather than `&lt;&lt;` or `syswrite`. This method is
+</span>  <span class='comment'># called from signal handlers (TERM/USR2/INT/HUP, and the cluster
+</span>  <span class='comment'># worker&#39;s SIGTERM trap). On Ruby &lt; 4.0, a blocking write from trap
+</span>  <span class='comment'># context that is still in flight when handle_servers&#39; ensure block
+</span>  <span class='comment'># runs IO#close leaves the closing thread parked in IO#close forever
+</span>  <span class='comment'># (puma#3677). write_nonblock is a single write(2) that never waits,
+</span>  <span class='comment'># so IO#close has nothing to wait for. If the pipe is full a command
+</span>  <span class='comment'># is already pending, so dropping this one is harmless.
 </span>  <span class='id identifier rubyid_notify'>notify</span> <span class='op'>=</span> <span class='ivar'>@notify</span>
-  <span class='id identifier rubyid_notify'>notify</span>.<span class='id identifier rubyid_syswrite'>syswrite</span>(<span class='id identifier rubyid_message'>message</span>) <span class='kw'>if</span> <span class='id identifier rubyid_notify'>notify</span> <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='id identifier rubyid_notify'>notify</span>.<span class='id identifier rubyid_closed?'>closed?</span>
+  <span class='id identifier rubyid_notify'>notify</span>.<span class='id identifier rubyid_write_nonblock'>write_nonblock</span>(<span class='id identifier rubyid_message'>message</span><span class='comma'>,</span> <span class='label'>exception:</span> <span class='kw'>false</span>) <span class='kw'>if</span> <span class='id identifier rubyid_notify'>notify</span> <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='id identifier rubyid_notify'>notify</span>.<span class='id identifier rubyid_closed?'>closed?</span>
 <span class='kw'>rescue</span> <span class='const'>IOError</span><span class='comma'>,</span> <span class='const'>NoMethodError</span><span class='comma'>,</span> <span class='const'>Errno</span><span class='op'>::</span><span class='const'>EPIPE</span><span class='comma'>,</span> <span class='const'>Errno</span><span class='op'>::</span><span class='const'>EBADF</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
   <span class='ivar'>@log_writer</span>.<span class='id identifier rubyid_unknown_error'>unknown_error</span>(<span class='id identifier rubyid_e'>e</span><span class='comma'>,</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>notify_safely error</span><span class='tstring_end'>&quot;</span></span>) <span class='kw'>if</span> <span class='const'><a href="../Puma.html" title="Puma (module)">Puma</a></span><span class='op'>::</span><span class='const'><a href="../Puma.html#IS_MRI-constant" title="Puma::IS_MRI (constant)">IS_MRI</a></span> <span class='op'>&amp;&amp;</span> <span class='const'>RUBY_VERSION</span> <span class='op'>&gt;</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>3.3</span><span class='tstring_end'>&#39;</span></span>
 <span class='kw'>end</span>
