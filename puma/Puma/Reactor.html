@@ -162,11 +162,32 @@ and wakes up any object when its timeout elapses.</p>
   </li>
   <li>
     <span class='summary_signature priv'>
+      <a href="#interests-instance_method" title="#interests (instance method)">#<strong>interests</strong>(client)  </a>
+    </span>
+    <span class='note title private'>private</span>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
       <a href="#register-instance_method" title="#register (instance method)">#<strong>register</strong>(client)  </a>
     </span>
     <span class='note title private'>private</span>
     <div class='summary_desc'>
       <div class='inline'><p>Start monitoring the object.</p></div>
+    </div>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
+      <a href="#requeue-instance_method" title="#requeue (instance method)">#<strong>requeue</strong>(client)  </a>
+    </span>
+    <span class='note title private'>private</span>
+  </li>
+  <li>
+    <span class='summary_signature priv'>
+      <a href="#requeue_moved_timeouts-instance_method" title="#requeue_moved_timeouts (instance method)">#<strong>requeue_moved_timeouts</strong>  </a>
+    </span>
+    <span class='note title private'>private</span>
+    <div class='summary_desc'>
+      <div class='inline'><p><code>@timeouts</code> is sorted by the timeout each client had when it was queued.</p></div>
     </div>
   </li>
   <li>
@@ -202,9 +223,9 @@ its timeout elapses, or when the <code>Reactor</code> shuts down.</p>
 <div class='tags'>
   
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/puma/puma/blob/main/lib/puma/reactor.rb#L27-L40'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/puma/puma/blob/main/lib/puma/reactor.rb#L27-L41'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='27' data-end='40'></pre>
+  <pre class='lines_num' data-start='27' data-end='41'></pre>
   <div class='lines_code'>
 <pre><span class='info file'># File 'lib/puma/reactor.rb', line 27</span></pre>
 <pre class='code ruby'>
@@ -219,6 +240,7 @@ its timeout elapses, or when the <code>Reactor</code> shuts down.</p>
   <span class='ivar'>@selector</span> <span class='op'>=</span> <span class='op'>::</span><span class='const'>NIO</span><span class='op'>::</span><span class='const'>Selector</span>.<span class='id identifier rubyid_new'>new</span>(<span class='const'>NIO</span><span class='op'>::</span><span class='const'>Selector</span>.<span class='id identifier rubyid_backends'>backends</span>.<span class='id identifier rubyid_delete'>delete</span>(<span class='id identifier rubyid_backend'>backend</span>))
   <span class='ivar'>@input</span> <span class='op'>=</span> <span class='const'>Queue</span>.<span class='id identifier rubyid_new'>new</span>
   <span class='ivar'>@timeouts</span> <span class='op'>=</span> []
+  <span class='ivar'>@timeout_keys</span> <span class='op'>=</span> {}.<span class='id identifier rubyid_compare_by_identity'>compare_by_identity</span>
   <span class='ivar'>@block</span> <span class='op'>=</span> <span class='id identifier rubyid_block'>block</span>
   <span class='ivar'>@reactor_size</span> <span class='op'>=</span> <span class='int'>0</span>
   <span class='ivar'>@reactor_max</span> <span class='op'>=</span> <span class='int'>0</span>
@@ -280,11 +302,11 @@ The object must respond to <code>#timeout</code> and <code>#timeout_at</code>.
 Returns false if the reactor is already shut down.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/puma/puma/blob/main/lib/puma/reactor.rb#L57-L63'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/puma/puma/blob/main/lib/puma/reactor.rb#L58-L64'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='57' data-end='63'></pre>
+  <pre class='lines_num' data-start='58' data-end='64'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/puma/reactor.rb', line 57</span></pre>
+<pre><span class='info file'># File 'lib/puma/reactor.rb', line 58</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_add'>add</span>(<span class='id identifier rubyid_client'>client</span>)
@@ -293,6 +315,25 @@ Returns false if the reactor is already shut down.</p>
   <span class='kw'>true</span>
 <span class='kw'>rescue</span> <span class='const'>ClosedQueueError</span><span class='comma'>,</span> <span class='const'>IOError</span> <span class='comment'># Ignore if selector is already closed
 </span>  <span class='kw'>false</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="interests-instance_method">
+  <h3 class='signature priv'>
+    #<strong>interests</strong>(client)   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/puma/puma/blob/main/lib/puma/reactor.rb#L125-L127'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='125' data-end='127'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/puma/reactor.rb', line 125</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_interests'>interests</span>(<span class='id identifier rubyid_client'>client</span>)
+  <span class='id identifier rubyid_client'>client</span>.<span class='id identifier rubyid_write_pending?'>write_pending?</span> <span class='op'>?</span> <span class='symbeg'>:</span><span class='id identifier rubyid_w'>w</span> <span class='op'>:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_r'>r</span>
 <span class='kw'>end</span>
 </pre>
   </div>
@@ -308,21 +349,72 @@ Returns false if the reactor is already shut down.</p>
     <p>Start monitoring the object.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/puma/puma/blob/main/lib/puma/reactor.rb#L112-L119'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/puma/puma/blob/main/lib/puma/reactor.rb#L115-L123'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='112' data-end='119'></pre>
+  <pre class='lines_num' data-start='115' data-end='123'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/puma/reactor.rb', line 112</span></pre>
+<pre><span class='info file'># File 'lib/puma/reactor.rb', line 115</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_register'>register</span>(<span class='id identifier rubyid_client'>client</span>)
-  <span class='ivar'>@selector</span>.<span class='id identifier rubyid_register'>register</span>(<span class='id identifier rubyid_client'>client</span>.<span class='id identifier rubyid_to_io'>to_io</span><span class='comma'>,</span> <span class='symbeg'>:</span><span class='id identifier rubyid_r'>r</span>).<span class='id identifier rubyid_value'>value</span> <span class='op'>=</span> <span class='id identifier rubyid_client'>client</span>
+  <span class='ivar'>@selector</span>.<span class='id identifier rubyid_register'>register</span>(<span class='id identifier rubyid_client'>client</span>.<span class='id identifier rubyid_to_io'>to_io</span><span class='comma'>,</span> <span class='id identifier rubyid_interests'><a href="#interests-instance_method" title="Puma::Reactor#interests (method)">interests</a></span>(<span class='id identifier rubyid_client'>client</span>)).<span class='id identifier rubyid_value'>value</span> <span class='op'>=</span> <span class='id identifier rubyid_client'>client</span>
   <span class='ivar'>@reactor_size</span> <span class='op'>+=</span> <span class='int'>1</span>
   <span class='ivar'>@reactor_max</span> <span class='op'>=</span> <span class='ivar'>@reactor_size</span> <span class='kw'>if</span> <span class='ivar'>@reactor_max</span> <span class='op'>&lt;</span> <span class='ivar'>@reactor_size</span>
   <span class='ivar'>@timeouts</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_client'>client</span>
+  <span class='ivar'>@timeout_keys</span>[<span class='id identifier rubyid_client'>client</span>] <span class='op'>=</span> <span class='id identifier rubyid_client'>client</span>.<span class='id identifier rubyid_timeout_at'>timeout_at</span>
 <span class='kw'>rescue</span> <span class='const'>ArgumentError</span>
   <span class='comment'># unreadable clients raise error when processed by NIO
 </span><span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="requeue-instance_method">
+  <h3 class='signature priv'>
+    #<strong>requeue</strong>(client)   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/puma/puma/blob/main/lib/puma/reactor.rb#L157-L161'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='157' data-end='161'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/puma/reactor.rb', line 157</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_requeue'>requeue</span>(<span class='id identifier rubyid_client'>client</span>)
+  <span class='id identifier rubyid_key'>key</span> <span class='op'>=</span> <span class='ivar'>@timeout_keys</span>[<span class='id identifier rubyid_client'>client</span>] <span class='op'>=</span> <span class='id identifier rubyid_client'>client</span>.<span class='id identifier rubyid_timeout_at'>timeout_at</span>
+  <span class='id identifier rubyid_index'>index</span> <span class='op'>=</span> <span class='ivar'>@timeouts</span>.<span class='id identifier rubyid_bsearch_index'>bsearch_index</span> { <span class='op'>|</span><span class='id identifier rubyid_c'>c</span><span class='op'>|</span> <span class='ivar'>@timeout_keys</span>[<span class='id identifier rubyid_c'>c</span>] <span class='op'>&gt;</span> <span class='id identifier rubyid_key'>key</span> } <span class='op'>||</span> <span class='ivar'>@timeouts</span>.<span class='id identifier rubyid_size'>size</span>
+  <span class='ivar'>@timeouts</span>.<span class='id identifier rubyid_insert'>insert</span> <span class='id identifier rubyid_index'>index</span><span class='comma'>,</span> <span class='id identifier rubyid_client'>client</span>
+<span class='kw'>end</span>
+</pre>
+  </div>
+</div>
+</section>
+
+<section class='method_details' id="requeue_moved_timeouts-instance_method">
+  <h3 class='signature priv'>
+    #<strong>requeue_moved_timeouts</strong>   <span class="extras">(<span class='priv'>private</span>)</span>
+  </h3>
+<div class='docstring'>
+  <div class='discussion'>
+    <p><code>@timeouts</code> is sorted by the timeout each client had when it was queued.
+Timeouts that moved earlier are requeued in <a href="#wakeup!-instance_method" title="Puma::Reactor#wakeup! (method)">#wakeup!</a>. Timeouts that moved
+later are requeued here, once the client reaches the front.</p>
+  </div>
+</div>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/puma/puma/blob/main/lib/puma/reactor.rb#L150-L155'>GitHub</a>&#8202;]</span>
+<div class='source_code h'>
+  <pre class='lines_num' data-start='150' data-end='155'></pre>
+  <div class='lines_code'>
+<pre><span class='info file'># File 'lib/puma/reactor.rb', line 150</span></pre>
+<pre class='code ruby'>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_requeue_moved_timeouts'>requeue_moved_timeouts</span>
+  <span class='kw'>while</span> (<span class='id identifier rubyid_client'>client</span> <span class='op'>=</span> <span class='ivar'>@timeouts</span>.<span class='id identifier rubyid_first'>first</span>) <span class='op'>&amp;&amp;</span> <span class='ivar'>@timeout_keys</span>[<span class='id identifier rubyid_client'>client</span>] <span class='op'>&lt;</span> <span class='id identifier rubyid_client'>client</span>.<span class='id identifier rubyid_timeout_at'>timeout_at</span>
+    <span class='ivar'>@timeouts</span>.<span class='id identifier rubyid_shift'>shift</span>
+    <span class='id identifier rubyid_requeue'><a href="#requeue-instance_method" title="Puma::Reactor#requeue (method)">requeue</a></span> <span class='id identifier rubyid_client'>client</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
 </pre>
   </div>
 </div>
@@ -337,11 +429,11 @@ Returns false if the reactor is already shut down.</p>
     <p>Run the internal select loop, using a background thread by default.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/puma/puma/blob/main/lib/puma/reactor.rb#L43-L52'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/puma/puma/blob/main/lib/puma/reactor.rb#L44-L53'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='43' data-end='52'></pre>
+  <pre class='lines_num' data-start='44' data-end='53'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/puma/reactor.rb', line 43</span></pre>
+<pre><span class='info file'># File 'lib/puma/reactor.rb', line 44</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_run'>run</span>(<span class='id identifier rubyid_background'>background</span><span class='op'>=</span><span class='kw'>true</span>)
@@ -363,21 +455,23 @@ Returns false if the reactor is already shut down.</p>
   <h3 class='signature priv'>
     #<strong>select_loop</strong>   <span class="extras">(<span class='priv'>private</span>)</span>
   </h3>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/puma/puma/blob/main/lib/puma/reactor.rb#L77-L109'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/puma/puma/blob/main/lib/puma/reactor.rb#L78-L112'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='77' data-end='109'></pre>
+  <pre class='lines_num' data-start='78' data-end='112'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/puma/reactor.rb', line 77</span></pre>
+<pre><span class='info file'># File 'lib/puma/reactor.rb', line 78</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_select_loop'>select_loop</span>
   <span class='kw'>begin</span>
     <span class='kw'>until</span> <span class='ivar'>@input</span>.<span class='id identifier rubyid_closed?'>closed?</span> <span class='op'>&amp;&amp;</span> <span class='ivar'>@input</span>.<span class='id identifier rubyid_empty?'>empty?</span>
+      <span class='id identifier rubyid_requeue_moved_timeouts'><a href="#requeue_moved_timeouts-instance_method" title="Puma::Reactor#requeue_moved_timeouts (method)">requeue_moved_timeouts</a></span>
+
       <span class='comment'># Wakeup any registered object that receives incoming data.
 </span>      <span class='comment'># Block until the earliest timeout or Selector#wakeup is called.
 </span>      <span class='id identifier rubyid_timeout'>timeout</span> <span class='op'>=</span> (<span class='id identifier rubyid_earliest'>earliest</span> <span class='op'>=</span> <span class='ivar'>@timeouts</span>.<span class='id identifier rubyid_first'>first</span>) <span class='op'>&amp;&amp;</span> <span class='id identifier rubyid_earliest'>earliest</span>.<span class='id identifier rubyid_timeout'>timeout</span>
       <span class='ivar'>@selector</span>.<span class='id identifier rubyid_select'>select</span>(<span class='id identifier rubyid_timeout'>timeout</span>) <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_monitor'>monitor</span><span class='op'>|</span>
-        <span class='id identifier rubyid_wakeup!'><a href="#wakeup!-instance_method" title="Puma::Reactor#wakeup! (method)">wakeup!</a></span>(<span class='id identifier rubyid_monitor'>monitor</span>.<span class='id identifier rubyid_value'>value</span>)
+        <span class='id identifier rubyid_monitor'>monitor</span>.<span class='id identifier rubyid_interests'><a href="#interests-instance_method" title="Puma::Reactor#interests (method)">interests</a></span> <span class='op'>=</span> <span class='id identifier rubyid_interests'><a href="#interests-instance_method" title="Puma::Reactor#interests (method)">interests</a></span>(<span class='id identifier rubyid_monitor'>monitor</span>.<span class='id identifier rubyid_value'>value</span>) <span class='kw'>unless</span> <span class='id identifier rubyid_wakeup!'><a href="#wakeup!-instance_method" title="Puma::Reactor#wakeup! (method)">wakeup!</a></span>(<span class='id identifier rubyid_monitor'>monitor</span>.<span class='id identifier rubyid_value'>value</span>)
       <span class='kw'>end</span>
 
       <span class='comment'># Wakeup all objects that timed out.
@@ -389,7 +483,7 @@ Returns false if the reactor is already shut down.</p>
           <span class='id identifier rubyid_client'>client</span> <span class='op'>=</span> <span class='ivar'>@input</span>.<span class='id identifier rubyid_pop'>pop</span>
           <span class='id identifier rubyid_register'><a href="#register-instance_method" title="Puma::Reactor#register (method)">register</a></span>(<span class='id identifier rubyid_client'>client</span>) <span class='kw'>if</span> <span class='id identifier rubyid_client'>client</span>.<span class='id identifier rubyid_io_ok?'>io_ok?</span>
         <span class='kw'>end</span>
-        <span class='ivar'>@timeouts</span>.<span class='id identifier rubyid_sort_by!'>sort_by!</span>(<span class='op'>&amp;</span><span class='symbeg'>:</span><span class='id identifier rubyid_timeout_at'>timeout_at</span>)
+        <span class='ivar'>@timeouts</span>.<span class='id identifier rubyid_sort_by!'>sort_by!</span> { <span class='op'>|</span><span class='id identifier rubyid_client'>client</span><span class='op'>|</span> <span class='ivar'>@timeout_keys</span>[<span class='id identifier rubyid_client'>client</span>] }
       <span class='kw'>end</span>
     <span class='kw'>end</span>
   <span class='kw'>rescue</span> <span class='const'><a href="../StandardError.html" title="StandardError (class)">StandardError</a></span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
@@ -417,11 +511,11 @@ Returns false if the reactor is already shut down.</p>
     <p>Shutdown the reactor, blocking until the background thread is finished.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/puma/puma/blob/main/lib/puma/reactor.rb#L66-L73'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/puma/puma/blob/main/lib/puma/reactor.rb#L67-L74'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='66' data-end='73'></pre>
+  <pre class='lines_num' data-start='67' data-end='74'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/puma/reactor.rb', line 66</span></pre>
+<pre><span class='info file'># File 'lib/puma/reactor.rb', line 67</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_shutdown'>shutdown</span>
@@ -447,11 +541,11 @@ Returns false if the reactor is already shut down.</p>
 Stop monitoring the object if the block returns <code>true</code>.</p>
   </div>
 </div>
-  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/puma/puma/blob/main/lib/puma/reactor.rb#L123-L129'>GitHub</a>&#8202;]</span>
+  <span class='link_repo'>[&#8202;<a class='repo' href='https://github.com/puma/puma/blob/main/lib/puma/reactor.rb#L131-L145'>GitHub</a>&#8202;]</span>
 <div class='source_code h'>
-  <pre class='lines_num' data-start='123' data-end='129'></pre>
+  <pre class='lines_num' data-start='131' data-end='145'></pre>
   <div class='lines_code'>
-<pre><span class='info file'># File 'lib/puma/reactor.rb', line 123</span></pre>
+<pre><span class='info file'># File 'lib/puma/reactor.rb', line 131</span></pre>
 <pre class='code ruby'>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_wakeup!'>wakeup!</span>(<span class='id identifier rubyid_client'>client</span>)
@@ -459,6 +553,14 @@ Stop monitoring the object if the block returns <code>true</code>.</p>
     <span class='ivar'>@selector</span>.<span class='id identifier rubyid_deregister'>deregister</span> <span class='id identifier rubyid_client'>client</span>.<span class='id identifier rubyid_to_io'>to_io</span>
     <span class='ivar'>@reactor_size</span> <span class='op'>-=</span> <span class='int'>1</span>
     <span class='ivar'>@timeouts</span>.<span class='id identifier rubyid_delete'>delete</span> <span class='id identifier rubyid_client'>client</span>
+    <span class='ivar'>@timeout_keys</span>.<span class='id identifier rubyid_delete'>delete</span> <span class='id identifier rubyid_client'>client</span>
+    <span class='kw'>true</span>
+  <span class='kw'>else</span>
+    <span class='kw'>if</span> <span class='id identifier rubyid_client'>client</span>.<span class='id identifier rubyid_timeout_at'>timeout_at</span> <span class='op'>&lt;</span> <span class='ivar'>@timeout_keys</span>[<span class='id identifier rubyid_client'>client</span>]
+      <span class='ivar'>@timeouts</span>.<span class='id identifier rubyid_delete'>delete</span> <span class='id identifier rubyid_client'>client</span>
+      <span class='id identifier rubyid_requeue'><a href="#requeue-instance_method" title="Puma::Reactor#requeue (method)">requeue</a></span> <span class='id identifier rubyid_client'>client</span>
+    <span class='kw'>end</span>
+    <span class='kw'>false</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span>
 </pre>
