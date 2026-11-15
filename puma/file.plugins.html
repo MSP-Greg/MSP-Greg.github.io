@@ -61,7 +61,7 @@
     <span id='y_measure_50pre' class='y_measure'><code>123456789_123456789_123456789_123456789_123456789_</code></span>
   </header>
 <div id='content' class='file'>
-<h2 id="Plugins">Plugins</h2>
+<h1 id="Plugins">Plugins</h1>
 <p><a href="Puma.html" title="Puma (module)"><code>Puma</code></a> 3.0 added support for plugins that can augment configuration and service
 operations.</p>
 <p>There are two canonical plugins to aid in the development of new plugins:</p>
@@ -88,6 +88,59 @@ object that is useful for additional configuration.</p>
 public API for plugins.</p>
 <h2 id="Binder_hooks">Binder hooks</h2>
 <p>There's a <a href="Puma/Binder.html#before_parse-instance_method" title="Puma::Binder#before_parse (method)">Puma::Binder#before_parse</a> method that allows adding a proc to run before the body of <a href="Puma/Binder.html#parse-instance_method" title="Puma::Binder#parse (method)">Puma::Binder#parse</a>. Example of usage can be found in<a href='https://github.com/anchordotdev/puma-acme/blob/v0.1.3/lib/puma/acme/binder.rb'>that repository](<a href="https://github.com/anchordotdev/puma-acme/blob/v0.1.3/lib/puma/acme/plugin.rb#L97-L118">https://github.com/anchordotdev/puma-acme/blob/v0.1.3/lib/puma/acme/plugin.rb#L97-L118</a>) (<code>before_parse_hook</code> could be renamed <code>before_parse</code>, making monkey patching of [binder.rb</a> unnecessary).</p>
+<h2 id="Community_plugins">Community plugins</h2>
+<p>*<a href='https://github.com/harmjanblok/puma-metrics'>puma-metrics</a> — export <a href="Puma.html" title="Puma (module)"><code>Puma</code></a> metrics to Prometheus
+*<a href='https://github.com/yob/puma-plugin-statsd'>puma-plugin-statsd</a> — send <a href="Puma.html" title="Puma (module)"><code>Puma</code></a> metrics to statsd
+*<a href='https://github.com/sj26/puma-plugin-systemd'>puma-plugin-systemd</a> — deeper integration with systemd for notify, status and watchdog. <a href="Puma.html" title="Puma (module)"><code>Puma</code></a> 5.1.0 integrated notify and watchdog, which probably conflicts with this plugin. <a href="Puma.html" title="Puma (module)"><code>Puma</code></a> 6.1.0 added status support which obsoletes the plugin entirely.
+*<a href='https://github.com/babbel/puma-plugin-telemetry'>puma-plugin-telemetry</a> - telemetry plugin for <a href="Puma.html" title="Puma (module)"><code>Puma</code></a> offering various targets to publish
+*<a href='https://github.com/anchordotdev/puma-acme'>puma-acme</a> - automatic SSL/HTTPS certificate provisioning and setup</p>
+<h2 id="Example_stopping_Puma_via_Redis">Example: stopping Puma via Redis</h2>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>puma/plugin</span><span class='tstring_end'>&#39;</span></span>
+<span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>redis</span><span class='tstring_end'>&#39;</span></span>
+
+<span class='comment'># How to stop Puma on Heroku
+</span><span class='comment'># - You can&#39;t use normal methods because the dyno is not accessible
+</span><span class='comment'># - There&#39;s no file system, no way to send signals
+</span><span class='comment'># but ...
+</span><span class='comment'># - You can use Redis or Memcache; any network distributed key-value
+</span><span class='comment'>#   store
+</span>
+<span class='comment'># 1. Add this plugin to your &#39;lib&#39; directory
+</span><span class='comment'># 2. In the `puma.rb` config file add the following lines
+</span><span class='comment'>#    === Plugins ===
+</span><span class='comment'>#    require &#39;./lib/puma/plugin/redis_stop_puma&#39;
+</span><span class='comment'>#    plugin &#39;redis_stop_puma&#39;
+</span><span class='comment'># 3. Now, when you set the redis key &quot;puma::restart::web.1&quot;, your web.1 dyno
+</span><span class='comment'>#    will restart
+</span><span class='comment'># 4. Sniffing the Heroku logs for R14 errors is application (and configuration)
+</span><span class='comment'>#    specific. I use the Logentries service, watch for the pattern and the call
+</span><span class='comment'>#    a webhook back into my app to set the Redis key. YMMV
+</span>
+<span class='comment'># You can test this locally by setting the DYNO environment variable when
+</span><span class='comment'># when starting puma, e.g. `DYNO=pants.1 puma`
+</span>
+<span class='const'><a href="Puma.html" title="Puma (module)">Puma</a></span><span class='op'>::</span><span class='const'><a href="Puma/Plugin.html" title="Puma::Plugin (class)">Plugin</a></span>.<span class='id identifier rubyid_create'><a href="Puma/Plugin.html#create-class_method" title="Puma::Plugin.create (method)">create</a></span> <span class='kw'>do</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_start'>start</span>(<span class='id identifier rubyid_launcher'>launcher</span>)
+
+    <span class='id identifier rubyid_hostname'>hostname</span> <span class='op'>=</span> <span class='const'>ENV</span>[<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>DYNO</span><span class='tstring_end'>&#39;</span></span>]
+    <span class='kw'>return</span> <span class='kw'>unless</span> <span class='id identifier rubyid_hostname'>hostname</span>
+
+    <span class='id identifier rubyid_redis'>redis</span> <span class='op'>=</span> <span class='const'>Redis</span>.<span class='id identifier rubyid_new'>new</span>(<span class='label'>url:</span> <span class='const'>ENV</span>.<span class='id identifier rubyid_fetch'>fetch</span>(<span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>REDIS_URL</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='kw'>nil</span>))
+    <span class='kw'>return</span> <span class='kw'>unless</span> <span class='id identifier rubyid_redis'>redis</span>.<span class='id identifier rubyid_ping'>ping</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>PONG</span><span class='tstring_end'>&#39;</span></span>
+
+    <span class='id identifier rubyid_in_background'>in_background</span> <span class='kw'>do</span>
+      <span class='kw'>while</span> <span class='kw'>true</span>
+        <span class='id identifier rubyid_sleep'>sleep</span> <span class='int'>2</span>
+        <span class='kw'>if</span> <span class='id identifier rubyid_message'>message</span> <span class='op'>=</span> <span class='id identifier rubyid_redis'>redis</span>.<span class='id identifier rubyid_get'>get</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>puma::restart::</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_hostname'>hostname</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>)
+          <span class='id identifier rubyid_redis'>redis</span>.<span class='id identifier rubyid_del'>del</span>(<span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>puma::restart::</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_hostname'>hostname</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>)
+          <span class='gvar'>$stderr</span>.<span class='id identifier rubyid_puts'>puts</span> <span class='id identifier rubyid_message'>message</span>
+          <span class='id identifier rubyid_launcher'>launcher</span>.<span class='id identifier rubyid_stop'>stop</span>
+          <span class='kw'>break</span>
+        <span class='kw'>end</span>
+      <span class='kw'>end</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
 <div id='footer'></div>
 </div> <!-- content  -->
 </div> <!-- y_main   -->
