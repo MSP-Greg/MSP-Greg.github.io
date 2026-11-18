@@ -62,6 +62,93 @@
   </header>
 <div id='content' class='file'>
 <h2 id="Unreleased">Unreleased</h2>
+<h2 id="4_2_2_2026_11_17">4.2.2 / 2026-11-17</h2>
+<ul>
+<li>
+<p>Fix: Require a dot before the domain for leading-dot <code>permitted_hosts</code> in <a href="Rack/Protection/HostAuthorization.html" title="Rack::Protection::HostAuthorization (class)"><code>::Rack::Protection::HostAuthorization</code></a></p>
+<ul>
+<li><code>.example.org</code> no longer permits hosts that only end in <code>example.org</code>, like <code>evilexample.org</code></li>
+</ul>
+</li>
+<li>
+<p>Fix: Do not treat a missing <code>Referer</code> as same-origin when <code>Sec-Fetch-Site</code> says the request is cross-site or same-site</p>
+<ul>
+<li>Affects <code>RemoteToken</code>, <code>JsonCsrf</code> and <code>RemoteReferrer</code> in <code>Rack::Protection</code></li>
+<li>Requests with neither header are accepted as before, <code>allow_empty_referrer</code> still defaults to <code>true</code></li>
+</ul>
+</li>
+<li>
+<p>Fix: <a href="Rack/Protection/CookieTossing.html" title="Rack::Protection::CookieTossing (class)"><code>::Rack::Protection::CookieTossing</code></a> no longer rejects all requests after one with duplicate session cookies</p>
+</li>
+<li>
+<p>Docs: Document that static files are served through symlinks pointing outside <code>public_folder</code></p>
+</li>
+<li>
+<p>Fix: <a href="Sinatra/QuietLogger.html" title="Sinatra::QuietLogger (module)"><code>::Sinatra::QuietLogger</code></a> no longer hides requests that are routed outside the quiet prefixes</p>
+<ul>
+<li><code>/images/../admin</code> is routed to <code>/admin</code>, so it is now logged even with <code>images</code> as a quiet prefix</li>
+</ul>
+</li>
+<li>
+<p>Fix: Set <code>Strict-Transport-Security</code> and <code>Referrer-Policy</code> on responses rejected by other protections</p>
+<ul>
+<li>Only for apps that use <code>strict_transport</code> or <code>referrer_policy</code>, neither is enabled by default</li>
+<li>Responses rejected by <code>AuthenticityToken</code>, <code>FormToken</code> or <code>CookieTossing</code> now have both headers, those rejected by <code>RemoteReferrer</code> or <code>SessionHijacking</code> now have <code>Strict-Transport-Security</code></li>
+<li>Requests are accepted and rejected as before, so nothing changes with the <code>drop_session</code> reaction, the default in Sinatra, as it does not reject requests</li>
+<li>A header already set on the response is kept</li>
+</ul>
+</li>
+<li>
+<p>Fix: Run <a href="Rack/Protection/PathTraversal.html" title="Rack::Protection::PathTraversal (class)"><code>::Rack::Protection::PathTraversal</code></a> before the other protections</p>
+<ul>
+<li>All protections now see the normalized path, the one the app routes on, where some saw the path as it was sent</li>
+<li>Only requests with a path that gets normalized are affected: <code>.</code> or <code>..</code> segments, <code>%2e</code>, <code>%2f</code>, <code>%5c</code>, backslashes or repeated slashes</li>
+<li>Check code written for the path as it was sent: an <code>allow_if</code> matching <code>/webhooks/[^/]+</code> no longer matches <code>/webhooks/a%2Fb</code>, as it is called with <code>/webhooks/a/b</code></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>What</th>
+<th>Before</th>
+<th>After</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>allow_if</code> of <code>AuthenticityToken</code>, <code>FormToken</code>, <code>HttpOrigin</code> and <code>JsonCsrf</code></td>
+<td>called with the path as it was sent</td>
+<td>called with the normalized path</td>
+</tr>
+<tr>
+<td><code>instrumenter</code> of the protections that ran before <code>PathTraversal</code></td>
+<td>notified with the path as it was sent</td>
+<td>notified with the normalized path</td>
+</tr>
+<tr>
+<td>Per-form tokens of <code>AuthenticityToken</code> and <code>FormToken</code></td>
+<td>checked against the path as it was sent</td>
+<td>checked against the normalized path</td>
+</tr>
+<tr>
+<td><code>CookieTossing</code></td>
+<td>redirected to, and expired cookies for, the path as it was sent</td>
+<td>uses the normalized path</td>
+</tr>
+<tr>
+<td><code>RemoteToken</code>, <code>XSSHeader</code> and middleware added with <code>use</code></td>
+<td>saw the normalized path</td>
+<td>unchanged</td>
+</tr>
+</tbody>
+</table>
+</li>
+<li>
+<p>Fix: <code>rack-protection</code> and <code>sinatra-contrib</code> used from a path source no longer fail to load after <code>bundle cache</code> <a href='https://github.com/sinatra/sinatra/pull/2144'>#2144</a>)</p>
+</li>
+<li>
+<p>Fix: Avoid &quot;method redefined&quot; warnings in <a href="Sinatra/Delegator.html" title="Sinatra::Delegator (module)"><code>::Sinatra::Delegator</code></a> <a href='https://github.com/sinatra/sinatra/pull/2139'>#2139</a>)</p>
+</li>
+</ul>
 <h2 id="4_2_1_2025_10_10">4.2.1 / 2025-10-10</h2>
 <ul>
 <li>Fix: Revert &quot;<code>PATH_INFO</code> can never be empty&quot; <a href='https://github.com/sinatra/sinatra/pull/2124'>#2124</a>)
@@ -1945,7 +2032,7 @@ be used instead.</p>
 <li>
 <p>Test framework specific libraries (<code>sinatra/test/spec</code>,
 <code>sinatra/test/bacon</code>,<code>sinatra/test/rspec</code>, etc.) are obsolete. See
-<a href="http://www.sinatrarb.com/testing.html">http://www.sinatrarb.com/testing.html</a> for instructions on setting up a
+<a href="https://sinatra.run/testing.html">https://sinatra.run/testing.html</a> for instructions on setting up a
 testing environment under each of these frameworks.</p>
 </li>
 <li>
@@ -1984,7 +2071,7 @@ instead.</p>
 <li>
 <p>The <code>Sinatra::Event</code> and <code>Sinatra::EventContext</code> classes are no longer
 supported. This may effect extensions written for versions prior to 0.9.2.
-See<a href='http://www.sinatrarb.com/extensions.html'>Writing Sinatra Extensions</a>
+See<a href='https://sinatra.run/extensions.html'>Writing Sinatra Extensions</a>
 for the officially supported extensions API.</p>
 </li>
 <li>
@@ -2158,7 +2245,7 @@ request-level methods. Use Sinatra.register(mixin) to extend
 the DSL with all public methods defined in the mixin module;
 use Sinatra.helpers(mixin) to make all public methods defined
 in the mixin module available at the request level. [#138]
-See <a href="http://www.sinatrarb.com/extensions.html">http://www.sinatrarb.com/extensions.html</a> for details.</p>
+See <a href="https://sinatra.run/extensions.html">https://sinatra.run/extensions.html</a> for details.</p>
 </li>
 <li>
 <p>Named parameters in routes now capture the &quot;.&quot; character. This makes
@@ -2188,7 +2275,7 @@ get '/', {}, :session =&gt; { 'foo' =&gt; 'bar' }</p>
 <li>
 <p>The testing framework specific files ('sinatra/test/spec',
 'sinatra/test/bacon', 'sinatra/test/rspec', etc.) have been deprecated.
-See <a href="http://sinatrarb.com/testing.html">http://sinatrarb.com/testing.html</a> for instructions on setting up
+See <a href="https://sinatra.run/testing.html">https://sinatra.run/testing.html</a> for instructions on setting up
 a testing environment with these frameworks.</p>
 </li>
 <li>
