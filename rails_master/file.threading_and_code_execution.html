@@ -144,10 +144,9 @@ pair:</p>
   <span class='id identifier rubyid_execution_context'>execution_context</span>.<span class='id identifier rubyid_complete!'>complete!</span> <span class='kw'>if</span> <span class='id identifier rubyid_execution_context'>execution_context</span>
 <span class='kw'>end</span></code></pre>
 <h4 id="Running_Mode">Running Mode</h4>
-<p>The Executor will put the current thread into <code>running</code> mode in the <a href="#load-interlock">Load
-Interlock</a>. This operation will block temporarily if another
-thread is currently either autoloading a constant or unloading/reloading the
-application.</p>
+<p>The Executor will put the current thread into <code>running</code> mode in the <a href="#reloading-interlock">Reloading
+Interlock</a>. This operation will block temporarily if
+another thread is currently unloading/reloading the application.</p>
 <h3 id="The_Reloader">The Reloader</h3>
 <p>Like the Executor, the<a href='https://api.rubyonrails.org/classes/ActiveSupport/Reloader.html'>Reloader</a> also
 wraps application code. The Reloader is only suitable where a long-running
@@ -221,10 +220,10 @@ are both <code>true</code>. These are the defaults in the <code>development</cod
 Reloader is only a pass-through to the Executor.</p>
 <p>The Executor always has important work to do, like database connection
 management. When <code>config.enable_reloading</code> is <code>false</code> and <code>config.eager_load</code> is
-<code>true</code> (<code>production</code> defaults), no reloading will occur, so it does not need the<a href='#Load_Interlock'>Load Interlock</a>. With the default settings in the
-<code>development</code> environment, the Executor will use the Load Interlock to ensure
-constants are only loaded when it is safe.</p>
-<h2 id="Load_Interlock">Load Interlock</h2>
+<code>true</code> (<code>production</code> defaults), no reloading will occur, so it does not need the<a href='#Reloading_Interlock'>Reloading Interlock</a>. With the default settings in the
+<code>development</code> environment, the Executor will use the Reloading Interlock to
+ensure code reloading is performed safely.</p>
+<h2 id="Reloading_Interlock">Reloading Interlock</h2>
 <p>The Reloading Interlock ensures that code reloading can be performed safely in a
 multi-threaded runtime environment.</p>
 <p>It is only safe to perform an unload/reload when no application code is in
@@ -234,57 +233,8 @@ a different class. Without this rule, a poorly-timed reload would mean
 <p>The Reloading Interlock addresses this constraint by keeping track of which
 threads are currently running application code, and ensuring that reloading
 waits until no other threads are executing application code.</p>
-<h3 id="permit_concurrent_loads_"><code>permit_concurrent_loads</code></h3>
-<p>The Executor automatically acquires a <code>running</code> lock for the duration of its
-block, and autoload knows when to upgrade to a <code>load</code> lock, and switch back to
-<code>running</code> again afterwards.</p>
-<p>Other blocking operations performed inside the Executor block (which includes
-all application code), however, can needlessly retain the <code>running</code> lock. If
-another thread encounters a constant that it must autoload, this can cause a
-deadlock.</p>
-<p>For example, assuming <code>User</code> is not yet loaded, the following will deadlock:</p>
-<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_executor'>executor</span>.<span class='id identifier rubyid_wrap'>wrap</span> <span class='kw'>do</span>
-  <span class='id identifier rubyid_th'>th</span> <span class='op'>=</span> <span class='const'>Thread</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
-    <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_executor'>executor</span>.<span class='id identifier rubyid_wrap'>wrap</span> <span class='kw'>do</span>
-      <span class='const'>User</span> <span class='comment'># inner thread waits here; it cannot load
-</span>           <span class='comment'># User while another thread is running
-</span>    <span class='kw'>end</span>
-  <span class='kw'>end</span>
-
-  <span class='id identifier rubyid_th'>th</span>.<span class='id identifier rubyid_join'>join</span> <span class='comment'># outer thread waits here, holding &#39;running&#39; lock
-</span><span class='kw'>end</span></code></pre>
-<p>To prevent this deadlock, the outer thread can <code>permit_concurrent_loads</code>. By
-calling this method, the thread guarantees it will not dereference any
-possibly-autoloaded constant inside the supplied block. The safest way to meet
-that promise is to put it as close as possible to the blocking call:</p>
-<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_executor'>executor</span>.<span class='id identifier rubyid_wrap'>wrap</span> <span class='kw'>do</span>
-  <span class='id identifier rubyid_th'>th</span> <span class='op'>=</span> <span class='const'>Thread</span>.<span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span>
-    <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_executor'>executor</span>.<span class='id identifier rubyid_wrap'>wrap</span> <span class='kw'>do</span>
-      <span class='const'>User</span> <span class='comment'># inner thread can acquire the &#39;load&#39; lock,
-</span>           <span class='comment'># load User, and continue
-</span>    <span class='kw'>end</span>
-  <span class='kw'>end</span>
-
-  <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/Dependencies.html" title="ActiveSupport::Dependencies (module)">Dependencies</a></span>.<span class='id identifier rubyid_interlock'><a href="ActiveSupport/Dependencies.html#interlock-instance_method" title="ActiveSupport::Dependencies#interlock (method)">interlock</a></span>.<span class='id identifier rubyid_permit_concurrent_loads'>permit_concurrent_loads</span> <span class='kw'>do</span>
-    <span class='id identifier rubyid_th'>th</span>.<span class='id identifier rubyid_join'>join</span> <span class='comment'># outer thread waits here, but has no lock
-</span>  <span class='kw'>end</span>
-<span class='kw'>end</span></code></pre>
-<p>Another example, using Concurrent Ruby:</p>
-<pre class="code ruby"><code class="ruby"><span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_executor'>executor</span>.<span class='id identifier rubyid_wrap'>wrap</span> <span class='kw'>do</span>
-  <span class='id identifier rubyid_futures'>futures</span> <span class='op'>=</span> <span class='int'>3</span>.<span class='id identifier rubyid_times'>times</span>.<span class='id identifier rubyid_collect'>collect</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_i'>i</span><span class='op'>|</span>
-    <span class='const'>Concurrent</span><span class='op'>::</span><span class='const'>Promises</span>.<span class='id identifier rubyid_future'>future</span> <span class='kw'>do</span>
-      <span class='const'><a href="Rails.html" title="Rails (module)">Rails</a></span>.<span class='id identifier rubyid_application'><a href="Rails.html#application-class_method" title="Rails.application (method)">application</a></span>.<span class='id identifier rubyid_executor'>executor</span>.<span class='id identifier rubyid_wrap'>wrap</span> <span class='kw'>do</span>
-        <span class='comment'># do work here
-</span>      <span class='kw'>end</span>
-    <span class='kw'>end</span>
-  <span class='kw'>end</span>
-
-  <span class='id identifier rubyid_values'>values</span> <span class='op'>=</span> <span class='const'><a href="ActiveSupport.html" title="ActiveSupport (module)">ActiveSupport</a></span><span class='op'>::</span><span class='const'><a href="ActiveSupport/Dependencies.html" title="ActiveSupport::Dependencies (module)">Dependencies</a></span>.<span class='id identifier rubyid_interlock'><a href="ActiveSupport/Dependencies.html#interlock-instance_method" title="ActiveSupport::Dependencies#interlock (method)">interlock</a></span>.<span class='id identifier rubyid_permit_concurrent_loads'>permit_concurrent_loads</span> <span class='kw'>do</span>
-    <span class='id identifier rubyid_futures'>futures</span>.<span class='id identifier rubyid_collect'>collect</span>(<span class='op'>&amp;</span><span class='symbeg'>:</span><span class='id identifier rubyid_value'>value</span>)
-  <span class='kw'>end</span>
-<span class='kw'>end</span></code></pre>
 <h3 id="ActionDispatch_DebugLocks_"><a href="ActionDispatch/DebugLocks.html" title="ActionDispatch::DebugLocks (class)"><code>::ActionDispatch::DebugLocks</code></a></h3>
-<p>If your application is deadlocking and you think the Load Interlock may be
+<p>If your application is deadlocking and you think the Reloading Interlock may be
 involved, you can temporarily add the <a href="ActionDispatch/DebugLocks.html" title="ActionDispatch::DebugLocks (class)"><code>::ActionDispatch::DebugLocks</code></a> middleware to
 <code>config/application.rb</code>:</p>
 <pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_config'>config</span>.<span class='id identifier rubyid_middleware'>middleware</span>.<span class='id identifier rubyid_insert_before'>insert_before</span> <span class='const'><a href="ActionDispatch.html" title="ActionDispatch (module)">ActionDispatch</a></span><span class='op'>::</span><span class='const'><a href="ActionDispatch/Executor.html" title="ActionDispatch::Executor (class)">Executor</a></span><span class='comma'>,</span>
@@ -294,8 +244,8 @@ involved, you can temporarily add the <a href="ActionDispatch/DebugLocks.html" t
 interlock, which lock level they are holding or awaiting, and their current
 backtrace.</p>
 <p>Generally a deadlock will be caused by the interlock conflicting with some other
-external lock or blocking I/O call. Once you find it, you can wrap it with
-<code>permit_concurrent_loads</code>.</p>
+external lock or blocking I/O call. These cannot be automatically identified,
+but should be visible in the displayed backtraces.</p>
 <div id='footer'></div>
 </div> <!-- content  -->
 </div> <!-- y_main   -->
