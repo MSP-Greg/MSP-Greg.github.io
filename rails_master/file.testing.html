@@ -954,6 +954,40 @@ often.</p>
 <p>NOTE: Functional tests do not verify whether the specified request type is
 accepted by the action; instead, they focus on the result. For testing the
 request type, request tests are available, making your tests more purposeful.</p>
+<h3 id="Testing_JSON_Requests">Testing JSON Requests</h3>
+<p>When testing a request, Action Dispatch serializes the <code>:params</code> argument based
+on an optional <code>:as</code> argument that specifies the content type. For example, when
+<code>:as</code> is set to <code>:json</code>, Action Dispatch encodes the <code>:params</code> argument into the
+request body as JSON. When asserting the response, the<a href='https://api.rubyonrails.org/classes/ActionDispatch/TestResponse.html#method-i-parsed_body'><code>ActionDispatch::TestResponse#parsed_body</code>&lt;/a&gt;
+method parses the response body into a<a href='https://api.rubyonrails.org/classes/ActiveSupport/HashWithIndifferentAccess.html'><code>HashWithIndifferentAccess</code>&lt;/a&gt;:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_test'>test</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>should create an Article with JSON</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_post'>post</span> <span class='id identifier rubyid_articles_path'>articles_path</span><span class='comma'>,</span> <span class='label'>as:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_json'>json</span><span class='comma'>,</span> <span class='label'>params:</span> {
+    <span class='label'>article:</span> { <span class='label'>body:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Rails is awesome!</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>title:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Hello Rails</span><span class='tstring_end'>&quot;</span></span> }
+  }
+
+  <span class='id identifier rubyid_assert_equal'>assert_equal</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Rails is awesome!</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_response'>response</span>.<span class='id identifier rubyid_parsed_body'>parsed_body</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_body'>body</span>]
+  <span class='id identifier rubyid_assert_equal'>assert_equal</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Hello Rails</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_response'>response</span>.<span class='id identifier rubyid_parsed_body'>parsed_body</span>[<span class='symbeg'>:</span><span class='id identifier rubyid_title'>title</span>]
+<span class='kw'>end</span></code></pre>
+<p>Since <code>response.parsed_body</code> returns a <a href="#HashWithIndifferentAccess-constant" title="HashWithIndifferentAccess (constant)">HashWithIndifferentAccess</a> for JSON
+responses, tests can combine Ruby <a href="https://docs.ruby-lang.org/en/master/syntax/pattern_matching_rdoc.html">pattern
+matching</a>
+with Minitest's<a href='https://docs.seattlerb.org/minitest/Minitest/Assertions.html#method-i-assert_pattern'><code>assert_pattern</code>&lt;/a&gt;
+assertion:</p>
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_test'>test</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>should create an Article with JSON</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_post'>post</span> <span class='id identifier rubyid_articles_path'>articles_path</span><span class='comma'>,</span> <span class='label'>as:</span> <span class='symbeg'>:</span><span class='id identifier rubyid_json'>json</span><span class='comma'>,</span> <span class='label'>params:</span> {
+    <span class='label'>article:</span> { <span class='label'>body:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Rails is awesome!</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>title:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Hello Rails</span><span class='tstring_end'>&quot;</span></span> }
+  }
+
+  <span class='id identifier rubyid_assert_pattern'>assert_pattern</span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_response'>response</span>.<span class='id identifier rubyid_parsed_body'>parsed_body</span> <span class='op'>=&gt;</span> { <span class='label'>body:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Rails is awesome!</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>title:</span> <span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>hello rails</span><span class='regexp_end'>/i</span></span> }
+  <span class='kw'>end</span>
+<span class='kw'>end</span></code></pre>
+<p>Test request encoding and response parsing is configurable, and can be
+configuring with<a href='https://api.rubyonrails.org/classes/ActionDispatch/IntegrationTest/Behavior/ClassMethods.html#method-i-register_encoder'><code>ActionDispatch::IntegrationTest.register_encoder</code>&lt;/a&gt;.
+The <code>register_encoder</code> method accepts a two callable options. The
+<code>:param_encoder</code> option controls how the <code>:params</code> option is encoded into the
+request, and the <code>:response_parser</code> option controls how the body is parsed from
+the response.</p>
 <h3 id="Testing_XHR_AJAX_Requests">Testing XHR (AJAX) Requests</h3>
 <p>An AJAX request (Asynchronous JavaScript and XML) is a technique where content is
 fetched from the server using asynchronous HTTP requests and the relevant parts
@@ -1232,7 +1266,7 @@ include:</p>
 for helpers relating to the integration test runner, including creating a new
 session.</p>
 <p>*<a href='https://api.rubyonrails.org/classes/ActionDispatch/Integration/RequestHelpers.html'><code>ActionDispatch::Integration::RequestHelpers</code>&lt;/a&gt;
-for performing requests.</p>
+for performing requests. Responses are instances of<a href='https://api.rubyonrails.org/classes/ActionDispatch/TestResponse.html'><code>ActionDispatch::TestResponse</code>&lt;/a&gt;.</p>
 <p>*<a href='https://api.rubyonrails.org/classes/ActionDispatch/TestProcess/FixtureFile.html'><code>ActionDispatch::TestProcess::FixtureFile</code>&lt;/a&gt;
 for uploading files.</p>
 <p>*<a href='https://api.rubyonrails.org/classes/ActionDispatch/Integration/Session.html'><code>ActionDispatch::Integration::Session</code>&lt;/a&gt;
